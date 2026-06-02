@@ -7,7 +7,7 @@
  *  resolver caching, and priority ordering.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal as XTerm } from "@xterm/xterm";
+import type { ILinkHandler, Terminal as XTerm } from "@xterm/xterm";
 import { UrlLinkProvider } from "../../screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/link-providers";
 import type { DetectedLink } from "./links";
 import {
@@ -18,6 +18,10 @@ import {
 	WordLinkDetector,
 } from "./links";
 
+export type LinkHoverInfo =
+	| { kind: "file"; isDirectory: boolean }
+	| { kind: "url" };
+
 /**
  * Link handler callbacks for the v2 terminal.
  */
@@ -25,7 +29,11 @@ export interface TerminalLinkHandlers {
 	/** Called when a file path link is activated (Cmd/Ctrl+click). */
 	onFileLinkClick?: (event: MouseEvent, link: DetectedLink) => void;
 	/** Called when a URL link is activated. */
-	onUrlClick?: (url: string) => void;
+	onUrlClick?: (event: MouseEvent, url: string) => void;
+	/** Called when the mouse enters a detected link (file path or URL). */
+	onLinkHover?: (event: MouseEvent, info: LinkHoverInfo) => void;
+	/** Called when the mouse leaves a previously hovered link. */
+	onLinkLeave?: () => void;
 	/**
 	 * Stat callback to validate file paths exist. Called via the host service
 	 * which handles all path resolution (relative, tilde, etc.) server-side.
@@ -49,6 +57,7 @@ export class TerminalLinkManager {
 	private _disposables: LinkProviderDisposable[] = [];
 	private _resolver: TerminalLinkResolver | null = null;
 	private _handlers: TerminalLinkHandlers | null = null;
+	private _oscLinkHandler: ILinkHandler | null = null;
 
 	constructor(private readonly _terminal: XTerm) {}
 
@@ -75,9 +84,17 @@ export class TerminalLinkManager {
 	dispose(): void {
 		for (const d of this._disposables) d.dispose();
 		this._disposables = [];
+		this._clearOscLinkHandler();
 		this._resolver?.clearCache();
 		this._resolver = null;
 		this._handlers = null;
+	}
+
+	private _clearOscLinkHandler(): void {
+		if (this._terminal.options.linkHandler === this._oscLinkHandler) {
+			this._terminal.options.linkHandler = null;
+		}
+		this._oscLinkHandler = null;
 	}
 
 	private _register(): void {
@@ -87,11 +104,15 @@ export class TerminalLinkManager {
 		// Dispose old providers to prevent duplicates
 		for (const d of this._disposables) d.dispose();
 		this._disposables = [];
+		this._clearOscLinkHandler();
 
 		// Reuse resolver to preserve stat cache across re-registrations.
 		if (!this._resolver) {
 			this._resolver = new TerminalLinkResolver(handlers.stat);
 		}
+
+		const onLinkHover = handlers.onLinkHover;
+		const onLinkLeave = handlers.onLinkLeave;
 
 		// 1. File path detector (highest priority)
 		const detector = new LocalLinkDetector(this._resolver);
@@ -99,16 +120,46 @@ export class TerminalLinkManager {
 			this._terminal,
 			detector,
 			handlers.onFileLinkClick,
+			onLinkHover
+				? (event, link) =>
+						onLinkHover(event, {
+							kind: "file",
+							isDirectory: link.isDirectory,
+						})
+				: undefined,
+			onLinkLeave,
 		);
 		this._disposables.push(this._terminal.registerLinkProvider(adapter));
 
 		// 2. URL link provider (handles hard-wrapped URLs)
 		if (handlers.onUrlClick) {
 			const onUrlClick = handlers.onUrlClick;
-			const urlProvider = new UrlLinkProvider(this._terminal, (_event, uri) => {
-				onUrlClick(uri);
-			});
+			const urlProvider = new UrlLinkProvider(
+				this._terminal,
+				(event, uri) => {
+					onUrlClick(event, uri);
+				},
+				onLinkHover
+					? (event) => onLinkHover(event, { kind: "url" })
+					: undefined,
+				onLinkLeave,
+			);
 			this._disposables.push(this._terminal.registerLinkProvider(urlProvider));
+
+			// xterm always registers its own OSC 8 hyperlink provider first. Without
+			// this, OSC 8 links use xterm's default confirm() + window.open() path,
+			// which is blocked in Electron and also bypasses our link preferences.
+			this._oscLinkHandler = {
+				allowNonHttpProtocols: false,
+				activate: (event, uri) => {
+					onUrlClick(event, uri);
+				},
+				hover: onLinkHover
+					? (event) => onLinkHover(event, { kind: "url" })
+					: undefined,
+				leave: onLinkLeave ? () => onLinkLeave() : undefined,
+			};
+			this._terminal.options.linkHandler = this._oscLinkHandler;
 		}
 
 		// 3. SUPERSET ADDITION: Word link detector (lowest priority).
@@ -135,6 +186,10 @@ export class TerminalLinkManager {
 						colEnd: undefined,
 					});
 				},
+				onLinkHover
+					? (event) => onLinkHover(event, { kind: "file", isDirectory: false })
+					: undefined,
+				onLinkLeave,
 			);
 			this._disposables.push(this._terminal.registerLinkProvider(wordDetector));
 		}

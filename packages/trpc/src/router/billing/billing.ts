@@ -1,8 +1,9 @@
 import { stripeClient } from "@superset/auth/stripe";
 import { db } from "@superset/db/client";
 import { members, subscriptions } from "@superset/db/schema";
+import { ACTIVE_SUBSCRIPTION_STATUSES } from "@superset/shared/billing";
 import { TRPCError, type TRPCRouterRecord } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import type Stripe from "stripe";
 import { z } from "zod";
 import { env } from "../../env";
@@ -27,12 +28,10 @@ function subtractMonthsClamped(date: Date, months: number) {
 }
 
 async function requireOwnerWithCustomer(ctx: {
-	session: {
-		session: { activeOrganizationId: string | null };
-		user: { id: string };
-	};
+	session: { user: { id: string } };
+	activeOrganizationId: string | null;
 }) {
-	const activeOrgId = ctx.session.session.activeOrganizationId;
+	const activeOrgId = ctx.activeOrganizationId;
 	if (!activeOrgId) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
@@ -48,7 +47,11 @@ async function requireOwnerWithCustomer(ctx: {
 			),
 		}),
 		db.query.subscriptions.findFirst({
-			where: eq(subscriptions.referenceId, activeOrgId),
+			where: and(
+				eq(subscriptions.referenceId, activeOrgId),
+				isNotNull(subscriptions.stripeCustomerId),
+			),
+			orderBy: desc(subscriptions.createdAt),
 		}),
 	]);
 
@@ -67,8 +70,27 @@ async function requireOwnerWithCustomer(ctx: {
 }
 
 export const billingRouter = {
+	activePlan: protectedProcedure.query(async ({ ctx }) => {
+		const activeOrgId = ctx.activeOrganizationId;
+		if (!activeOrgId) return { plan: "free" as const, status: null };
+
+		const subscription = await db.query.subscriptions.findFirst({
+			where: and(
+				eq(subscriptions.referenceId, activeOrgId),
+				inArray(subscriptions.status, ACTIVE_SUBSCRIPTION_STATUSES),
+			),
+			orderBy: desc(subscriptions.createdAt),
+		});
+
+		if (!subscription) {
+			return { plan: "free" as const, status: null };
+		}
+
+		return { plan: subscription.plan, status: subscription.status };
+	}),
+
 	invoices: protectedProcedure.query(async ({ ctx }) => {
-		const activeOrgId = ctx.session.session.activeOrganizationId;
+		const activeOrgId = ctx.activeOrganizationId;
 		if (!activeOrgId) {
 			throw new TRPCError({
 				code: "BAD_REQUEST",
@@ -76,30 +98,55 @@ export const billingRouter = {
 			});
 		}
 
-		const subscription = await db.query.subscriptions.findFirst({
-			where: eq(subscriptions.referenceId, activeOrgId),
+		// The subscriptions table is the only org -> Stripe customer mapping, so
+		// gather every customer this org has ever billed under. Intentionally
+		// unfiltered by status so invoices stay accessible after a downgrade, and
+		// an org can accumulate more than one customer over its lifetime.
+		const subscriptionRows = await db.query.subscriptions.findMany({
+			where: and(
+				eq(subscriptions.referenceId, activeOrgId),
+				isNotNull(subscriptions.stripeCustomerId),
+			),
+			columns: { stripeCustomerId: true },
 		});
 
-		if (!subscription?.stripeCustomerId) {
+		const customerIds = [
+			...new Set(
+				subscriptionRows
+					.map((row) => row.stripeCustomerId)
+					.filter((id): id is string => id !== null),
+			),
+		];
+
+		if (customerIds.length === 0) {
 			return [];
 		}
 
 		const twelveMonthsAgo = subtractMonthsClamped(new Date(), 12);
 
-		const stripeInvoices = await stripeClient.invoices.list({
-			customer: subscription.stripeCustomerId,
-			limit: 100,
-			status: "paid",
-			created: { gte: Math.floor(twelveMonthsAgo.getTime() / 1000) },
-		});
+		// A paid invoice belongs to exactly one customer, so merging across
+		// customers never produces duplicates.
+		const invoiceLists = await Promise.all(
+			customerIds.map((customer) =>
+				stripeClient.invoices.list({
+					customer,
+					limit: 100,
+					status: "paid",
+					created: { gte: Math.floor(twelveMonthsAgo.getTime() / 1000) },
+				}),
+			),
+		);
 
-		return stripeInvoices.data.map((invoice) => ({
-			id: invoice.id,
-			date: invoice.created,
-			amount: invoice.amount_paid,
-			currency: invoice.currency,
-			hostedInvoiceUrl: invoice.hosted_invoice_url,
-		}));
+		return invoiceLists
+			.flatMap((list) => list.data)
+			.sort((a, b) => b.created - a.created)
+			.map((invoice) => ({
+				id: invoice.id,
+				date: invoice.created,
+				amount: invoice.amount_paid,
+				currency: invoice.currency,
+				hostedInvoiceUrl: invoice.hosted_invoice_url,
+			}));
 	}),
 
 	details: protectedProcedure.query(async ({ ctx }) => {

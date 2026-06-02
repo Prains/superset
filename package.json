@@ -6,9 +6,9 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.2",
-		"dotenv-cli": "^11.0.0",
-		"sherif": "^1.10.0",
-		"turbo": "2.8.7"
+		"dotenv-cli": "11.0.0",
+		"sherif": "1.11.0",
+		"turbo": "2.9.14"
 	},
 	"description": "Superset Monorepo",
 	"homepage": "https://superset.sh",
@@ -18,11 +18,12 @@
 	"scripts": {
 		"dev": "turbo run dev dev:caddy --filter=@superset/api --filter=@superset/web --filter=@superset/desktop --filter=electric-proxy --filter=//",
 		"dev:all": "turbo dev",
+		"dev:desktop": "turbo run dev dev:caddy --filter=@superset/api --filter=@superset/desktop --filter=electric-proxy --filter=//",
 		"dev:caddy": "dotenv -- caddy run --config Caddyfile",
 		"dev:docs": "turbo dev --filter=@superset/docs",
 		"dev:marketing": "turbo dev --filter=@superset/marketing --filter=@superset/docs",
 		"build": "turbo build --filter=@superset/desktop",
-		"test": "turbo test",
+		"test": "turbo test --concurrency=2",
 		"lint": "./scripts/lint.sh",
 		"check:desktop-git-env": "./scripts/check-desktop-git-env.sh",
 		"lint:fix": "bunx @biomejs/biome@2.4.2 migrate --write && bunx @biomejs/biome@2.4.2 check --write --unsafe .",
@@ -37,6 +38,7 @@
 		"release:canary": "./scripts/release-canary.sh",
 		"db:push": "bun run --cwd packages/db push",
 		"db:migrate": "bun run --cwd packages/db migrate",
+		"db:seed-dev": "NODE_ENV=development bun run packages/auth/src/seed-dev.ts",
 		"db:generate:desktop": "bun run --cwd packages/local-db generate"
 	},
 	"type": "module",
@@ -47,9 +49,6 @@
 	],
 	"overrides": {
 		"axios": "1.14.0"
-	},
-	"patchedDependencies": {
-		"@durable-streams/state@0.2.1": "patches/@durable-streams%2Fstate@0.2.1.patch"
 	},
 	"trustedDependencies": [
 		"better-sqlite3",

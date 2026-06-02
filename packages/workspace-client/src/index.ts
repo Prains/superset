@@ -1,6 +1,15 @@
 export { useEventBus } from "./hooks/useEventBus";
 export { useGitChangeEvents } from "./hooks/useGitChangeEvents";
-export { type EventBusHandle, getEventBus } from "./lib/eventBus";
+export {
+	type AgentIdentity,
+	type AgentLifecyclePayload,
+	type EventBusHandle,
+	type GitChangedPayload,
+	getEventBus,
+	type PortChangedPayload,
+	type TerminalLifecyclePayload,
+} from "./lib/eventBus";
+export { primeRelayAffinity } from "./lib/primeRelayAffinity";
 export {
 	useWorkspaceClient,
 	useWorkspaceHostUrl,

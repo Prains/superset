@@ -17,8 +17,8 @@ import {
 	useHasWorkspaceFailed,
 	useWorkspaceInitProgress,
 } from "renderer/stores/workspace-init";
-import { INIT_STEP_MESSAGES } from "shared/types/workspace-init";
 import { KeypadLoader } from "./KeypadLoader";
+import { StepProgress } from "./StepProgress";
 
 interface WorkspaceInitializingViewProps {
 	workspaceId: string;
@@ -68,6 +68,14 @@ export function WorkspaceInitializingView({
 	const deleteWorkspace = useDeleteWorkspace();
 	const utils = electronTrpc.useUtils();
 
+	// Honor the user's notification-mute preference and volume for the keypad
+	// click sound. Default to muted while the setting loads so we never play a
+	// click for a user who has it disabled before the query resolves.
+	const { data: notificationSoundsMuted = true } =
+		electronTrpc.settings.getNotificationSoundsMuted.useQuery();
+	const { data: notificationVolume = 100 } =
+		electronTrpc.settings.getNotificationVolume.useQuery();
+
 	const handleRetry = (deduplicateBranchName = false) => {
 		retryMutation.mutate(
 			{ workspaceId, deduplicateBranchName },
@@ -112,7 +120,12 @@ export function WorkspaceInitializingView({
 							<h2 className="text-lg font-medium text-foreground">
 								Setup incomplete
 							</h2>
-							<p className="text-sm text-muted-foreground">{workspaceName}</p>
+							<p
+								className="line-clamp-3 max-w-full break-words text-sm text-muted-foreground [overflow-wrap:anywhere]"
+								title={workspaceName}
+							>
+								{workspaceName}
+							</p>
 							<p className="text-xs text-muted-foreground/80 mt-2">
 								Workspace setup didn't finish. You can retry or remove it.
 							</p>
@@ -203,7 +216,12 @@ export function WorkspaceInitializingView({
 							<h2 className="text-lg font-medium text-foreground">
 								Workspace setup failed
 							</h2>
-							<p className="text-sm text-muted-foreground">{workspaceName}</p>
+							<p
+								className="line-clamp-3 max-w-full break-words text-sm text-muted-foreground [overflow-wrap:anywhere]"
+								title={workspaceName}
+							>
+								{workspaceName}
+							</p>
 							{progress?.error && (
 								<p className="text-xs text-destructive/80 mt-2 bg-destructive/5 rounded-md px-3 py-2 select-text cursor-text break-words">
 									{progress.error}
@@ -294,21 +312,22 @@ export function WorkspaceInitializingView({
 	// Initializing state
 	return (
 		<div className="flex flex-col items-center justify-center h-full w-full px-8">
-			<div className="flex flex-col items-center max-w-md text-center space-y-6">
-				<KeypadLoader currentStep={currentStep} />
+			<div className="flex flex-col items-center max-w-md text-center space-y-5">
+				<KeypadLoader
+					currentStep={currentStep}
+					muted={notificationSoundsMuted}
+					volume={0.35 * (notificationVolume / 100)}
+				/>
 
-				{/* Title and current step */}
 				<div className="space-y-1">
 					<h2 className="text-lg font-medium text-foreground">
 						Setting up workspace
 					</h2>
 					<p className="text-sm text-muted-foreground">{workspaceName}</p>
-					<p className="text-sm text-foreground/80 font-medium pt-2">
-						{INIT_STEP_MESSAGES[currentStep]}
-					</p>
 				</div>
 
-				{/* Helper text */}
+				<StepProgress currentStep={currentStep} />
+
 				<p className="text-xs text-muted-foreground/60">
 					Takes 10s to a few minutes depending on the size of your repo
 				</p>

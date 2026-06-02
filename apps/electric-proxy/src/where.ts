@@ -1,5 +1,7 @@
 import {
 	agentCommands,
+	automationRuns,
+	automations,
 	chatSessions,
 	devicePresence,
 	githubPullRequests,
@@ -9,10 +11,11 @@ import {
 	members,
 	organizations,
 	projects,
-	sessionHosts,
 	subscriptions,
 	taskStatuses,
 	tasks,
+	teamMembers,
+	teams,
 	v2Clients,
 	v2Hosts,
 	v2Projects,
@@ -73,6 +76,12 @@ export function buildWhereClause(
 		case "auth.invitations":
 			return build(invitations, invitations.organizationId, organizationId);
 
+		case "auth.teams":
+			return build(teams, teams.organizationId, organizationId);
+
+		case "auth.team_members":
+			return build(teamMembers, teamMembers.organizationId, organizationId);
+
 		case "auth.organizations": {
 			if (organizationIds.length === 0) {
 				return { fragment: "1 = 0", params: [] };
@@ -92,7 +101,7 @@ export function buildWhereClause(
 		}
 
 		case "auth.users": {
-			const fragment = `$1 = ANY("organization_ids")`;
+			const fragment = `"organization_ids" @> ARRAY[$1::uuid]`;
 			return { fragment, params: [organizationId] };
 		}
 
@@ -107,7 +116,7 @@ export function buildWhereClause(
 			return build(agentCommands, agentCommands.organizationId, organizationId);
 
 		case "auth.apikeys": {
-			const fragment = `"metadata" LIKE '%"organizationId":"' || $1 || '"%'`;
+			const fragment = `"organization_id" = $1`;
 			return { fragment, params: [organizationId] };
 		}
 
@@ -127,9 +136,6 @@ export function buildWhereClause(
 		case "chat_sessions":
 			return build(chatSessions, chatSessions.organizationId, organizationId);
 
-		case "session_hosts":
-			return build(sessionHosts, sessionHosts.organizationId, organizationId);
-
 		case "github_repositories":
 			return build(
 				githubRepositories,
@@ -141,6 +147,16 @@ export function buildWhereClause(
 			return build(
 				githubPullRequests,
 				githubPullRequests.organizationId,
+				organizationId,
+			);
+
+		case "automations":
+			return build(automations, automations.organizationId, organizationId);
+
+		case "automation_runs":
+			return build(
+				automationRuns,
+				automationRuns.organizationId,
 				organizationId,
 			);
 

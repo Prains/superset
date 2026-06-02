@@ -1,33 +1,74 @@
+import { Button } from "@superset/ui/button";
 import { toast } from "@superset/ui/sonner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
+import { cn } from "@superset/ui/utils";
 import { workspaceTrpc } from "@superset/workspace-client";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useWorkspaceEvent } from "renderer/hooks/host-service/useWorkspaceEvent";
+import { RefreshCw } from "lucide-react";
+import { useCallback, useState } from "react";
+import { useChangeset } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/useChangeset";
+import { useOpenInExternalEditor } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/useOpenInExternalEditor";
+import { useSidebarDiffRef } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/useSidebarDiffRef";
+import { useWorkspaceGitStatus } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/providers/WorkspaceGitStatusProvider";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
-import type { ChangesFilter } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal/schema";
+import type {
+	ChangesFilter,
+	ChangesViewMode,
+} from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal/schema";
+import { toAbsoluteWorkspacePath } from "shared/absolute-paths";
 import type { SidebarTabDefinition } from "../../types";
 import { ChangesTabContent } from "./components/ChangesTabContent";
 
-export type { ChangesFilter };
+export type { ChangesFilter, ChangesViewMode };
 
 interface UseChangesTabParams {
 	workspaceId: string;
-	onSelectFile?: (
-		path: string,
-		category: "against-base" | "staged" | "unstaged",
-	) => void;
+	/** Absolute path of the file whose diff/preview is currently open. */
+	selectedFilePath?: string;
+	onSelectFile?: (path: string, openInNewTab?: boolean) => void;
+	onOpenFile?: (absolutePath: string, openInNewTab?: boolean) => void;
 }
 
 export function useChangesTab({
 	workspaceId,
+	selectedFilePath,
 	onSelectFile,
+	onOpenFile,
 }: UseChangesTabParams): SidebarTabDefinition {
+	const status = useWorkspaceGitStatus();
 	const collections = useCollections();
+	const utils = workspaceTrpc.useUtils();
 	const localState = collections.v2WorkspaceLocalState.get(workspaceId);
 	const filter: ChangesFilter = localState?.sidebarState?.changesFilter ?? {
 		kind: "all",
 	};
-	const baseBranch: string | null =
-		localState?.sidebarState?.baseBranch ?? null;
+	const viewMode: ChangesViewMode =
+		localState?.sidebarState?.changesViewMode ?? "folders";
+
+	const baseBranchQuery = workspaceTrpc.git.getBaseBranch.useQuery(
+		{ workspaceId },
+		{ staleTime: Number.POSITIVE_INFINITY },
+	);
+	const baseBranch = baseBranchQuery.data?.baseBranch ?? null;
+
+	const ref = useSidebarDiffRef(workspaceId);
+	const { files, isLoading } = useChangeset({
+		workspaceId,
+		ref,
+	});
+
+	const workspaceQuery = workspaceTrpc.workspace.get.useQuery({
+		id: workspaceId,
+	});
+	const worktreePath = workspaceQuery.data?.worktreePath;
+	const openInExternalEditor = useOpenInExternalEditor(workspaceId);
+
+	const handleOpenInEditor = useCallback(
+		(relativePath: string) => {
+			if (!worktreePath) return;
+			openInExternalEditor(toAbsoluteWorkspacePath(worktreePath, relativePath));
+		},
+		[worktreePath, openInExternalEditor],
+	);
 
 	const setFilter = useCallback(
 		(next: ChangesFilter) => {
@@ -39,21 +80,30 @@ export function useChangesTab({
 		[collections, workspaceId],
 	);
 
-	const setBaseBranch = useCallback(
-		(branchName: string) => {
+	const setViewMode = useCallback(
+		(next: ChangesViewMode) => {
 			if (!collections.v2WorkspaceLocalState.get(workspaceId)) return;
 			collections.v2WorkspaceLocalState.update(workspaceId, (draft) => {
-				draft.sidebarState.baseBranch = branchName;
+				draft.sidebarState.changesViewMode = next;
 			});
 		},
 		[collections, workspaceId],
 	);
 
-	const statusUtils = workspaceTrpc.useUtils();
+	const setBaseBranchMutation = workspaceTrpc.git.setBaseBranch.useMutation({
+		onSuccess: () => {
+			void utils.git.getBaseBranch.invalidate({ workspaceId });
+			void utils.git.getStatus.invalidate({ workspaceId });
+			void utils.git.listCommits.invalidate({ workspaceId });
+			void utils.git.getDiff.invalidate({ workspaceId });
+		},
+	});
 
-	const status = workspaceTrpc.git.getStatus.useQuery(
-		{ workspaceId, baseBranch: baseBranch ?? undefined },
-		{ refetchOnWindowFocus: true },
+	const setBaseBranch = useCallback(
+		(branchName: string) => {
+			setBaseBranchMutation.mutate({ workspaceId, baseBranch: branchName });
+		},
+		[setBaseBranchMutation, workspaceId],
 	);
 
 	const commits = workspaceTrpc.git.listCommits.useQuery(
@@ -65,31 +115,6 @@ export function useChangesTab({
 		{ workspaceId },
 		{ refetchInterval: 30_000, refetchOnWindowFocus: true },
 	);
-
-	const invalidateGitQueries = useCallback(() => {
-		void statusUtils.git.getStatus.invalidate({ workspaceId });
-		void statusUtils.git.listCommits.invalidate({ workspaceId });
-	}, [statusUtils, workspaceId]);
-
-	// Shared debounce for git:changed and fs:events — batches rapid events
-	// from either source into a single git status refresh.
-	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const debouncedInvalidate = useCallback(() => {
-		if (debounceRef.current) clearTimeout(debounceRef.current);
-		debounceRef.current = setTimeout(() => {
-			debounceRef.current = null;
-			invalidateGitQueries();
-		}, 300);
-	}, [invalidateGitQueries]);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: clear pending timer on workspace change
-	useEffect(() => {
-		return () => {
-			if (debounceRef.current) clearTimeout(debounceRef.current);
-		};
-	}, [workspaceId]);
-
-	useWorkspaceEvent("git:changed", workspaceId, debouncedInvalidate);
-	useWorkspaceEvent("fs:events", workspaceId, debouncedInvalidate);
 
 	const renameBranchMutation = workspaceTrpc.git.renameBranch.useMutation();
 
@@ -116,54 +141,72 @@ export function useChangesTab({
 
 	const canRenameBranch = !status.data?.currentBranch.upstream;
 
-	const commitFilesInput =
-		filter.kind === "commit"
-			? { workspaceId, commitHash: filter.hash }
-			: filter.kind === "range"
-				? { workspaceId, commitHash: filter.toHash, fromHash: filter.fromHash }
-				: { workspaceId, commitHash: "" };
+	const totalChanges = files.length;
+	const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
+	const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
 
-	const commitFiles = workspaceTrpc.git.getCommitFiles.useQuery(
-		commitFilesInput,
-		{ enabled: filter.kind === "commit" || filter.kind === "range" },
+	const [isRefreshing, setIsRefreshing] = useState(false);
+	const handleRefresh = useCallback(async () => {
+		if (isRefreshing) return;
+		setIsRefreshing(true);
+		try {
+			await Promise.all([
+				utils.git.getStatus.invalidate({ workspaceId }),
+				utils.git.getDiff.invalidate({ workspaceId }),
+				utils.git.listCommits.invalidate({ workspaceId }),
+				utils.git.listBranches.invalidate({ workspaceId }),
+				utils.git.getBaseBranch.invalidate({ workspaceId }),
+			]);
+		} catch (error) {
+			console.warn("Failed to refresh changes tab", error);
+			toast.error(
+				error instanceof Error ? error.message : "Failed to refresh changes",
+			);
+		} finally {
+			setIsRefreshing(false);
+		}
+	}, [utils, workspaceId, isRefreshing]);
+
+	const actions = (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-6"
+					onClick={() => void handleRefresh()}
+					disabled={isRefreshing}
+				>
+					<RefreshCw
+						className={cn("size-3.5", isRefreshing && "animate-spin")}
+					/>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">Refresh changes</TooltipContent>
+		</Tooltip>
 	);
-
-	const filteredFiles = useMemo(() => {
-		if (!status.data) return [];
-		if (filter.kind === "uncommitted") {
-			return [...status.data.staged, ...status.data.unstaged];
-		}
-		if (filter.kind === "commit" || filter.kind === "range") {
-			return commitFiles.data?.files ?? [];
-		}
-		const map = new Map<string, (typeof status.data.againstBase)[number]>();
-		for (const f of status.data.againstBase) map.set(f.path, f);
-		for (const f of status.data.staged) map.set(f.path, f);
-		for (const f of status.data.unstaged) map.set(f.path, f);
-		return Array.from(map.values());
-	}, [status.data, filter.kind, commitFiles.data?.files]);
-
-	const totalChanges = filteredFiles.length;
-	const totalAdditions = filteredFiles.reduce((sum, f) => sum + f.additions, 0);
-	const totalDeletions = filteredFiles.reduce((sum, f) => sum + f.deletions, 0);
-
-	const fileCategory: "against-base" | "staged" | "unstaged" =
-		filter.kind === "uncommitted" ? "unstaged" : "against-base";
 
 	const content = (
 		<ChangesTabContent
+			workspaceId={workspaceId}
 			status={status}
 			commits={commits}
 			branches={branches}
-			commitFiles={commitFiles}
 			filter={filter}
-			filteredFiles={filteredFiles}
-			fileCategory={fileCategory}
+			viewMode={viewMode}
+			baseBranch={baseBranch}
+			files={files}
+			isLoading={isLoading}
 			totalChanges={totalChanges}
 			totalAdditions={totalAdditions}
 			totalDeletions={totalDeletions}
+			worktreePath={worktreePath}
+			selectedFilePath={selectedFilePath}
 			onSelectFile={onSelectFile}
+			onOpenFile={onOpenFile}
+			onOpenInEditor={handleOpenInEditor}
 			onFilterChange={setFilter}
+			onViewModeChange={setViewMode}
 			onBaseBranchChange={setBaseBranch}
 			onRenameBranch={handleRenameBranch}
 			canRenameBranch={canRenameBranch}
@@ -174,6 +217,7 @@ export function useChangesTab({
 		id: "changes",
 		label: "Changes",
 		badge: totalChanges > 0 ? totalChanges : undefined,
+		actions,
 		content,
 	};
 }

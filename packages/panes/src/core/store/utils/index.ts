@@ -1,11 +1,16 @@
+export type { FocusDirection } from "./utils";
 export {
 	equalizeAllSplits,
 	findFirstPaneId,
 	findPaneInLayout,
-	findSiblingPaneId,
+	findPanePath,
 	generateId,
+	getActiveIdAfterRemoval,
 	getNodeAtPath,
 	getOtherBranch,
+	getPaneIdsInLayout,
+	getPaneParentDirection,
+	getSpatialNeighborPaneId,
 	positionToDirection,
 	removePaneFromLayout,
 	replacePaneIdInLayout,

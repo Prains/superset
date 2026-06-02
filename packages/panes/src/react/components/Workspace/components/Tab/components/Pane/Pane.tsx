@@ -14,6 +14,7 @@ import type {
 	RendererContext,
 } from "../../../../../../types";
 import { PaneHeaderActions } from "../../../../../PaneHeaderActions";
+import { PANE_MIN_SIZE_CLASS_NAME } from "../../constants";
 import { DropZoneOverlay } from "./components/DropZoneOverlay";
 import { PaneContent } from "./components/PaneContent";
 import { PaneContextMenu } from "./components/PaneContextMenu";
@@ -211,7 +212,7 @@ export function Pane<TData>({
 	}
 
 	const title = definition
-		? (pane.titleOverride ?? definition.getTitle?.(context) ?? pane.id)
+		? (pane.titleOverride ?? definition.getTitle?.(pane) ?? pane.id)
 		: `Unknown: ${pane.kind}`;
 	const icon = definition?.getIcon?.(context);
 	const titleContent = definition?.renderTitle?.(context);
@@ -225,7 +226,7 @@ export function Pane<TData>({
 			{/* biome-ignore lint/a11y/noStaticElementInteractions: clicking anywhere in a pane focuses it (standard IDE behavior) */}
 			<div
 				ref={setRefs}
-				className="relative flex h-full w-full flex-col overflow-hidden"
+				className={`relative flex h-full w-full ${PANE_MIN_SIZE_CLASS_NAME} flex-col overflow-hidden`}
 				onMouseDown={context.actions.focus}
 			>
 				<PaneHeader
