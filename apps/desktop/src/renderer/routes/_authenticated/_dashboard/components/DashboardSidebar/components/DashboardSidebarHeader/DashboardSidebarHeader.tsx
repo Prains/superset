@@ -24,7 +24,10 @@ import { NavigationControls } from "renderer/routes/_authenticated/_dashboard/co
 import { SidebarToggle } from "renderer/routes/_authenticated/_dashboard/components/SidebarToggle";
 import { OrganizationDropdown } from "renderer/routes/_authenticated/_dashboard/components/TopBar/components/OrganizationDropdown";
 import { ResourceConsumption } from "renderer/routes/_authenticated/_dashboard/components/TopBar/components/ResourceConsumption";
-import { useTasksFilterStore } from "renderer/routes/_authenticated/_dashboard/tasks/stores/tasks-filter-state";
+import {
+	tasksSearchFromFilters,
+	useTasksFilterStore,
+} from "renderer/routes/_authenticated/_dashboard/tasks/stores/tasks-filter-state";
 import { STROKE_WIDTH_THICK } from "renderer/screens/main/components/WorkspaceSidebar/constants";
 import { useOpenNewProjectModal } from "renderer/stores/add-repository-modal";
 import { useOpenNewWorkspaceModal } from "renderer/stores/new-workspace-modal";
@@ -84,20 +87,21 @@ export function DashboardSidebarHeader({
 	};
 
 	const handleAutomationsClick = () => {
-		gateFeature(GATED_FEATURES.AUTOMATIONS, () => {
-			navigate({ to: "/automations" });
-		});
+		navigate({ to: "/automations" });
 	};
 
 	const handleTasksClick = () => {
 		gateFeature(GATED_FEATURES.TASKS, () => {
-			const search: Record<string, string> = {};
-			if (lastTab !== "all") search.tab = lastTab;
-			if (lastAssignee) search.assignee = lastAssignee;
-			if (lastSearch) search.search = lastSearch;
-			if (lastTypeTab !== "tasks") search.type = lastTypeTab;
-			if (lastProjectFilter) search.project = lastProjectFilter;
-			navigate({ to: "/tasks", search });
+			navigate({
+				to: "/tasks",
+				search: tasksSearchFromFilters({
+					tab: lastTab,
+					assignee: lastAssignee,
+					search: lastSearch,
+					typeTab: lastTypeTab,
+					projectFilter: lastProjectFilter,
+				}),
+			});
 		});
 	};
 
@@ -157,7 +161,7 @@ export function DashboardSidebarHeader({
 							<HiOutlineClipboardDocumentList className="size-4" />
 						</button>
 					</TooltipTrigger>
-					<TooltipContent side="right">Tasks</TooltipContent>
+					<TooltipContent side="right">Tasks & PRs</TooltipContent>
 				</Tooltip>
 
 				<Tooltip delayDuration={300}>
@@ -277,7 +281,7 @@ export function DashboardSidebarHeader({
 						!isTasksOpen && "text-foreground/65",
 					)}
 				/>
-				<span className="flex-1 text-left">Tasks</span>
+				<span className="flex-1 text-left">Tasks & PRs</span>
 			</button>
 
 			<div className="flex items-center gap-0">

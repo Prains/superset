@@ -8,9 +8,13 @@ import type {
 } from "./types";
 
 const RECONNECT_BASE_MS = 1_000;
-const RECONNECT_MAX_MS = 30_000;
+// 5s ceiling rather than 30s. Under a sustained outage this means slightly
+// more retry traffic, but under transient relay restarts (the common case)
+// it ensures we don't sit idle for 30s while the relay is back online.
+const RECONNECT_MAX_MS = 5_000;
 const INBOUND_SILENCE_TIMEOUT_MS = 75_000;
 const WATCHDOG_INTERVAL_MS = 10_000;
+const CONNECT_TIMEOUT_MS = 20_000;
 
 export interface TunnelClientOptions {
 	relayUrl: string;
@@ -59,15 +63,32 @@ export class TunnelClient {
 		}
 		this.connecting = true;
 
+		let timedOut = false;
+		const deadline = setTimeout(() => {
+			if (this.closed) return;
+			timedOut = true;
+			console.warn(
+				`[host-service:tunnel] connect did not complete within ${CONNECT_TIMEOUT_MS}ms, forcing retry`,
+			);
+			try {
+				this.socket?.close(4001, "Connect timeout");
+			} catch {}
+			this.socket = null;
+			this.connecting = false;
+			this.scheduleReconnect();
+		}, CONNECT_TIMEOUT_MS);
+
 		// An unhandled rejection here (e.g. DNS failure inside getAuthToken on
 		// wake from sleep) crashes host-service and orphans every PTY.
 		try {
 			const token = await this.getAuthToken();
-			if (this.closed) {
-				this.connecting = false;
+			if (timedOut || this.closed) {
+				clearTimeout(deadline);
+				if (this.closed) this.connecting = false;
 				return;
 			}
 			if (!token) {
+				clearTimeout(deadline);
 				console.warn("[host-service:tunnel] no auth token available, retrying");
 				this.connecting = false;
 				this.scheduleReconnect();
@@ -84,6 +105,7 @@ export class TunnelClient {
 			this.lastInboundAt = Date.now();
 
 			socket.onopen = () => {
+				clearTimeout(deadline);
 				this.reconnectAttempts = 0;
 				this.connecting = false;
 				this.lastInboundAt = Date.now();
@@ -99,28 +121,46 @@ export class TunnelClient {
 			};
 
 			socket.onclose = (event) => {
-				const wasOurSocket = this.socket === socket;
-				if (!wasOurSocket) return;
-
-				this.socket = null;
-				this.connecting = false;
-				this.stopWatchdog();
-				this.cleanupChannels();
-
-				if (this.closed) return;
-
-				if (event.code === 1008) {
+				if (this.socket !== socket) return;
+				clearTimeout(deadline);
+				try {
+					this.socket = null;
+					this.connecting = false;
+					this.stopWatchdog();
+					this.cleanupChannels();
+					if (event.code === 1008) {
+						console.warn(
+							`[host-service:tunnel] relay rejected connection (code=${event.code}, reason=${event.reason ?? ""}); retrying`,
+						);
+					}
+					// App-defined "relay draining for deploy" close code
+					// (4001). Distinct from 1001 ("Going Away") which the
+					// ping-timeout / dispose paths use — only reset on 4001 so
+					// a mass ping-timeout doesn't trigger a thundering-herd of
+					// instant reconnects. After reset, next attempt fires at
+					// the base delay instead of the 5s ceiling.
+					if (event.code === 4001) {
+						this.reconnectAttempts = 0;
+						console.log(
+							"[host-service:tunnel] relay draining; reconnecting immediately",
+						);
+					}
+				} catch (err) {
 					console.warn(
-						`[host-service:tunnel] relay rejected connection (code=${event.code}, reason=${event.reason ?? ""}); retrying`,
+						"[host-service:tunnel] error during onclose cleanup",
+						err,
 					);
+				} finally {
+					if (!this.closed) this.scheduleReconnect();
 				}
-				this.scheduleReconnect();
 			};
 
 			socket.onerror = (event) => {
 				console.error("[host-service:tunnel] socket error:", event);
 			};
 		} catch (error) {
+			clearTimeout(deadline);
+			if (timedOut) return;
 			const message = error instanceof Error ? error.message : String(error);
 			console.error(`[host-service:tunnel] connect failed: ${message}`);
 			this.socket = null;
@@ -163,6 +203,24 @@ export class TunnelClient {
 		switch (message.type) {
 			case "ping":
 				this.send({ type: "pong" });
+				break;
+			case "drain":
+				// In-band drain signal from the relay before it
+				// SIGINT-shuts-down. Reset backoff and tear the socket
+				// down ourselves so the next reconnect attempt fires at
+				// the base delay — far more reliable than waiting for
+				// the WS close frame to arrive (which game-day testing
+				// showed sometimes doesn't, leaving the host idle until
+				// its 75s inactivity watchdog).
+				console.log(
+					`[host-service:tunnel] relay drain notice received${message.reason ? ` (${message.reason})` : ""}; reconnecting immediately`,
+				);
+				this.reconnectAttempts = 0;
+				try {
+					this.socket?.close();
+				} catch {
+					// onclose handler will schedule the reconnect
+				}
 				break;
 			case "http":
 				await this.handleHttpRequest(message);
@@ -302,7 +360,14 @@ export class TunnelClient {
 
 	private cleanupChannels(): void {
 		for (const channel of this.localChannels.values()) {
-			channel.ws.close(1001, "Tunnel disconnected");
+			try {
+				channel.ws.close(1000, "Tunnel disconnected");
+			} catch (err) {
+				console.warn(
+					"[host-service:tunnel] error closing local channel ws",
+					err,
+				);
+			}
 		}
 		this.localChannels.clear();
 	}
