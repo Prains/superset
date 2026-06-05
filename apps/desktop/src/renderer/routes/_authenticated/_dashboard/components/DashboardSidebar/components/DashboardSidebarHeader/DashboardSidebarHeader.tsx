@@ -227,13 +227,18 @@ export function DashboardSidebarHeader({
 				type="button"
 				onClick={handleWorkspacesClick}
 				className={cn(
-					"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+					"group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
 					isWorkspacesListOpen
 						? "bg-accent text-foreground"
-						: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+						: "text-foreground hover:bg-accent/50",
 				)}
 			>
-				<LuLayers className="size-4 shrink-0" />
+				<LuLayers
+					className={cn(
+						"size-4 shrink-0",
+						!isWorkspacesListOpen && "text-foreground/65",
+					)}
+				/>
 				<span className="flex-1 text-left">Workspaces</span>
 			</button>
 
@@ -241,13 +246,18 @@ export function DashboardSidebarHeader({
 				type="button"
 				onClick={handleAutomationsClick}
 				className={cn(
-					"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+					"group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
 					isAutomationsOpen
 						? "bg-accent text-foreground"
-						: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+						: "text-foreground hover:bg-accent/50",
 				)}
 			>
-				<LuClock className="size-4 shrink-0" />
+				<LuClock
+					className={cn(
+						"size-4 shrink-0",
+						!isAutomationsOpen && "text-foreground/65",
+					)}
+				/>
 				<span className="flex-1 text-left">Automations</span>
 			</button>
 
@@ -255,13 +265,18 @@ export function DashboardSidebarHeader({
 				type="button"
 				onClick={handleTasksClick}
 				className={cn(
-					"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+					"group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
 					isTasksOpen
 						? "bg-accent text-foreground"
-						: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+						: "text-foreground hover:bg-accent/50",
 				)}
 			>
-				<HiOutlineClipboardDocumentList className="size-4 shrink-0" />
+				<HiOutlineClipboardDocumentList
+					className={cn(
+						"size-4 shrink-0",
+						!isTasksOpen && "text-foreground/65",
+					)}
+				/>
 				<span className="flex-1 text-left">Tasks</span>
 			</button>
 
@@ -269,10 +284,10 @@ export function DashboardSidebarHeader({
 				<button
 					type="button"
 					onClick={() => openModal()}
-					className="group flex flex-1 min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+					className="group flex flex-1 min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent/50"
 				>
 					<LuPlus
-						className="size-4 shrink-0"
+						className="size-4 shrink-0 text-foreground/65"
 						strokeWidth={STROKE_WIDTH_THICK}
 					/>
 					<span className="flex-1 truncate text-left whitespace-nowrap">
