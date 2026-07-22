@@ -5,7 +5,12 @@ import { invalidateLabelCache } from "../../../ports/static-ports";
 import { runTeardown, type TeardownResult } from "../../../runtime/teardown";
 import { disposeSessionsByWorkspaceId } from "../../../terminal/terminal";
 import type { HostServiceContext } from "../../../types";
-import { deleteLocalWorkspace } from "../../../workspaces/local-workspace-store";
+import {
+	deleteLocalWorkspace,
+	getLocalWorkspace,
+	toCloudShape,
+	updateLocalWorkspace,
+} from "../../../workspaces/local-workspace-store";
 import type {
 	DeleteInProgressCause,
 	TeardownFailureCause,
@@ -170,6 +175,79 @@ export const workspaceCleanupRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => destroyWorkspace(ctx, input)),
+
+	/**
+	 * Instant, reversible archive: flags the row (`archivedAt`) and kills the
+	 * workspace's terminal sessions. The worktree and branch stay on disk —
+	 * permanent cleanup happens later via `destroy` (Settings → Archived
+	 * workspaces). The flag commits before the PTY kill so the UI hides the
+	 * row even if session disposal fails; disposal problems come back as
+	 * warnings, mirroring `destroy`'s contract.
+	 *
+	 * `archivedAt` is host-local only (not mirrored to the cloud row): other
+	 * machines relying on the Electric fallback for an offline host may still
+	 * see the row, but only rendered unreachable — same staleness class the
+	 * fallback already has for deletes, and it goes away in R3.
+	 */
+	archive: protectedProcedure
+		.input(z.object({ workspaceId: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			const main = await isMainWorkspace(ctx, input.workspaceId);
+			if (main.isMain) {
+				throw new TRPCError({ code: "BAD_REQUEST", message: main.reason });
+			}
+			const existing = getLocalWorkspace(ctx.db, input.workspaceId);
+			if (!existing) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Workspace not found",
+				});
+			}
+			if (existing.archivedAt) {
+				return { success: true, archivedAt: existing.archivedAt, warnings: [] };
+			}
+
+			const archivedAt = Date.now();
+			updateLocalWorkspace(
+				{ db: ctx.db, eventBus: ctx.eventBus },
+				input.workspaceId,
+				{ archivedAt },
+			);
+
+			const warnings: string[] = [];
+			try {
+				const killed = await disposeSessionsByWorkspaceId(
+					input.workspaceId,
+					ctx.db,
+				);
+				if (killed.failed > 0) {
+					warnings.push(`${killed.failed} terminal(s) may still be running`);
+				}
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				warnings.push(`Failed to dispose terminal sessions: ${message}`);
+			}
+
+			return { success: true, archivedAt, warnings };
+		}),
+
+	/** Clear the archive flag; the broadcast restores the row everywhere. */
+	unarchive: protectedProcedure
+		.input(z.object({ workspaceId: z.string() }))
+		.mutation(({ ctx, input }) => {
+			const row = updateLocalWorkspace(
+				{ db: ctx.db, eventBus: ctx.eventBus },
+				input.workspaceId,
+				{ archivedAt: null },
+			);
+			if (!row) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Workspace not found",
+				});
+			}
+			return toCloudShape(row, ctx.organizationId);
+		}),
 });
 
 export async function destroyWorkspace(

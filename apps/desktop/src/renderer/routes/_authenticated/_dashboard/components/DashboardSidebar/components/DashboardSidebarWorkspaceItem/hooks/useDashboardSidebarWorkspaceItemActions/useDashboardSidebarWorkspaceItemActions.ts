@@ -11,6 +11,7 @@ import { useCopyToClipboard } from "renderer/hooks/useCopyToClipboard";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { showHostServiceUnavailableToast } from "renderer/lib/host-service-unavailable";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { useArchiveWorkspaceFlow } from "renderer/lib/workspaces/useArchiveWorkspaceFlow";
 import { useDashboardSidebarSectionRename } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/components/DashboardSidebarSectionRenameContext";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
 import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
@@ -51,12 +52,11 @@ export function useDashboardSidebarWorkspaceItemActions({
 		clearManualUnread(workspaceId);
 		markWorkspaceTerminalsSeen();
 	};
-	const { createSection, moveWorkspaceToSection, removeWorkspaceFromSidebar } =
-		useDashboardSidebarState();
+	const { createSection, moveWorkspaceToSection } = useDashboardSidebarState();
+	const { archiveWorkspace } = useArchiveWorkspaceFlow();
 
 	const [isRenaming, setIsRenaming] = useState(false);
 	const [renameValue, setRenameValue] = useState(workspaceName);
-	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	const isActive = !!matchRoute({
 		to: "/v2-workspace/$workspaceId",
@@ -90,8 +90,10 @@ export function useDashboardSidebarWorkspaceItemActions({
 		workspaceActions.renameWorkspace(workspaceId, trimmed);
 	};
 
-	const handleDeleted = () => {
-		removeWorkspaceFromSidebar(workspaceId);
+	// Instant archive replaced the delete dialog. Sidebar section membership
+	// is intentionally left intact so Undo restores the workspace in place.
+	const handleArchive = () => {
+		void archiveWorkspace({ workspaceId, source: "sidebar" });
 	};
 
 	const handleRemoveFromSidebar = () => {
@@ -197,22 +199,20 @@ export function useDashboardSidebarWorkspaceItemActions({
 
 	return {
 		cancelRename,
+		handleArchive,
 		handleClearStatus,
 		handleClick,
 		handleCopyPath,
 		handleCopyBranchName,
 		handleCreateSection,
-		handleDeleted,
 		handleOpenInFinder,
 		handleRemoveFromSidebar,
 		handleToggleUnread,
 		isActive,
-		isDeleteDialogOpen,
 		isRenaming,
 		isUnread,
 		moveWorkspaceToSection,
 		renameValue,
-		setIsDeleteDialogOpen,
 		setRenameValue,
 		startRename,
 		submitRename,
