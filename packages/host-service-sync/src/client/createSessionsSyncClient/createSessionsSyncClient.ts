@@ -104,6 +104,8 @@ export function createSessionsSyncClient(
 		Record<Exclude<SessionRetention, "none">, number>
 	>();
 	const warmTimers = new Map<SessionId, ReturnType<typeof setTimeout>>();
+	const seedRetryTimers = new Map<SessionId, ReturnType<typeof setTimeout>>();
+	const seedRetryAttempts = new Map<SessionId, number>();
 	const resolverCounts = new Map<
 		string,
 		{ descriptor: ToolResolverDescriptor; count: number }
@@ -136,6 +138,12 @@ export function createSessionsSyncClient(
 	let helloRequestId: string | null = null;
 	let hostSeedEpoch = -1;
 	let hostSeedPromise: Promise<void> | null = null;
+	let hostSeedRetryTimer: ReturnType<typeof setTimeout> | null = null;
+	let hostSeedRetryAttempts = 0;
+	let helloTimer: ReturnType<typeof setTimeout> | null = null;
+	let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+	let pongTimer: ReturnType<typeof setTimeout> | null = null;
+	let pendingPingNonce: string | null = null;
 
 	function log(event: SessionsSyncLogEvent): void {
 		options.logger?.log(event);
@@ -235,21 +243,75 @@ export function createSessionsSyncClient(
 	function admitReset(key: string, sessionId: SessionId | null): boolean {
 		const at = now();
 		const entry = resetWindows.get(key);
-		if (!entry || at - entry.windowStart > limits.streamResetWindowMs) {
-			resetWindows.set(key, { count: 1, windowStart: at });
-			return true;
-		}
-		entry.count += 1;
-		if (entry.count > limits.maxStreamResetsPerWindow) {
+		const next =
+			entry && at - entry.windowStart <= limits.streamResetWindowMs
+				? { count: entry.count + 1, windowStart: entry.windowStart }
+				: { count: 1, windowStart: at };
+		resetWindows.set(key, next);
+		if (next.count >= limits.maxStreamResetsPerWindow) {
 			log({
 				event: "sessions_sync.reset_loop",
 				sessionId,
-				resets: entry.count,
+				resets: next.count,
 				windowMs: limits.streamResetWindowMs,
 			});
 			return false;
 		}
 		return true;
+	}
+
+	function backoffDelay(attempts: number): number {
+		return Math.min(reconnectDelayMs * 2 ** attempts, MAX_RECONNECT_DELAY_MS);
+	}
+
+	/**
+	 * A failed snapshot has no other way back: helloAck and a host reset are
+	 * the only callers of the cold path, and neither re-fires on a socket
+	 * that stays open. The retry dies with the socket or the epoch.
+	 */
+	function scheduleHostSeedRetry(epoch: number): void {
+		if (hostSeedRetryTimer) return;
+		const delay = backoffDelay(hostSeedRetryAttempts);
+		hostSeedRetryAttempts += 1;
+		hostSeedRetryTimer = setTimeout(() => {
+			hostSeedRetryTimer = null;
+			if (stopped || epoch !== connectionEpoch) return;
+			seedHostAndSubscribe();
+		}, delay);
+	}
+
+	function clearHostSeedRetry(): void {
+		if (hostSeedRetryTimer) clearTimeout(hostSeedRetryTimer);
+		hostSeedRetryTimer = null;
+		hostSeedRetryAttempts = 0;
+	}
+
+	function scheduleSeedRetry(sessionId: SessionId, epoch: number): void {
+		if (seedRetryTimers.has(sessionId)) return;
+		const attempts = seedRetryAttempts.get(sessionId) ?? 0;
+		seedRetryAttempts.set(sessionId, attempts + 1);
+		const timer = setTimeout(() => {
+			seedRetryTimers.delete(sessionId);
+			if (stopped || epoch !== connectionEpoch || !wantsSession(sessionId)) {
+				seedRetryAttempts.delete(sessionId);
+				return;
+			}
+			seedAndSubscribe(sessionId);
+		}, backoffDelay(attempts));
+		seedRetryTimers.set(sessionId, timer);
+	}
+
+	function clearSeedRetry(sessionId: SessionId): void {
+		const timer = seedRetryTimers.get(sessionId);
+		if (timer) clearTimeout(timer);
+		seedRetryTimers.delete(sessionId);
+		seedRetryAttempts.delete(sessionId);
+	}
+
+	function clearSeedRetries(): void {
+		for (const timer of seedRetryTimers.values()) clearTimeout(timer);
+		seedRetryTimers.clear();
+		seedRetryAttempts.clear();
 	}
 
 	function wantsSession(sessionId: SessionId): boolean {
@@ -294,18 +356,21 @@ export function createSessionsSyncClient(
 			.then((value) => {
 				if (stopped || epoch !== connectionEpoch) return;
 				const snapshot = hostSnapshotSchema.parse(value);
-				// Retained sessions the host no longer lists are gone for good —
-				// stop wanting them before the stale streams get pruned.
+				hostSeedRetryAttempts = 0;
+				// Streams for sessions the host no longer lists are stale, so
+				// stop the socket feeding them. The retain itself is app intent
+				// nothing will re-state, so it outlives the snapshot: a session
+				// created concurrently seeds when its upsert lands.
 				const listed = new Set(snapshot.sessions.map((session) => session.id));
-				for (const retained of [...retainReasons.keys()]) {
-					if (listed.has(retained)) continue;
-					retainReasons.delete(retained);
-					clearWarmTimer(retained);
-					unsubscribeSession(retained);
+				for (const subscribed of [...sentSessionSubscriptions]) {
+					if (!listed.has(subscribed)) unsubscribeSession(subscribed);
 				}
 				store.setState(applyHostSnapshot(store.getState(), snapshot), true);
 				if (snapshot.head !== null) {
 					sendHostSubscription(snapshot.head);
+				}
+				for (const retained of retainReasons.keys()) {
+					if (listed.has(retained)) seedRetainedSession(retained);
 				}
 			})
 			.catch(() => {
@@ -314,6 +379,7 @@ export function createSessionsSyncClient(
 				setConnection({
 					error: { code: "HOST_SNAPSHOT_FAILED", retryable: true },
 				});
+				scheduleHostSeedRetry(epoch);
 			})
 			.finally(() => {
 				if (hostSeedEpoch === epoch) hostSeedPromise = null;
@@ -369,6 +435,7 @@ export function createSessionsSyncClient(
 		}
 		if (seedPromises.has(sessionId)) return;
 		setSessionStream(sessionId, { status: "subscribing", error: null });
+		const epoch = connectionEpoch;
 		const promise = api
 			.get(getSessionInputSchema.parse({ sessionId }))
 			.then((value) => {
@@ -379,10 +446,17 @@ export function createSessionsSyncClient(
 				if (snapshot.session.id !== sessionId) {
 					throw new Error("session snapshot response identity mismatch");
 				}
+				seedRetryAttempts.delete(sessionId);
 				store.setState(
 					applySessionSnapshot(store.getState(), snapshot, now()),
 					true,
 				);
+				// The snapshot leaves the stream `subscribing`, which is a lie
+				// once the socket is gone: nothing will answer the subscribe.
+				if (!isConnected()) {
+					setSessionStream(sessionId, { status: "idle" });
+					return;
+				}
 				sendSessionSubscription(sessionId);
 			})
 			.catch(() => {
@@ -390,6 +464,7 @@ export function createSessionsSyncClient(
 					status: "error",
 					error: { code: "SNAPSHOT_LOAD_FAILED", retryable: true },
 				});
+				if (wantsSession(sessionId)) scheduleSeedRetry(sessionId, epoch);
 			})
 			.finally(() => {
 				seedPromises.delete(sessionId);
@@ -397,7 +472,33 @@ export function createSessionsSyncClient(
 		seedPromises.set(sessionId, promise);
 	}
 
+	/**
+	 * Re-seeds a session the app still retains but the store has no stream
+	 * for — a host snapshot prunes streams it does not list, while the retain
+	 * records intent no consumer will re-state.
+	 */
+	function seedRetainedSession(sessionId: SessionId): void {
+		const counts = retainReasons.get(sessionId);
+		if (!counts) return;
+		if (
+			sentSessionSubscriptions.has(sessionId) ||
+			seedPromises.has(sessionId)
+		) {
+			return;
+		}
+		const stream = store.getState().streamsBySessionId[sessionId];
+		if ((stream?.retention ?? "none") === "none") {
+			setSessionStream(sessionId, {
+				retainCount: counts.focused + counts.running + counts.warm,
+				retention: currentRetention(counts),
+				lastAccessedAt: now(),
+			});
+		}
+		seedAndSubscribe(sessionId);
+	}
+
 	function unsubscribeSession(sessionId: SessionId): void {
+		clearSeedRetry(sessionId);
 		if (sentSessionSubscriptions.delete(sessionId) && isConnected()) {
 			send({
 				type: "unsubscribe",
@@ -433,15 +534,45 @@ export function createSessionsSyncClient(
 	function scheduleReconnect(): void {
 		if (stopped || reconnectTimer) return;
 		setConnection({ status: "reconnecting" });
-		const delay = Math.min(
-			reconnectDelayMs * 2 ** reconnectAttempts,
-			MAX_RECONNECT_DELAY_MS,
-		);
+		const delay = backoffDelay(reconnectAttempts);
 		reconnectAttempts += 1;
 		reconnectTimer = setTimeout(() => {
 			reconnectTimer = null;
 			openConnection();
 		}, delay);
+	}
+
+	function stopHeartbeat(): void {
+		if (heartbeatTimer) clearInterval(heartbeatTimer);
+		heartbeatTimer = null;
+		if (pongTimer) clearTimeout(pongTimer);
+		pongTimer = null;
+		pendingPingNonce = null;
+	}
+
+	function clearHelloTimer(): void {
+		if (helloTimer) clearTimeout(helloTimer);
+		helloTimer = null;
+	}
+
+	/**
+	 * A half-open socket reports `OPEN` forever and answers nothing, so an
+	 * unanswered ping is the only evidence the connection is dead. Closing is
+	 * the whole recovery: the close handler owns reconnect.
+	 */
+	function startHeartbeat(): void {
+		stopHeartbeat();
+		heartbeatTimer = setInterval(() => {
+			if (pongTimer || !isConnected()) return;
+			const nonce = nextRequestId();
+			if (!send({ type: "ping", nonce })) return;
+			pendingPingNonce = nonce;
+			pongTimer = setTimeout(() => {
+				pongTimer = null;
+				pendingPingNonce = null;
+				socket?.close(1001, "sessions sync heartbeat timeout");
+			}, limits.heartbeatTimeoutMs);
+		}, limits.heartbeatIntervalMs);
 	}
 
 	function dropInvalidSocket(
@@ -459,6 +590,8 @@ export function createSessionsSyncClient(
 	function handleServerPacket(packet: SyncServerPacket): void {
 		if (packet.type === "helloAck") {
 			helloRequestId = null;
+			clearHelloTimer();
+			startHeartbeat();
 			negotiatedMaxFrameBytes = Math.min(
 				limits.maxFrameBytes,
 				packet.limits.maxFrameBytes,
@@ -479,6 +612,14 @@ export function createSessionsSyncClient(
 			return;
 		}
 
+		if (packet.type === "pong") {
+			if (packet.nonce !== pendingPingNonce) return;
+			pendingPingNonce = null;
+			if (pongTimer) clearTimeout(pongTimer);
+			pongTimer = null;
+			return;
+		}
+
 		if (packet.type === "event" && packet.stream === "host") {
 			if (packet.event.type === "sessionRemoved") {
 				retainReasons.delete(packet.sessionId);
@@ -486,6 +627,9 @@ export function createSessionsSyncClient(
 				unsubscribeSession(packet.sessionId);
 			}
 			store.setState(applyHostEvent(store.getState(), packet), true);
+			if (packet.event.type === "sessionUpsert") {
+				seedRetainedSession(packet.event.session.id);
+			}
 			return;
 		}
 
@@ -766,6 +910,12 @@ export function createSessionsSyncClient(
 				toolResolvers: activeToolResolvers(),
 			};
 			send(hello);
+			clearHelloTimer();
+			helloTimer = setTimeout(() => {
+				helloTimer = null;
+				if (socket !== created || stopped) return;
+				created.close(1001, "sessions sync hello timeout");
+			}, limits.helloTimeoutMs);
 		};
 		created.onmessage = (event) => {
 			if (socket !== created || stopped) return;
@@ -778,6 +928,13 @@ export function createSessionsSyncClient(
 			if (socket !== created) return;
 			socket = null;
 			helloRequestId = null;
+			clearHelloTimer();
+			stopHeartbeat();
+			clearHostSeedRetry();
+			clearSeedRetries();
+			// The reset budget is per connection: a fresh socket earns a fresh
+			// one, so a parked stream recovers on reconnect.
+			resetWindows.clear();
 			sentSessionSubscriptions.clear();
 			markStreamsDisconnected();
 			if (!stopped) scheduleReconnect();
@@ -897,6 +1054,10 @@ export function createSessionsSyncClient(
 		disconnect(): void {
 			for (const timer of warmTimers.values()) clearTimeout(timer);
 			warmTimers.clear();
+			clearHelloTimer();
+			stopHeartbeat();
+			clearHostSeedRetry();
+			clearSeedRetries();
 			if (stopped) return;
 			stopped = true;
 			connectionEpoch += 1;

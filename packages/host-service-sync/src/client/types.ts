@@ -88,13 +88,20 @@ export interface SessionsSyncLimits {
 	maxSocketQueuedBytes: number;
 	maxFrameBytes: number;
 	/**
-	 * Reset circuit breaker: more than `maxStreamResetsPerWindow` resets on
-	 * one stream inside `streamResetWindowMs` stops auto-recovery and parks
-	 * the stream in `error` — a reset loop is a host bug, never something a
+	 * Reset circuit breaker: the `maxStreamResetsPerWindow`-th reset on one
+	 * stream inside `streamResetWindowMs` stops auto-recovery and parks the
+	 * stream in `error` — a reset loop is a host bug, never something a
 	 * client can subscribe its way out of.
 	 */
 	maxStreamResetsPerWindow: number;
 	streamResetWindowMs: number;
+	/**
+	 * Liveness: a half-open socket answers nothing and closes nothing, so an
+	 * unanswered ping is the only proof the connection is gone.
+	 */
+	heartbeatIntervalMs: number;
+	heartbeatTimeoutMs: number;
+	helloTimeoutMs: number;
 }
 
 export const DEFAULT_SESSIONS_SYNC_LIMITS: SessionsSyncLimits = {
@@ -107,6 +114,9 @@ export const DEFAULT_SESSIONS_SYNC_LIMITS: SessionsSyncLimits = {
 	maxFrameBytes: 1024 * 1024,
 	maxStreamResetsPerWindow: 3,
 	streamResetWindowMs: 30_000,
+	heartbeatIntervalMs: 30_000,
+	heartbeatTimeoutMs: 10_000,
+	helloTimeoutMs: 15_000,
 };
 
 export type SessionsSyncLogEvent =

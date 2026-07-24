@@ -850,14 +850,12 @@ describe("createSessionsSyncClient", () => {
 		};
 		socket.emitMessage(reset);
 		await flush();
-		socket.emitMessage(reset);
-		await flush();
-		expect(getCalls).toBe(3);
+		expect(getCalls).toBe(2);
 
-		// Third reset inside the window exceeds the budget: park, don't loop.
+		// The second reset inside the window exhausts the budget: park, don't loop.
 		socket.emitMessage(reset);
 		await flush();
-		expect(getCalls).toBe(3);
+		expect(getCalls).toBe(2);
 		const stream =
 			harness.client.store.getState().streamsBySessionId["session-1"];
 		expect(stream?.status).toBe("error");
@@ -866,7 +864,7 @@ describe("createSessionsSyncClient", () => {
 			expect.objectContaining({
 				event: "sessions_sync.reset_loop",
 				sessionId: "session-1",
-				resets: 3,
+				resets: 2,
 			}),
 		);
 		harness.client.disconnect();
