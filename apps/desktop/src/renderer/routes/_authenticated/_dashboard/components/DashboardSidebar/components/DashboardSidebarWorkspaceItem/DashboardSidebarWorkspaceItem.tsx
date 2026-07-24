@@ -10,7 +10,6 @@ import { DashboardSidebarDeleteDialog } from "../DashboardSidebarDeleteDialog";
 import { DashboardSidebarCollapsedWorkspaceButton } from "./components/DashboardSidebarCollapsedWorkspaceButton";
 import { DashboardSidebarExpandedWorkspaceRow } from "./components/DashboardSidebarExpandedWorkspaceRow";
 import { DashboardSidebarWorkspaceContextMenu } from "./components/DashboardSidebarWorkspaceContextMenu/DashboardSidebarWorkspaceContextMenu";
-import { DashboardSidebarWorkspaceDetails } from "./components/DashboardSidebarWorkspaceDetails";
 import { useDashboardSidebarWorkspaceItemActions } from "./hooks/useDashboardSidebarWorkspaceItemActions";
 
 interface DashboardSidebarWorkspaceItemProps {
@@ -152,6 +151,7 @@ export function DashboardSidebarWorkspaceItem({
 						content
 					) : (
 						<DashboardSidebarWorkspaceContextMenu
+							workspaceId={id}
 							projectId={projectId}
 							isInSection={isInSection}
 							isUnread={isUnread}
@@ -209,9 +209,6 @@ export function DashboardSidebarWorkspaceItem({
 			ref={rowRef}
 			onMouseEnter={handleMouseEnter}
 			onMouseLeave={handleMouseLeave}
-			// Hover/focus scope for the details strip below the row: it swaps its
-			// summary cluster for the full badges while the item is hovered.
-			className="group/item"
 		>
 			<DashboardSidebarExpandedWorkspaceRow
 				workspace={workspace}
@@ -229,15 +226,7 @@ export function DashboardSidebarWorkspaceItem({
 				onRenameValueChange={setRenameValue}
 				onSubmitRename={submitRename}
 				onCancelRename={cancelRename}
-			>
-				{!isPending && (
-					<DashboardSidebarWorkspaceDetails
-						workspaceId={id}
-						isInSection={isInSection}
-						onClick={handleClick}
-					/>
-				)}
-			</DashboardSidebarExpandedWorkspaceRow>
+			/>
 		</div>
 	);
 
@@ -248,6 +237,7 @@ export function DashboardSidebarWorkspaceItem({
 					expandedContent
 				) : (
 					<DashboardSidebarWorkspaceContextMenu
+						workspaceId={id}
 						projectId={projectId}
 						isInSection={isInSection}
 						isUnread={isUnread}

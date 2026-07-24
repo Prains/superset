@@ -47,7 +47,7 @@ function AddTabButton<_TData>({
 }) {
 	const button = (
 		<Button
-			className="size-7 rounded-md border border-border/60 bg-muted/30 px-1 text-muted-foreground shadow-none hover:bg-accent/60 hover:text-foreground"
+			className="ml-1.5 size-7 rounded-md border border-border/60 bg-muted/30 px-1 text-muted-foreground shadow-none hover:bg-accent/60 hover:text-foreground"
 			size="icon"
 			type="button"
 			variant="ghost"
@@ -165,36 +165,28 @@ export function TabBar<TData>({
 
 	const insertLineLeft = insertIndex !== null ? insertIndex * TAB_WIDTH : null;
 
-	if (tabs.length === 0) {
-		return (
-			<div
-				ref={setRootRef}
-				className="group/root-tabs flex h-10 min-w-0 shrink-0 items-stretch border-b border-border bg-background"
-			>
-				<div className="flex h-full w-10 shrink-0 items-center justify-center bg-background">
-					<AddTabButton renderAddTabMenu={renderAddTabMenu} />
-				</div>
-				<div className="flex min-w-0 flex-1 items-stretch" />
-				{renderTabBarTrailing && (
-					<div className="flex h-full shrink-0 items-center px-1">
-						{renderTabBarTrailing()}
-					</div>
-				)}
-			</div>
-		);
-	}
-
 	return (
 		<div
 			ref={setRootRef}
-			className="group/root-tabs flex h-10 min-w-0 shrink-0 items-stretch border-b border-border bg-background"
+			// The bottom border is drawn on the bar's leaf elements (inactive tabs,
+			// the add-button cluster, the trailing region, and the flex filler) rather
+			// than the root, so the active tab can leave a real 1px gap and flow into
+			// the content below. Only the empty filler right of the tabs is an
+			// Electron window-drag region — marking the whole bar `drag` and carving
+			// children out with `no-drag` loses the carve-outs once they sit inside
+			// the masked/scrollable OverflowFadeContainer, which made the entire bar
+			// swallow clicks.
+			className="group/root-tabs flex h-10 min-w-0 shrink-0 items-stretch bg-border/30"
 		>
 			<OverflowFadeContainer
 				observeChildren
 				onOverflowChange={handleOverflowChange}
 				className="hide-scrollbar flex min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden"
 			>
-				<div ref={tabsTrackRef} className="relative flex h-full items-stretch">
+				<div
+					ref={tabsTrackRef}
+					className="no-drag relative flex h-full flex-1 items-stretch"
+				>
 					{tabs.map((tab, i) => (
 						<div
 							className="h-full shrink-0"
@@ -224,19 +216,22 @@ export function TabBar<TData>({
 						/>
 					)}
 					{!hasHorizontalOverflow && (
-						<div className="flex h-full w-10 shrink-0 items-center justify-center">
+						<div className="flex h-full w-10 shrink-0 items-center justify-center border-b border-border">
 							<AddTabButton renderAddTabMenu={renderAddTabMenu} />
 						</div>
 					)}
+					{/* Carries the bar's bottom border across the empty space to the
+					    right of the tabs (collapses to 0 when the tabs overflow). */}
+					<div className="drag h-full flex-1 border-b border-border" />
 				</div>
 			</OverflowFadeContainer>
 			{hasHorizontalOverflow && (
-				<div className="flex h-full w-10 shrink-0 items-center justify-center bg-background">
+				<div className="no-drag flex h-full w-10 shrink-0 items-center justify-center border-b border-border bg-border/30">
 					<AddTabButton renderAddTabMenu={renderAddTabMenu} />
 				</div>
 			)}
 			{renderTabBarTrailing && (
-				<div className="flex h-full shrink-0 items-center px-1">
+				<div className="no-drag flex h-full shrink-0 items-center border-b border-border px-1">
 					{renderTabBarTrailing()}
 				</div>
 			)}

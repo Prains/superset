@@ -18,6 +18,7 @@ import type {
 } from "../../../../types";
 import { DashboardSidebarWorkspaceDiffStats } from "../DashboardSidebarWorkspaceDiffStats";
 import { DashboardSidebarWorkspaceIcon } from "../DashboardSidebarWorkspaceIcon";
+import { DashboardSidebarWorkspaceChips } from "./components/DashboardSidebarWorkspaceChips";
 
 const PR_STATE_LABEL: Record<
 	DashboardSidebarWorkspacePullRequest["state"],
@@ -71,7 +72,6 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 			onSubmitRename,
 			onCancelRename,
 			className,
-			children,
 			...props
 		},
 		ref,
@@ -145,7 +145,7 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 					onDoubleClick={onDoubleClick}
 					className={cn(
 						"group relative flex w-full items-center py-2 pr-2",
-						isInSection ? "pl-7" : "pl-5",
+						isInSection ? "pl-10" : "pl-5",
 						onClick && "cursor-pointer",
 					)}
 				>
@@ -260,6 +260,7 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 									{creationStatusText}
 								</span>
 							) : (
+								isActive &&
 								diffStats &&
 								(diffStats.additions > 0 || diffStats.deletions > 0) && (
 									<DashboardSidebarWorkspaceDiffStats
@@ -270,7 +271,7 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 								)
 							)}
 							{!isPending && (
-								<div className="hidden items-center justify-end gap-1.5 group-hover:flex">
+								<div className="invisible flex items-center justify-end gap-1.5 group-hover:visible group-focus-within:visible">
 									{shortcutLabel && (
 										<span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
 											{shortcutLabel}
@@ -341,7 +342,13 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 						</div>
 					</div>
 				</div>
-				{children}
+				{!isPending && (
+					<DashboardSidebarWorkspaceChips
+						workspaceId={workspace.id}
+						isInSection={isInSection}
+						onClick={onClick}
+					/>
+				)}
 			</div>
 		);
 	},

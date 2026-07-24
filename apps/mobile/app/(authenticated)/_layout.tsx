@@ -30,7 +30,10 @@ export default function AuthenticatedLayout() {
 		<CollectionsProvider>
 			<PromptInputProvider>
 				<Stack screenOptions={{ headerShown: false }}>
-					<Stack.Screen name="(home)" />
+					{/* Root headers are hidden — `title` here only names routes in
+				    back-button long-press menus (otherwise raw route names leak,
+				    e.g. "(home)"). */}
+					<Stack.Screen name="(home)" options={{ title: "Home" }} />
 					<Stack.Screen
 						name="settings/index"
 						options={settingsScreenOptions("Settings")}
@@ -53,7 +56,7 @@ export default function AuthenticatedLayout() {
 					/>
 					<Stack.Screen
 						name="workspace/[id]/chat/[sessionId]"
-						options={{ ...glassHeaderOptions, title: "" }}
+						options={{ ...glassHeaderOptions, title: "Chat" }}
 					/>
 					<Stack.Screen
 						name="workspace/[id]/diff"
@@ -61,11 +64,23 @@ export default function AuthenticatedLayout() {
 					/>
 					<Stack.Screen
 						name="workspace/[id]/files-changed"
-						options={{ ...glassHeaderOptions, title: "Files changed" }}
+						options={{
+							// Solid themed header (matches the sticky file bars), not glass.
+							headerShown: true,
+							headerBackButtonDisplayMode: "minimal",
+							headerShadowVisible: false,
+							title: "Files changed",
+							// Right-swipes are horizontal diff scrolling — back stays edge-only.
+							fullScreenGestureEnabled: false,
+						}}
 					/>
 					<Stack.Screen
 						name="workspace/[id]/file"
-						options={{ ...glassHeaderOptions, title: "" }}
+						options={{
+							...glassHeaderOptions,
+							title: "",
+							fullScreenGestureEnabled: false,
+						}}
 					/>
 					<Stack.Screen
 						name="workspace/[id]/commits"
@@ -75,6 +90,36 @@ export default function AuthenticatedLayout() {
 							sheetGrabberVisible: true,
 							...glassHeaderOptions,
 							title: "Commits",
+						}}
+					/>
+					<Stack.Screen
+						name="workspace/[id]/line-comment"
+						options={{
+							presentation: "formSheet",
+							sheetAllowedDetents: [0.75],
+							sheetGrabberVisible: true,
+							...glassHeaderOptions,
+							title: "Add comment",
+						}}
+					/>
+					<Stack.Screen
+						name="workspace/[id]/finish-review"
+						options={{
+							presentation: "formSheet",
+							sheetAllowedDetents: [0.75],
+							sheetGrabberVisible: true,
+							...glassHeaderOptions,
+							title: "Finish review",
+						}}
+					/>
+					<Stack.Screen
+						name="workspace/[id]/jump-to-file"
+						options={{
+							presentation: "formSheet",
+							sheetAllowedDetents: [0.75],
+							sheetGrabberVisible: true,
+							...glassHeaderOptions,
+							title: "Jump to file",
 						}}
 					/>
 				</Stack>

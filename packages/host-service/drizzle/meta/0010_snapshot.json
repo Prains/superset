@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "757df815-d54c-4d97-ab76-effb7b5a2050",
+  "id": "00579670-b258-4f90-8d99-c0f053274f0c",
   "prevId": "89a9aa1f-c779-400c-a606-0c1ba504c442",
   "tables": {
     "acp_sessions": {
@@ -512,59 +512,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "session_meta": {
-      "name": "session_meta",
-      "columns": {
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "title_overridden": {
-          "name": "title_overridden",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "closed_at": {
-          "name": "closed_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "terminal_agent_bindings": {
       "name": "terminal_agent_bindings",
       "columns": {
@@ -694,6 +641,13 @@
         },
         "ended_at": {
           "name": "ended_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "dispose_requested_at": {
+          "name": "dispose_requested_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
