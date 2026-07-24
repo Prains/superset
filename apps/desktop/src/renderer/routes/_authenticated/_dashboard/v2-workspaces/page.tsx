@@ -6,6 +6,7 @@ import { V2WorkspacesHeader } from "./components/V2WorkspacesHeader";
 import { V2WorkspacesList } from "./components/V2WorkspacesList";
 import { useAccessibleV2Workspaces } from "./hooks/useAccessibleV2Workspaces";
 import {
+	DEVICE_FILTER_THIS_DEVICE,
 	PROJECT_FILTER_ALL,
 	useV2WorkspacesFilterStore,
 } from "./stores/v2WorkspacesFilterStore";
@@ -48,7 +49,8 @@ function V2WorkspacesPage() {
 		isReady &&
 		all.length === 0 &&
 		!searchQuery.trim() &&
-		projectFilter === PROJECT_FILTER_ALL;
+		projectFilter === PROJECT_FILTER_ALL &&
+		deviceFilter === DEVICE_FILTER_THIS_DEVICE;
 	const variant = useNewWorkspaceScreenVariant(isEmptyDashboard);
 	if (variant === "test" && isEmptyDashboard) {
 		return <NewWorkspaceEmptyScreen />;

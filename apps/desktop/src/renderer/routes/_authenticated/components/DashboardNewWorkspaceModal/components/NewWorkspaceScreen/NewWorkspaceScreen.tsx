@@ -122,7 +122,15 @@ export function NewWorkspaceScreen({
 			for (const file of Array.from(files ?? [])) {
 				try {
 					const path = window.webUtils.getPathForFile(file);
-					if (path) attachmentPathsRef.current.set(file.name, path);
+					if (!path) continue;
+					// Attachment items only expose the basename, so the map is
+					// name-keyed; a second same-named file from elsewhere makes the
+					// name ambiguous — poison it so no card reveals the wrong file.
+					const existing = attachmentPathsRef.current.get(file.name);
+					attachmentPathsRef.current.set(
+						file.name,
+						existing !== undefined && existing !== path ? "" : path,
+					);
 				} catch {
 					// pasted/synthetic files have no filesystem path
 				}
@@ -181,11 +189,20 @@ export function NewWorkspaceScreen({
 		[hostProjects, setUpProjectIds],
 	);
 
+	// Apply the URL preselection exactly once (ref-guarded like the control
+	// modal) — re-applying on every draft change would snap the picker back
+	// and make switching projects impossible.
+	const appliedPreSelectionRef = useRef<string | null>(null);
 	useEffect(() => {
 		if (!isOpen || !areProjectsReady) return;
 		const isValid = (id: string | null | undefined) =>
 			Boolean(id && projects.some((project) => project.id === id));
-		if (preSelectedProjectId && isValid(preSelectedProjectId)) {
+		if (
+			preSelectedProjectId &&
+			preSelectedProjectId !== appliedPreSelectionRef.current &&
+			isValid(preSelectedProjectId)
+		) {
+			appliedPreSelectionRef.current = preSelectedProjectId;
 			if (draft.selectedProjectId !== preSelectedProjectId) {
 				updateDraft({ selectedProjectId: preSelectedProjectId });
 			}
@@ -521,7 +538,7 @@ export function NewWorkspaceScreen({
 							))}
 							{visibleFiles.map((file) => {
 								const sourcePath = file.filename
-									? (attachmentPathsRef.current.get(file.filename) ?? null)
+									? attachmentPathsRef.current.get(file.filename) || null
 									: null;
 								return (
 									<AttachmentCard
