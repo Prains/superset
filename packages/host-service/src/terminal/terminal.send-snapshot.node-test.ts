@@ -11,9 +11,11 @@
 //   - both verbs adopt daemon-owned sessions after a host-service restart
 //   - error cases: unknown terminal, exited session, cross-workspace targeting
 //
-// Runs under Node (`node --experimental-strip-types --test`), or Electron-as-
-// Node when the local better-sqlite3 build targets the Electron ABI:
-//   ELECTRON_RUN_AS_NODE=1 <electron> --experimental-strip-types --test <file>
+// Runs under Node with the tsx loader (the tRPC router tree uses
+// extensionless imports, which --experimental-strip-types cannot resolve), or
+// Electron-as-Node when the local better-sqlite3 build targets the Electron
+// ABI:
+//   ELECTRON_RUN_AS_NODE=1 <electron> --import <tsx>/dist/loader.mjs --test <file>
 
 import { strict as assert } from "node:assert";
 import { randomUUID } from "node:crypto";
@@ -448,6 +450,126 @@ describe("writeFramedInputToSession / snapshotSession", () => {
 		if ("error" in snap) assert.match(snap.error, /belong/);
 
 		await disposeSessionAndWait(terminalId, db);
+	});
+});
+
+// The wire surface: same scenarios through appRouter.createCaller, so the
+// zod schemas, the `submit` default, and the TRPCError mapping are what's
+// actually exercised — the public MCP/SDK/CLI verbs hit exactly this layer.
+describe("terminal.send / terminal.snapshot tRPC procedures", () => {
+	const TEST_ORG_ID = "00000000-0000-4000-8000-000000000000";
+
+	async function makeCaller() {
+		process.env.ORGANIZATION_ID = TEST_ORG_ID;
+		process.env.HOST_SERVICE_SECRET = "test-secret";
+		process.env.HOST_DB_PATH = path.join(TEST_HOME, "host.db");
+		process.env.HOST_MIGRATIONS_FOLDER = MIGRATIONS;
+		process.env.AUTH_TOKEN = "test-auth-token";
+		process.env.SUPERSET_API_URL = "https://cloud.example.com";
+		const { appRouter } = await import("../trpc/router/router.ts");
+		return appRouter.createCaller({
+			isAuthenticated: true,
+			organizationId: TEST_ORG_ID,
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+	}
+
+	test("send defaults submit to true and snapshot round-trips", async () => {
+		const caller = await makeCaller();
+		const terminalId = `e2e-rpc-${randomUUID().slice(0, 8)}`;
+		const id = randomUUID().slice(0, 6);
+		const sentinelFile = path.join(TEST_HOME, `rpc-${terminalId}`);
+
+		const session = await createTerminalSessionInternal({
+			terminalId,
+			workspaceId,
+			db,
+			listed: true,
+		});
+		assert.ok(!("error" in session));
+		if ("error" in session) return;
+
+		const sent = await caller.terminal.send({
+			terminalId,
+			workspaceId,
+			text: `echo rpc-${id} > "${sentinelFile}"`,
+		});
+		assert.deepEqual(sent, { terminalId, submitted: true });
+		await waitFor(() => fs.existsSync(sentinelFile), 5000);
+
+		await waitForSnapshotText(terminalId, `rpc-${id}`, 5000);
+		const snap = await caller.terminal.snapshot({ terminalId, workspaceId });
+		assert.equal(snap.terminalId, terminalId);
+		assert.ok(snap.cols > 0 && snap.rows > 0);
+		assert.ok(snap.text.includes(`rpc-${id}`));
+
+		await disposeSessionAndWait(terminalId, db);
+	});
+
+	test("maps errors to TRPC codes: NOT_FOUND, FORBIDDEN, BAD_REQUEST", async () => {
+		const caller = await makeCaller();
+		const terminalId = `e2e-rpc-err-${randomUUID().slice(0, 8)}`;
+
+		const session = await createTerminalSessionInternal({
+			terminalId,
+			workspaceId,
+			db,
+			listed: true,
+		});
+		assert.ok(!("error" in session));
+		if ("error" in session) return;
+
+		await assert.rejects(
+			caller.terminal.send({
+				terminalId: `missing-${terminalId}`,
+				workspaceId,
+				text: "echo nope",
+			}),
+			(err: { code?: string }) => err.code === "NOT_FOUND",
+		);
+
+		await assert.rejects(
+			caller.terminal.send({
+				terminalId,
+				workspaceId: otherWorkspaceId,
+				text: "echo nope",
+			}),
+			(err: { code?: string }) => err.code === "FORBIDDEN",
+		);
+
+		await assert.rejects(
+			caller.terminal.snapshot({
+				terminalId,
+				workspaceId: otherWorkspaceId,
+			}),
+			(err: { code?: string }) => err.code === "FORBIDDEN",
+		);
+
+		await assert.rejects(
+			caller.terminal.send({ terminalId, workspaceId, text: "" }),
+			(err: { code?: string }) => err.code === "BAD_REQUEST",
+		);
+
+		await disposeSessionAndWait(terminalId, db);
+	});
+
+	test("rejects unauthenticated callers", async () => {
+		await makeCaller();
+		const { appRouter } = await import("../trpc/router/router.ts");
+		const anonymous = appRouter.createCaller({
+			isAuthenticated: false,
+			organizationId: TEST_ORG_ID,
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await assert.rejects(
+			anonymous.terminal.send({
+				terminalId: "any",
+				workspaceId,
+				text: "echo nope",
+			}),
+			(err: { code?: string }) => err.code === "UNAUTHORIZED",
+		);
 	});
 });
 
