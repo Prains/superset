@@ -9,6 +9,19 @@ import type { RespondToPermission } from "../TimelineItemView";
 import { PermissionCard } from "./components/PermissionCard";
 
 /**
+ * A permission the host no longer holds — the turn was aborted while the ask
+ * was outstanding, so it is already settled and every retry fails the same
+ * way. The relay transport flattens tRPC errors down to their message (the
+ * CanonicalSessionsError code does not survive the hop), so the message is
+ * the only signal available here.
+ */
+function isAlreadySettled(cause: unknown): boolean {
+	return (
+		cause instanceof Error && cause.message.startsWith("No pending permission")
+	);
+}
+
+/**
  * Blocking permission asks, stacked above the composer like iOS notifications:
  * the oldest request is the front card (same side margins as the composer so
  * the edges line up), and when more are queued the next card's top edge peeks
@@ -19,13 +32,15 @@ import { PermissionCard } from "./components/PermissionCard";
 export function PermissionStack({
 	pending,
 	onRespond,
+	onError,
 }: {
 	pending: TimelinePendingPermission[];
 	onRespond: RespondToPermission;
+	onError: (message: string) => void;
 }) {
 	// Dismissed the moment an option is tapped, while the response round-trips;
-	// restored on failure. State eventually removes resolved entries from
-	// `pending`, which prunes this set's relevance naturally.
+	// restored on a retryable failure. State eventually removes resolved entries
+	// from `pending`, which prunes this set's relevance naturally.
 	const [answeredIds, setAnsweredIds] = useState<ReadonlySet<string>>(
 		() => new Set(),
 	);
@@ -39,12 +54,16 @@ export function PermissionStack({
 	// one id — the outcome's optionIds array carries either.
 	const answer = (permissionId: string, optionIds: string[]) => {
 		setAnsweredIds((prev) => new Set(prev).add(permissionId));
-		onRespond(permissionId, makeSelectedOutcome(optionIds)).catch(() => {
+		onRespond(permissionId, makeSelectedOutcome(optionIds)).catch((cause) => {
+			// Restoring a settled ask would put back a card that can never be
+			// dismissed — only a failure worth retrying brings it back.
+			if (isAlreadySettled(cause)) return;
 			setAnsweredIds((prev) => {
 				const next = new Set(prev);
 				next.delete(permissionId);
 				return next;
 			});
+			onError(cause instanceof Error ? cause.message : String(cause));
 		});
 	};
 

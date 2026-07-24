@@ -11,6 +11,7 @@ import {
 	PromptInputSubmit,
 	PromptInputTextarea,
 	PromptInputTools,
+	usePromptInputController,
 } from "@/components/ai-elements/prompt-input";
 import { OptionPicker } from "./components/OptionPicker";
 
@@ -39,7 +40,7 @@ export function Composer({
 	settingOptions,
 	status,
 }: {
-	onSend: (text: string) => void;
+	onSend: (text: string) => Promise<void>;
 	onStop: () => void;
 	onSetSetting: (option: SettingOption, value: string) => void;
 	settingOptions: SettingOption[];
@@ -47,18 +48,21 @@ export function Composer({
 }) {
 	const insets = useSafeAreaInsets();
 	const keyboardShown = useKeyboardShown();
+	const controller = usePromptInputController();
 
 	const pickers = settingOptions.filter(
 		(option) => PICKABLE_KINDS.has(option.kind) && option.options.length > 0,
 	);
 
 	// Non-async on purpose: returning a non-Promise makes PromptInput clear the
-	// input synchronously on submit (see prompt-input.tsx `submit`). We do not
-	// await the send — failures are handled elsewhere, not by blocking the input.
+	// input synchronously on submit (see prompt-input.tsx `submit`), so the send
+	// never blocks the field. That clear is destructive, so a send that never
+	// lands puts the typed message back — the banner alone would leave the user
+	// with nothing to retry.
 	const handleSubmit = (message: PromptInputMessage) => {
 		const text = message.text.trim();
 		if (!text) return;
-		onSend(text);
+		onSend(text).catch(() => controller.textInput.setInput(message.text));
 	};
 
 	const surface = (

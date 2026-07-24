@@ -26,6 +26,11 @@ self-asserts each invariant.
    gesture comes to rest at the true end of content, or via the
    scroll-to-bottom button. Programmatic scrolls also emit momentum-end
    events — they must never re-pin (`gestureRef`).
+   The scroll-to-bottom button is the only way back, so its visibility test
+   (`isAtBottom`) must stay the two-sided mirror of that re-pin test: resting
+   inside the banked blank inset is *below* the true end and does NOT re-pin,
+   so it must not read as at-bottom either — otherwise the reader is unpinned
+   with no affordance to resume following.
 3. **Send anchors to the top.** Sending a message scrolls it to
    `anchorOffsetTop` below the viewport top with whitespace beneath for the
    reply. Follow stays OFF afterwards.

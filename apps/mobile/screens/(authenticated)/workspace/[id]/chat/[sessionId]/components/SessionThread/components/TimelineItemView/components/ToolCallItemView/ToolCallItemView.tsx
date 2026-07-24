@@ -10,7 +10,7 @@ import type {
 	TimelineToolCallItem,
 } from "@superset/host-service-sync/timeline";
 import { ChevronRightIcon, WrenchIcon, XIcon } from "lucide-react-native";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import Animated, {
 	Easing,
@@ -125,7 +125,12 @@ export function ToolCallItemView({
 
 	// GitHub-style change stats for file-editing tools, from the tool input
 	// (the input streams in via updates, so this appears once it's complete).
-	const diff = lineDiffStats(item.call.tool.name, item.call.input);
+	// Memoized on the input identity: the strings it diffs run to megabytes,
+	// far too heavy to redo on every unrelated render of a timeline row.
+	const diff = useMemo(
+		() => lineDiffStats(item.call.tool.name, item.call.input),
+		[item.call.tool.name, item.call.input],
+	);
 	const showDiff = diff !== null && diff.additions + diff.deletions > 0;
 
 	const nestedToolCount = countToolCalls(item.children);

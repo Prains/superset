@@ -323,15 +323,22 @@ export const Conversation = <ItemT,>({
 		[rawContentH],
 	);
 
+	/** Signed distance from the viewport bottom edge to the TRUE end of
+	 * content — negative when the view sits inside the banked blank inset. */
+	const distanceToEnd = useCallback(
+		() => rawContentH() - viewportHRef.current - offsetRef.current,
+		[rawContentH],
+	);
+
 	const updateIsAtBottom = useCallback(() => {
 		// Before the first layout the viewport reads as 0 and every distance
 		// looks huge — keep the initial at-bottom assumption until measured.
 		if (viewportHRef.current === 0) return;
-		// Distance to the TRUE end of content — the spacer is blank, being
-		// "in" it still counts as at-bottom so the button stays hidden.
-		const distance = rawContentH() - viewportHRef.current - offsetRef.current;
-		setIsAtBottom(distance < AT_BOTTOM_THRESHOLD);
-	}, [rawContentH]);
+		// Two-sided, matching the re-pin rule (evaluateRestingPin): a reader
+		// resting deep inside the banked blank space is NOT following, so the
+		// button must be there to take them back.
+		setIsAtBottom(Math.abs(distanceToEnd()) < AT_BOTTOM_THRESHOLD);
+	}, [distanceToEnd]);
 
 	const readScrollEvent = useCallback(
 		(event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -395,13 +402,13 @@ export const Conversation = <ItemT,>({
 		(event: NativeSyntheticEvent<NativeScrollEvent>) => {
 			readScrollEvent(event);
 			if (anchorFloorRef.current) return;
-			const distance = rawContentH() - viewportHRef.current - offsetRef.current;
+			const distance = distanceToEnd();
 			dbg("restingPin", { distance: Math.round(distance) });
 			if (Math.abs(distance) < AT_BOTTOM_THRESHOLD) {
 				setPinnedBoth(true);
 			}
 		},
-		[rawContentH, readScrollEvent, setPinnedBoth],
+		[distanceToEnd, readScrollEvent, setPinnedBoth],
 	);
 
 	const handleScrollEndDrag = useCallback(
@@ -643,11 +650,11 @@ export const Conversation = <ItemT,>({
 	);
 
 	const scrollToBottom = useCallback(() => {
-		// Going to the true bottom: drop any leftover anchor whitespace first
-		// so "the end" is the newest content, not blank space.
-		anchorFloorRef.current = false;
-		spacerRef.current = 0;
-		setSpacer(0);
+		// Going to the true bottom: abort any in-flight anchor (a queued settle
+		// leg would yank the view right back) and drop the leftover anchor
+		// whitespace, so "the end" is the newest content, not blank space.
+		cancelAnchor();
+		applySpacer(0);
 		setPinnedBoth(true);
 		requestAnimationFrame(() => {
 			// The content height still includes the spacer until the removal
@@ -656,7 +663,7 @@ export const Conversation = <ItemT,>({
 			dbg("scrollToBottom", { target: Math.round(target) });
 			void listRef.current?.scrollToOffset({ animated: true, offset: target });
 		});
-	}, [rawContentH, setPinnedBoth]);
+	}, [applySpacer, cancelAnchor, rawContentH, setPinnedBoth]);
 
 	/** First anchor leg: wait (a few frames) for the just-sent tail to
 	 * measure, then scroll to the computed target. */
@@ -723,9 +730,7 @@ export const Conversation = <ItemT,>({
 			},
 			getScrollState: () => ({
 				contentH: contentHRef.current,
-				isAtBottom:
-					rawContentH() - viewportHRef.current - offsetRef.current <
-					AT_BOTTOM_THRESHOLD,
+				isAtBottom: Math.abs(distanceToEnd()) < AT_BOTTOM_THRESHOLD,
 				offset: offsetRef.current,
 				pinned: pinnedRef.current,
 				rawContentH: rawContentH(),
@@ -741,6 +746,7 @@ export const Conversation = <ItemT,>({
 		}),
 		[
 			applySpacer,
+			distanceToEnd,
 			firePendingAnchorScroll,
 			rawContentH,
 			setPinnedBoth,

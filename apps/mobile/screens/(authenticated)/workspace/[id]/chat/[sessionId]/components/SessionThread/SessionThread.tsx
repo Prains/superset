@@ -83,22 +83,27 @@ function SessionThreadBody({
 	const mainThreadId = session?.mainThreadId ?? null;
 	const activeTurnId = timeline.activeTurnId;
 
+	// Rejects on failure so the Composer can put the typed message back — the
+	// prompt input clears synchronously on submit.
 	const handleSend = useCallback(
-		(text: string) => {
+		async (text: string) => {
 			if (mainThreadId === null) return;
 			setActionError(null);
 			// The reply takes a while — drop the keyboard so the user can watch
 			// it stream in, and anchor their message to the top once it echoes.
 			Keyboard.dismiss();
 			pendingAnchorRef.current = true;
-			submitTurn(routingKey, {
-				sessionId,
-				threadId: mainThreadId,
-				content: [{ type: "text", text }],
-			}).catch((cause) => {
+			try {
+				await submitTurn(routingKey, {
+					sessionId,
+					threadId: mainThreadId,
+					content: [{ type: "text", text }],
+				});
+			} catch (cause) {
 				pendingAnchorRef.current = false;
 				setActionError(cause instanceof Error ? cause.message : String(cause));
-			});
+				throw cause;
+			}
 		},
 		[routingKey, sessionId, mainThreadId],
 	);
@@ -294,6 +299,7 @@ function SessionThreadBody({
 			<PermissionStack
 				pending={timeline.pendingPermissions}
 				onRespond={handleRespond}
+				onError={setActionError}
 			/>
 			{/* Dead, offline, and not-yet-loaded sessions cannot accept prompts. In
 			    particular, keep the composer hidden after a failed session/load so the
