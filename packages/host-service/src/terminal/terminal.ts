@@ -538,9 +538,22 @@ export function writeInputToSession({
 }
 
 // Ring-buffer replay after adoption arrives asynchronously over the daemon
-// socket, and it is the only thing that rebuilds the mode tracker (bracketed
-// paste, screen content). Protocol v2 has no replay-complete signal.
-const ADOPTION_REPLAY_GRACE_MS = 300;
+// socket, and it is what rebuilds the mode tracker (bracketed paste, screen
+// content). Protocol v2 has no replay-complete signal, so watch the replayed
+// bytes accumulate — they land in session.buffer, since no renderer is
+// attached right after adoption — and return once they quiesce.
+const ADOPTION_REPLAY_WAIT_MS = 500;
+
+async function waitForAdoptionReplay(session: TerminalSession): Promise<void> {
+	const deadline = Date.now() + ADOPTION_REPLAY_WAIT_MS;
+	let seen = -1;
+	while (Date.now() < deadline) {
+		const count = session.bufferBytes;
+		if (count > 0 && count === seen) return;
+		seen = count;
+		await new Promise((resolve) => setTimeout(resolve, 25));
+	}
+}
 
 /**
  * Resolve a session for headless IO. The in-memory map empties on every
@@ -556,7 +569,7 @@ async function getOrAdoptSession({
 	terminalId: string;
 	workspaceId: string;
 	db: HostDb;
-	eventBus: EventBus;
+	eventBus?: EventBus;
 }): Promise<TerminalSession | { error: string }> {
 	const existing = sessions.get(terminalId);
 	if (existing) {
@@ -575,7 +588,7 @@ async function getOrAdoptSession({
 	});
 	if ("error" in adopted) return adopted;
 
-	await new Promise((resolve) => setTimeout(resolve, ADOPTION_REPLAY_GRACE_MS));
+	await waitForAdoptionReplay(adopted);
 	return adopted;
 }
 
@@ -598,7 +611,7 @@ export async function writeFramedInputToSession({
 	text: string;
 	submit: boolean;
 	db: HostDb;
-	eventBus: EventBus;
+	eventBus?: EventBus;
 }): Promise<{ success: true } | { error: string }> {
 	const session = await getOrAdoptSession({
 		terminalId,
@@ -634,7 +647,7 @@ export async function snapshotSession({
 	workspaceId: string;
 	maxLines?: number;
 	db: HostDb;
-	eventBus: EventBus;
+	eventBus?: EventBus;
 }): Promise<({ success: true } & TerminalSnapshot) | { error: string }> {
 	const session = await getOrAdoptSession({
 		terminalId,
