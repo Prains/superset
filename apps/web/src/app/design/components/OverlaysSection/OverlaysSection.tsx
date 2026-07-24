@@ -174,11 +174,7 @@ export function OverlaysSection() {
 				</Popover>
 			</ComponentCard>
 
-			<ComponentCard
-				title="Hover Card · Tooltip"
-				importPath="@superset/ui/hover-card"
-				description="Also: @superset/ui/tooltip"
-			>
+			<ComponentCard title="Hover Card" importPath="@superset/ui/hover-card">
 				<HoverCard>
 					<HoverCardTrigger asChild>
 						<Button variant="link">@superset</Button>
@@ -198,11 +194,37 @@ export function OverlaysSection() {
 						</div>
 					</HoverCardContent>
 				</HoverCard>
-				<Tooltip>
+			</ComponentCard>
+
+			<ComponentCard
+				title="Tooltip"
+				importPath="@superset/ui/tooltip"
+				description="All four sides, plus the shortcut-chip style used by desktop's HotkeyTooltip"
+			>
+				{(["top", "right", "bottom", "left"] as const).map((side) => (
+					<Tooltip key={side}>
+						<TooltipTrigger asChild>
+							<Button variant="outline" size="sm">
+								{side}
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side={side}>Tooltip on {side}</TooltipContent>
+					</Tooltip>
+				))}
+				<Tooltip delayDuration={1000}>
 					<TooltipTrigger asChild>
-						<Button variant="outline">Hover me</Button>
+						<Button variant="outline" size="sm">
+							Hotkey chip
+						</Button>
 					</TooltipTrigger>
-					<TooltipContent>Tooltips render on hover and focus</TooltipContent>
+					<TooltipContent
+						side="bottom"
+						sideOffset={4}
+						showArrow={false}
+						className="rounded-sm border border-border bg-background px-1.5 py-0.5 font-medium text-muted-foreground shadow-sm"
+					>
+						⌘⇧O
+					</TooltipContent>
 				</Tooltip>
 			</ComponentCard>
 

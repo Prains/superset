@@ -6,6 +6,12 @@ import {
 	ButtonGroupSeparator,
 	ButtonGroupText,
 } from "@superset/ui/button-group";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@superset/ui/dropdown-menu";
 import { Kbd, KbdGroup } from "@superset/ui/kbd";
 import { Spinner } from "@superset/ui/spinner";
 import { Toggle } from "@superset/ui/toggle";
@@ -14,6 +20,9 @@ import {
 	ArchiveIcon,
 	BoldIcon,
 	ChevronDownIcon,
+	ChevronsUpDownIcon,
+	CodeIcon,
+	FolderGitIcon,
 	ItalicIcon,
 	PlusIcon,
 	TrashIcon,
@@ -144,6 +153,43 @@ export function ActionsSection() {
 					<ToggleGroupItem value="week">Week</ToggleGroupItem>
 					<ToggleGroupItem value="month">Month</ToggleGroupItem>
 				</ToggleGroup>
+			</ComponentCard>
+
+			<ComponentCard
+				title="Button patterns (in product)"
+				importPath="@superset/ui/button"
+				description="Split button mirrors desktop's OpenInButton; picker trigger mirrors PickerTrigger"
+				span
+			>
+				<ButtonGroup>
+					<Button variant="outline" size="sm">
+						<CodeIcon />
+						Open in Cursor
+					</Button>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="outline" size="icon-sm" aria-label="Choose app">
+								<ChevronDownIcon />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem>Cursor</DropdownMenuItem>
+							<DropdownMenuItem>VS Code</DropdownMenuItem>
+							<DropdownMenuItem>Terminal</DropdownMenuItem>
+							<DropdownMenuItem>Copy path</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</ButtonGroup>
+				<Button
+					variant="ghost"
+					className="max-w-48 justify-between gap-1 px-2 text-xs"
+				>
+					<span className="flex min-w-0 flex-1 items-center gap-1.5">
+						<FolderGitIcon className="size-3.5 shrink-0" />
+						<span className="truncate text-left">component-showcase</span>
+					</span>
+					<ChevronsUpDownIcon className="size-3 shrink-0" />
+				</Button>
 			</ComponentCard>
 
 			<ComponentCard title="Kbd" importPath="@superset/ui/kbd" span>

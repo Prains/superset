@@ -9,6 +9,7 @@ import { LayoutSection } from "./components/LayoutSection";
 import { MenusSection } from "./components/MenusSection";
 import { NavigationSection } from "./components/NavigationSection";
 import { OverlaysSection } from "./components/OverlaysSection";
+import { SharedComponentsSection } from "./components/SharedComponentsSection";
 import { ShowcaseNav, type ShowcaseNavItem } from "./components/ShowcaseNav";
 import { SupersetSection } from "./components/SupersetSection";
 
@@ -28,6 +29,7 @@ const NAV_ITEMS: ShowcaseNavItem[] = [
 	{ id: "layout", index: "08", title: "Layout" },
 	{ id: "ai-elements", index: "09", title: "AI Elements" },
 	{ id: "superset", index: "10", title: "Superset originals" },
+	{ id: "shared", index: "11", title: "Shared app components" },
 ];
 
 export default function DesignPage() {
@@ -63,6 +65,7 @@ export default function DesignPage() {
 					<LayoutSection />
 					<AiElementsSection />
 					<SupersetSection />
+					<SharedComponentsSection />
 				</main>
 			</div>
 		</div>
