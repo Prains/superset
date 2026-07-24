@@ -79,6 +79,26 @@ describe("workspaceCleanup.archive", () => {
 		expect(updated?.workspace?.archivedAt).toBe(result.archivedAt);
 	});
 
+	it("leaves terminal sessions untouched (undo grace; reaper suspends later)", async () => {
+		const { caller, db } = createHarness();
+		db.insert(schema.terminalSessions)
+			.values({
+				id: "term-1",
+				originWorkspaceId: WORKSPACE_ID,
+				status: "active",
+				createdAt: Date.now(),
+			})
+			.run();
+
+		await caller.archive({ workspaceId: WORKSPACE_ID });
+
+		const session = db.query.terminalSessions
+			.findFirst({ where: (t, { eq }) => eq(t.id, "term-1") })
+			.sync();
+		expect(session?.status).toBe("active");
+		expect(session?.disposeRequestedAt ?? null).toBeNull();
+	});
+
 	it("is idempotent when already archived", async () => {
 		const { caller, broadcasts } = createHarness();
 		const first = await caller.archive({ workspaceId: WORKSPACE_ID });

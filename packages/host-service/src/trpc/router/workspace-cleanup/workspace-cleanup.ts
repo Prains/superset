@@ -177,12 +177,14 @@ export const workspaceCleanupRouter = router({
 		.mutation(async ({ ctx, input }) => destroyWorkspace(ctx, input)),
 
 	/**
-	 * Instant, reversible archive: flags the row (`archivedAt`) and kills the
-	 * workspace's terminal sessions. The worktree and branch stay on disk —
-	 * permanent cleanup happens later via `destroy` (Settings → Archived
-	 * workspaces). The flag commits before the PTY kill so the UI hides the
-	 * row even if session disposal fails; disposal problems come back as
-	 * warnings, mirroring `destroy`'s contract.
+	 * Instant, reversible archive: flags the row (`archivedAt`) and nothing
+	 * else. The worktree and branch stay on disk, and terminal sessions keep
+	 * running so an Undo restores fully warm terminals. The terminal reaper
+	 * *suspends* an archived workspace's sessions on its next pass (PTY
+	 * killed, rows kept `active`) — see `planArchivedSuspends` — so a later
+	 * unarchive+reopen respawns shells via the lost-PTY recovery path instead
+	 * of dead-ending on deleted rows. Permanent cleanup happens via `destroy`
+	 * (Settings → Archived workspaces).
 	 *
 	 * `archivedAt` is host-local only (not mirrored to the cloud row): other
 	 * machines relying on the Electric fallback for an offline host may still
@@ -214,21 +216,7 @@ export const workspaceCleanupRouter = router({
 				{ archivedAt },
 			);
 
-			const warnings: string[] = [];
-			try {
-				const killed = await disposeSessionsByWorkspaceId(
-					input.workspaceId,
-					ctx.db,
-				);
-				if (killed.failed > 0) {
-					warnings.push(`${killed.failed} terminal(s) may still be running`);
-				}
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				warnings.push(`Failed to dispose terminal sessions: ${message}`);
-			}
-
-			return { success: true, archivedAt, warnings };
+			return { success: true, archivedAt, warnings: [] as string[] };
 		}),
 
 	/** Clear the archive flag; the broadcast restores the row everywhere. */
