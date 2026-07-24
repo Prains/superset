@@ -447,7 +447,11 @@ function appendMessageBlock(
 function markTurnFailed(state: FoldState, turnId: string): void {
 	for (let i = state.items.length - 1; i >= 0; i--) {
 		const item = state.items[i];
-		if (item?.kind === "message" && item.role === "user" && item.turnId === turnId) {
+		if (
+			item?.kind === "message" &&
+			item.role === "user" &&
+			item.turnId === turnId
+		) {
 			state.items[i] = { ...item, failed: true };
 			return;
 		}
