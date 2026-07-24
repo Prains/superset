@@ -199,7 +199,7 @@ export function OverlaysSection() {
 			<ComponentCard
 				title="Tooltip"
 				importPath="@superset/ui/tooltip"
-				description="All four sides, plus the shortcut-chip style used by desktop's HotkeyTooltip"
+				description="Bordered chip is the default (the preset/HotkeyTooltip style); arrow is opt-in via showArrow"
 			>
 				{(["top", "right", "bottom", "left"] as const).map((side) => (
 					<Tooltip key={side}>
@@ -217,13 +217,16 @@ export function OverlaysSection() {
 							Hotkey chip
 						</Button>
 					</TooltipTrigger>
-					<TooltipContent
-						side="bottom"
-						sideOffset={4}
-						showArrow={false}
-						className="rounded-sm border border-border bg-background px-1.5 py-0.5 font-medium text-muted-foreground shadow-sm"
-					>
-						⌘⇧O
+					<TooltipContent side="bottom">⌘⇧O</TooltipContent>
+				</Tooltip>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button variant="outline" size="sm">
+							With arrow
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" showArrow>
+						showArrow opt-in
 					</TooltipContent>
 				</Tooltip>
 			</ComponentCard>

@@ -45,7 +45,7 @@ const DESKTOP_COMPONENTS: SharedComponent[] = [
 		name: "HotkeyTooltip",
 		path: "renderer/hotkeys/components/HotkeyTooltip",
 		sites: 2,
-		note: "Long-hover shortcut-only tooltip chip (style demoed in §03)",
+		note: "Long-hover shortcut-only tooltip; its chip style is now the TooltipContent default",
 	},
 	{
 		name: "EmojiTextInput",

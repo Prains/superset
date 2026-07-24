@@ -29,7 +29,7 @@ export function SidebarControl() {
 					<span className="text-xs">Code</span>
 				</Button>
 			</TooltipTrigger>
-			<TooltipContent side="bottom" showArrow={false}>
+			<TooltipContent side="bottom">
 				<HotkeyLabel label="Open Code Sidebar" id="TOGGLE_SIDEBAR" />
 			</TooltipContent>
 		</Tooltip>

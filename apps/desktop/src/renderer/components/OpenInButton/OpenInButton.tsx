@@ -100,7 +100,7 @@ export function OpenInButton({
 							<span className="font-medium">{label}</span>
 						</Button>
 					</TooltipTrigger>
-					<TooltipContent side="bottom" showArrow={false}>
+					<TooltipContent side="bottom">
 						{`Open in ${currentApp.displayLabel ?? currentApp.label}${
 							showOpenInShortcut ? ` (${openInShortcut})` : ""
 						}`}

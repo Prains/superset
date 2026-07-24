@@ -301,7 +301,7 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 													<HiMiniMinus className="size-3.5" />
 												</button>
 											</TooltipTrigger>
-											<TooltipContent side="top" sideOffset={4}>
+											<TooltipContent side="top">
 												<HotkeyLabel label="Remove from sidebar" />
 											</TooltipContent>
 										</Tooltip>
@@ -329,7 +329,7 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 													<HiMiniXMark className="size-3.5" />
 												</button>
 											</TooltipTrigger>
-											<TooltipContent side="top" sideOffset={4}>
+											<TooltipContent side="top">
 												<HotkeyLabel
 													label="Close workspace"
 													id={isActive ? "CLOSE_WORKSPACE" : undefined}
