@@ -4,8 +4,8 @@ import { getSessionThreadPresentation } from "./getSessionThreadPresentation";
 describe("getSessionThreadPresentation", () => {
 	test("a failed offline resurrection explains the missing transcript and disables compose", () => {
 		const presentation = getSessionThreadPresentation({
-			status: "offline",
-			streamStatus: "stopped",
+			runState: "offline",
+			streamStatus: "idle",
 			isLoading: false,
 			errorText: "No stored session to load: native-session-id",
 		});
@@ -25,8 +25,8 @@ describe("getSessionThreadPresentation", () => {
 	test("loading, live, permission, reconnecting, and dead states stay distinct", () => {
 		expect(
 			getSessionThreadPresentation({
-				status: "offline",
-				streamStatus: "connecting",
+				runState: "offline",
+				streamStatus: "subscribing",
 				isLoading: true,
 				errorText: null,
 			}),
@@ -37,8 +37,8 @@ describe("getSessionThreadPresentation", () => {
 		});
 		expect(
 			getSessionThreadPresentation({
-				status: "idle",
-				streamStatus: "reconnecting",
+				runState: "idle",
+				streamStatus: "reset",
 				isLoading: false,
 				errorText: null,
 			}),
@@ -50,16 +50,16 @@ describe("getSessionThreadPresentation", () => {
 		});
 		expect(
 			getSessionThreadPresentation({
-				status: "awaiting_permission",
-				streamStatus: "open",
+				runState: "running",
+				streamStatus: "live",
 				isLoading: false,
 				errorText: null,
 			}),
 		).toMatchObject({ canCompose: true, composerStatus: "streaming" });
 		expect(
 			getSessionThreadPresentation({
-				status: "dead",
-				streamStatus: "reconnecting",
+				runState: "closed",
+				streamStatus: "reset",
 				isLoading: false,
 				errorText: null,
 			}),
