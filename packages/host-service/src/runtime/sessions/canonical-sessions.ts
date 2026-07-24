@@ -83,6 +83,11 @@ export interface AcpSessionsPort {
 		since?: number;
 		onEnvelope: (envelope: SessionUpdateEnvelope) => void;
 	}): () => void;
+	/**
+	 * True when the durable registry could not be fully loaded, so list() may
+	 * omit sessions that still exist on disk.
+	 */
+	registryHydrationFailed?(): boolean;
 }
 
 export type CanonicalSessionsErrorCode =
@@ -168,8 +173,12 @@ interface TrackedSession {
 	 */
 	generation: string;
 	/** The canonical log, cursor-stamped. In-memory; content is never
-	 *  persisted — the vendor transcript is the source of truth. */
+	 *  persisted — the vendor transcript is the source of truth. Ring-bounded
+	 *  at {@link MAX_SESSION_LOG_EVENTS}: `events[i]` holds serial
+	 *  `evictedCount + i + 1`. */
 	events: SessionEvent[];
+	/** Events dropped from the front of the ring; their serials are gone. */
+	evictedCount: number;
 	projection: SessionProjection;
 	cursorSerial: number;
 	lastSeq: number;
@@ -201,6 +210,13 @@ const ACP_CAPABILITIES: SessionCapabilities = {
 };
 
 const MAX_RECEIPTS = 10_000;
+/**
+ * Ring bound on each tracked session's in-memory event log. A subscriber
+ * whose cursor falls off the ring gets `foreign_cursor` → reset → snapshot
+ * cold path, the same recovery as a dead generation; scrollback past the
+ * ring reports `truncatedBefore`.
+ */
+const MAX_SESSION_LOG_EVENTS = 5_000;
 const DEFAULT_PAGE_LIMIT = 50;
 /** Events in the `get` snapshot tail — one round trip paints the recent
  *  conversation; older content is getEvents territory. */
@@ -352,6 +368,7 @@ export class CanonicalSessionsRuntime {
 	>();
 	private readonly dirtySessions = new Set<string>();
 	private dirtyFlushScheduled = false;
+	private disposed = false;
 
 	constructor(options: CanonicalSessionsRuntimeOptions) {
 		this.port = options.port;
@@ -484,10 +501,12 @@ export class CanonicalSessionsRuntime {
 						}
 					: null,
 				hasMoreBefore: start > 0,
-				// The log head was lost to journal eviction before tracking began
-				// (resetSeen): once a window reaches our oldest event, say so
-				// explicitly instead of passing off partial history as complete.
-				truncatedBefore: tracked.resetSeen && start === 0,
+				// The log head was lost — to journal eviction before tracking began
+				// (resetSeen) or to the ring bound after it: once a window reaches
+				// our oldest event, say so instead of passing off partial history
+				// as complete.
+				truncatedBefore:
+					(tracked.resetSeen || tracked.evictedCount > 0) && start === 0,
 			},
 			head: this.headCursor(tracked),
 		};
@@ -590,13 +609,15 @@ export class CanonicalSessionsRuntime {
 
 	async submitTurn(input: SubmitTurnInput): Promise<SubmitTurnReceipt> {
 		return this.withReceipt("submitTurn", input, async () => {
-			const tracked = await this.requireTracked(input.sessionId);
+			// Closed is a pure host-side override; reject before resurrecting the
+			// adapter so a closed session never spawns a child process.
 			if (this.overrides.get(input.sessionId)?.closedAt != null) {
 				throw new CanonicalSessionsError(
 					"PRECONDITION_FAILED",
 					"Session is closed",
 				);
 			}
+			const tracked = await this.requireTracked(input.sessionId);
 			if (input.threadId !== tracked.translator.mainThreadId) {
 				throw new CanonicalSessionsError(
 					"BAD_REQUEST",
@@ -675,13 +696,21 @@ export class CanonicalSessionsRuntime {
 				input.outcome.type === "selected"
 					? makeSelectedOutcome(input.outcome.optionIds)
 					: { outcome: "cancelled" };
-			// Both "resolved" and "already_resolved" admit the request — the
-			// permission_resolved event is the completion either way.
-			this.port.respondToPermission({
-				sessionId: input.sessionId,
-				requestId: nativeRequestId,
-				outcome,
-			});
+			try {
+				// Both "resolved" and "already_resolved" admit the request — the
+				// permission_resolved event is the completion either way.
+				this.port.respondToPermission({
+					sessionId: input.sessionId,
+					requestId: nativeRequestId,
+					outcome,
+				});
+			} catch (error) {
+				tracked.translator.clearPermissionResolutionCausation(
+					nativeRequestId,
+					input.requestId,
+				);
+				throw error;
+			}
 			return {
 				requestId: input.requestId,
 				permissionId: input.permissionId,
@@ -709,6 +738,7 @@ export class CanonicalSessionsRuntime {
 	}
 
 	dispose(): void {
+		this.disposed = true;
 		for (const tracked of this.tracked.values()) {
 			tracked.unsubscribe();
 		}
@@ -764,6 +794,11 @@ export class CanonicalSessionsRuntime {
 		if (!tracked) return { ok: false, reason: "untracked" };
 		const head = this.headCursor(tracked);
 		if (after === null || after === ZERO_CURSOR) {
+			// "From the very beginning" is only gapless while the ring still
+			// holds the beginning.
+			if (tracked.evictedCount > 0) {
+				return { ok: false, reason: "foreign_cursor" };
+			}
 			return { ok: true, events: [...tracked.events], head };
 		}
 		const parsed = parseCursor(after);
@@ -771,12 +806,19 @@ export class CanonicalSessionsRuntime {
 			parsed === null ||
 			parsed === "zero" ||
 			parsed.generation !== tracked.generation ||
-			parsed.serial > tracked.cursorSerial
+			parsed.serial > tracked.cursorSerial ||
+			// The suffix after this cursor starts below the ring floor — some of
+			// it was evicted, so a gapless replay is impossible.
+			parsed.serial < tracked.evictedCount
 		) {
 			return { ok: false, reason: "foreign_cursor" };
 		}
-		// Serials are 1-based and gapless, so the slice index IS the serial.
-		return { ok: true, events: tracked.events.slice(parsed.serial), head };
+		// Serials are 1-based and gapless; the ring offset maps serial → index.
+		return {
+			ok: true,
+			events: tracked.events.slice(parsed.serial - tracked.evictedCount),
+			head,
+		};
 	}
 
 	/**
@@ -820,6 +862,9 @@ export class CanonicalSessionsRuntime {
 	 */
 	sweepOrphanedSessionMeta(): void {
 		if (!this.metaStore) return;
+		// An incomplete registry would make every missing session look orphaned
+		// and delete its metadata; skip the sweep until a clean boot.
+		if (this.port.registryHydrationFailed?.()) return;
 		const known = new Set<string>();
 		let cursor: string | undefined;
 		do {
@@ -957,6 +1002,11 @@ export class CanonicalSessionsRuntime {
 			if (raced) return raced;
 			state = this.port.get(sessionId);
 		}
+		// A resurrection parked on ensureLive can resume after dispose; a track
+		// here would attach a journal subscription nothing will ever remove.
+		if (this.disposed) {
+			throw new CanonicalSessionsError("INTERNAL", "Runtime is disposed");
+		}
 		return this.track(state);
 	}
 
@@ -986,6 +1036,7 @@ export class CanonicalSessionsRuntime {
 			// by construction and reset deterministically.
 			generation: this.mintGeneration(),
 			events: [],
+			evictedCount: 0,
 			projection: this.baselineProjection(state),
 			cursorSerial: 0,
 			lastSeq: 0,
@@ -1027,6 +1078,10 @@ export class CanonicalSessionsRuntime {
 			// a throw here would corrupt unrelated subscribers. Record and skip.
 			tracked.foldError =
 				error instanceof Error ? error.message : String(error);
+			console.warn(
+				`[sessions] dropped untranslatable frame for ${tracked.sessionId}:`,
+				error,
+			);
 			return;
 		}
 		for (const draft of drafts) {
@@ -1042,6 +1097,10 @@ export class CanonicalSessionsRuntime {
 			cursor: mintCursor(tracked.generation, tracked.cursorSerial),
 		};
 		tracked.events.push(event);
+		if (tracked.events.length > MAX_SESSION_LOG_EVENTS) {
+			tracked.events.shift();
+			tracked.evictedCount += 1;
+		}
 		try {
 			tracked.projection = reduceProjection(tracked.projection, {
 				type: "event",
@@ -1051,6 +1110,10 @@ export class CanonicalSessionsRuntime {
 		} catch (error) {
 			tracked.foldError =
 				error instanceof Error ? error.message : String(error);
+			console.warn(
+				`[sessions] projection fold failed for ${tracked.sessionId} at ${event.cursor}:`,
+				error,
+			);
 		}
 		// The event is in the log regardless of local projection health —
 		// clients fold with their own reducer, so they still get it.
@@ -1200,42 +1263,29 @@ export class CanonicalSessionsRuntime {
 		},
 	): Promise<void> {
 		const { sessionId } = tracked;
-		tracked.translator.attributeNextSettingsChange(requestId);
-		if (settings.activeMode != null) {
-			await this.port.setMode({ sessionId, modeId: settings.activeMode });
-		}
-		if (settings.activeModel != null) {
-			const option = this.findConfigOption(sessionId, "model", "model");
-			if (!option) {
-				throw new CanonicalSessionsError(
-					"NOT_IMPLEMENTED",
-					"The harness exposes no model option",
-				);
-			}
-			await this.port.setConfigOption({
-				sessionId,
-				configId: option.id,
-				value: settings.activeModel,
-			});
-		}
-		if (settings.effort != null) {
-			const option = this.findConfigOption(
-				sessionId,
-				"thought_level",
-				"effort",
+		// Validate the whole batch before the first port mutation so a request
+		// the host can reject upfront never half-applies.
+		const modelOption =
+			settings.activeModel != null
+				? this.findConfigOption(sessionId, "model", "model")
+				: undefined;
+		if (settings.activeModel != null && !modelOption) {
+			throw new CanonicalSessionsError(
+				"NOT_IMPLEMENTED",
+				"The harness exposes no model option",
 			);
-			if (!option) {
-				throw new CanonicalSessionsError(
-					"NOT_IMPLEMENTED",
-					"The harness exposes no effort option",
-				);
-			}
-			await this.port.setConfigOption({
-				sessionId,
-				configId: option.id,
-				value: settings.effort,
-			});
 		}
+		const effortOption =
+			settings.effort != null
+				? this.findConfigOption(sessionId, "thought_level", "effort")
+				: undefined;
+		if (settings.effort != null && !effortOption) {
+			throw new CanonicalSessionsError(
+				"NOT_IMPLEMENTED",
+				"The harness exposes no effort option",
+			);
+		}
+		const configurationEntries: Array<[string, string | boolean]> = [];
 		for (const [configId, value] of Object.entries(
 			settings.configuration ?? {},
 		)) {
@@ -1245,7 +1295,33 @@ export class CanonicalSessionsRuntime {
 					`Configuration option ${configId} must be a string or boolean`,
 				);
 			}
-			await this.port.setConfigOption({ sessionId, configId, value });
+			configurationEntries.push([configId, value]);
+		}
+		tracked.translator.attributeNextSettingsChange(requestId);
+		try {
+			if (settings.activeMode != null) {
+				await this.port.setMode({ sessionId, modeId: settings.activeMode });
+			}
+			if (modelOption && settings.activeModel != null) {
+				await this.port.setConfigOption({
+					sessionId,
+					configId: modelOption.id,
+					value: settings.activeModel,
+				});
+			}
+			if (effortOption && settings.effort != null) {
+				await this.port.setConfigOption({
+					sessionId,
+					configId: effortOption.id,
+					value: settings.effort,
+				});
+			}
+			for (const [configId, value] of configurationEntries) {
+				await this.port.setConfigOption({ sessionId, configId, value });
+			}
+		} catch (error) {
+			tracked.translator.clearSettingsCausation(requestId);
+			throw error;
 		}
 	}
 

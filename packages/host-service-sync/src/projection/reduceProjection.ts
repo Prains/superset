@@ -153,6 +153,15 @@ function finishTurn(
 	// tracked must be a full no-op, or it would terminalize a live thread.
 	if (!projection.activeTurnsById[turnId]) return;
 	delete projection.activeTurnsById[turnId];
+	// The host terminalizes a turn's tool calls before ending it, but a window
+	// missing those updates must not leak "running" entries forever.
+	for (const [toolCallId, toolCall] of Object.entries(
+		projection.activeToolCallsById,
+	)) {
+		if (toolCall.turnId === turnId) {
+			delete projection.activeToolCallsById[toolCallId];
+		}
+	}
 	setThreadRunState(projection, threadId, threadRunState);
 }
 

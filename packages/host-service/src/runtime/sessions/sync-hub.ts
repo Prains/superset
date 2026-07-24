@@ -269,7 +269,12 @@ export class SessionsSyncHub {
 		raw: string,
 	): Promise<void> {
 		if (connection.closed) return;
-		if (raw.length > this.maxFrameBytes) {
+		// UTF-16 length never exceeds the UTF-8 byte count, so it rejects huge
+		// frames without a scan; the rest need the exact byte measurement.
+		if (
+			raw.length > this.maxFrameBytes ||
+			Buffer.byteLength(raw, "utf8") > this.maxFrameBytes
+		) {
 			this.sendError(connection, {
 				requestId: null,
 				code: "INVALID_PACKET",

@@ -23,6 +23,8 @@ export interface TimelineMessageItem {
 	/** Stable render key: `${messageId}:${role}:${ordinal}`. */
 	id: string;
 	role: TimelineMessageRole;
+	/** Null when the owning message started before this window. */
+	turnId: string | null;
 	blocks: ContentBlock[];
 	/** True when the turn carrying this user message failed. */
 	failed: boolean;
@@ -128,8 +130,8 @@ export function foldTimeline(
 		activeTurnId: timeline.activeTurnId,
 		eventCount: timeline.eventCount,
 		messageRoles: new Map(),
+		messageTurns: new Map(),
 		threadParents: new Map(),
-		turnUserItems: new Map(),
 	};
 	rebuildFoldIndexes(next, events);
 	for (let i = timeline.eventCount; i < events.length; i++) {
@@ -174,19 +176,18 @@ export function selectedOptionIds(outcome: PermissionOutcome): string[] {
 interface FoldState extends Timeline {
 	/** messageId → canonical role, for routing deltas. */
 	messageRoles: Map<string, "user" | "assistant" | "system">;
+	/** messageId → owning turn, for turn-failure marking. */
+	messageTurns: Map<string, string>;
 	/** threadId → toolCallId whose card hosts that thread's items. */
 	threadParents: Map<string, string>;
-	/** turnId → render id of the newest user message item of that turn. */
-	turnUserItems: Map<string, string>;
 }
 
 /**
- * The message-role and thread-parent indexes are derivable facts, not
- * carried on the public Timeline (it stays a plain renderable value).
- * Incremental folds rebuild them by rescanning the already-folded prefix —
- * a cheap field read per event. `turnUserItems` is deliberately NOT rebuilt:
- * turn-failure marking for turns whose user message folded in an earlier
- * pass takes the newest-user-message fallback, same as the old fold.
+ * The message-role, message-turn, and thread-parent indexes are derivable
+ * facts, not carried on the public Timeline (it stays a plain renderable
+ * value). Incremental folds rebuild them by rescanning the already-folded
+ * prefix — a cheap field read per event — so a fold of any granularity
+ * produces the same Timeline as one full fold.
  */
 function rebuildFoldIndexes(
 	state: FoldState,
@@ -198,6 +199,7 @@ function rebuildFoldIndexes(
 		if (payload === undefined) continue;
 		if (payload.type === "messageStarted") {
 			state.messageRoles.set(payload.message.id, payload.message.role);
+			state.messageTurns.set(payload.message.id, payload.message.turnId);
 		} else if (
 			(payload.type === "threadCreated" || payload.type === "threadUpdated") &&
 			payload.thread.origin.type === "subagent"
@@ -244,14 +246,9 @@ function foldEvent(state: FoldState, event: SessionEvent): void {
 		}
 		case "messageStarted": {
 			state.messageRoles.set(payload.message.id, payload.message.role);
+			state.messageTurns.set(payload.message.id, payload.message.turnId);
 			for (const block of payload.message.content) {
 				appendMessageBlock(state, event, payload.message.id, block);
-			}
-			if (payload.message.role === "user") {
-				const lastItem = state.items[state.items.length - 1];
-				if (lastItem?.kind === "message" && lastItem.role === "user") {
-					state.turnUserItems.set(payload.message.turnId, lastItem.id);
-				}
 			}
 			break;
 		}
@@ -441,24 +438,20 @@ function appendMessageBlock(
 		kind: "message",
 		id: `${messageId}:${role}:${state.eventCount}`,
 		role,
+		turnId: state.messageTurns.get(messageId) ?? null,
 		blocks: [renderBlock],
 		failed: false,
 	});
 }
 
 function markTurnFailed(state: FoldState, turnId: string): void {
-	const itemId = state.turnUserItems.get(turnId);
-	const markById = (items: TimelineItem[], id: string): boolean => {
-		for (let i = items.length - 1; i >= 0; i--) {
-			const item = items[i];
-			if (item?.kind === "message" && item.id === id) {
-				items[i] = { ...item, failed: true };
-				return true;
-			}
+	for (let i = state.items.length - 1; i >= 0; i--) {
+		const item = state.items[i];
+		if (item?.kind === "message" && item.role === "user" && item.turnId === turnId) {
+			state.items[i] = { ...item, failed: true };
+			return;
 		}
-		return false;
-	};
-	if (itemId !== undefined && markById(state.items, itemId)) return;
+	}
 	// Fallback: the rejection always follows the journaled prompt closely.
 	for (let i = state.items.length - 1; i >= 0; i--) {
 		const item = state.items[i];

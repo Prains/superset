@@ -55,6 +55,7 @@ const SHORT_TEXT_LIMIT = 4_096;
 /** Same retention shape as the projection's collection caps. */
 const MAX_TRACKED_TOOL_CALLS = 10_000;
 const MAX_TRACKED_SUBAGENT_THREADS = 1_000;
+const MAX_TRACKED_TURNS = 10_000;
 
 const TERMINAL_TOOL_CALL_STATES: ReadonlySet<ToolCallState> = new Set([
 	"succeeded",
@@ -171,12 +172,31 @@ export class AcpSessionEventTranslator {
 		this.nextSettingsCausation = requestId;
 	}
 
+	/** Disarm a failed settings mutation so it cannot tag an unrelated event. */
+	clearSettingsCausation(requestId: string): void {
+		if (this.nextSettingsCausation === requestId) {
+			this.nextSettingsCausation = null;
+		}
+	}
+
 	/** The resolution of this native permission request carries this requestId. */
 	attributePermissionResolution(
 		nativeRequestId: string,
 		requestId: string,
 	): void {
 		this.permissionResolutionCausations.set(nativeRequestId, requestId);
+	}
+
+	/** Disarm a failed permission resolution so a later one is not mislabeled. */
+	clearPermissionResolutionCausation(
+		nativeRequestId: string,
+		requestId: string,
+	): void {
+		if (
+			this.permissionResolutionCausations.get(nativeRequestId) === requestId
+		) {
+			this.permissionResolutionCausations.delete(nativeRequestId);
+		}
 	}
 
 	/** Public permission id for a native request id, while it is pending. */
@@ -713,13 +733,13 @@ export class AcpSessionEventTranslator {
 		};
 		this.activeTurn = turn;
 		this.mintedTurnIds.add(turn.id);
-		if (this.mintedTurnIds.size > MAX_TRACKED_TOOL_CALLS) {
+		if (this.mintedTurnIds.size > MAX_TRACKED_TURNS) {
 			const oldest = this.mintedTurnIds.values().next().value;
 			if (oldest !== undefined) this.mintedTurnIds.delete(oldest);
 		}
 		if (attribution?.requestId) {
 			this.turnIdsByRequest.set(attribution.requestId, turn.id);
-			if (this.turnIdsByRequest.size > MAX_TRACKED_SUBAGENT_THREADS) {
+			if (this.turnIdsByRequest.size > MAX_TRACKED_TURNS) {
 				const oldest = this.turnIdsByRequest.keys().next().value;
 				if (oldest !== undefined) this.turnIdsByRequest.delete(oldest);
 			}
