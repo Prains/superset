@@ -7,7 +7,7 @@ import {
 } from "@superset/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
-import { HiOutlineArrowsUpDown } from "react-icons/hi2";
+import { VscListFilter } from "react-icons/vsc";
 import type { SidebarProjectSortMode } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal/schema";
 
 const SORT_MODE_LABELS: Record<SidebarProjectSortMode, string> = {
@@ -42,7 +42,7 @@ export function DashboardSidebarProjectsSortMenu({
 									: "text-foreground",
 							)}
 						>
-							<HiOutlineArrowsUpDown className="size-3.5" />
+							<VscListFilter className="size-3.5" />
 						</button>
 					</DropdownMenuTrigger>
 				</TooltipTrigger>

@@ -1,7 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { useEffect, useRef } from "react";
-import { HiXMark } from "react-icons/hi2";
-import { VscListFilter } from "react-icons/vsc";
+import { HiMagnifyingGlass, HiXMark } from "react-icons/hi2";
 
 interface DashboardSidebarProjectsFilterInputProps {
 	query: string;
@@ -36,7 +35,7 @@ export function DashboardSidebarProjectsFilterInput({
 						onKeyDown={(event) => event.stopPropagation()}
 						className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover hover:text-foreground"
 					>
-						<VscListFilter className="size-3.5" />
+						<HiMagnifyingGlass className="size-3.5" />
 					</button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Filter projects</TooltipContent>
@@ -59,7 +58,7 @@ export function DashboardSidebarProjectsFilterInput({
 				if (event.key === "Escape") collapse();
 			}}
 		>
-			<VscListFilter className="size-3 shrink-0 text-muted-foreground" />
+			<HiMagnifyingGlass className="size-3 shrink-0 text-muted-foreground" />
 			<input
 				ref={inputRef}
 				value={query}
