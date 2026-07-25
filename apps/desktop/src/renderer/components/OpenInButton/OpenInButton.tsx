@@ -14,7 +14,7 @@ import {
 	OpenInExternalDropdownItems,
 } from "renderer/components/OpenInExternalDropdown";
 import { useCopyToClipboard } from "renderer/hooks/useCopyToClipboard";
-import { useHotkeyDisplay } from "renderer/hotkeys";
+import { HotkeyLabel, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useThemeStore } from "renderer/stores";
 
@@ -101,9 +101,11 @@ export function OpenInButton({
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent side="bottom">
-						{`Open in ${currentApp.displayLabel ?? currentApp.label}${
-							showOpenInShortcut ? ` (${openInShortcut})` : ""
-						}`}
+						{showOpenInShortcut ? (
+							<HotkeyLabel id="OPEN_IN_APP" />
+						) : (
+							`Open in ${currentApp.displayLabel ?? currentApp.label}`
+						)}
 					</TooltipContent>
 				</Tooltip>
 			)}
