@@ -150,7 +150,7 @@ export function DashboardSidebarHeader({
 					<div
 						// w +1px: overlaps the container's border-r so the sidebar's
 						// vertical border starts below the bar, not inside it.
-						className="drag h-10 w-[calc(100%+1px)] shrink-0 border-b border-border"
+						className="drag h-10 w-[calc(100%+1px)] shrink-0"
 						// Flattened equivalent of the tab bar's bg-border/30 over
 						// bg-background — the rail's own tinted bg sits beneath this
 						// element, so a translucent fill here would composite lighter.

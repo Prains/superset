@@ -170,10 +170,7 @@ export function TabBar<TData>({
 	return (
 		<div
 			ref={setRootRef}
-			// The bottom border is drawn on the bar's leaf elements (inactive tabs,
-			// the add-button cluster, the trailing region, and the flex filler) rather
-			// than the root, so the active tab can leave a real 1px gap and flow into
-			// the content below. Only the empty filler right of the tabs is an
+			// Only the empty filler right of the tabs is an
 			// Electron window-drag region — marking the whole bar `drag` and carving
 			// children out with `no-drag` loses the carve-outs once they sit inside
 			// the masked/scrollable OverflowFadeContainer, which made the entire bar
@@ -181,7 +178,7 @@ export function TabBar<TData>({
 			className="group/root-tabs flex h-10 min-w-0 shrink-0 items-stretch bg-border/30"
 		>
 			{renderTabBarLeading && (
-				<div className="flex h-full shrink-0 items-stretch border-b border-border">
+				<div className="flex h-full shrink-0 items-stretch">
 					{renderTabBarLeading()}
 				</div>
 			)}
@@ -223,22 +220,22 @@ export function TabBar<TData>({
 						/>
 					)}
 					{!hasHorizontalOverflow && (
-						<div className="flex h-full w-10 shrink-0 items-center justify-center border-b border-border">
+						<div className="flex h-full w-10 shrink-0 items-center justify-center">
 							<AddTabButton renderAddTabMenu={renderAddTabMenu} />
 						</div>
 					)}
-					{/* Carries the bar's bottom border across the empty space to the
-					    right of the tabs (collapses to 0 when the tabs overflow). */}
-					<div className="drag h-full flex-1 border-b border-border" />
+					{/* Empty space to the right of the tabs (collapses to 0 when the
+					    tabs overflow); the bar's only window-drag region. */}
+					<div className="drag h-full flex-1" />
 				</div>
 			</OverflowFadeContainer>
 			{hasHorizontalOverflow && (
-				<div className="no-drag flex h-full w-10 shrink-0 items-center justify-center border-b border-border bg-border/30">
+				<div className="no-drag flex h-full w-10 shrink-0 items-center justify-center bg-border/30">
 					<AddTabButton renderAddTabMenu={renderAddTabMenu} />
 				</div>
 			)}
 			{renderTabBarTrailing && (
-				<div className="no-drag flex h-full shrink-0 items-center border-b border-border px-1">
+				<div className="no-drag flex h-full shrink-0 items-center px-1">
 					{renderTabBarTrailing()}
 				</div>
 			)}
