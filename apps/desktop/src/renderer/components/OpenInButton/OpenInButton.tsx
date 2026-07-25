@@ -83,7 +83,7 @@ export function OpenInButton({
 	return (
 		<ButtonGroup>
 			{label && currentApp && (
-				<Tooltip>
+				<Tooltip delayDuration={1000}>
 					<TooltipTrigger asChild>
 						<Button
 							variant="outline"
@@ -102,7 +102,10 @@ export function OpenInButton({
 					</TooltipTrigger>
 					<TooltipContent side="bottom">
 						{showOpenInShortcut ? (
-							<HotkeyLabel id="OPEN_IN_APP" />
+							<HotkeyLabel
+								label={`Open in ${currentApp.displayLabel ?? currentApp.label}`}
+								id="OPEN_IN_APP"
+							/>
 						) : (
 							`Open in ${currentApp.displayLabel ?? currentApp.label}`
 						)}

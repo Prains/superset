@@ -84,7 +84,7 @@ export const OpenInMenuButton = memo(function OpenInMenuButton({
 	return (
 		<div className="flex items-center no-drag">
 			{/* Main button - opens in last used app */}
-			<Tooltip>
+			<Tooltip delayDuration={1000}>
 				<TooltipTrigger asChild>
 					<button
 						type="button"
@@ -123,7 +123,10 @@ export const OpenInMenuButton = memo(function OpenInMenuButton({
 				</TooltipTrigger>
 				<TooltipContent side="bottom" sideOffset={6}>
 					{currentApp ? (
-						<HotkeyLabel id="OPEN_IN_APP" />
+						<HotkeyLabel
+							label={`Open in ${currentApp.displayLabel ?? currentApp.label}`}
+							id="OPEN_IN_APP"
+						/>
 					) : (
 						"Select an editor from the dropdown"
 					)}
