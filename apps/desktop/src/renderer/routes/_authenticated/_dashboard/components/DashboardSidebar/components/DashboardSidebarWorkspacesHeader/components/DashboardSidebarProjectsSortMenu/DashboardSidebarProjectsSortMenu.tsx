@@ -53,6 +53,11 @@ export function DashboardSidebarProjectsSortMenu({
 			<DropdownMenuContent
 				align="end"
 				onCloseAutoFocus={(event) => event.preventDefault()}
+				// The content portals to body but React events still bubble up the
+				// component tree — without these, selecting an item triggers the
+				// header row's collapse toggle.
+				onClick={(event) => event.stopPropagation()}
+				onKeyDown={(event) => event.stopPropagation()}
 			>
 				<DropdownMenuRadioGroup
 					value={sortMode}
