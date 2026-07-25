@@ -74,9 +74,13 @@ export function DashboardSidebarProjectsFilterInput({
 				<button
 					type="button"
 					aria-label="Clear filter"
-					// onMouseDown so the click wins over the input's onBlur collapse
+					// preventDefault on mousedown so the input never blurs; the
+					// clearing lives in onClick so keyboard activation works too
 					onMouseDown={(event) => {
 						event.preventDefault();
+						event.stopPropagation();
+					}}
+					onClick={(event) => {
 						event.stopPropagation();
 						onQueryChange("");
 						inputRef.current?.focus();
