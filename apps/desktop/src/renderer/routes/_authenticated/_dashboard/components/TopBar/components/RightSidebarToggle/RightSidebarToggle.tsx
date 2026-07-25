@@ -43,7 +43,7 @@ export function RightSidebarToggle() {
 				</button>
 			</TooltipTrigger>
 			<TooltipContent side="left">
-				<HotkeyLabel label="Toggle sidebar" id="TOGGLE_SIDEBAR" />
+				<HotkeyLabel id="TOGGLE_SIDEBAR" />
 			</TooltipContent>
 		</Tooltip>
 	);

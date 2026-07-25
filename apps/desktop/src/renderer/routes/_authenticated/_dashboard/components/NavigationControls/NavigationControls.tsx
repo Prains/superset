@@ -44,7 +44,7 @@ export function NavigationControls() {
 					</button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">
-					<HotkeyLabel label="Go back" id="NAVIGATE_BACK" />
+					<HotkeyLabel id="NAVIGATE_BACK" />
 				</TooltipContent>
 			</Tooltip>
 
@@ -60,7 +60,7 @@ export function NavigationControls() {
 					</button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">
-					<HotkeyLabel label="Go forward" id="NAVIGATE_FORWARD" />
+					<HotkeyLabel id="NAVIGATE_FORWARD" />
 				</TooltipContent>
 			</Tooltip>
 

@@ -48,6 +48,7 @@ import {
 	HoverCardTrigger,
 } from "@superset/ui/hover-card";
 import { Input } from "@superset/ui/input";
+import { Kbd, KbdGroup } from "@superset/ui/kbd";
 import { Label } from "@superset/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@superset/ui/popover";
 import {
@@ -217,7 +218,13 @@ export function OverlaysSection() {
 							Hotkey chip
 						</Button>
 					</TooltipTrigger>
-					<TooltipContent side="bottom">⌘⇧O</TooltipContent>
+					<TooltipContent side="bottom">
+						<KbdGroup>
+							<Kbd>⌘</Kbd>
+							<Kbd>⇧</Kbd>
+							<Kbd>O</Kbd>
+						</KbdGroup>
+					</TooltipContent>
 				</Tooltip>
 				<Tooltip>
 					<TooltipTrigger asChild>
