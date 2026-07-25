@@ -19,6 +19,7 @@ import {
 	LuPlus,
 	LuSearch,
 } from "react-icons/lu";
+import { VscFolderOpened, VscNewFolder } from "react-icons/vsc";
 import { useFrameStackStore } from "renderer/commandPalette";
 import { GATED_FEATURES, usePaywall } from "renderer/components/Paywall";
 import { SidebarKbdHint } from "renderer/components/SidebarKbdHint";
@@ -163,7 +164,7 @@ export function DashboardSidebarHeader({
 							<button
 								type="button"
 								onClick={() => openModal()}
-								className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover"
+								className="flex size-7 items-center justify-center rounded-md bg-fill-hover/60 [.light_&]:bg-fill-hover text-muted-foreground transition-colors hover:bg-fill-selected [.light_&]:hover:bg-fill-selected"
 							>
 								<div className="flex size-5 items-center justify-center rounded bg-fill-selected">
 									<LuPlus className="size-3" strokeWidth={STROKE_WIDTH_THICK} />
@@ -263,15 +264,16 @@ export function DashboardSidebarHeader({
 					</Tooltip>
 
 					<DropdownMenu>
-						<Tooltip delayDuration={300}>
+						<Tooltip delayDuration={700}>
 							<TooltipTrigger asChild>
 								<DropdownMenuTrigger asChild>
 									<button
 										type="button"
 										aria-label="Add repository"
-										className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover"
+										className="group/addrepo flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover"
 									>
-										<LuFolderPlus className="size-4" />
+										<VscNewFolder className="size-3.5 group-hover/addrepo:hidden" />
+										<VscFolderOpened className="hidden size-3.5 group-hover/addrepo:block" />
 									</button>
 								</DropdownMenuTrigger>
 							</TooltipTrigger>

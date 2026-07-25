@@ -10,6 +10,7 @@ import { cn } from "@superset/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { HiChevronRight, HiMiniPlus } from "react-icons/hi2";
 import { LuFolderInput, LuFolderPlus, LuLayoutTemplate } from "react-icons/lu";
+import { VscFolderOpened, VscNewFolder } from "react-icons/vsc";
 import { useFolderFirstImport } from "renderer/routes/_authenticated/_dashboard/components/AddRepositoryModals/hooks/useFolderFirstImport";
 import {
 	useOpenEmptyProjectModal,
@@ -59,7 +60,7 @@ export function DashboardSidebarWorkspacesHeader() {
 					toggleCollapsed();
 				}
 			}}
-			className="group flex min-h-8 w-full shrink-0 items-center gap-1.5 py-1.5 pl-4 pr-2 text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+			className="group flex min-h-8 w-full shrink-0 items-center gap-1.5 py-1.5 pl-4 pr-2 text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground transition-colors"
 		>
 			<span className="min-w-0 truncate text-left">Projects</span>
 			<HiChevronRight
@@ -70,7 +71,7 @@ export function DashboardSidebarWorkspacesHeader() {
 			/>
 			<div className="min-w-0 flex-1" />
 			<DropdownMenu>
-				<Tooltip delayDuration={300}>
+				<Tooltip delayDuration={700}>
 					<TooltipTrigger asChild>
 						<DropdownMenuTrigger asChild>
 							<button
@@ -78,9 +79,10 @@ export function DashboardSidebarWorkspacesHeader() {
 								aria-label="Add repository"
 								onClick={(event) => event.stopPropagation()}
 								onKeyDown={(event) => event.stopPropagation()}
-								className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover hover:text-foreground"
+								className="group/addrepo flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover hover:text-foreground"
 							>
-								<LuFolderPlus className="size-4" />
+								<VscNewFolder className="size-3.5 group-hover/addrepo:hidden" />
+								<VscFolderOpened className="hidden size-3.5 group-hover/addrepo:block" />
 							</button>
 						</DropdownMenuTrigger>
 					</TooltipTrigger>
