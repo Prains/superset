@@ -16,7 +16,7 @@ const SORT_MODE_LABELS: Record<SidebarProjectSortMode, string> = {
 	updated: "Last updated",
 };
 
-const SORT_MODES: SidebarProjectSortMode[] = ["updated", "created", "manual"];
+const SORT_MODES: SidebarProjectSortMode[] = ["manual", "updated", "created"];
 
 interface DashboardSidebarProjectsSortMenuProps {
 	sortMode: SidebarProjectSortMode;
