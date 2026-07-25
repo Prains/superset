@@ -148,7 +148,10 @@ export function WorkspaceSidebarFooter({
 						className="min-w-0 flex-1 shrink justify-start gap-2 text-muted-foreground hover:text-foreground"
 						disabled={isLoading}
 					>
-						<LuFolderPlus className="w-4 h-4 shrink-0" strokeWidth={STROKE_WIDTH} />
+						<LuFolderPlus
+							className="w-4 h-4 shrink-0"
+							strokeWidth={STROKE_WIDTH}
+						/>
 						<span className="truncate">Add repository</span>
 					</Button>
 				</DropdownMenuTrigger>
