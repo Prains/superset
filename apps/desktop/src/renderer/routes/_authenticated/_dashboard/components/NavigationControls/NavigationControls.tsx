@@ -32,7 +32,7 @@ export function NavigationControls() {
 
 	return (
 		<div className="flex items-center">
-			<Tooltip delayDuration={300}>
+			<Tooltip delayDuration={1000}>
 				<TooltipTrigger asChild>
 					<button
 						type="button"
@@ -48,7 +48,7 @@ export function NavigationControls() {
 				</TooltipContent>
 			</Tooltip>
 
-			<Tooltip delayDuration={300}>
+			<Tooltip delayDuration={1000}>
 				<TooltipTrigger asChild>
 					<button
 						type="button"

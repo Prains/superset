@@ -29,7 +29,7 @@ export function RightSidebarToggle() {
 	};
 
 	return (
-		<Tooltip delayDuration={300}>
+		<Tooltip delayDuration={1000}>
 			<TooltipTrigger asChild>
 				<button
 					type="button"

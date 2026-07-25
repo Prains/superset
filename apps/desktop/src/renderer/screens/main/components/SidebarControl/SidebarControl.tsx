@@ -10,7 +10,7 @@ export function SidebarControl() {
 	const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);
 
 	return (
-		<Tooltip>
+		<Tooltip delayDuration={1000}>
 			<TooltipTrigger asChild>
 				<Button
 					variant="ghost"
