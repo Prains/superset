@@ -219,11 +219,11 @@ export function TabBar<TData>({
 							style={{ left: insertLineLeft }}
 						/>
 					)}
-					{!hasHorizontalOverflow && (
-						<div className="flex h-full w-10 shrink-0 items-center justify-center">
+					<div className="flex h-full w-10 shrink-0 items-center justify-center">
+						{!hasHorizontalOverflow && (
 							<AddTabButton renderAddTabMenu={renderAddTabMenu} />
-						</div>
-					)}
+						)}
+					</div>
 					{/* Empty space to the right of the tabs (collapses to 0 when the
 					    tabs overflow); the bar's only window-drag region. */}
 					<div className="drag h-full flex-1" />
