@@ -212,7 +212,7 @@ export function RightSidebar() {
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
-							<HotkeyLabel label="Close sidebar" id="TOGGLE_SIDEBAR" />
+							<HotkeyLabel fallbackLabel="Close sidebar" id="TOGGLE_SIDEBAR" />
 						</TooltipContent>
 					</Tooltip>
 				</div>
