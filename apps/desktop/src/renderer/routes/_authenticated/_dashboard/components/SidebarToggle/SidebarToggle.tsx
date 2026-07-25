@@ -37,7 +37,10 @@ export function SidebarToggle() {
 				</button>
 			</TooltipTrigger>
 			<TooltipContent side="right">
-				<HotkeyLabel id="TOGGLE_WORKSPACE_SIDEBAR" />
+				<HotkeyLabel
+					fallbackLabel="Toggle sidebar"
+					id="TOGGLE_WORKSPACE_SIDEBAR"
+				/>
 			</TooltipContent>
 		</Tooltip>
 	);

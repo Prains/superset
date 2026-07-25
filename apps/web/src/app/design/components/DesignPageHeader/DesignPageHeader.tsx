@@ -34,6 +34,7 @@ export function DesignPageHeader({
 						<Link
 							key={page.key}
 							href={page.href}
+							aria-current={active === page.key ? "page" : undefined}
 							className={cn(
 								"-mb-px border-b-2 pb-3 text-sm transition-colors",
 								active === page.key

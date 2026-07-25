@@ -7,6 +7,8 @@ import { useState } from "react";
 interface ComponentCardProps {
 	title: string;
 	importPath: string;
+	/** Set false for source paths / globs that can't be pasted as an import. */
+	copyable?: boolean;
 	description?: string;
 	/** Stretch the card across the full grid width for wide demos. */
 	span?: boolean;
@@ -18,6 +20,7 @@ interface ComponentCardProps {
 export function ComponentCard({
 	title,
 	importPath,
+	copyable = true,
 	description,
 	span = false,
 	bleed = false,
@@ -47,19 +50,28 @@ export function ComponentCard({
 						</p>
 					)}
 				</div>
-				<button
-					type="button"
-					onClick={copyImport}
-					title="Copy import path"
-					className="flex max-w-[55%] shrink-0 items-center gap-1.5 rounded-md border border-transparent bg-muted/60 px-2 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:border-border hover:text-foreground"
-				>
-					<span className="truncate">{importPath}</span>
-					{copied ? (
-						<CheckIcon className="size-3 shrink-0 text-emerald-500" />
-					) : (
-						<CopyIcon className="size-3 shrink-0 opacity-0 transition-opacity group-hover/card:opacity-100" />
-					)}
-				</button>
+				{copyable ? (
+					<button
+						type="button"
+						onClick={copyImport}
+						title="Copy import path"
+						className="flex max-w-[55%] shrink-0 items-center gap-1.5 rounded-md border border-transparent bg-muted/60 px-2 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+					>
+						<span className="truncate">{importPath}</span>
+						{copied ? (
+							<CheckIcon className="size-3 shrink-0 text-emerald-500" />
+						) : (
+							<CopyIcon className="size-3 shrink-0 opacity-0 transition-opacity group-hover/card:opacity-100" />
+						)}
+					</button>
+				) : (
+					<span
+						title="Source path (not an import)"
+						className="flex max-w-[55%] shrink-0 items-center rounded-md bg-muted/60 px-2 py-1 font-mono text-[11px] text-muted-foreground"
+					>
+						<span className="truncate">{importPath}</span>
+					</span>
+				)}
 			</div>
 			<div
 				className={cn(

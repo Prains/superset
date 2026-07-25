@@ -136,6 +136,7 @@ export function SupersetSection() {
 			<ComponentCard
 				title="Referenced, not demoed"
 				importPath="@superset/ui/*"
+				copyable={false}
 				description="Need app-level wiring (form state, chart data, app shell)"
 				span
 			>

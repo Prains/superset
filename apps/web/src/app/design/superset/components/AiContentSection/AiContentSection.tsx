@@ -201,6 +201,7 @@ export function AiContentSection() {
 			<ComponentCard
 				title="Not demoed here"
 				importPath="@superset/ui/ai-elements/*"
+				copyable={false}
 				description="Need live chat/tool-call state (ToolUIPart, streams) or an app shell"
 				span
 			>

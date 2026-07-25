@@ -30,7 +30,7 @@ export function SidebarControl() {
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">
-				<HotkeyLabel id="TOGGLE_SIDEBAR" />
+				<HotkeyLabel fallbackLabel="Open Code Sidebar" id="TOGGLE_SIDEBAR" />
 			</TooltipContent>
 		</Tooltip>
 	);
