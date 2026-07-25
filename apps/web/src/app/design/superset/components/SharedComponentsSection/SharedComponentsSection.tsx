@@ -1,7 +1,7 @@
 import { Badge } from "@superset/ui/badge";
 
-import { ComponentCard } from "../ComponentCard";
-import { ShowcaseSection } from "../ShowcaseSection";
+import { ComponentCard } from "../../../components/ComponentCard";
+import { ShowcaseSection } from "../../../components/ShowcaseSection";
 
 interface SharedComponent {
 	name: string;
@@ -33,7 +33,7 @@ const DESKTOP_COMPONENTS: SharedComponent[] = [
 		name: "PickerTrigger",
 		path: "renderer/components/PickerTrigger",
 		sites: 5,
-		note: "Ghost trigger: icon + truncating label + up-down chevron (pattern demoed in §01)",
+		note: "Ghost trigger: icon + truncating label + up-down chevron (pattern demoed on the Primitives page)",
 	},
 	{
 		name: "ColorSelector",
@@ -125,7 +125,7 @@ export function SharedComponentsSection() {
 	return (
 		<ShowcaseSection
 			id="shared"
-			index="11"
+			index="06"
 			title="Shared app components"
 			description="Cross-feature components living outside packages/ui — check here before building a new one"
 		>

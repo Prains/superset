@@ -8,8 +8,8 @@ import { SidebarCard } from "@superset/ui/sidebar-card";
 import { toast } from "@superset/ui/sonner";
 import { ThemePreviewCard } from "@superset/ui/theme-preview-card";
 
-import { ComponentCard } from "../ComponentCard";
-import { ShowcaseSection } from "../ShowcaseSection";
+import { ComponentCard } from "../../../components/ComponentCard";
+import { ShowcaseSection } from "../../../components/ShowcaseSection";
 
 const REFERENCED_ONLY = [
 	{
@@ -30,7 +30,7 @@ export function SupersetSection() {
 	return (
 		<ShowcaseSection
 			id="superset"
-			index="10"
+			index="01"
 			title="Superset originals"
 			description="Custom components beyond the shadcn set"
 		>
