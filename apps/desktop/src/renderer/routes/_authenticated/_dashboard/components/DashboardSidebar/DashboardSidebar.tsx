@@ -58,6 +58,10 @@ interface SortableProjectWrapperProps {
 	isCollapsed: boolean;
 	isDraggingProject: boolean;
 	isDragDisabled: boolean;
+	// Inner (workspace/section) drag is gated separately: a non-manual sort
+	// only reorders projects, but an active filter prunes children, and a
+	// drop committed from a pruned list would corrupt hidden siblings' order.
+	isInnerDragDisabled: boolean;
 	workspaceShortcutLabels: Map<string, string>;
 	onWorkspaceHover: (workspaceId: string) => void | Promise<void>;
 	onToggleCollapse: (projectId: string) => void;
@@ -68,6 +72,7 @@ const SortableProjectWrapper = memo(function SortableProjectWrapper({
 	isCollapsed,
 	isDraggingProject,
 	isDragDisabled,
+	isInnerDragDisabled,
 	workspaceShortcutLabels,
 	onWorkspaceHover,
 	onToggleCollapse,
@@ -94,6 +99,7 @@ const SortableProjectWrapper = memo(function SortableProjectWrapper({
 				project={project}
 				isSidebarCollapsed={isCollapsed}
 				isDraggingProject={isDraggingProject}
+				isDragDisabled={isInnerDragDisabled}
 				workspaceShortcutLabels={workspaceShortcutLabels}
 				onWorkspaceHover={onWorkspaceHover}
 				onToggleCollapse={onToggleCollapse}
@@ -265,6 +271,7 @@ export function DashboardSidebar({
 													isCollapsed={isCollapsed}
 													isDraggingProject={activeProject != null}
 													isDragDisabled={isDragDisabled}
+													isInnerDragDisabled={isFilterActive}
 													workspaceShortcutLabels={workspaceShortcutLabels}
 													onWorkspaceHover={refreshWorkspacePullRequest}
 													onToggleCollapse={toggleProjectCollapsed}

@@ -79,4 +79,14 @@ describe("filterDashboardSidebarProjects", () => {
 		expect(filterDashboardSidebarProjects(projects, "hero")).toHaveLength(1);
 		expect(filterDashboardSidebarProjects(projects, "zzz")).toHaveLength(0);
 	});
+
+	it("keeps object references when nothing changes (memo stability)", () => {
+		// p-marketing is already expanded and all its workspaces match, so the
+		// original object must pass through untouched.
+		const byName = filterDashboardSidebarProjects(projects, "marketing");
+		expect(byName[0]).toBe(projects[1]);
+
+		const byWorkspace = filterDashboardSidebarProjects(projects, "hero");
+		expect(byWorkspace[0]).toBe(projects[1]);
+	});
 });
