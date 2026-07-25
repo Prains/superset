@@ -149,15 +149,10 @@ export function DashboardSidebarHeader({
 				{onV2WorkspaceRoute && (
 					<div
 						// w +1px: overlaps the container's border-r so the sidebar's
-						// vertical border starts below the bar, not inside it.
-						className="drag h-10 w-[calc(100%+1px)] shrink-0"
-						// Flattened equivalent of the tab bar's bg-border/30 over
-						// bg-background — the rail's own tinted bg sits beneath this
-						// element, so a translucent fill here would composite lighter.
-						style={{
-							background:
-								"color-mix(in oklab, var(--border) 30%, var(--background))",
-						}}
+						// vertical border starts below the bar, not inside it. The fill
+						// is the tab bar's bg-muted/45|35-over-background flattened to an
+						// opaque color so it can paint over that border pixel.
+						className="drag h-10 w-[calc(100%+1px)] shrink-0 bg-[color-mix(in_oklab,var(--muted)_45%,var(--background))] dark:bg-[color-mix(in_oklab,var(--muted)_35%,var(--background))]"
 					/>
 				)}
 				{/* Mirrors the expanded header's nav container so the buttons keep

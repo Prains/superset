@@ -175,7 +175,7 @@ export function TabBar<TData>({
 			// children out with `no-drag` loses the carve-outs once they sit inside
 			// the masked/scrollable OverflowFadeContainer, which made the entire bar
 			// swallow clicks.
-			className="group/root-tabs flex h-10 min-w-0 shrink-0 items-stretch bg-border/30"
+			className="group/root-tabs flex h-10 min-w-0 shrink-0 items-stretch bg-muted/45 dark:bg-muted/35"
 		>
 			{renderTabBarLeading && (
 				<div className="flex h-full shrink-0 items-stretch">
@@ -230,7 +230,7 @@ export function TabBar<TData>({
 				</div>
 			</OverflowFadeContainer>
 			{hasHorizontalOverflow && (
-				<div className="no-drag flex h-full w-10 shrink-0 items-center justify-center bg-border/30">
+				<div className="no-drag flex h-full w-10 shrink-0 items-center justify-center">
 					<AddTabButton renderAddTabMenu={renderAddTabMenu} />
 				</div>
 			)}
