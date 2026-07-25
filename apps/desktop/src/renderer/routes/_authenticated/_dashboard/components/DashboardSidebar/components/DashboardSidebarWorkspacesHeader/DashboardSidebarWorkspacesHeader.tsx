@@ -8,9 +8,13 @@ import { toast } from "@superset/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { HiChevronRight, HiMiniPlus } from "react-icons/hi2";
-import { LuFolderInput, LuFolderPlus, LuLayoutTemplate } from "react-icons/lu";
-import { VscFolderOpened, VscNewFolder } from "react-icons/vsc";
+import { HiChevronRight } from "react-icons/hi2";
+import {
+	VscFolderOpened,
+	VscGithubAlt,
+	VscLayout,
+	VscNewFolder,
+} from "react-icons/vsc";
 import { useFolderFirstImport } from "renderer/routes/_authenticated/_dashboard/components/AddRepositoryModals/hooks/useFolderFirstImport";
 import {
 	useOpenEmptyProjectModal,
@@ -92,20 +96,20 @@ export function DashboardSidebarWorkspacesHeader() {
 					align="end"
 					onCloseAutoFocus={(event) => event.preventDefault()}
 				>
-					<DropdownMenuItem onSelect={() => openEmptyProject()}>
-						<LuFolderPlus className="size-4" />
-						Create new project
-					</DropdownMenuItem>
-					<DropdownMenuItem onSelect={() => openNewProject()}>
-						<HiMiniPlus className="size-4" />
-						Clone from URL
-					</DropdownMenuItem>
 					<DropdownMenuItem onSelect={handleImportFolder}>
-						<LuFolderInput className="size-4" />
+						<VscFolderOpened className="size-4" />
 						Open from folder
 					</DropdownMenuItem>
+					<DropdownMenuItem onSelect={() => openNewProject()}>
+						<VscGithubAlt className="size-4" />
+						Clone from URL
+					</DropdownMenuItem>
+					<DropdownMenuItem onSelect={() => openEmptyProject()}>
+						<VscNewFolder className="size-4" />
+						Create new project
+					</DropdownMenuItem>
 					<DropdownMenuItem onSelect={() => openTemplateGallery()}>
-						<LuLayoutTemplate className="size-4" />
+						<VscLayout className="size-4" />
 						Start from a template
 					</DropdownMenuItem>
 				</DropdownMenuContent>

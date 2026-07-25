@@ -288,7 +288,7 @@ export function DashboardSidebar({
 													: "text-muted-foreground hover:bg-fill-hover",
 											)}
 										>
-											<HiOutlineCog6Tooth className="size-4" />
+											<HiOutlineCog6Tooth className="size-3.5" />
 										</button>
 									</TooltipTrigger>
 									<TooltipContent side={isCollapsed ? "right" : "top"}>

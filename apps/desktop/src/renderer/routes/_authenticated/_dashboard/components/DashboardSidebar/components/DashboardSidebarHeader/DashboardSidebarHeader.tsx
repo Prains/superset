@@ -9,17 +9,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
 import { useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
-import { HiMiniPlus, HiOutlineClipboardDocumentList } from "react-icons/hi2";
+import { HiOutlineClipboardDocumentList } from "react-icons/hi2";
+import { LuClock, LuLayers, LuPlus, LuSearch } from "react-icons/lu";
 import {
-	LuClock,
-	LuFolderInput,
-	LuFolderPlus,
-	LuLayers,
-	LuLayoutTemplate,
-	LuPlus,
-	LuSearch,
-} from "react-icons/lu";
-import { VscFolderOpened, VscNewFolder } from "react-icons/vsc";
+	VscFolderOpened,
+	VscGithubAlt,
+	VscLayout,
+	VscNewFolder,
+} from "react-icons/vsc";
 import { useFrameStackStore } from "renderer/commandPalette";
 import { GATED_FEATURES, usePaywall } from "renderer/components/Paywall";
 import { SidebarKbdHint } from "renderer/components/SidebarKbdHint";
@@ -184,7 +181,7 @@ export function DashboardSidebarHeader({
 								onClick={handleSearchClick}
 								className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover"
 							>
-								<LuSearch className="size-4" />
+								<LuSearch className="size-3.5" strokeWidth={1.5} />
 							</button>
 						</TooltipTrigger>
 						<TooltipContent side="right">
@@ -206,7 +203,7 @@ export function DashboardSidebarHeader({
 										: "text-muted-foreground hover:bg-fill-hover",
 								)}
 							>
-								<LuLayers className="size-4" />
+								<LuLayers className="size-3.5" strokeWidth={1.5} />
 							</button>
 						</TooltipTrigger>
 						<TooltipContent side="right">Workspaces</TooltipContent>
@@ -229,7 +226,7 @@ export function DashboardSidebarHeader({
 										: "text-muted-foreground hover:bg-fill-hover",
 								)}
 							>
-								<LuClock className="size-4" />
+								<LuClock className="size-3.5" strokeWidth={1.5} />
 								{myFailedCount > 0 && (
 									<span
 										aria-hidden="true"
@@ -257,7 +254,7 @@ export function DashboardSidebarHeader({
 										: "text-muted-foreground hover:bg-fill-hover",
 								)}
 							>
-								<HiOutlineClipboardDocumentList className="size-4" />
+								<HiOutlineClipboardDocumentList className="size-3.5" />
 							</button>
 						</TooltipTrigger>
 						<TooltipContent side="right">Tasks & PRs</TooltipContent>
@@ -283,20 +280,20 @@ export function DashboardSidebarHeader({
 							align="start"
 							onCloseAutoFocus={(event) => event.preventDefault()}
 						>
-							<DropdownMenuItem onSelect={() => openEmptyProject()}>
-								<LuFolderPlus className="size-4" />
-								Create new project
-							</DropdownMenuItem>
-							<DropdownMenuItem onSelect={() => openNewProject()}>
-								<HiMiniPlus className="size-4" />
-								Clone from URL
-							</DropdownMenuItem>
 							<DropdownMenuItem onSelect={handleImportFolder}>
-								<LuFolderInput className="size-4" />
+								<VscFolderOpened className="size-4" />
 								Open from folder
 							</DropdownMenuItem>
+							<DropdownMenuItem onSelect={() => openNewProject()}>
+								<VscGithubAlt className="size-4" />
+								Clone from URL
+							</DropdownMenuItem>
+							<DropdownMenuItem onSelect={() => openEmptyProject()}>
+								<VscNewFolder className="size-4" />
+								Create new project
+							</DropdownMenuItem>
 							<DropdownMenuItem onSelect={() => openTemplateGallery()}>
-								<LuLayoutTemplate className="size-4" />
+								<VscLayout className="size-4" />
 								Start from a template
 							</DropdownMenuItem>
 						</DropdownMenuContent>
@@ -360,7 +357,10 @@ export function DashboardSidebarHeader({
 				onClick={handleSearchClick}
 				className="group flex w-full items-center gap-2 rounded-md px-2 py-1 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-fill-hover hover:text-foreground"
 			>
-				<LuSearch className="size-4 shrink-0 text-muted-foreground" />
+				<LuSearch
+					className="size-3.5 shrink-0 text-muted-foreground"
+					strokeWidth={1.5}
+				/>
 				<span className="flex-1 text-left">Search</span>
 				{searchShortcutText !== "Unassigned" && (
 					<SidebarKbdHint label={searchShortcutText} />
@@ -377,7 +377,10 @@ export function DashboardSidebarHeader({
 						: "text-muted-foreground hover:bg-fill-hover hover:text-foreground",
 				)}
 			>
-				<LuLayers className="size-4 shrink-0 text-muted-foreground" />
+				<LuLayers
+					className="size-3.5 shrink-0 text-muted-foreground"
+					strokeWidth={1.5}
+				/>
 				<span className="flex-1 text-left">Workspaces</span>
 			</button>
 
@@ -391,7 +394,10 @@ export function DashboardSidebarHeader({
 						: "text-muted-foreground hover:bg-fill-hover hover:text-foreground",
 				)}
 			>
-				<LuClock className="size-4 shrink-0 text-muted-foreground" />
+				<LuClock
+					className="size-3.5 shrink-0 text-muted-foreground"
+					strokeWidth={1.5}
+				/>
 				<span className="flex-1 text-left">Automations</span>
 				{myFailedCount > 0 && (
 					<span
@@ -413,7 +419,7 @@ export function DashboardSidebarHeader({
 						: "text-muted-foreground hover:bg-fill-hover hover:text-foreground",
 				)}
 			>
-				<HiOutlineClipboardDocumentList className="size-4 shrink-0 text-muted-foreground" />
+				<HiOutlineClipboardDocumentList className="size-3.5 shrink-0 text-muted-foreground" />
 				<span className="flex-1 text-left">Tasks & PRs</span>
 			</button>
 		</div>
