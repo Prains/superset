@@ -21,6 +21,7 @@ import {
 	useOpenNewProjectModal,
 	useOpenTemplateGalleryModal,
 } from "renderer/stores/add-repository-modal";
+import { SettingsButton } from "../SettingsButton";
 import { STROKE_WIDTH } from "./constants";
 
 interface WorkspaceSidebarFooterProps {
@@ -127,6 +128,12 @@ export function WorkspaceSidebarFooter({
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
+				<SettingsButton
+					side="right"
+					className="size-8 text-muted-foreground hover:text-foreground"
+					iconClassName="size-4"
+					iconStrokeWidth={STROKE_WIDTH}
+				/>
 			</div>
 		);
 	}
@@ -165,6 +172,12 @@ export function WorkspaceSidebarFooter({
 				</DropdownMenuContent>
 			</DropdownMenu>
 			<UpdatesPill />
+			<SettingsButton
+				side="top"
+				className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+				iconClassName="size-4"
+				iconStrokeWidth={STROKE_WIDTH}
+			/>
 		</div>
 	);
 }
