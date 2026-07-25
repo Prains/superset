@@ -61,7 +61,7 @@ export function DashboardSidebarProjectsSortMenu({
 				onClick={(event) => event.stopPropagation()}
 				onKeyDown={(event) => event.stopPropagation()}
 			>
-				<DropdownMenuLabel className="font-normal text-muted-foreground">
+				<DropdownMenuLabel className="text-xs font-normal text-muted-foreground/70">
 					Sort by
 				</DropdownMenuLabel>
 				{SORT_MODES.map((mode) => (
