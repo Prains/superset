@@ -262,8 +262,8 @@ export function DashboardSidebar({
 							<div
 								className={cn(
 									isCollapsed
-										? "flex flex-col items-center gap-1 py-1"
-										: "flex items-center gap-1 p-3",
+										? "flex flex-col items-center gap-2 py-2"
+										: "flex items-center gap-1 p-2",
 								)}
 							>
 								{isCollapsed ? (
@@ -284,8 +284,8 @@ export function DashboardSidebar({
 											className={cn(
 												"flex size-8 shrink-0 items-center justify-center rounded-md transition-colors",
 												isSettingsOpen
-													? "bg-accent text-foreground"
-													: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+													? "bg-fill-selected text-muted-foreground"
+													: "text-muted-foreground hover:bg-fill-hover",
 											)}
 										>
 											<HiOutlineCog6Tooth className="size-4" />

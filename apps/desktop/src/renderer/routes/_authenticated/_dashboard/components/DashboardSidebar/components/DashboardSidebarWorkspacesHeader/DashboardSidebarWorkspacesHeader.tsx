@@ -59,7 +59,7 @@ export function DashboardSidebarWorkspacesHeader() {
 					toggleCollapsed();
 				}
 			}}
-			className="group flex min-h-8 w-full shrink-0 items-center gap-1.5 py-1.5 pl-5 pr-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted/50"
+			className="group flex min-h-8 w-full shrink-0 items-center gap-1.5 py-1.5 pl-4 pr-2 text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground/60 transition-colors hover:text-muted-foreground"
 		>
 			<span className="min-w-0 truncate text-left">Projects</span>
 			<HiChevronRight
@@ -78,7 +78,7 @@ export function DashboardSidebarWorkspacesHeader() {
 								aria-label="Add repository"
 								onClick={(event) => event.stopPropagation()}
 								onKeyDown={(event) => event.stopPropagation()}
-								className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+								className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover hover:text-foreground"
 							>
 								<LuFolderPlus className="size-4" />
 							</button>

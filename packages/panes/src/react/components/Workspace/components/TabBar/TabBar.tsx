@@ -33,6 +33,7 @@ interface TabBarProps<TData> {
 	onMovePaneToNewTab: (paneId: string, toIndex: number) => void;
 	renderTabIcon?: (tab: Tab<TData>) => ReactNode;
 	renderAddTabMenu?: () => ReactNode;
+	renderTabBarLeading?: () => ReactNode;
 	renderTabBarTrailing?: () => ReactNode;
 	renderTabAccessory?: (tab: Tab<TData>) => ReactNode;
 }
@@ -83,6 +84,7 @@ export function TabBar<TData>({
 	onMovePaneToNewTab,
 	renderTabIcon,
 	renderAddTabMenu,
+	renderTabBarLeading,
 	renderTabBarTrailing,
 	renderTabAccessory,
 }: TabBarProps<TData>) {
@@ -178,6 +180,11 @@ export function TabBar<TData>({
 			// swallow clicks.
 			className="group/root-tabs flex h-10 min-w-0 shrink-0 items-stretch bg-border/30"
 		>
+			{renderTabBarLeading && (
+				<div className="flex h-full shrink-0 items-stretch border-b border-border">
+					{renderTabBarLeading()}
+				</div>
+			)}
 			<OverflowFadeContainer
 				observeChildren
 				onOverflowChange={handleOverflowChange}
