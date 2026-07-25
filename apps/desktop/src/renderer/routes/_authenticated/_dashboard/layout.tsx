@@ -69,6 +69,7 @@ function DashboardLayout() {
 		v2WorkspaceMatch !== false ? v2WorkspaceMatch.workspaceId : null;
 	const onV1WorkspaceRoute = currentWorkspaceMatch !== false;
 	const onV2WorkspaceRoute = v2WorkspaceMatch !== false;
+	const onNewWorkspaceRoute = matchRoute({ to: "/new-workspace" }) !== false;
 	const versionMismatch =
 		(isV2CloudEnabled && onV1WorkspaceRoute) ||
 		(!isV2CloudEnabled && onV2WorkspaceRoute);
@@ -200,12 +201,15 @@ function DashboardLayout() {
 	// right-sidebar toggle). Expanded sidebars host the traffic-light pad in
 	// their header; collapsed rails host it via their headroom spacer plus the
 	// tab bar's leading inset. Only a fully closed sidebar keeps the TopBar,
-	// whose inset then keeps content clear of the macOS traffic lights.
+	// whose inset then keeps content clear of the macOS traffic lights. The
+	// new-workspace page brings its own drag strip, so it hides the TopBar
+	// whenever the expanded sidebar sits outside the column.
 	const hideTopBar =
-		onV2WorkspaceRoute &&
-		!versionMismatch &&
-		isV2CloudEnabled &&
-		isWorkspaceSidebarOpen;
+		(onV2WorkspaceRoute &&
+			!versionMismatch &&
+			isV2CloudEnabled &&
+			isWorkspaceSidebarOpen) ||
+		(onNewWorkspaceRoute && sidebarOutsideColumn);
 
 	return (
 		<div className="flex h-full w-full overflow-hidden">
@@ -215,7 +219,7 @@ function DashboardLayout() {
 				{!hideTopBar && <TopBar />}
 				<div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
 					{!sidebarOutsideColumn && sidebarPanel}
-					<div className="flex flex-1 min-h-0 min-w-0">
+					<div className="relative flex flex-1 min-h-0 min-w-0">
 						{versionMismatch ? <CrossVersionMismatchState /> : <Outlet />}
 					</div>
 				</div>
