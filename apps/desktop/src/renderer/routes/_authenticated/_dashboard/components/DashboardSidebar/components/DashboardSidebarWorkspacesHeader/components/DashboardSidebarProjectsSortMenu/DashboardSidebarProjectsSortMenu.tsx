@@ -1,8 +1,8 @@
 import {
 	DropdownMenu,
+	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
+	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "@superset/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
@@ -11,10 +11,12 @@ import { VscListFilter } from "react-icons/vsc";
 import type { SidebarProjectSortMode } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal/schema";
 
 const SORT_MODE_LABELS: Record<SidebarProjectSortMode, string> = {
-	manual: "Manual",
+	manual: "Manual order",
 	created: "Date created",
 	updated: "Last updated",
 };
+
+const SORT_MODES: SidebarProjectSortMode[] = ["updated", "created", "manual"];
 
 interface DashboardSidebarProjectsSortMenuProps {
 	sortMode: SidebarProjectSortMode;
@@ -59,22 +61,18 @@ export function DashboardSidebarProjectsSortMenu({
 				onClick={(event) => event.stopPropagation()}
 				onKeyDown={(event) => event.stopPropagation()}
 			>
-				<DropdownMenuRadioGroup
-					value={sortMode}
-					onValueChange={(value) =>
-						onSortModeChange(value as SidebarProjectSortMode)
-					}
-				>
-					<DropdownMenuRadioItem value="manual">
-						{SORT_MODE_LABELS.manual}
-					</DropdownMenuRadioItem>
-					<DropdownMenuRadioItem value="created">
-						{SORT_MODE_LABELS.created}
-					</DropdownMenuRadioItem>
-					<DropdownMenuRadioItem value="updated">
-						{SORT_MODE_LABELS.updated}
-					</DropdownMenuRadioItem>
-				</DropdownMenuRadioGroup>
+				<DropdownMenuLabel className="font-normal text-muted-foreground">
+					Sort by
+				</DropdownMenuLabel>
+				{SORT_MODES.map((mode) => (
+					<DropdownMenuCheckboxItem
+						key={mode}
+						checked={sortMode === mode}
+						onCheckedChange={() => onSortModeChange(mode)}
+					>
+						{SORT_MODE_LABELS[mode]}
+					</DropdownMenuCheckboxItem>
+				))}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
