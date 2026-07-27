@@ -1,5 +1,9 @@
 import type { SidebarProjectSortMode } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal/schema";
-import type { DashboardSidebarProject } from "../../types";
+import type {
+	DashboardSidebarProject,
+	DashboardSidebarProjectChild,
+	DashboardSidebarWorkspace,
+} from "../../types";
 import { getProjectChildrenWorkspaces } from "../projectChildren";
 
 // Timestamps are typed as Date but can arrive as ISO strings at runtime
@@ -27,16 +31,98 @@ export function getProjectActivityTimestamp(
 	);
 }
 
-function compareStable(
-	left: DashboardSidebarProject,
-	right: DashboardSidebarProject,
-	byTimestamp: (project: DashboardSidebarProject) => number,
+function makeStableComparator<Item>(
+	byTimestamp: (item: Item) => number,
+	byName: (item: Item) => string,
+	byId: (item: Item) => string,
+): (left: Item, right: Item) => number {
+	return (left, right) => {
+		const diff = byTimestamp(right) - byTimestamp(left);
+		if (!Number.isNaN(diff) && diff !== 0) return diff;
+		const names = byName(left).localeCompare(byName(right));
+		if (names !== 0) return names;
+		return byId(left).localeCompare(byId(right));
+	};
+}
+
+function getWorkspaceTimestamp(
+	workspace: DashboardSidebarWorkspace,
+	mode: SidebarProjectSortMode,
 ): number {
-	const diff = byTimestamp(right) - byTimestamp(left);
-	if (!Number.isNaN(diff) && diff !== 0) return diff;
-	const byName = left.name.localeCompare(right.name);
-	if (byName !== 0) return byName;
-	return left.id.localeCompare(right.id);
+	return mode === "created"
+		? toTime(workspace.createdAt)
+		: toTime(workspace.updatedAt);
+}
+
+// Mirrors the project-level rules one level down: "created" uses the
+// section's own createdAt, "updated" uses its most recently updated
+// workspace (falling back to createdAt when empty).
+function getChildTimestamp(
+	child: DashboardSidebarProjectChild,
+	mode: SidebarProjectSortMode,
+): number {
+	if (child.type === "workspace") {
+		return getWorkspaceTimestamp(child.workspace, mode);
+	}
+	const { section } = child;
+	if (mode === "created") return toTime(section.createdAt);
+	const activity = section.workspaces
+		.map((workspace) => toTime(workspace.updatedAt))
+		.filter((time) => !Number.isNaN(time));
+	return activity.length > 0
+		? Math.max(...activity)
+		: toTime(section.createdAt);
+}
+
+function isLocalMainChild(child: DashboardSidebarProjectChild): boolean {
+	return (
+		child.type === "workspace" &&
+		child.workspace.type === "main" &&
+		child.workspace.hostType === "local-device"
+	);
+}
+
+/**
+ * Orders a project's children for a non-manual sort mode: workspaces inside
+ * each section sort by the mode, sections reorder among the loose workspaces
+ * by their own timestamp, and the local main workspace stays pinned first.
+ */
+export function sortDashboardSidebarProjectChildren(
+	children: DashboardSidebarProjectChild[],
+	mode: SidebarProjectSortMode,
+): DashboardSidebarProjectChild[] {
+	if (mode === "manual") return children;
+
+	const compareWorkspaces = makeStableComparator<DashboardSidebarWorkspace>(
+		(workspace) => getWorkspaceTimestamp(workspace, mode),
+		(workspace) => workspace.name,
+		(workspace) => workspace.id,
+	);
+	const compareChildren = makeStableComparator<DashboardSidebarProjectChild>(
+		(child) => getChildTimestamp(child, mode),
+		(child) =>
+			child.type === "workspace" ? child.workspace.name : child.section.name,
+		(child) =>
+			child.type === "workspace" ? child.workspace.id : child.section.id,
+	);
+
+	const sortedInside = children.map((child) =>
+		child.type === "section"
+			? {
+					...child,
+					section: {
+						...child.section,
+						workspaces: [...child.section.workspaces].sort(compareWorkspaces),
+					},
+				}
+			: child,
+	);
+
+	const mains = sortedInside.filter(isLocalMainChild).sort(compareChildren);
+	const rest = sortedInside
+		.filter((child) => !isLocalMainChild(child))
+		.sort(compareChildren);
+	return [...mains, ...rest];
 }
 
 export function sortDashboardSidebarProjects(
@@ -44,12 +130,19 @@ export function sortDashboardSidebarProjects(
 	mode: SidebarProjectSortMode,
 ): DashboardSidebarProject[] {
 	if (mode === "manual") return projects;
-	if (mode === "created") {
-		return [...projects].sort((left, right) =>
-			compareStable(left, right, (project) => toTime(project.createdAt)),
-		);
-	}
-	return [...projects].sort((left, right) =>
-		compareStable(left, right, getProjectActivityTimestamp),
+
+	const compareProjects = makeStableComparator<DashboardSidebarProject>(
+		mode === "created"
+			? (project) => toTime(project.createdAt)
+			: getProjectActivityTimestamp,
+		(project) => project.name,
+		(project) => project.id,
 	);
+
+	return projects
+		.map((project) => ({
+			...project,
+			children: sortDashboardSidebarProjectChildren(project.children, mode),
+		}))
+		.sort(compareProjects);
 }

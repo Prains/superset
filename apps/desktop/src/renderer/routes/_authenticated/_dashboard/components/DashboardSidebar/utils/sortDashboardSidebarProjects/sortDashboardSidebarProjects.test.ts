@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import type { DashboardSidebarProjectChild } from "../../types";
 import {
 	makeProject,
 	makeSection,
@@ -6,6 +7,7 @@ import {
 } from "../testProjectFixtures";
 import {
 	getProjectActivityTimestamp,
+	sortDashboardSidebarProjectChildren,
 	sortDashboardSidebarProjects,
 } from "./sortDashboardSidebarProjects";
 
@@ -152,6 +154,37 @@ describe("sortDashboardSidebarProjects", () => {
 		).toEqual(["p-string", "p-date"]);
 	});
 
+	it("sorts workspaces inside each project by updatedAt in updated mode", () => {
+		const project = makeProject({
+			id: "p1",
+			name: "Alpha",
+			children: [
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w-old",
+						name: "old",
+						updatedAt: new Date("2026-02-01"),
+					}),
+				},
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w-new",
+						name: "new",
+						updatedAt: new Date("2026-06-01"),
+					}),
+				},
+			],
+		});
+		const [sorted] = sortDashboardSidebarProjects([project], "updated");
+		expect(
+			sorted?.children.map((c) =>
+				c.type === "workspace" ? c.workspace.id : c.section.id,
+			),
+		).toEqual(["w-new", "w-old"]);
+	});
+
 	it("falls back to name order instead of throwing on garbage timestamps", () => {
 		const garbage = makeProject({
 			id: "p-garbage",
@@ -168,5 +201,114 @@ describe("sortDashboardSidebarProjects", () => {
 				(p) => p.id,
 			),
 		).toEqual(["p-garbage", "p-garbage-2"]);
+	});
+});
+
+describe("sortDashboardSidebarProjectChildren", () => {
+	const mainChild: DashboardSidebarProjectChild = {
+		type: "workspace",
+		workspace: makeWorkspace({
+			id: "w-main",
+			name: "local",
+			type: "main",
+			updatedAt: new Date("2026-01-01"),
+		}),
+	};
+	const oldWorktree: DashboardSidebarProjectChild = {
+		type: "workspace",
+		workspace: makeWorkspace({
+			id: "w-old",
+			name: "old",
+			updatedAt: new Date("2026-02-01"),
+			createdAt: new Date("2026-06-01"),
+		}),
+	};
+	const newWorktree: DashboardSidebarProjectChild = {
+		type: "workspace",
+		workspace: makeWorkspace({
+			id: "w-new",
+			name: "new",
+			updatedAt: new Date("2026-06-01"),
+			createdAt: new Date("2026-02-01"),
+		}),
+	};
+	const section: DashboardSidebarProjectChild = {
+		type: "section",
+		section: makeSection({
+			id: "s1",
+			name: "Section",
+			createdAt: new Date("2026-01-15"),
+			workspaces: [
+				makeWorkspace({
+					id: "w-s-old",
+					name: "section-old",
+					updatedAt: new Date("2026-03-01"),
+				}),
+				makeWorkspace({
+					id: "w-s-new",
+					name: "section-new",
+					updatedAt: new Date("2026-04-01"),
+				}),
+			],
+		}),
+	};
+
+	const childIds = (children: DashboardSidebarProjectChild[]) =>
+		children.map((c) =>
+			c.type === "workspace" ? c.workspace.id : c.section.id,
+		);
+
+	it("returns children untouched in manual mode", () => {
+		const children = [oldWorktree, newWorktree];
+		expect(sortDashboardSidebarProjectChildren(children, "manual")).toBe(
+			children,
+		);
+	});
+
+	it("keeps the local main pinned first despite older activity", () => {
+		const sorted = sortDashboardSidebarProjectChildren(
+			[oldWorktree, newWorktree, mainChild],
+			"updated",
+		);
+		expect(childIds(sorted)).toEqual(["w-main", "w-new", "w-old"]);
+	});
+
+	it("sorts workspaces inside sections and ranks sections by activity", () => {
+		// Section activity (2026-04-01) beats w-old (02-01), loses to w-new (06-01).
+		const sorted = sortDashboardSidebarProjectChildren(
+			[section, oldWorktree, newWorktree],
+			"updated",
+		);
+		expect(childIds(sorted)).toEqual(["w-new", "s1", "w-old"]);
+		const sortedSection = sorted.find((c) => c.type === "section");
+		expect(
+			sortedSection?.type === "section"
+				? sortedSection.section.workspaces.map((w) => w.id)
+				: [],
+		).toEqual(["w-s-new", "w-s-old"]);
+	});
+
+	it("uses createdAt for workspaces and the section's own createdAt in created mode", () => {
+		// By createdAt: w-old (06-01) > w-new (02-01) > section (01-15).
+		const sorted = sortDashboardSidebarProjectChildren(
+			[section, oldWorktree, newWorktree],
+			"created",
+		);
+		expect(childIds(sorted)).toEqual(["w-old", "w-new", "s1"]);
+	});
+
+	it("does not mutate the input children or sections", () => {
+		const children = [section, oldWorktree, newWorktree];
+		const sectionWorkspaceIds =
+			section.type === "section"
+				? section.section.workspaces.map((w) => w.id)
+				: [];
+		sortDashboardSidebarProjectChildren(children, "updated");
+		expect(childIds(children)).toEqual(["s1", "w-old", "w-new"]);
+		expect(
+			section.type === "section"
+				? section.section.workspaces.map((w) => w.id)
+				: [],
+		).toEqual(sectionWorkspaceIds);
 	});
 });
