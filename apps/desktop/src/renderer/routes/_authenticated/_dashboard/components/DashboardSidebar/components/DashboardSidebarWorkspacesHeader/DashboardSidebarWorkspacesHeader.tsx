@@ -8,19 +8,47 @@ import { toast } from "@superset/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { HiChevronRight, HiMiniPlus } from "react-icons/hi2";
-import { LuFolderInput, LuFolderPlus, LuLayoutTemplate } from "react-icons/lu";
+import { useState } from "react";
+import { HiChevronRight } from "react-icons/hi2";
+import {
+	VscFolderOpened,
+	VscGithubAlt,
+	VscLayout,
+	VscNewFolder,
+} from "react-icons/vsc";
 import { useFolderFirstImport } from "renderer/routes/_authenticated/_dashboard/components/AddRepositoryModals/hooks/useFolderFirstImport";
+import type { SidebarProjectSortMode } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal/schema";
 import {
 	useOpenEmptyProjectModal,
 	useOpenNewProjectModal,
 	useOpenTemplateGalleryModal,
 } from "renderer/stores/add-repository-modal";
 import { useSidebarWorkspacesCollapseStore } from "renderer/stores/sidebar-workspaces-collapse";
+import { DashboardSidebarProjectsFilterInput } from "./components/DashboardSidebarProjectsFilterInput";
+import { DashboardSidebarProjectsSortMenu } from "./components/DashboardSidebarProjectsSortMenu";
 
-export function DashboardSidebarWorkspacesHeader() {
+interface DashboardSidebarWorkspacesHeaderProps {
+	sortMode: SidebarProjectSortMode;
+	onSortModeChange: (mode: SidebarProjectSortMode) => void;
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
+}
+
+export function DashboardSidebarWorkspacesHeader({
+	sortMode,
+	onSortModeChange,
+	filterQuery,
+	onFilterQueryChange,
+}: DashboardSidebarWorkspacesHeaderProps) {
 	const isCollapsed = useSidebarWorkspacesCollapseStore((s) => s.isCollapsed);
 	const toggleCollapsed = useSidebarWorkspacesCollapseStore((s) => s.toggle);
+	const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+
+	const handleFilterExpandedChange = (expanded: boolean) => {
+		setIsFilterExpanded(expanded);
+		// Filtering a hidden list is useless — reveal it when the search opens.
+		if (expanded && isCollapsed) toggleCollapsed();
+	};
 	const openEmptyProject = useOpenEmptyProjectModal();
 	const openNewProject = useOpenNewProjectModal();
 	const openTemplateGallery = useOpenTemplateGalleryModal();
@@ -59,18 +87,32 @@ export function DashboardSidebarWorkspacesHeader() {
 					toggleCollapsed();
 				}
 			}}
-			className="group flex min-h-8 w-full shrink-0 items-center gap-1.5 py-1.5 pl-5 pr-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted/50"
+			className="group flex min-h-8 w-full shrink-0 items-center gap-1.5 py-1.5 pl-4 pr-2 text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground transition-colors"
 		>
-			<span className="min-w-0 truncate text-left">Projects</span>
-			<HiChevronRight
-				className={cn(
-					"size-3 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-150 group-hover:opacity-100 group-focus-visible:opacity-100",
-					!isCollapsed && "rotate-90",
-				)}
+			{!isFilterExpanded && (
+				<>
+					<span className="min-w-0 truncate text-left">Projects</span>
+					<HiChevronRight
+						className={cn(
+							"size-3 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-150 group-hover:opacity-100 group-focus-visible:opacity-100",
+							!isCollapsed && "rotate-90",
+						)}
+					/>
+					<div className="min-w-0 flex-1" />
+				</>
+			)}
+			<DashboardSidebarProjectsFilterInput
+				query={filterQuery}
+				onQueryChange={onFilterQueryChange}
+				isExpanded={isFilterExpanded}
+				onExpandedChange={handleFilterExpandedChange}
 			/>
-			<div className="min-w-0 flex-1" />
+			<DashboardSidebarProjectsSortMenu
+				sortMode={sortMode}
+				onSortModeChange={onSortModeChange}
+			/>
 			<DropdownMenu>
-				<Tooltip delayDuration={300}>
+				<Tooltip delayDuration={700}>
 					<TooltipTrigger asChild>
 						<DropdownMenuTrigger asChild>
 							<button
@@ -78,9 +120,10 @@ export function DashboardSidebarWorkspacesHeader() {
 								aria-label="Add repository"
 								onClick={(event) => event.stopPropagation()}
 								onKeyDown={(event) => event.stopPropagation()}
-								className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+								className="group/addrepo flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover hover:text-foreground"
 							>
-								<LuFolderPlus className="size-4" />
+								<VscNewFolder className="size-3.5 group-hover/addrepo:hidden" />
+								<VscFolderOpened className="hidden size-3.5 group-hover/addrepo:block" />
 							</button>
 						</DropdownMenuTrigger>
 					</TooltipTrigger>
@@ -89,21 +132,26 @@ export function DashboardSidebarWorkspacesHeader() {
 				<DropdownMenuContent
 					align="end"
 					onCloseAutoFocus={(event) => event.preventDefault()}
+					// The content portals to body but React events still bubble up the
+					// component tree — without these, selecting an item triggers the
+					// header row's collapse toggle.
+					onClick={(event) => event.stopPropagation()}
+					onKeyDown={(event) => event.stopPropagation()}
 				>
-					<DropdownMenuItem onSelect={() => openEmptyProject()}>
-						<LuFolderPlus className="size-4" />
-						Create new project
-					</DropdownMenuItem>
-					<DropdownMenuItem onSelect={() => openNewProject()}>
-						<HiMiniPlus className="size-4" />
-						Clone from URL
-					</DropdownMenuItem>
 					<DropdownMenuItem onSelect={handleImportFolder}>
-						<LuFolderInput className="size-4" />
+						<VscFolderOpened className="size-4" />
 						Open from folder
 					</DropdownMenuItem>
+					<DropdownMenuItem onSelect={() => openNewProject()}>
+						<VscGithubAlt className="size-4" />
+						Clone from URL
+					</DropdownMenuItem>
+					<DropdownMenuItem onSelect={() => openEmptyProject()}>
+						<VscNewFolder className="size-4" />
+						Create new project
+					</DropdownMenuItem>
 					<DropdownMenuItem onSelect={() => openTemplateGallery()}>
-						<LuLayoutTemplate className="size-4" />
+						<VscLayout className="size-4" />
 						Start from a template
 					</DropdownMenuItem>
 				</DropdownMenuContent>

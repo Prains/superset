@@ -27,6 +27,7 @@ import { createPortal } from "react-dom";
 import { HiOutlineCog6Tooth } from "react-icons/hi2";
 import { HiringBanner } from "renderer/components/HiringBanner";
 import { UpdatesPill } from "renderer/components/UpdatesPill";
+import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences";
 import { useHotkeyDisplay } from "renderer/hotkeys";
 import { OrganizationDropdown } from "renderer/routes/_authenticated/_dashboard/components/TopBar/components/OrganizationDropdown";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
@@ -45,6 +46,8 @@ import { useDashboardSidebarShortcuts } from "./hooks/useDashboardSidebarShortcu
 import { DashboardSidebarHoverProvider } from "./providers/DashboardSidebarHoverProvider";
 import { DashboardSidebarPortsProvider } from "./providers/DashboardSidebarPortsProvider";
 import type { DashboardSidebarProject } from "./types";
+import { filterDashboardSidebarProjects } from "./utils/filterDashboardSidebarProjects";
+import { sortDashboardSidebarProjects } from "./utils/sortDashboardSidebarProjects";
 
 interface DashboardSidebarProps {
 	isCollapsed?: boolean;
@@ -54,6 +57,11 @@ interface SortableProjectWrapperProps {
 	project: DashboardSidebarProject;
 	isCollapsed: boolean;
 	isDraggingProject: boolean;
+	isDragDisabled: boolean;
+	// Inner (workspace/section) drag is gated separately: a non-manual sort
+	// only reorders projects, but an active filter prunes children, and a
+	// drop committed from a pruned list would corrupt hidden siblings' order.
+	isInnerDragDisabled: boolean;
 	workspaceShortcutLabels: Map<string, string>;
 	onWorkspaceHover: (workspaceId: string) => void | Promise<void>;
 	onToggleCollapse: (projectId: string) => void;
@@ -63,6 +71,8 @@ const SortableProjectWrapper = memo(function SortableProjectWrapper({
 	project,
 	isCollapsed,
 	isDraggingProject,
+	isDragDisabled,
+	isInnerDragDisabled,
 	workspaceShortcutLabels,
 	onWorkspaceHover,
 	onToggleCollapse,
@@ -74,7 +84,7 @@ const SortableProjectWrapper = memo(function SortableProjectWrapper({
 		transform,
 		transition,
 		isDragging,
-	} = useSortable({ id: project.id });
+	} = useSortable({ id: project.id, disabled: isDragDisabled });
 
 	return (
 		<div
@@ -89,6 +99,7 @@ const SortableProjectWrapper = memo(function SortableProjectWrapper({
 				project={project}
 				isSidebarCollapsed={isCollapsed}
 				isDraggingProject={isDraggingProject}
+				isDragDisabled={isInnerDragDisabled}
 				workspaceShortcutLabels={workspaceShortcutLabels}
 				onWorkspaceHover={onWorkspaceHover}
 				onToggleCollapse={onToggleCollapse}
@@ -116,6 +127,14 @@ export function DashboardSidebar({
 	const workspacesListCollapsed = useSidebarWorkspacesCollapseStore(
 		(s) => s.isCollapsed,
 	);
+	const { preferences, setSidebarProjectSortMode } = useV2UserPreferences();
+	const sortMode = preferences.sidebarProjectSortMode;
+	const [projectFilterQuery, setProjectFilterQuery] = useState("");
+	// The icon-only sidebar hides the header (and its filter input); a filter
+	// left active there would invisibly hide projects.
+	useEffect(() => {
+		if (isCollapsed) setProjectFilterQuery("");
+	}, [isCollapsed]);
 
 	const sensors = useSensors(
 		useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -145,7 +164,25 @@ export function DashboardSidebar({
 			.filter((g): g is DashboardSidebarProject => g != null);
 	}, [groups, projectOrder]);
 
-	const workspaceShortcutLabels = useDashboardSidebarShortcuts(orderedGroups);
+	const sortedGroups = useMemo(
+		() =>
+			sortMode === "manual"
+				? orderedGroups
+				: sortDashboardSidebarProjects(groups, sortMode),
+		[sortMode, orderedGroups, groups],
+	);
+
+	const displayedGroups = useMemo(
+		() => filterDashboardSidebarProjects(sortedGroups, projectFilterQuery),
+		[sortedGroups, projectFilterQuery],
+	);
+
+	const isFilterActive = projectFilterQuery.trim() !== "";
+	const isDragDisabled = sortMode !== "manual" || isFilterActive;
+
+	// Sorted but unfiltered, so shortcut labels stay stable while typing a
+	// filter query.
+	const workspaceShortcutLabels = useDashboardSidebarShortcuts(sortedGroups);
 
 	const activeV2Project = useMemo(() => {
 		if (!activeV2WorkspaceId) return null;
@@ -169,6 +206,10 @@ export function DashboardSidebar({
 
 	const handleDragEnd = useCallback(
 		({ active, over }: DragEndEvent) => {
+			if (isDragDisabled) {
+				setActiveProject(null);
+				return;
+			}
 			if (over && active.id !== over.id) {
 				const oldIndex = projectOrder.indexOf(String(active.id));
 				const newIndex = projectOrder.indexOf(String(over.id));
@@ -180,7 +221,7 @@ export function DashboardSidebar({
 			}
 			setActiveProject(null);
 		},
-		[projectOrder, reorderProjects],
+		[isDragDisabled, projectOrder, reorderProjects],
 	);
 
 	return (
@@ -191,7 +232,14 @@ export function DashboardSidebar({
 						<div className="flex h-full flex-col border-r border-border bg-muted/45 dark:bg-muted/35">
 							<DashboardSidebarHeader isCollapsed={isCollapsed} />
 
-							{!isCollapsed && <DashboardSidebarWorkspacesHeader />}
+							{!isCollapsed && (
+								<DashboardSidebarWorkspacesHeader
+									sortMode={sortMode}
+									onSortModeChange={setSidebarProjectSortMode}
+									filterQuery={projectFilterQuery}
+									onFilterQueryChange={setProjectFilterQuery}
+								/>
+							)}
 
 							<OverflowFadeContainer
 								fadeEdges={["top", "bottom"]}
@@ -205,6 +253,7 @@ export function DashboardSidebar({
 											droppable: { strategy: MeasuringStrategy.Always },
 										}}
 										onDragStart={({ active }) => {
+											if (isDragDisabled) return;
 											const project = groups.find((p) => p.id === active.id);
 											setActiveProject(project ?? null);
 										}}
@@ -212,21 +261,29 @@ export function DashboardSidebar({
 										onDragCancel={() => setActiveProject(null)}
 									>
 										<SortableContext
-											items={projectOrder}
+											items={displayedGroups.map((project) => project.id)}
 											strategy={verticalListSortingStrategy}
 										>
-											{orderedGroups.map((project) => (
+											{displayedGroups.map((project) => (
 												<SortableProjectWrapper
 													key={project.id}
 													project={project}
 													isCollapsed={isCollapsed}
 													isDraggingProject={activeProject != null}
+													isDragDisabled={isDragDisabled}
+													isInnerDragDisabled={isFilterActive}
 													workspaceShortcutLabels={workspaceShortcutLabels}
 													onWorkspaceHover={refreshWorkspacePullRequest}
 													onToggleCollapse={toggleProjectCollapsed}
 												/>
 											))}
 										</SortableContext>
+
+										{isFilterActive && displayedGroups.length === 0 && (
+											<div className="select-text cursor-text px-4 py-2 text-xs text-muted-foreground">
+												No projects match "{projectFilterQuery.trim()}"
+											</div>
+										)}
 
 										{createPortal(
 											<DragOverlay dropAnimation={null}>
@@ -262,8 +319,8 @@ export function DashboardSidebar({
 							<div
 								className={cn(
 									isCollapsed
-										? "flex flex-col items-center gap-1 py-1"
-										: "flex items-center gap-1 p-3",
+										? "flex flex-col items-center gap-2 py-2"
+										: "flex items-center gap-1 p-2",
 								)}
 							>
 								{isCollapsed ? (
@@ -284,11 +341,11 @@ export function DashboardSidebar({
 											className={cn(
 												"flex size-8 shrink-0 items-center justify-center rounded-md transition-colors",
 												isSettingsOpen
-													? "bg-accent text-foreground"
-													: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+													? "bg-fill-selected text-muted-foreground"
+													: "text-muted-foreground hover:bg-fill-hover",
 											)}
 										>
-											<HiOutlineCog6Tooth className="size-4" />
+											<HiOutlineCog6Tooth className="size-3.5" />
 										</button>
 									</TooltipTrigger>
 									<TooltipContent side={isCollapsed ? "right" : "top"}>
