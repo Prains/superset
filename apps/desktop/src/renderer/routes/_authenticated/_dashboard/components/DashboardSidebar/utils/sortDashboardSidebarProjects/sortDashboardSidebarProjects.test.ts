@@ -113,4 +113,60 @@ describe("sortDashboardSidebarProjects", () => {
 			sortDashboardSidebarProjects([b, a], "created").map((p) => p.id),
 		).toEqual(["p-a", "p-b"]);
 	});
+
+	// Electric collection rows carry ISO strings at runtime despite the Date
+	// type; sorting must coerce them, never throw mid-render.
+	it("sorts workspaces whose timestamps are ISO strings at runtime", () => {
+		const stringDated = makeProject({
+			id: "p-string",
+			name: "StringDates",
+			children: [
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w-string",
+						name: "cloud-fallback",
+						updatedAt: "2026-07-01T00:00:00.000Z" as unknown as Date,
+					}),
+				},
+			],
+		});
+		const dateDated = makeProject({
+			id: "p-date",
+			name: "DateDates",
+			children: [
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w-date",
+						name: "host-served",
+						updatedAt: new Date("2026-05-01"),
+					}),
+				},
+			],
+		});
+		expect(
+			sortDashboardSidebarProjects([dateDated, stringDated], "updated").map(
+				(p) => p.id,
+			),
+		).toEqual(["p-string", "p-date"]);
+	});
+
+	it("falls back to name order instead of throwing on garbage timestamps", () => {
+		const garbage = makeProject({
+			id: "p-garbage",
+			name: "Apple",
+			createdAt: "not-a-date" as unknown as Date,
+		});
+		const alsoGarbage = makeProject({
+			id: "p-garbage-2",
+			name: "Banana",
+			createdAt: "also-not-a-date" as unknown as Date,
+		});
+		expect(
+			sortDashboardSidebarProjects([alsoGarbage, garbage], "created").map(
+				(p) => p.id,
+			),
+		).toEqual(["p-garbage", "p-garbage-2"]);
+	});
 });
