@@ -89,7 +89,7 @@ window.addEventListener("mousedown", (e) => {
   ripples.push({ x: e.clientX * DPR, y: e.clientY * DPR, r: 0 });
 });
 const RIPPLE_SPEED = 7 * DPR;        // px per frame
-const RIPPLE_BAND = 70 * DPR;        // thickness of the glowing ring
+const RIPPLE_BAND = 110 * DPR;       // thickness of the glowing ring
 const RIPPLE_MAX = () => Math.hypot(W, H);
 
 // returns 0..1 — how strongly a point is inside any ripple ring right now
@@ -115,17 +115,17 @@ const CODE =
 const NUM_BOIDS = 90;
 const PERCEPTION = 90 * DPR;
 const SEPARATION_DIST = 44 * DPR;     // wide personal space -> looser, more spread flock
-const MAX_SPEED = 1.9 * DPR;
-const MAX_FORCE = 0.055 * DPR;
+const MAX_SPEED = 1.2 * DPR;
+const MAX_FORCE = 0.035 * DPR;
 const W_SEPARATION = 1.7;
 const W_ALIGNMENT = 1.0;
 const W_COHESION = 0.45;
 const W_SEEK = 0.5;                   // the flock follows the cursor
 const SEEK_ARRIVE_RADIUS = 280 * DPR; // ease off near it so they orbit, not mob
-const TRAIL_DECAY = 0.993;            // slow fade — glyphs linger instead of blinking out
+const TRAIL_DECAY = 0.996;            // slow fade — glyphs linger instead of blinking out
 
 // muted gray palette; orange appears only inside a ripple
-const ORANGE = [255, 120, 30];
+const ORANGE = [190, 80, 18];
 function trailGray() {
   const r = Math.random();
   if (r < 0.70) return 60;    // dark gray
@@ -139,7 +139,7 @@ function glyphStyle(gray, alpha, heat) {
   const r = Math.round(gray + (ORANGE[0] - gray) * heat);
   const g = Math.round(gray + (ORANGE[1] - gray) * heat);
   const b = Math.round(gray + (ORANGE[2] - gray) * heat);
-  return `rgba(${r}, ${g}, ${b}, ${Math.min(1, alpha + heat * 0.45)})`;
+  return `rgba(${r}, ${g}, ${b}, ${Math.min(1, alpha + heat * 0.3)})`;
 }
 
 class Boid {
@@ -153,7 +153,8 @@ class Boid {
     this.ax = 0;
     this.ay = 0;
     this.ptr = Math.floor(Math.random() * CODE.length);  // where in the code string this boid is writing
-    this.lastCell = "";
+    this.sx = this.x;  // where the last character was stamped
+    this.sy = this.y;
     this.headChar = CODE[this.ptr];
   }
 
@@ -225,22 +226,24 @@ class Boid {
     if (this.y < -m) { this.y = H + m; wrapped = true; }
     if (this.y > H + m) { this.y = -m; wrapped = true; }
 
-    // each new grid cell the boid enters gets the next character of its code string
-    const cx = Math.round(this.x / CELL);
-    const cy = Math.round(this.y / CELL);
-    const key = cx + "," + cy;
-    if (key !== this.lastCell) {
-      this.lastCell = key;
-      if (!wrapped) {
-        const char = CODE[this.ptr % CODE.length];
-        this.ptr++;
-        if (char !== " ") {
-          trail.set(key, {
-            char,
-            gray: trailGray(),
-            alpha: 0.22 + Math.random() * 0.10,
-          });
-        }
+    // write the next character only after real net displacement — a boid
+    // hovering on a cell boundary shouldn't flicker through its code string
+    if (wrapped) {
+      this.sx = this.x;
+      this.sy = this.y;
+    } else if (Math.hypot(this.x - this.sx, this.y - this.sy) >= CELL * 1.5) {
+      this.sx = this.x;
+      this.sy = this.y;
+      const char = CODE[this.ptr % CODE.length];
+      this.ptr++;
+      if (char !== " ") {
+        const cx = Math.round(this.x / CELL);
+        const cy = Math.round(this.y / CELL);
+        trail.set(cx + "," + cy, {
+          char,
+          gray: trailGray(),
+          alpha: 0.22 + Math.random() * 0.10,
+        });
       }
     }
     this.headChar = CODE[this.ptr % CODE.length];
@@ -250,7 +253,7 @@ class Boid {
     const cx = Math.round(this.x / CELL) * CELL;
     const cy = Math.round(this.y / CELL) * CELL;
     const heat = rippleHeat(cx, cy);
-    ctx.fillStyle = glyphStyle(105, 0.5, heat);
+    ctx.fillStyle = glyphStyle(85, 0.45, heat);
     ctx.fillText(this.headChar === " " ? "." : this.headChar, cx, cy);
   }
 }
