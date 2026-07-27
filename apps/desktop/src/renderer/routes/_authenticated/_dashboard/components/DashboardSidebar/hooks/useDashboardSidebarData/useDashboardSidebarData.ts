@@ -182,17 +182,27 @@ export function useDashboardSidebarData() {
 		(q) =>
 			q
 				.from({ sidebarProjects: collections.v2SidebarProjects })
-				// Secondary key: tabOrders can collide (bulk ensure paths mint
-				// duplicates), and a tie left to the query engine flips
-				// arbitrarily on unrelated re-emissions — projects would jump
-				// when e.g. a workspace reorder recomputes the pipeline.
-				.orderBy(({ sidebarProjects }) => sidebarProjects.tabOrder, "asc")
-				.orderBy(({ sidebarProjects }) => sidebarProjects.projectId, "asc")
 				.select(({ sidebarProjects }) => ({
 					projectId: sidebarProjects.projectId,
 					isCollapsed: sidebarProjects.isCollapsed,
+					tabOrder: sidebarProjects.tabOrder,
 				})),
 		[collections],
+	);
+	// Sorted in JS, not via the query's orderBy: the incremental orderBy
+	// does not reliably re-sort on row inserts/renumbers (a newly added
+	// project stayed appended at the bottom until reload), and tabOrders
+	// can collide (bulk ensure paths mint duplicates) so ties need a
+	// stable secondary key. Workspaces/sections don't need this — the
+	// project-tree builder re-sorts them by tabOrder itself.
+	const orderedSidebarProjectRows = useMemo(
+		() =>
+			[...sidebarProjectRows].sort(
+				(left, right) =>
+					left.tabOrder - right.tabOrder ||
+					left.projectId.localeCompare(right.projectId),
+			),
+		[sidebarProjectRows],
 	);
 
 	const { projects: hostProjects } = useHostProjects();
@@ -201,7 +211,7 @@ export function useDashboardSidebarData() {
 		const projectsByKey = new Map(
 			hostProjects.map((project) => [project.projectKey, project]),
 		);
-		return sidebarProjectRows.flatMap((row) => {
+		return orderedSidebarProjectRows.flatMap((row) => {
 			const project = projectsByKey.get(row.projectId);
 			// No host serves it: stale placement row (deleted project) — drop
 			// it, same as the old inner join did.
@@ -221,7 +231,7 @@ export function useDashboardSidebarData() {
 				},
 			];
 		});
-	}, [sidebarProjectRows, hostProjects]);
+	}, [orderedSidebarProjectRows, hostProjects]);
 
 	const { data: sidebarSections = [] } = useLiveQuery(
 		(q) =>
