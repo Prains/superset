@@ -312,3 +312,145 @@ describe("sortDashboardSidebarProjectChildren", () => {
 		).toEqual(sectionWorkspaceIds);
 	});
 });
+
+// updatedAt only moves on metadata writes; agent activity (host terminal-agent
+// bindings) is what "Last updated" is actually about, so the newer of the two
+// must win at every level.
+describe("agent activity in updated mode", () => {
+	it("ranks a workspace with newer agent activity above a newer updatedAt", () => {
+		const project = makeProject({
+			id: "p1",
+			name: "Alpha",
+			children: [
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w-metadata",
+						name: "renamed-recently",
+						updatedAt: new Date("2026-06-01"),
+					}),
+				},
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w-agent",
+						name: "prompted-just-now",
+						updatedAt: new Date("2026-02-01"),
+						lastAgentActivityAt: new Date("2026-07-01").getTime(),
+					}),
+				},
+			],
+		});
+		const [sorted] = sortDashboardSidebarProjects([project], "updated");
+		expect(
+			sorted?.children.map((c) =>
+				c.type === "workspace" ? c.workspace.id : c.section.id,
+			),
+		).toEqual(["w-agent", "w-metadata"]);
+	});
+
+	it("bubbles agent activity up to project ordering", () => {
+		const staleMetadata = makeProject({
+			id: "p-agent",
+			name: "AgentBusy",
+			children: [
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w1",
+						name: "one",
+						updatedAt: new Date("2026-01-01"),
+						lastAgentActivityAt: new Date("2026-07-01").getTime(),
+					}),
+				},
+			],
+		});
+		const freshMetadata = makeProject({
+			id: "p-idle",
+			name: "Idle",
+			children: [
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w2",
+						name: "two",
+						updatedAt: new Date("2026-05-01"),
+					}),
+				},
+			],
+		});
+		expect(
+			sortDashboardSidebarProjects(
+				[freshMetadata, staleMetadata],
+				"updated",
+			).map((p) => p.id),
+		).toEqual(["p-agent", "p-idle"]);
+	});
+
+	it("bubbles agent activity inside a section up to the section's rank", () => {
+		const section: DashboardSidebarProjectChild = {
+			type: "section",
+			section: makeSection({
+				id: "s1",
+				name: "Section",
+				workspaces: [
+					makeWorkspace({
+						id: "w-s",
+						name: "sectioned",
+						updatedAt: new Date("2026-01-01"),
+						lastAgentActivityAt: new Date("2026-07-01").getTime(),
+					}),
+				],
+			}),
+		};
+		const loose: DashboardSidebarProjectChild = {
+			type: "workspace",
+			workspace: makeWorkspace({
+				id: "w-loose",
+				name: "loose",
+				updatedAt: new Date("2026-05-01"),
+			}),
+		};
+		const sorted = sortDashboardSidebarProjectChildren(
+			[loose, section],
+			"updated",
+		);
+		expect(
+			sorted.map((c) =>
+				c.type === "workspace" ? c.workspace.id : c.section.id,
+			),
+		).toEqual(["s1", "w-loose"]);
+	});
+
+	it("ignores agent activity in created mode", () => {
+		const project = makeProject({
+			id: "p1",
+			name: "Alpha",
+			children: [
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w-created-late",
+						name: "late",
+						createdAt: new Date("2026-06-01"),
+					}),
+				},
+				{
+					type: "workspace",
+					workspace: makeWorkspace({
+						id: "w-created-early",
+						name: "early",
+						createdAt: new Date("2026-02-01"),
+						lastAgentActivityAt: new Date("2026-07-01").getTime(),
+					}),
+				},
+			],
+		});
+		const [sorted] = sortDashboardSidebarProjects([project], "created");
+		expect(
+			sorted?.children.map((c) =>
+				c.type === "workspace" ? c.workspace.id : c.section.id,
+			),
+		).toEqual(["w-created-late", "w-created-early"]);
+	});
+});

@@ -16,6 +16,19 @@ function toTime(value: Date | string | number | null | undefined): number {
 	return new Date(value).getTime();
 }
 
+// A workspace's updatedAt only moves on metadata writes (rename, PR links),
+// so real recency also considers the newest terminal-agent event the host
+// recorded for it — whichever is later wins.
+function getWorkspaceActivityTime(
+	workspace: DashboardSidebarWorkspace,
+): number {
+	const updatedAt = toTime(workspace.updatedAt);
+	const agentAt = workspace.lastAgentActivityAt ?? Number.NaN;
+	if (Number.isNaN(updatedAt)) return agentAt;
+	if (Number.isNaN(agentAt)) return updatedAt;
+	return Math.max(updatedAt, agentAt);
+}
+
 // The host only bumps a project's own updatedAt on metadata patches (e.g.
 // rename), so "recent activity" comes from the workspaces inside it.
 export function getProjectActivityTimestamp(
@@ -26,9 +39,7 @@ export function getProjectActivityTimestamp(
 		const updatedAt = toTime(project.updatedAt);
 		return Number.isNaN(updatedAt) ? toTime(project.createdAt) : updatedAt;
 	}
-	return Math.max(
-		...workspaces.map((workspace) => toTime(workspace.updatedAt)),
-	);
+	return Math.max(...workspaces.map(getWorkspaceActivityTime));
 }
 
 function makeStableComparator<Item>(
@@ -51,7 +62,7 @@ function getWorkspaceTimestamp(
 ): number {
 	return mode === "created"
 		? toTime(workspace.createdAt)
-		: toTime(workspace.updatedAt);
+		: getWorkspaceActivityTime(workspace);
 }
 
 // Mirrors the project-level rules one level down: "created" uses the
@@ -67,7 +78,7 @@ function getChildTimestamp(
 	const { section } = child;
 	if (mode === "created") return toTime(section.createdAt);
 	const activity = section.workspaces
-		.map((workspace) => toTime(workspace.updatedAt))
+		.map(getWorkspaceActivityTime)
 		.filter((time) => !Number.isNaN(time));
 	return activity.length > 0
 		? Math.max(...activity)
