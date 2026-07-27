@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Boids — code-glyph murmuration</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a0a;
+  }
+  canvas {
+    display: block;
+    position: fixed;
+    inset: 0;
+  }
+  /* mock hero content to judge fit — not part of the effect */
+  .hero {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    pointer-events: none;
+    user-select: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .hero h1 {
+    margin: 0;
+    font-size: clamp(32px, 5.5vw, 72px);
+    font-weight: 500;
+    color: #eaeaea;
+    letter-spacing: -0.02em;
+  }
+  .hero p {
+    margin: 0;
+    font-size: clamp(13px, 1.3vw, 18px);
+    color: #8a8a8a;
+    font-family: system-ui, sans-serif;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hero">
+  <h1>The Code Editor for AI Agents.</h1>
+  <p>Orchestrate 100+ coding agents in parallel. Works for any agents. Built for the AI era.</p>
+</div>
+<script>
+"use strict";
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const DPR = Math.min(devicePixelRatio || 1, 2);
+
+// character grid — glyphs stay upright and snapped, like real terminal text
+const CELL = 13 * DPR;
+const FONT_SIZE = 11 * DPR;
+
+let W = 0, H = 0;
+function resize() {
+  W = canvas.width = window.innerWidth * DPR;
+  H = canvas.height = window.innerHeight * DPR;
+  canvas.style.width = window.innerWidth + "px";
+  canvas.style.height = window.innerHeight + "px";
+  ctx.font = `${FONT_SIZE}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+}
+window.addEventListener("resize", resize);
+resize();
+
+const mouse = { x: W / 2, y: H / 2, active: false };
+window.addEventListener("mousemove", (e) => {
+  mouse.x = e.clientX * DPR;
+  mouse.y = e.clientY * DPR;
+  mouse.active = true;
+});
+document.addEventListener("mouseleave", () => { mouse.active = false; });
+
+// --- click ripple: an expanding ring that flashes glyphs orange as it passes ---
+const ripples = [];
+window.addEventListener("mousedown", (e) => {
+  ripples.push({ x: e.clientX * DPR, y: e.clientY * DPR, r: 0 });
+});
+const RIPPLE_SPEED = 7 * DPR;        // px per frame
+const RIPPLE_BAND = 70 * DPR;        // thickness of the glowing ring
+const RIPPLE_MAX = () => Math.hypot(W, H);
+
+// returns 0..1 — how strongly a point is inside any ripple ring right now
+function rippleHeat(x, y) {
+  let heat = 0;
+  for (const rp of ripples) {
+    const d = Math.hypot(x - rp.x, y - rp.y);
+    const t = 1 - Math.abs(d - rp.r) / RIPPLE_BAND;
+    if (t > heat) heat = t;
+  }
+  return heat;
+}
+
+// the source text each boid writes as it flies — trails spell real code
+const CODE =
+  'awaitagent.spawn({preset:"claude",workspace:"mellow-catfish"})boid.orchestrate({agents:100,' +
+  'parallel:true})sammy.enforce("GDPR_17",{action:"erase",deadline:30})agent.review({channel:"all",' +
+  'sla:"24h"})awaitworktree.create({branch:"main",isolate:true})flock.align({perception:75,' +
+  'cohesion:0.8})if(!agent.idle())thrownewAgentBusyError("BOID_1")terminal.attach({pty:daemon,' +
+  'rows:42})pr.merge({squash:true,title:"feat(desktop):flock"})';
+
+// --- tuning ---
+const NUM_BOIDS = 90;
+const PERCEPTION = 90 * DPR;
+const SEPARATION_DIST = 44 * DPR;     // wide personal space -> looser, more spread flock
+const MAX_SPEED = 1.9 * DPR;
+const MAX_FORCE = 0.055 * DPR;
+const W_SEPARATION = 1.7;
+const W_ALIGNMENT = 1.0;
+const W_COHESION = 0.45;
+const W_SEEK = 0.5;                   // the flock follows the cursor
+const SEEK_ARRIVE_RADIUS = 280 * DPR; // ease off near it so they orbit, not mob
+const TRAIL_DECAY = 0.993;            // slow fade — glyphs linger instead of blinking out
+
+// muted gray palette; orange appears only inside a ripple
+const ORANGE = [255, 120, 30];
+function trailGray() {
+  const r = Math.random();
+  if (r < 0.70) return 60;    // dark gray
+  if (r < 0.92) return 80;    // mid
+  return 100;                 // light accent
+}
+
+// blend a gray glyph toward orange by heat (0..1)
+function glyphStyle(gray, alpha, heat) {
+  if (heat <= 0) return `rgba(${gray}, ${gray}, ${gray}, ${alpha})`;
+  const r = Math.round(gray + (ORANGE[0] - gray) * heat);
+  const g = Math.round(gray + (ORANGE[1] - gray) * heat);
+  const b = Math.round(gray + (ORANGE[2] - gray) * heat);
+  return `rgba(${r}, ${g}, ${b}, ${Math.min(1, alpha + heat * 0.45)})`;
+}
+
+class Boid {
+  constructor() {
+    this.x = Math.random() * W;
+    this.y = Math.random() * H;
+    const a = Math.random() * Math.PI * 2;
+    const s = MAX_SPEED * (0.5 + Math.random() * 0.5);
+    this.vx = Math.cos(a) * s;
+    this.vy = Math.sin(a) * s;
+    this.ax = 0;
+    this.ay = 0;
+    this.ptr = Math.floor(Math.random() * CODE.length);  // where in the code string this boid is writing
+    this.lastCell = "";
+    this.headChar = CODE[this.ptr];
+  }
+
+  steer(dx, dy, weight) {
+    const mag = Math.hypot(dx, dy);
+    if (mag === 0) return;
+    let sx = (dx / mag) * MAX_SPEED - this.vx;
+    let sy = (dy / mag) * MAX_SPEED - this.vy;
+    const smag = Math.hypot(sx, sy);
+    if (smag > MAX_FORCE) {
+      sx = (sx / smag) * MAX_FORCE;
+      sy = (sy / smag) * MAX_FORCE;
+    }
+    this.ax += sx * weight;
+    this.ay += sy * weight;
+  }
+
+  flock(boids) {
+    let sepX = 0, sepY = 0, sepN = 0;
+    let aliX = 0, aliY = 0, aliN = 0;
+    let cohX = 0, cohY = 0, cohN = 0;
+
+    for (const other of boids) {
+      if (other === this) continue;
+      const dx = other.x - this.x;
+      const dy = other.y - this.y;
+      const d = Math.hypot(dx, dy);
+      if (d > PERCEPTION || d === 0) continue;
+
+      if (d < SEPARATION_DIST) {
+        sepX -= dx / d / d;
+        sepY -= dy / d / d;
+        sepN++;
+      }
+      aliX += other.vx; aliY += other.vy; aliN++;
+      cohX += other.x;  cohY += other.y;  cohN++;
+    }
+
+    if (sepN > 0) this.steer(sepX, sepY, W_SEPARATION);
+    if (aliN > 0) this.steer(aliX / aliN, aliY / aliN, W_ALIGNMENT);
+    if (cohN > 0) this.steer(cohX / cohN - this.x, cohY / cohN - this.y, W_COHESION);
+
+    if (mouse.active) {
+      const tx = mouse.x - this.x;
+      const ty = mouse.y - this.y;
+      const d = Math.hypot(tx, ty);
+      const w = d < SEEK_ARRIVE_RADIUS ? W_SEEK * (d / SEEK_ARRIVE_RADIUS) : W_SEEK;
+      this.steer(tx, ty, w);
+    }
+  }
+
+  update() {
+    this.vx += this.ax;
+    this.vy += this.ay;
+    const speed = Math.hypot(this.vx, this.vy);
+    if (speed > MAX_SPEED) {
+      this.vx = (this.vx / speed) * MAX_SPEED;
+      this.vy = (this.vy / speed) * MAX_SPEED;
+    }
+    this.x += this.vx;
+    this.y += this.vy;
+    this.ax = 0;
+    this.ay = 0;
+
+    const m = CELL;
+    let wrapped = false;
+    if (this.x < -m) { this.x = W + m; wrapped = true; }
+    if (this.x > W + m) { this.x = -m; wrapped = true; }
+    if (this.y < -m) { this.y = H + m; wrapped = true; }
+    if (this.y > H + m) { this.y = -m; wrapped = true; }
+
+    // each new grid cell the boid enters gets the next character of its code string
+    const cx = Math.round(this.x / CELL);
+    const cy = Math.round(this.y / CELL);
+    const key = cx + "," + cy;
+    if (key !== this.lastCell) {
+      this.lastCell = key;
+      if (!wrapped) {
+        const char = CODE[this.ptr % CODE.length];
+        this.ptr++;
+        if (char !== " ") {
+          trail.set(key, {
+            char,
+            gray: trailGray(),
+            alpha: 0.22 + Math.random() * 0.10,
+          });
+        }
+      }
+    }
+    this.headChar = CODE[this.ptr % CODE.length];
+  }
+
+  drawHead() {
+    const cx = Math.round(this.x / CELL) * CELL;
+    const cy = Math.round(this.y / CELL) * CELL;
+    const heat = rippleHeat(cx, cy);
+    ctx.fillStyle = glyphStyle(105, 0.5, heat);
+    ctx.fillText(this.headChar === " " ? "." : this.headChar, cx, cy);
+  }
+}
+
+const trail = new Map();
+const boids = Array.from({ length: NUM_BOIDS }, () => new Boid());
+
+function frame() {
+  ctx.clearRect(0, 0, W, H);
+
+  // advance ripples, drop finished ones
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    ripples[i].r += RIPPLE_SPEED;
+    if (ripples[i].r - RIPPLE_BAND > RIPPLE_MAX()) ripples.splice(i, 1);
+  }
+
+  // fading code trail
+  for (const [key, g] of trail) {
+    g.alpha *= TRAIL_DECAY;
+    if (g.alpha < 0.03) { trail.delete(key); continue; }
+    const [cx, cy] = key.split(",");
+    const px = cx * CELL, py = cy * CELL;
+    ctx.fillStyle = glyphStyle(g.gray, g.alpha, rippleHeat(px, py));
+    ctx.fillText(g.char, px, py);
+  }
+
+  for (const b of boids) b.flock(boids);
+  for (const b of boids) { b.update(); b.drawHead(); }
+
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>
