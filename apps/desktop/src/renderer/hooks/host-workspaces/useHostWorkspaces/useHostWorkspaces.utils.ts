@@ -186,6 +186,9 @@ export function applyWorkspaceChangedEvent(
 		// A host broadcasting created/updated just acted on the worktree;
 		// keep a known value over assuming.
 		worktreeExists: existing?.worktreeExists ?? true,
+		// Snapshots don't carry projectName (list-only join) — preserve the
+		// cached value or the row's label blanks until the next refetch.
+		projectName: existing?.projectName ?? null,
 		archivedAt:
 			snapshot.archivedAt != null ? new Date(snapshot.archivedAt) : null,
 	};

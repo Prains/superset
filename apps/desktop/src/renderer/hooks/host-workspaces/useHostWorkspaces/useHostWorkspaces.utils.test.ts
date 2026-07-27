@@ -63,6 +63,19 @@ describe("applyWorkspaceChangedEvent", () => {
 		expect(next?.[0]?.archivedAt?.getTime()).toBe(archivedAtMs);
 	});
 
+	it("preserves projectName across broadcasts (snapshots don't carry it)", () => {
+		const next = applyWorkspaceChangedEvent(
+			[makeRow({ projectName: "superset" })],
+			{
+				eventType: "updated",
+				workspace: makeSnapshot({ archivedAt: 5_000 }),
+			},
+			HOST,
+			"ws-1",
+		);
+		expect(next?.[0]?.projectName).toBe("superset");
+	});
+
 	it("clears archivedAt when the snapshot reports null (unarchive)", () => {
 		const next = applyWorkspaceChangedEvent(
 			[makeRow({ archivedAt: new Date(5_000) })],

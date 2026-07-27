@@ -17,7 +17,12 @@ import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import type { Hono } from "hono";
 import { isProcessAlive, readPtyDaemonManifest } from "../daemon/manifest.ts";
 import type { HostDb } from "../db/index.ts";
-import { projects, terminalSessions, workspaces } from "../db/schema.ts";
+import {
+	projects,
+	terminalAgentBindings,
+	terminalSessions,
+	workspaces,
+} from "../db/schema.ts";
 import type { EventBus } from "../events/index.ts";
 import { portManager } from "../ports/port-manager.ts";
 import {
@@ -1022,8 +1027,20 @@ async function killSessionRuntime(terminalId: string): Promise<{
  */
 export async function suspendSessionAndWait(
 	terminalId: string,
+	db: HostDb,
 ): Promise<DisposeSessionResult> {
 	const { closeResult } = await killSessionRuntime(terminalId);
+	if (closeResult.succeeded) {
+		// Any terminal agent in the PTY died with it. Agent-binding liveness
+		// queries gate on the session row's `active` status — which suspend
+		// deliberately preserves for respawn — so a surviving binding would
+		// report the dead agent as live indefinitely. Drop it; a respawned
+		// shell starts agent-less. (Dispose gets this for free via the
+		// session-row delete cascade.)
+		db.delete(terminalAgentBindings)
+			.where(eq(terminalAgentBindings.terminalId, terminalId))
+			.run();
+	}
 	return {
 		terminalId,
 		daemonCloseAttempted: closeResult.attempted,

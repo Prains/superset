@@ -23,7 +23,12 @@ import { fileURLToPath } from "node:url";
 import { Server } from "@superset/pty-daemon";
 import { eq } from "drizzle-orm";
 import { createDb, type HostDb } from "../db/index.ts";
-import { projects, terminalSessions, workspaces } from "../db/schema.ts";
+import {
+	projects,
+	terminalAgentBindings,
+	terminalSessions,
+	workspaces,
+} from "../db/schema.ts";
 import {
 	disposeDaemonClient,
 	getDaemonClient,
@@ -817,7 +822,30 @@ describe("createTerminalSessionInternal — host-service restart adoption", () =
 		if ("error" in first) return;
 		const originalPid = first.pty.pid;
 
-		await suspendSessionAndWait(terminalId);
+		// A terminal agent bound to this session: its process dies with the
+		// PTY, so suspend must drop the binding (liveness queries gate on the
+		// session row's `active` status, which suspend keeps).
+		db.insert(terminalAgentBindings)
+			.values({
+				terminalId,
+				workspaceId,
+				agentId: "claude" as never,
+				startedAt: Date.now(),
+				lastEventAt: Date.now(),
+				lastEventType: "start",
+			})
+			.run();
+
+		await suspendSessionAndWait(terminalId, db);
+
+		const binding = db.query.terminalAgentBindings
+			.findFirst({ where: eq(terminalAgentBindings.terminalId, terminalId) })
+			.sync();
+		assert.equal(
+			binding,
+			undefined,
+			"suspend must drop the agent binding — its process died with the PTY",
+		);
 
 		// PTY gone daemon-side...
 		await new Promise((r) => setTimeout(r, 800));

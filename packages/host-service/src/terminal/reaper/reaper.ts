@@ -289,7 +289,7 @@ async function reapOrphanedSessions(
 		});
 		for (const terminalId of suspends) {
 			try {
-				const result = await suspendSessionAndWait(terminalId);
+				const result = await suspendSessionAndWait(terminalId, db);
 				if (result.daemonCloseSucceeded) {
 					suspended += 1;
 					continue;

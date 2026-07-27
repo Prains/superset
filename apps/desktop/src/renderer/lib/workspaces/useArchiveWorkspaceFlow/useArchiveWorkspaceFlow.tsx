@@ -35,8 +35,10 @@ function toOptimisticRow(
 
 /**
  * The instant-archive flow that replaced the v2 delete dialog: flag the row
- * (worktree and branch stay on disk), kill its terminals host-side, and offer
- * Undo via toast. Permanent deletion lives in Settings → Archived workspaces.
+ * and offer Undo via toast. Nothing else is touched — the worktree and branch
+ * stay on disk, and terminal sessions keep running (the host's reaper
+ * suspends them later) so an Undo restores fully warm terminals. Permanent
+ * deletion lives in Settings → Archived workspaces.
  *
  * Host resolution is imperative (`cache.resolveHostUrl`) rather than the
  * per-workspace hook pattern so one instance can archive any workspace picked

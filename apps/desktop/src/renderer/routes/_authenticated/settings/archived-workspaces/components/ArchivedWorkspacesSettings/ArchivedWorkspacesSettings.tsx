@@ -10,6 +10,7 @@ import {
 import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences/useV2UserPreferences";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { useArchiveWorkspaceFlow } from "renderer/lib/workspaces/useArchiveWorkspaceFlow";
+import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
 import {
 	type HostWorkspaceItem,
 	useHostWorkspaces,
@@ -37,6 +38,7 @@ export function ArchivedWorkspacesSettings({
 }: ArchivedWorkspacesSettingsProps) {
 	const { archivedWorkspaces, isReady, cache } = useHostWorkspaces();
 	const { unarchiveWorkspace } = useArchiveWorkspaceFlow();
+	const { removeWorkspaceFromSidebar } = useDashboardSidebarState();
 	const { preferences } = useV2UserPreferences();
 	const deleteBranch = preferences.deleteLocalBranch;
 	const [rowStatus, setRowStatus] = useState<Record<string, ArchivedRowStatus>>(
@@ -112,6 +114,10 @@ export function ArchivedWorkspacesSettings({
 					}
 				}
 				cache.removeWorkspace(item.hostId, item.id);
+				// Release parked pane runtimes (xterm/WebGL, WS transports) and
+				// delete the persisted pane layout — the cleanup every destroy
+				// entry point ran before permanent delete moved to this page.
+				removeWorkspaceFromSidebar(item.id);
 				for (const warning of result.warnings) toast.warning(warning);
 				setStatus(item.id, IDLE);
 				return true;
@@ -128,7 +134,7 @@ export function ArchivedWorkspacesSettings({
 				return false;
 			}
 		},
-		[cache, deleteBranch, setStatus],
+		[cache, deleteBranch, setStatus, removeWorkspaceFromSidebar],
 	);
 
 	const confirmDelete = useCallback(
@@ -161,8 +167,10 @@ export function ArchivedWorkspacesSettings({
 		[unarchiveWorkspace],
 	);
 
+	// `hostReachable` (did the host actually answer its list query) is the
+	// honest signal; a URL existing only means the Electric row says online.
 	const deletableRows = rows.filter(
-		(item) => cache.resolveHostUrl(item.hostId) !== null,
+		(item) => item.hostReachable && cache.resolveHostUrl(item.hostId) !== null,
 	);
 
 	const handleDeleteAll = useCallback(() => {
@@ -240,7 +248,10 @@ export function ArchivedWorkspacesSettings({
 								key={item.id}
 								workspace={item}
 								status={rowStatus[item.id] ?? IDLE}
-								hostReachable={cache.resolveHostUrl(item.hostId) !== null}
+								hostReachable={
+									item.hostReachable &&
+									cache.resolveHostUrl(item.hostId) !== null
+								}
 								onUnarchive={() => void handleUnarchive(item)}
 								onDelete={() => confirmDelete(item)}
 								onForceDelete={() => void destroyOne(item, { force: true })}
