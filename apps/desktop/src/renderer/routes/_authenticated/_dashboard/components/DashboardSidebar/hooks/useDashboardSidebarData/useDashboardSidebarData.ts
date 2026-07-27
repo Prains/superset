@@ -182,7 +182,12 @@ export function useDashboardSidebarData() {
 		(q) =>
 			q
 				.from({ sidebarProjects: collections.v2SidebarProjects })
+				// Secondary key: tabOrders can collide (bulk ensure paths mint
+				// duplicates), and a tie left to the query engine flips
+				// arbitrarily on unrelated re-emissions — projects would jump
+				// when e.g. a workspace reorder recomputes the pipeline.
 				.orderBy(({ sidebarProjects }) => sidebarProjects.tabOrder, "asc")
+				.orderBy(({ sidebarProjects }) => sidebarProjects.projectId, "asc")
 				.select(({ sidebarProjects }) => ({
 					projectId: sidebarProjects.projectId,
 					isCollapsed: sidebarProjects.isCollapsed,
@@ -222,7 +227,9 @@ export function useDashboardSidebarData() {
 		(q) =>
 			q
 				.from({ sidebarSections: collections.v2SidebarSections })
+				// Same tie-breaking rationale as the projects query above.
 				.orderBy(({ sidebarSections }) => sidebarSections.tabOrder, "asc")
+				.orderBy(({ sidebarSections }) => sidebarSections.sectionId, "asc")
 				.select(({ sidebarSections }) => ({
 					id: sidebarSections.sectionId,
 					projectId: sidebarSections.projectId,
@@ -245,8 +252,13 @@ export function useDashboardSidebarData() {
 		(q) =>
 			q
 				.from({ sidebarWorkspaces: collections.v2WorkspaceLocalState })
+				// Same tie-breaking rationale as the projects query above.
 				.orderBy(
 					({ sidebarWorkspaces }) => sidebarWorkspaces.sidebarState.tabOrder,
+					"asc",
+				)
+				.orderBy(
+					({ sidebarWorkspaces }) => sidebarWorkspaces.workspaceId,
 					"asc",
 				)
 				.select(({ sidebarWorkspaces }) => ({
