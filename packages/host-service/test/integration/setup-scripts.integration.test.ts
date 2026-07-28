@@ -130,7 +130,8 @@ describe("setup scripts integration", () => {
 				writes.includes("echo setup-a && echo setup-b") &&
 				writes.indexOf("\r") > writes.indexOf("echo setup-a && echo setup-b"),
 			5000,
-			() => `expected setup command write + Enter, got ${JSON.stringify(writes)}`,
+			() =>
+				`expected setup command write + Enter, got ${JSON.stringify(writes)}`,
 		);
 
 		const workspaceRow = scenario.host.db
