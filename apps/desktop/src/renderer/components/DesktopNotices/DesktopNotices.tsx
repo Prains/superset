@@ -31,7 +31,6 @@ export function DesktopNoticesGate({ children }: { children: ReactNode }) {
 			<UpdateRequiredPage
 				currentVersion={window.App.appVersion}
 				minimumVersion={current.minVersion ?? undefined}
-				title={current.title}
 				message={current.body}
 			/>
 		);

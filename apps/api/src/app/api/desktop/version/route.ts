@@ -29,7 +29,6 @@ export async function GET() {
 			maxVersion: row.maxVersion,
 			platforms: row.platforms,
 			channels: row.channels,
-			title: row.title,
 			body: row.body,
 			cta:
 				row.ctaLabel && row.ctaAction

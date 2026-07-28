@@ -7,38 +7,23 @@ import { z } from "zod";
  * See plans/20260720-remote-version-notices.md.
  */
 
-export const desktopNoticeSeveritySchema = z.enum([
-	"info",
-	"warning",
-	"blocking",
-]);
-export type DesktopNoticeSeverity = z.infer<typeof desktopNoticeSeveritySchema>;
-
-export const desktopNoticeTriggerSchema = z.enum([
-	"immediate",
-	"pre-update",
-	"post-update",
-]);
-export type DesktopNoticeTrigger = z.infer<typeof desktopNoticeTriggerSchema>;
-
-export const desktopNoticeCtaSchema = z.object({
-	label: z.string(),
-	action: z.enum(["install-update", "open-url"]),
-	url: z.string().nullish(),
-});
-export type DesktopNoticeCta = z.infer<typeof desktopNoticeCtaSchema>;
-
-export const desktopNoticeSchema = z.object({
+const desktopNoticeSchema = z.object({
 	id: z.string(),
-	severity: desktopNoticeSeveritySchema,
-	trigger: desktopNoticeTriggerSchema,
+	severity: z.enum(["info", "warning", "blocking"]),
+	trigger: z.enum(["immediate", "pre-update", "post-update"]),
 	minVersion: z.string().nullish(),
 	maxVersion: z.string().nullish(),
 	platforms: z.array(z.string()).nullish(),
 	channels: z.array(z.string()).nullish(),
-	title: z.string(),
+	/** Markdown; the whole rendered content, headings and images included. */
 	body: z.string(),
-	cta: desktopNoticeCtaSchema.nullish(),
+	cta: z
+		.object({
+			label: z.string(),
+			action: z.enum(["install-update", "open-url"]),
+			url: z.string().nullish(),
+		})
+		.nullish(),
 	dismissible: z.boolean(),
 });
 export type DesktopNotice = z.infer<typeof desktopNoticeSchema>;
@@ -49,11 +34,8 @@ export const desktopVersionResponseSchema = z.object({
 	// older servers don't return this field
 	notices: z.array(desktopNoticeSchema).default([]),
 });
-export type DesktopVersionResponse = z.infer<
-	typeof desktopVersionResponseSchema
->;
 
-export const SEVERITY_RANK: Record<DesktopNoticeSeverity, number> = {
+const SEVERITY_RANK: Record<DesktopNotice["severity"], number> = {
 	blocking: 2,
 	warning: 1,
 	info: 0,
@@ -68,7 +50,7 @@ export interface NoticeClientContext {
 	isDismissed: (id: string) => boolean;
 }
 
-export function noticeApplies(
+function noticeApplies(
 	notice: DesktopNotice,
 	ctx: NoticeClientContext,
 ): boolean {

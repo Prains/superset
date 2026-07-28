@@ -11,7 +11,6 @@ CREATE TABLE "desktop_notices" (
 	"channels" text[],
 	"starts_at" timestamp with time zone,
 	"ends_at" timestamp with time zone,
-	"title" text NOT NULL,
 	"body" text NOT NULL,
 	"cta_label" text,
 	"cta_action" "desktop_notice_cta_action",

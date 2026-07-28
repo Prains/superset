@@ -14,7 +14,6 @@ function makeNotice(overrides: Partial<DesktopNotice> = {}): DesktopNotice {
 		maxVersion: null,
 		platforms: null,
 		channels: null,
-		title: "t",
 		body: "b",
 		cta: null,
 		dismissible: true,

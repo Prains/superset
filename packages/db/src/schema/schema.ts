@@ -948,8 +948,7 @@ export const desktopNotices = pgTable(
 		channels: text().array(),
 		startsAt: timestamp("starts_at", { withTimezone: true }),
 		endsAt: timestamp("ends_at", { withTimezone: true }),
-		// presentation
-		title: text().notNull(),
+		// presentation: markdown body is the whole rendered content
 		body: text().notNull(),
 		ctaLabel: text("cta_label"),
 		ctaAction: desktopNoticeCtaAction("cta_action"),

@@ -1,5 +1,5 @@
 {
-  "id": "5955f23c-01d9-43d8-8e1f-c169aabe1589",
+  "id": "cd79dcde-cd7f-4845-b106-212390811cf5",
   "prevId": "8881f663-84f3-42e1-9901-59364b0b028b",
   "version": "7",
   "dialect": "postgresql",
@@ -3829,12 +3829,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
         },
         "body": {
           "name": "body",

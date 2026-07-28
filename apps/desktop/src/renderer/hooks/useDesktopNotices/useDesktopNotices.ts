@@ -81,7 +81,6 @@ export function useDesktopNotices(): UseDesktopNoticesResult {
 				id: MINIMUM_VERSION_NOTICE_ID,
 				severity: "blocking",
 				trigger: "immediate",
-				title: "Update required",
 				body: data.message,
 				cta: { label: "Install & restart", action: "install-update" },
 				dismissible: false,
@@ -97,17 +96,13 @@ export function useDesktopNotices(): UseDesktopNoticesResult {
 		});
 	}, [data, dismissedAt, previousVersion]);
 
-	// A dev preview overrides its matching surface; everything else falls back
-	// to the real server-derived notices.
-	const isPreUpdatePreview = preview?.trigger === "pre-update";
-	return {
-		// post-update announcements share the boot/poll popup surface
-		current: isPreUpdatePreview
-			? (applicable.find((n) => n.trigger !== "pre-update") ?? null)
-			: (preview ?? applicable.find((n) => n.trigger !== "pre-update") ?? null),
-		preUpdateNotice: isPreUpdatePreview
-			? preview
-			: (applicable.find((n) => n.trigger === "pre-update") ?? null),
-		dismiss,
-	};
+	// post-update announcements share the boot/poll popup surface with
+	// immediate notices; a dev preview replaces its matching surface.
+	let current = applicable.find((n) => n.trigger !== "pre-update") ?? null;
+	let preUpdateNotice =
+		applicable.find((n) => n.trigger === "pre-update") ?? null;
+	if (preview?.trigger === "pre-update") preUpdateNotice = preview;
+	else if (preview) current = preview;
+
+	return { current, preUpdateNotice, dismiss };
 }

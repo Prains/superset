@@ -10,14 +10,12 @@ import { AUTO_UPDATE_STATUS, type AutoUpdateStatus } from "shared/auto-update";
 interface UpdateRequiredPageProps {
 	currentVersion: string;
 	minimumVersion?: string;
-	title?: string;
 	message?: string;
 }
 
 export function UpdateRequiredPage({
 	currentVersion,
 	minimumVersion,
-	title,
 	message,
 }: UpdateRequiredPageProps) {
 	const openUrl = electronTrpc.external.openUrl.useMutation();
@@ -65,9 +63,7 @@ export function UpdateRequiredPage({
 					</div>
 
 					<div className="flex flex-col items-center gap-2 text-center">
-						<h1 className="text-xl font-semibold">
-							{title || "Update Required"}
-						</h1>
+						<h1 className="text-xl font-semibold">Update Required</h1>
 						<p className="max-w-md text-muted-foreground">
 							{message ||
 								"A new version of Superset is required to continue. Please update to the latest version."}
