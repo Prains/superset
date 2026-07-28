@@ -85,11 +85,23 @@ export class TunnelManager {
 		// entry back ourselves; otherwise other machines fly-replay traffic
 		// to a dead local tunnel for ~90s until the TTL ages out.
 		if (ws.readyState !== 1 || this.draining) {
-			await directory
-				.unregister(hostId, env.FLY_REGION, env.FLY_MACHINE_ID)
-				.catch((err) => {
-					console.error("[relay] directory.unregister rollback failed", err);
-				});
+			// ...unless a concurrent register() for this host completed while we
+			// were awaiting: that tunnel is live and shares this directory entry
+			// (same owner string, so the compare-and-delete in
+			// directory.unregister can't tell the two apart). Deleting it would
+			// make a healthy host invisible to the cloud — the presence
+			// reconciler flips is_online=false off the missing entry and
+			// automation dispatch skips with "target host offline" — while the
+			// surviving socket happily keeps ping/ponging. Drain is exempt: it
+			// clears this machine's entries itself.
+			const surviving = this.tunnels.get(hostId);
+			if (!surviving || surviving.ws.readyState !== 1 || this.draining) {
+				await directory
+					.unregister(hostId, env.FLY_REGION, env.FLY_MACHINE_ID)
+					.catch((err) => {
+						console.error("[relay] directory.unregister rollback failed", err);
+					});
+			}
 			if (this.draining) {
 				ws.close(TunnelManager.WS_CLOSE_DRAIN, "Server draining for deploy");
 			}
@@ -151,6 +163,40 @@ export class TunnelManager {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Pong-driven directory upkeep. Normally just refreshes META/TTL, but also
+	 * re-creates the entry when it has gone missing under a live tunnel.
+	 *
+	 * The entry is written once at register() time, so anything that removes it
+	 * mid-connection strands the host: a run of transient Upstash failures lets
+	 * the TTL lapse and sweepStale reclaims it, a deploy-time
+	 * clearStaleEntriesForMachine can race a reconnect, or an operator wipes
+	 * the key. The tunnel itself never notices — ping/pong keeps flowing, so
+	 * the host has no reason to reconnect — and the cloud's presence reconciler
+	 * keeps writing is_online=false, which makes every automation dispatch skip
+	 * with "target host offline" for as long as the tunnel stays up.
+	 */
+	private async refreshDirectory(hostId: string): Promise<void> {
+		try {
+			if (await directory.heartbeat(hostId)) return;
+			// Re-check liveness: unregister() may have removed the entry
+			// legitimately while the heartbeat was in flight.
+			const tunnel = this.tunnels.get(hostId);
+			if (!tunnel || tunnel.ws.readyState !== 1 || this.draining) return;
+			console.warn(
+				`[relay] directory entry missing for live tunnel ${hostId}; re-registering`,
+			);
+			await directory.register(hostId, env.FLY_REGION, env.FLY_MACHINE_ID);
+			// Force the presence write: the reconciler has very likely already
+			// flipped is_online=false off the missing entry, and our cached view
+			// (still "online") would otherwise suppress the corrective write.
+			this.onlineState.delete(hostId);
+			this.scheduleOnlineWrite(hostId, tunnel.token, true);
+		} catch (err) {
+			console.error(`[relay] directory refresh failed for ${hostId}`, err);
+		}
 	}
 
 	unregister(hostId: string, ws?: WsSocket): void {
@@ -423,7 +469,7 @@ export class TunnelManager {
 
 		if (msg.type === "pong") {
 			tunnel.missedPings = 0;
-			void directory.heartbeat(hostId).catch(() => {});
+			void this.refreshDirectory(hostId);
 		} else if (msg.type === "http:response") {
 			const pending = tunnel.pendingRequests.get(msg.id as string);
 			if (pending) {

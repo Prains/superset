@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "bun run --env-file=../../.env --hot src/index.ts",
 		"start": "bun run src/index.ts",
+		"test": "SKIP_ENV_VALIDATION=1 bun test",
 		"deploy": "./scripts/deploy.sh",
 		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
 	},

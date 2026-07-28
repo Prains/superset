@@ -96,12 +96,16 @@ export async function lookup(hostId: string): Promise<TunnelOwner | null> {
 	return decodeOwner(value);
 }
 
-export async function heartbeat(hostId: string): Promise<void> {
+// Refreshes META/TTL for a tunnel that's already in the directory. Returns
+// false when there was nothing to refresh, i.e. the entry is gone — the caller
+// owns the decision to re-register (see TunnelManager.refreshDirectory); doing
+// it here would resurrect entries for tunnels that are being torn down.
+export async function heartbeat(hostId: string): Promise<boolean> {
 	// Skip refresh if OWNER was already torn down — prevents META/TTL
 	// resurrection after a concurrent unregister/sweep. There's a residual
 	// race between this check and the writes below, but the worst case is
 	// ~90s of zombie META/TTL until sweepStale reclaims it.
-	if (!(await redis.hexists(OWNER_KEY, hostId))) return;
+	if (!(await redis.hexists(OWNER_KEY, hostId))) return false;
 	const now = Date.now();
 	const existing = await redis.hget<TunnelMeta>(META_KEY, hostId);
 	const meta: TunnelMeta = existing
@@ -111,6 +115,7 @@ export async function heartbeat(hostId: string): Promise<void> {
 		redis.hset(META_KEY, { [hostId]: meta }),
 		redis.zadd(TTL_KEY, { score: now + TTL_GRACE_MS, member: hostId }),
 	]);
+	return true;
 }
 
 // Atomic check-and-delete per stale member: re-checks the score inside the
