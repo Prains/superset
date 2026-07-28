@@ -12,13 +12,6 @@ interface RightSidebarProps {
 
 const TABS = ["Files", "Changes", "Review"] as const;
 
-const BRANCH_BY_DEMO: Record<ActiveDemo, string> = {
-	"Use Any Agents": "use-any-agents",
-	"Create Parallel Branches": "create-parallel-branches",
-	"See Changes": "see-changes",
-	"Open in Any IDE": "open-in-any-ide",
-};
-
 export function RightSidebar({ activeDemo }: RightSidebarProps) {
 	const isDiff = activeDemo === "See Changes";
 
@@ -68,12 +61,7 @@ export function RightSidebar({ activeDemo }: RightSidebarProps) {
 			</div>
 
 			<div className="bg-background px-3 pt-3 pb-2">
-				<div className="flex items-center font-mono text-[11px]">
-					<span className="truncate font-medium text-foreground/95">
-						{BRANCH_BY_DEMO[activeDemo]}
-					</span>
-				</div>
-				<div className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground/60">
+				<div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground/60">
 					<span className="tabular-nums text-emerald-400/85">+1,128</span>
 					<span className="tabular-nums text-rose-400/75">−98</span>
 					<span className="text-muted-foreground/45">·</span>
