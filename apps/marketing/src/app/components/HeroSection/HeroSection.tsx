@@ -1,17 +1,16 @@
 "use client";
 
 import { COMPANY } from "@superset/shared/constants";
-import { useScroll } from "framer-motion";
 import { useFeatureFlagVariantKey } from "posthog-js/react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { FaGithub } from "react-icons/fa";
+import { HERO_POSITIONING_FLAG } from "@/lib/analytics/hero-flag-bootstrap";
 import { isMacPlatform, usePlatform } from "../../hooks/useOS";
 import { DownloadButton } from "../DownloadButton";
 import { WaitlistModal } from "../WaitlistModal";
+import { BoidsBackground } from "./components/BoidsBackground";
 import { ProductDemo } from "./components/ProductDemo";
 import { TypewriterText } from "./components/TypewriterText";
-
-const HERO_POSITIONING_FLAG = "landing-hero-positioning";
 
 const PIXEL_FONT_STYLE = {
 	fontFamily: "var(--font-geist-pixel-grid)",
@@ -24,7 +23,7 @@ interface HeroCopy {
 }
 
 const TEST_SUBHEADLINE =
-	"Isolated workspaces for Claude Code, Codex, and any CLI agent — run them side by side and review every change from one dashboard. Free to start.";
+	"Isolated workspaces for Claude Code, Codex, and any CLI agent. Review every change from one dashboard. Free to start.";
 
 const HERO_COPY = {
 	control: {
@@ -49,7 +48,6 @@ const HERO_COPY = {
 
 export function HeroSection() {
 	const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
-	const demoRef = useRef<HTMLDivElement>(null);
 	const { platform } = usePlatform();
 	const heroVariant = useFeatureFlagVariantKey(HERO_POSITIONING_FLAG);
 	const copy =
@@ -59,25 +57,26 @@ export function HeroSection() {
 			? HERO_COPY[heroVariant as keyof typeof HERO_COPY]
 			: HERO_COPY.control;
 
-	const { scrollYProgress } = useScroll({
-		target: demoRef,
-		offset: ["start 0.45", "start 0"],
-	});
-
 	return (
 		<div>
-			<div className="flex flex-col items-center pt-24 sm:pt-32 lg:pt-40 overflow-hidden">
-				<div className="relative w-full max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-[30px]">
+			<div className="relative flex flex-col items-center pt-24 sm:pt-32 lg:pt-40 pb-16 sm:pb-24 overflow-hidden">
+				<BoidsBackground />
+				<div className="relative w-full max-w-7xl mx-auto px-6 sm:px-8">
 					<div className="flex flex-col items-center text-center">
 						<div className="space-y-4 sm:space-y-6">
 							<h1
-								className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight leading-[1.1] text-foreground relative"
+								className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight leading-[1.1] text-foreground relative max-w-6xl mx-auto"
 								style={{
 									fontFamily: "var(--font-ibm-plex-mono), monospace",
 								}}
 							>
+								{/* Sizer must mirror the visible segments' fonts so wrapping matches */}
 								<span className="invisible" aria-hidden="true">
-									{copy.headline}
+									{copy.segments.map((segment) => (
+										<span key={segment.text} style={segment.style}>
+											{segment.text}
+										</span>
+									))}
 								</span>
 								<span className="absolute inset-0">
 									<TypewriterText
@@ -88,7 +87,10 @@ export function HeroSection() {
 									/>
 								</span>
 							</h1>
-							<p className="text-base sm:text-xl font-light text-muted-foreground max-w-4xl mx-auto">
+							<p
+								id="hero-subheadline"
+								className="text-base sm:text-xl font-light text-muted-foreground max-w-4xl mx-auto"
+							>
 								{copy.subheadline}
 							</p>
 						</div>
@@ -107,11 +109,8 @@ export function HeroSection() {
 						</div>
 					</div>
 
-					<div
-						ref={demoRef}
-						className="relative w-full mt-12 sm:mt-16 lg:mt-20"
-					>
-						<ProductDemo scrollYProgress={scrollYProgress} />
+					<div className="relative w-full mt-20 sm:mt-32 lg:mt-40">
+						<ProductDemo />
 					</div>
 				</div>
 			</div>

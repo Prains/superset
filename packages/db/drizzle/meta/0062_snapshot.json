@@ -1,5 +1,5 @@
 {
-  "id": "cd79dcde-cd7f-4845-b106-212390811cf5",
+  "id": "0751b7ea-770d-418d-881a-ae7d52fab263",
   "prevId": "8881f663-84f3-42e1-9901-59364b0b028b",
   "version": "7",
   "dialect": "postgresql",
@@ -3433,19 +3433,6 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "automations_v2_project_id_v2_projects_id_fk": {
-          "name": "automations_v2_project_id_v2_projects_id_fk",
-          "tableFrom": "automations",
-          "tableTo": "v2_projects",
-          "columnsFrom": [
-            "v2_project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -3762,146 +3749,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.desktop_notices": {
-      "name": "desktop_notices",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "severity": {
-          "name": "severity",
-          "type": "desktop_notice_severity",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "trigger": {
-          "name": "trigger",
-          "type": "desktop_notice_trigger",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'immediate'"
-        },
-        "min_version": {
-          "name": "min_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "max_version": {
-          "name": "max_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "platforms": {
-          "name": "platforms",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "channels": {
-          "name": "channels",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "starts_at": {
-          "name": "starts_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ends_at": {
-          "name": "ends_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cta_label": {
-          "name": "cta_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cta_action": {
-          "name": "cta_action",
-          "type": "desktop_notice_cta_action",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cta_url": {
-          "name": "cta_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dismissible": {
-          "name": "dismissible",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "active": {
-          "name": "active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "desktop_notices_active_idx": {
-          "name": "desktop_notices_active_idx",
-          "columns": [
-            {
-              "expression": "active",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -6620,32 +6467,6 @@
         "completed",
         "failed",
         "timeout"
-      ]
-    },
-    "public.desktop_notice_cta_action": {
-      "name": "desktop_notice_cta_action",
-      "schema": "public",
-      "values": [
-        "install-update",
-        "open-url"
-      ]
-    },
-    "public.desktop_notice_severity": {
-      "name": "desktop_notice_severity",
-      "schema": "public",
-      "values": [
-        "info",
-        "warning",
-        "blocking"
-      ]
-    },
-    "public.desktop_notice_trigger": {
-      "name": "desktop_notice_trigger",
-      "schema": "public",
-      "values": [
-        "immediate",
-        "pre-update",
-        "post-update"
       ]
     },
     "public.device_type": {
