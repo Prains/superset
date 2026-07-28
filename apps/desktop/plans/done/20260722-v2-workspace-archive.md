@@ -83,3 +83,34 @@ New route + components (template: `settings/api-keys/` page + `ApiKeysSettings.t
 3. Renderer: extend `useHostWorkspaces.utils` tests for `archivedAt` in `applyWorkspaceChangedEvent` + the split.
 4. Manual CDP against THIS worktree's dev app (per apps/desktop AGENTS.md evidence-gate): archive → instant hide + toast + PTYs killed; Undo → restored in place; toast link → settings page; Unarchive/Delete/Delete-all incl. worktree actually removed from disk and branch removed iff preference on; dirty-worktree and failing-teardown per-row force paths; Cmd+W + command palette archive; host-service restart → archived rows persist.
 5. PR: plan doc copy in `apps/desktop/plans/`, title `feat(desktop): instant archive with undo for v2 workspaces`.
+
+## Outcomes & Retrospective
+
+Shipped in `feat(desktop): archive v2 workspaces instead of deleting` (this
+branch). Deltas from the plan above:
+
+- **Terminal handling pivoted from "kill PTYs at archive time" to a deferred,
+  row-preserving suspend.** The immediate kill reused the destroy-grade
+  teardown, which deletes `terminal_sessions` rows — reopened panes then
+  dead-ended on a fatal "session not found" attach error instead of
+  respawning. Shipped design: `archive` only sets `archivedAt`; the terminal
+  reaper suspends an archived workspace's live sessions on its next pass
+  (PTY killed, row kept `active` and unstamped), which routes a later
+  unarchive+attach through the existing lost-PTY adopt→respawn path. The
+  undo toast window therefore restores fully warm terminals. Suspend also
+  drops the session's terminal-agent binding (its process died with the
+  PTY; liveness queries gate on the `active` status suspend preserves).
+- **No separate `useArchiveWorkspace` host-service hook.** The flow hook
+  (`useArchiveWorkspaceFlow`) resolves the owning host imperatively via
+  `cache.resolveHostUrl` so one instance can archive any workspace picked
+  at event time (layout hotkey, command palette) — the per-workspace hook
+  pattern couldn't serve those callers.
+- **Post-review hardening:** `projectName` preserved across
+  `workspace:changed` broadcasts; permanent delete releases pane runtimes
+  and the persisted pane layout via `removeWorkspaceFromSidebar`; archived
+  row actions gate on `hostReachable`, not just an Electric-online URL.
+- **Deferred:** CLI awareness of `archivedAt` (`superset workspaces
+  list/open` still shows archived workspaces), `destroysInFlight`
+  participation for archive/unarchive, relocating `TeardownFailedPane`
+  out of the retired dialog's folder, and removing the now-unused
+  `DeletingWorkspacesProvider` mark/clear tracking.
