@@ -66,8 +66,8 @@ let W = 0, H = 0;
 function resize() {
   W = canvas.width = window.innerWidth * DPR;
   H = canvas.height = window.innerHeight * DPR;
-  canvas.style.width = window.innerWidth + "px";
-  canvas.style.height = window.innerHeight + "px";
+  canvas.style.width = `${window.innerWidth}px`;
+  canvas.style.height = `${window.innerHeight}px`;
   ctx.font = `${FONT_SIZE}px ui-monospace, SFMono-Regular, Menlo, monospace`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -128,9 +128,9 @@ const TRAIL_DECAY = 0.996;            // slow fade — glyphs linger instead of 
 const ORANGE = [190, 80, 18];
 function trailGray() {
   const r = Math.random();
-  if (r < 0.70) return 60;    // dark gray
-  if (r < 0.92) return 80;    // mid
-  return 100;                 // light accent
+  if (r < 0.70) return 45;    // dark gray
+  if (r < 0.92) return 56;    // mid
+  return 68;                  // light accent
 }
 
 // blend a gray glyph toward orange by heat (0..1)
@@ -239,7 +239,7 @@ class Boid {
       if (char !== " ") {
         const cx = Math.round(this.x / CELL);
         const cy = Math.round(this.y / CELL);
-        trail.set(cx + "," + cy, {
+        trail.set(`${cx},${cy}`, {
           char,
           gray: trailGray(),
           alpha: 0.22 + Math.random() * 0.10,
@@ -253,7 +253,7 @@ class Boid {
     const cx = Math.round(this.x / CELL) * CELL;
     const cy = Math.round(this.y / CELL) * CELL;
     const heat = rippleHeat(cx, cy);
-    ctx.fillStyle = glyphStyle(85, 0.45, heat);
+    ctx.fillStyle = glyphStyle(52, 0.35, heat);
     ctx.fillText(this.headChar === " " ? "." : this.headChar, cx, cy);
   }
 }

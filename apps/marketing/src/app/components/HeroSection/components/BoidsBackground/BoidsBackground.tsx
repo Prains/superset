@@ -34,9 +34,9 @@ const ORANGE: readonly [number, number, number] = [190, 80, 18];
 
 function trailGray(): number {
 	const r = Math.random();
-	if (r < 0.7) return 60;
-	if (r < 0.92) return 80;
-	return 100;
+	if (r < 0.7) return 45;
+	if (r < 0.92) return 56;
+	return 68;
 }
 
 function glyphStyle(gray: number, alpha: number, heat: number): string {
@@ -238,7 +238,7 @@ export function BoidsBackground() {
 				if (!ctx) return;
 				const cx = Math.round(this.x / cell) * cell;
 				const cy = Math.round(this.y / cell) * cell;
-				ctx.fillStyle = glyphStyle(85, 0.45, rippleHeat(cx, cy));
+				ctx.fillStyle = glyphStyle(52, 0.35, rippleHeat(cx, cy));
 				ctx.fillText(this.headChar === " " ? "." : this.headChar, cx, cy);
 			}
 		}
