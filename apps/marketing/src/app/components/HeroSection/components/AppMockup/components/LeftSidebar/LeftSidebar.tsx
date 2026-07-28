@@ -27,9 +27,9 @@ export function LeftSidebar({ activeDemo }: LeftSidebarProps) {
 			</div>
 
 			<div className="space-y-px px-1.5 pt-1">
-				<NavRow icon={LuLayers} label="Workspaces" active />
+				<NavRow icon={LuLayers} label="Workspaces" />
 				<NavRow icon={LuZap} label="Automations" />
-				<NavRow icon={LuPlus} label="New Workspace" muted />
+				<NavRow icon={LuPlus} label="New Workspace" />
 			</div>
 
 			<div className="mt-6 flex-1 overflow-hidden">
@@ -95,27 +95,13 @@ export function LeftSidebar({ activeDemo }: LeftSidebarProps) {
 function NavRow({
 	icon: Icon,
 	label,
-	active,
-	muted,
 }: {
 	icon: typeof LuLayers;
 	label: string;
-	active?: boolean;
-	muted?: boolean;
 }) {
 	return (
-		<div
-			className={`flex h-6 cursor-pointer items-center gap-2 px-2 ${
-				active
-					? "text-foreground"
-					: muted
-						? "text-muted-foreground/55 hover:text-foreground/80"
-						: "text-foreground/85 hover:bg-foreground/[0.025]"
-			}`}
-		>
-			<Icon
-				className={`size-3.5 ${active ? "text-foreground/85" : "text-muted-foreground/55"}`}
-			/>
+		<div className="flex h-6 cursor-pointer items-center gap-2 px-2 text-muted-foreground/55 hover:text-foreground/80">
+			<Icon className="size-3.5 text-muted-foreground/55" />
 			<span>{label}</span>
 		</div>
 	);
