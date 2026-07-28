@@ -6,7 +6,7 @@ import { useDesktopNoticePreviewStore } from "renderer/stores/desktop-notice-pre
 import { NoticeDialog } from "./components/NoticeDialog";
 
 /**
- * Server-driven version notices (plans/20260720-remote-version-notices.md).
+ * Server-driven version notices (plans/done/20260720-remote-version-notices.md).
  * Blocking notices replace the app with the forced-update page; soft ones
  * render as a modal over it.
  */

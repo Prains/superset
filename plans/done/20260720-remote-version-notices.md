@@ -1,3 +1,5 @@
+> **Shipped 2026-07** with one design divergence: notices ended up **markdown-only** — no `title` or accent fields; the body markdown carries the heading. Authoring guide: `apps/desktop/docs/DESKTOP_NOTICES.md`.
+
 # Remote Version Notices
 
 **Status:** Implemented + CDP-verified end-to-end (screenshots in PR) · **Date:** 2026-07-20 · **Branch:** `version-warning-popup`
