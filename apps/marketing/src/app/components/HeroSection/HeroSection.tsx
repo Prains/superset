@@ -66,9 +66,9 @@ export function HeroSection() {
 
 	return (
 		<div>
-			<div className="relative flex flex-col items-center pt-24 sm:pt-32 lg:pt-40 overflow-hidden">
+			<div className="relative flex flex-col items-center pt-24 sm:pt-32 lg:pt-40 pb-16 sm:pb-24 overflow-hidden">
 				<BoidsBackground />
-				<div className="relative w-full max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-[30px]">
+				<div className="relative w-full max-w-7xl mx-auto px-6 sm:px-8">
 					<div className="flex flex-col items-center text-center">
 						<div className="space-y-4 sm:space-y-6">
 							<h1

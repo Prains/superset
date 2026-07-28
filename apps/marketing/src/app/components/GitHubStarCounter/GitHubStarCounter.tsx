@@ -62,12 +62,12 @@ export async function GitHubStarCounter() {
 			href={COMPANY.GITHUB_URL}
 			target="_blank"
 			rel="noopener noreferrer"
-			className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors p-1 sm:p-2"
+			className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors p-1"
 			aria-label={`${stars} GitHub stars`}
 		>
 			<svg
-				width="20"
-				height="20"
+				width="16"
+				height="16"
 				viewBox="0 0 24 24"
 				fill="currentColor"
 				xmlns="http://www.w3.org/2000/svg"
