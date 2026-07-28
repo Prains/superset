@@ -2,6 +2,10 @@
 For Electron interprocess communication, ALWAYS use trpc as defined in `src/lib/trpc`
 Please use alias as defined in `tsconfig.json` when possible
 
+## Server-driven announcements (desktop notices)
+
+To show an announcement/warning popup in the app without shipping a release, insert a row in the `desktop_notices` table (served by `GET /api/desktop/version`). Authoring guide — markdown-only body, severities, triggers, targeting, QA previews: `docs/DESKTOP_NOTICES.md`.
+
 ## Error text must be selectable
 
 The renderer sets `user-select: none` on `body`, so rendered errors need explicit `select-text cursor-text` classes — otherwise users can't copy them into bug reports. (Sonner toasts are exempt; they manage selection themselves.)
