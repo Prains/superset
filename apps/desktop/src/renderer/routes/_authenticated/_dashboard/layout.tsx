@@ -11,6 +11,7 @@ import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { DashboardSidebar } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar";
 import { DashboardSidebarDeleteDialog } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/components/DashboardSidebarDeleteDialog";
+import { useQuickCreateWorkspace } from "renderer/routes/_authenticated/_dashboard/hooks/useQuickCreateWorkspace";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
 import { useDevSeedV2Sidebar } from "renderer/routes/_authenticated/hooks/useDevSeedV2Sidebar";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
@@ -49,6 +50,7 @@ type DeleteTarget =
 function DashboardLayout() {
 	const navigate = useNavigate();
 	const openNewWorkspaceModal = useOpenNewWorkspaceModal();
+	const quickCreateWorkspace = useQuickCreateWorkspace();
 	const isV2CloudEnabled = useIsV2CloudEnabled();
 	const { workspaces: hostWorkspaces } = useHostWorkspaces();
 	const { removeWorkspaceFromSidebar } = useDashboardSidebarState();
@@ -110,8 +112,21 @@ function DashboardLayout() {
 			toggleWorkspaceSidebarCollapsed();
 		}
 	});
-	useHotkey("NEW_WORKSPACE", () =>
-		openNewWorkspaceModal(currentWorkspace?.projectId),
+	// The focused project comes from whichever workspace route is active. Only
+	// resolving the v1 row left every v2 route without a project, so the modal
+	// fell back to the last-used one (#6041).
+	const activeProjectId =
+		currentWorkspace?.projectId ?? currentV2Workspace?.projectId ?? undefined;
+
+	useHotkey("NEW_WORKSPACE", () => openNewWorkspaceModal(activeProjectId));
+	useHotkey(
+		"QUICK_CREATE_WORKSPACE",
+		() =>
+			quickCreateWorkspace({
+				projectId: activeProjectId,
+				hostId: currentV2Workspace?.hostId,
+			}),
+		{ enabled: !!activeProjectId },
 	);
 
 	const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
