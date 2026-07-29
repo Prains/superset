@@ -89,7 +89,9 @@ const REQUEST_TIMEOUT_MS = 30000;
 const SPAWN_LOCK_TIMEOUT_MS = 10000; // Max time to hold spawn lock
 
 // Queue limits
-const MAX_NOTIFY_QUEUE_BYTES = 2_000_000; // 2MB cap to prevent OOM
+// OOM guard; also the ceiling on a single paste (input rides notifications).
+// Kept in sync with the daemon session's stdin queue cap (8MB).
+const MAX_NOTIFY_QUEUE_BYTES = 8_000_000;
 const MAX_DAEMON_LOG_BYTES = 5 * 1024 * 1024; // 5MB cap for daemon.log
 
 // =============================================================================

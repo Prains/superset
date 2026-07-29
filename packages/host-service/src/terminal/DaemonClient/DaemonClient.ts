@@ -65,6 +65,10 @@ const LIST_TIMEOUT_MS = 5_000;
 // await successor adopt-ack, then reply. The Server uses 5s for the ack
 // alone; 15s here covers spawn + ack + reply round-trip with margin.
 const PREPARE_UPGRADE_TIMEOUT_MS = 15_000;
+// Per-frame ceiling for PTY input. Must stay well under the daemon
+// framing layer's 8MB MAX_FRAME_BYTES (@superset/pty-daemon framing.ts),
+// which aborts the whole connection on oversized frames.
+const MAX_INPUT_FRAME_BYTES = 1024 * 1024;
 
 export class DaemonClient {
 	private readonly opts: DaemonClientOptions;
@@ -177,8 +181,24 @@ export class DaemonClient {
 	/** Fire-and-forget; bytes go straight to the PTY. */
 	input(id: string, data: Buffer): void {
 		// Bytes ride in the frame's binary tail (see ../../protocol/framing.ts).
-		// No base64 hop on either side.
-		this.send({ type: "input", id }, data);
+		// No base64 hop on either side. Split oversized input (a huge paste
+		// arrives as one WebSocket message) across frames: the daemon aborts
+		// the shared connection — killing every session — on any frame past
+		// its 8MB hard cap. Same socket, so PTY write order is preserved.
+		if (data.byteLength <= MAX_INPUT_FRAME_BYTES) {
+			this.send({ type: "input", id }, data);
+			return;
+		}
+		for (
+			let offset = 0;
+			offset < data.byteLength;
+			offset += MAX_INPUT_FRAME_BYTES
+		) {
+			this.send(
+				{ type: "input", id },
+				data.subarray(offset, offset + MAX_INPUT_FRAME_BYTES),
+			);
+		}
 	}
 
 	/** Fire-and-forget; daemon validates dims. */

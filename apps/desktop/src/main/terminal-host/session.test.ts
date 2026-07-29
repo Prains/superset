@@ -29,12 +29,15 @@ class FakeStdout extends EventEmitter {
 
 class FakeStdin extends EventEmitter {
 	readonly writes: Buffer[] = [];
+	/** When true, write() still accepts the chunk (like a real Writable) but
+	 * reports backpressure by returning false. */
+	backpressured = false;
 
 	write(chunk: Buffer | string): boolean {
 		this.writes.push(
 			Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, "utf8"),
 		);
-		return true;
+		return !this.backpressured;
 	}
 }
 
@@ -487,5 +490,65 @@ describe("Terminal Host Session emulator backlog backpressure", () => {
 		internals.broadcastEvent("data", { type: "data", data: "hello" });
 
 		expect(fakeChildProcess.stdout.resumeCalls).toBe(1);
+	});
+});
+
+describe("Terminal Host Session stdin backpressure framing", () => {
+	beforeEach(() => {
+		fakeChildProcess = new FakeChildProcess();
+		spawnCalls = [];
+	});
+
+	// Regression test for #5569: a large paste backpressures subprocess stdin;
+	// the flush loop must not re-write the buffer it already handed to the
+	// stream, or the duplicated bytes desync the length-prefixed IPC framing
+	// and every later frame misparses as "IPC frame too large".
+	it("does not duplicate frames when subprocess stdin backpressures during a large paste", () => {
+		const session = new Session({
+			sessionId: "session-stdin-backpressure",
+			workspaceId: "workspace-1",
+			paneId: "pane-1",
+			tabId: "tab-1",
+			cols: 80,
+			rows: 24,
+			cwd: "/tmp",
+			shell: "/bin/zsh",
+			spawnProcess: () => fakeChildProcess as unknown as ChildProcess,
+		});
+
+		spawnAndReadySession(session);
+
+		// Paste spanning multiple 8KB write chunks, with the stream reporting
+		// backpressure on every write (worst case).
+		fakeChildProcess.stdin.backpressured = true;
+		const paste = "p".repeat(20_000);
+		session.write(paste);
+
+		// Drain one buffered write at a time. 50 drains is far more than the
+		// ~6 buffers (3 frames x header+payload) the paste should produce.
+		for (let i = 0; i < 50; i++) {
+			fakeChildProcess.stdin.emit("drain");
+		}
+
+		// Every byte written to stdin must decode as valid frames, and the
+		// Write frames must reassemble to exactly one copy of the paste.
+		const decoder = new PtySubprocessFrameDecoder();
+		const frames = fakeChildProcess.stdin.writes.flatMap((chunk) =>
+			decoder.push(chunk),
+		);
+		const writeFrames = frames.filter(
+			(frame) => frame.type === PtySubprocessIpcType.Write,
+		);
+		const reassembled = Buffer.concat(
+			writeFrames.map((frame) => frame.payload),
+		).toString("utf8");
+		expect(reassembled).toBe(paste);
+
+		const internals = session as unknown as {
+			subprocessStdinQueue: Buffer[];
+			subprocessStdinQueuedBytes: number;
+		};
+		expect(internals.subprocessStdinQueue).toEqual([]);
+		expect(internals.subprocessStdinQueuedBytes).toBe(0);
 	});
 });

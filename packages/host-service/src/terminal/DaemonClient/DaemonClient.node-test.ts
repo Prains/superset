@@ -266,6 +266,30 @@ test("adoption flow: client A opens, drops, client B finds + subscribes-with-rep
 	await b.dispose();
 });
 
+// A paste larger than the daemon's 8MB frame cap must be split across
+// frames — an oversized frame makes the daemon abort the shared
+// connection, killing every session at once.
+test("oversized input is split into frames under the daemon's cap", () => {
+	const c = new DaemonClient({ socketPath: sockPath });
+	const sentPayloadBytes: number[] = [];
+	(c as unknown as { send: (msg: unknown, payload?: Buffer) => void }).send = (
+		_msg,
+		payload,
+	) => {
+		sentPayloadBytes.push(payload?.byteLength ?? 0);
+	};
+
+	const big = Buffer.alloc(9 * 1024 * 1024, 0x61);
+	c.input("chunk-test", big);
+
+	assert.ok(sentPayloadBytes.length > 1, "expected input to be chunked");
+	assert.ok(sentPayloadBytes.every((n) => n <= 1024 * 1024));
+	assert.equal(
+		sentPayloadBytes.reduce((a, b) => a + b, 0),
+		big.byteLength,
+	);
+});
+
 async function waitFor(predicate: () => boolean, ms: number): Promise<void> {
 	const start = Date.now();
 	while (!predicate()) {

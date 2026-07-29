@@ -53,11 +53,12 @@ import {
 const ATTACH_FLUSH_TIMEOUT_MS = 500;
 
 /**
- * Maximum bytes allowed in subprocess stdin queue.
- * Prevents OOM if subprocess stdin is backpressured (e.g., slow PTY consumer).
- * 2MB is generous - typical large paste is ~50KB.
+ * Maximum bytes allowed in subprocess stdin queue (our queue plus the
+ * stream's internal buffer). Prevents OOM if subprocess stdin is
+ * backpressured (e.g., slow PTY consumer). Also the ceiling on a single
+ * paste; 8MB matches the subprocess input-queue high watermark.
  */
-const MAX_SUBPROCESS_STDIN_QUEUE_BYTES = 2_000_000;
+const MAX_SUBPROCESS_STDIN_QUEUE_BYTES = 8_000_000;
 
 /**
  * Emulator backlog high-water mark.
@@ -471,7 +472,16 @@ export class Session {
 		if (!this.subprocess?.stdin || this.disposed) return;
 
 		while (this.subprocessStdinQueue.length > 0) {
-			const buf = this.subprocessStdinQueue[0];
+			const buf = this.subprocessStdinQueue.shift();
+			if (!buf) break;
+			this.subprocessStdinQueuedBytes -= buf.length;
+
+			// write() always accepts the chunk (buffering it internally); a
+			// false return only signals backpressure. The buffer must be
+			// dequeued BEFORE checking backpressure — re-writing it after
+			// drain would duplicate bytes on the wire, desyncing the
+			// length-prefixed framing so every later frame misparses as
+			// "IPC frame too large" and the session is unrecoverable (#5569).
 			const canWrite = this.subprocess.stdin.write(buf);
 			if (!canWrite) {
 				if (!this.subprocessStdinDrainArmed) {
@@ -483,9 +493,6 @@ export class Session {
 				}
 				return;
 			}
-
-			this.subprocessStdinQueue.shift();
-			this.subprocessStdinQueuedBytes -= buf.length;
 		}
 	}
 
@@ -502,13 +509,16 @@ export class Session {
 		const payloadBuffer = payload ?? Buffer.alloc(0);
 		const frameSize = 5 + payloadBuffer.length; // 5-byte header + payload
 
-		// Check queue limit to prevent OOM under backpressure
-		if (
-			this.subprocessStdinQueuedBytes + frameSize >
-			MAX_SUBPROCESS_STDIN_QUEUE_BYTES
-		) {
+		// Check queue limit to prevent OOM under backpressure. Buffers are
+		// dequeued when handed to the stream, so count the stream's internal
+		// buffer (writableLength) too — that's where accepted-but-unflushed
+		// bytes live while the subprocess is slow to drain.
+		const bufferedBytes =
+			this.subprocessStdinQueuedBytes +
+			(this.subprocess.stdin.writableLength ?? 0);
+		if (bufferedBytes + frameSize > MAX_SUBPROCESS_STDIN_QUEUE_BYTES) {
 			console.warn(
-				`[Session ${this.sessionId}] stdin queue full (${this.subprocessStdinQueuedBytes} bytes), dropping frame`,
+				`[Session ${this.sessionId}] stdin queue full (${bufferedBytes} bytes buffered, ${frameSize} byte frame), dropping frame`,
 			);
 			this.broadcastEvent("error", {
 				type: "error",

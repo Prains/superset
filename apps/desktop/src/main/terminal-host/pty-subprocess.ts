@@ -495,7 +495,15 @@ function handleDispose(): void {
 
 const decoder = new PtySubprocessFrameDecoder();
 
+// Once the decoder throws, its internal state and the stream alignment are
+// both unrecoverable — every subsequent chunk would misparse and emit
+// another error, flooding the renderer with toasts (#5569). Latch instead:
+// report once, then discard further input so the rest of the app stays
+// usable while the user restarts the session.
+let stdinCorrupted = false;
+
 process.stdin.on("data", (chunk: Buffer) => {
+	if (stdinCorrupted) return;
 	try {
 		const frames = decoder.push(chunk);
 		for (const frame of frames) {
@@ -521,8 +529,9 @@ process.stdin.on("data", (chunk: Buffer) => {
 			}
 		}
 	} catch (error) {
+		stdinCorrupted = true;
 		sendError(
-			`Failed to parse frame: ${error instanceof Error ? error.message : String(error)}`,
+			`Failed to parse frame: ${error instanceof Error ? error.message : String(error)}. Input stream is desynced; restart this terminal.`,
 		);
 	}
 });
