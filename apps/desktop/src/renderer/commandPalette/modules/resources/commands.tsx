@@ -1,8 +1,11 @@
 import { HiOutlineCpuChip } from "react-icons/hi2";
-import type { Command, CommandProvider } from "../../core/types";
+import type { Command } from "../../core/types";
 import { ResourcesFrame } from "../../ui/ResourcesFrame";
 
-/** Exported so the CHECK_RESOURCES hotkey can push this frame directly. */
+/**
+ * Provided by the actions module (ordering within the Actions section);
+ * also pushed directly by the CHECK_RESOURCES hotkey.
+ */
 export const checkResourcesCommand: Command = {
 	id: "resources.check",
 	title: "Check resources",
@@ -21,9 +24,4 @@ export const checkResourcesCommand: Command = {
 		"processes",
 	],
 	renderFrame: () => <ResourcesFrame />,
-};
-
-export const resourcesProvider: CommandProvider = {
-	id: "resources",
-	provide: () => [checkResourcesCommand],
 };
