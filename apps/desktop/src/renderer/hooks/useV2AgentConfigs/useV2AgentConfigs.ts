@@ -9,9 +9,11 @@ export const V2_AGENT_CONFIGS_QUERY_KEY = ["host-agent-configs"] as const;
  * user is targeting (local, remote-via-relay, or whatever the new-workspace
  * modal has resolved). Cache is keyed on URL so distinct hosts don't share
  * entries. Settings → Agents mutations invalidate this key for instant
- * same-session updates; the bounded staleTime exists for writes that bypass
- * the renderer (CLI, host-service restarts, other clients on the same host),
- * which previously stayed invisible until an app restart.
+ * same-session updates; the bounded staleTime and unconditional focus refetch
+ * exist for writes that bypass the renderer (CLI, host-service restarts, other
+ * clients on the same host), which previously stayed invisible until an app
+ * restart. Acting on an external edit means refocusing the app, so focus is
+ * the earliest moment the fresh value can matter.
  */
 export function useV2AgentConfigs(hostUrl: string | null) {
 	return useQuery({
@@ -24,5 +26,6 @@ export function useV2AgentConfigs(hostUrl: string | null) {
 			).settings.agentConfigs.list.query();
 		},
 		staleTime: 30_000,
+		refetchOnWindowFocus: "always",
 	});
 }
