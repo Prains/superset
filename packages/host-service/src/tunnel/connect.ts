@@ -8,6 +8,8 @@ export interface ConnectRelayOptions {
 	api: ApiClient;
 	relayUrl: string;
 	localPort: number;
+	/** Host to dial the local service on. Defaults to loopback. */
+	localHost?: string;
 	organizationId: string;
 	authProvider: JwtApiAuthProvider;
 	hostServiceSecret: string;
@@ -29,6 +31,7 @@ export async function connectRelay(
 			hostId: buildHostRoutingKey(options.organizationId, host.machineId),
 			getAuthToken: () => options.authProvider.getJwt(),
 			localPort: options.localPort,
+			localHost: options.localHost,
 			hostServiceSecret: options.hostServiceSecret,
 		});
 		void tunnel.connect();

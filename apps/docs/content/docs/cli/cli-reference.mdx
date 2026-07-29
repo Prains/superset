@@ -165,14 +165,27 @@ talk to when targeting this machine.
 	name="superset start"
 	options={[
 		{ flag: "--daemon", description: "Run detached." },
-		{ flag: "--port <n>", description: "Specific port. Default: a free loopback port." },
+		{ flag: "--port <n>", description: "Specific port. Default: a free port." },
+		{ flag: "--host <addr>", description: "Address to bind. Default: all interfaces. Pass 127.0.0.1 to restrict to localhost." },
 		{ flag: "--org <id>", description: "Organization to register under. Default: the active organization." },
 	]}
 >
 If a manifest exists and the PID is alive, returns the existing
 instance's `{ pid, endpoint }`. Otherwise spawns the host server binary,
 polls `/trpc/health.check` for up to 10 seconds, and writes the manifest.
-Binds to `127.0.0.1` only.
+
+By default the host server binds the wildcard address, so it is reachable
+on every interface of the machine — including LAN, VPN, and tailnet
+interfaces. Requests still need the per-start pre-shared key from the
+`0600` manifest, but if you only ever reach it from the same machine,
+pin it:
+
+```bash
+superset start --daemon --host 127.0.0.1
+```
+
+The startup log prints the address it actually bound, so you can confirm
+which it is.
 
 ```bash
 superset start --daemon
@@ -187,6 +200,8 @@ The running host server.
 {
   pid: number;
   port: number;
+  hostname: string;
+  endpoint: string;
   organizationId: string;
 }
 

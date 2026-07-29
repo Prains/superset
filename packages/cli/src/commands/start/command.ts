@@ -1,5 +1,6 @@
 import * as p from "@clack/prompts";
 import { boolean, CLIError, number, string } from "@superset/cli-framework";
+import { formatListenUrl, isWildcardHost } from "@superset/shared/bind-host";
 import { command } from "../../lib/command";
 import { SUPERSET_CONFIG_PATH } from "../../lib/config";
 import { isProcessAlive, readManifest } from "../../lib/host/manifest";
@@ -11,6 +12,9 @@ export default command({
 	options: {
 		daemon: boolean().desc("Run in background"),
 		port: number().desc("Port to listen on"),
+		host: string().desc(
+			"Address to bind (default: all interfaces; use 127.0.0.1 for localhost only)",
+		),
 		org: string().desc("Organization to register under (id, slug, or name)"),
 	},
 	run: async ({ ctx, options, signal }) => {
@@ -37,12 +41,18 @@ export default command({
 					ctx.authSource === "oauth" ? SUPERSET_CONFIG_PATH : undefined,
 				api: ctx.api,
 				port: options.port,
+				hostname: options.host,
 				daemon: options.daemon ?? false,
 			});
 
 			spinner.stop(
-				`Host service running on port ${result.port} (pid ${result.pid})`,
+				`Host service running on ${formatListenUrl(result.hostname, result.port)} (pid ${result.pid})`,
 			);
+			if (isWildcardHost(result.hostname)) {
+				p.log.warn(
+					"Bound to all interfaces — reachable from other machines on this network. Pass --host 127.0.0.1 to restrict to localhost.",
+				);
+			}
 			p.log.info("Connected to relay — machine is now accessible.");
 
 			if (options.daemon) {
@@ -51,6 +61,8 @@ export default command({
 					data: {
 						pid: result.pid,
 						port: result.port,
+						hostname: result.hostname,
+						endpoint: result.endpoint,
 						organizationId: organization.id,
 					},
 					message: `Host service started for ${organization.name}`,
@@ -67,6 +79,8 @@ export default command({
 				data: {
 					pid: result.pid,
 					port: result.port,
+					hostname: result.hostname,
+					endpoint: result.endpoint,
 					organizationId: organization.id,
 				},
 				message: "Host service stopped",

@@ -56,7 +56,15 @@ superset start --daemon
 
 Spawns the daemon in the background and writes a manifest at
 `~/.superset/host/<organizationId>/manifest.json` so other clients can find
-it. Binds to `127.0.0.1` only.
+it.
+
+By default it binds the wildcard address, so it listens on every interface
+of the machine — LAN, VPN, and tailnet included. To restrict it to
+localhost, pass `--host`:
+
+```bash
+superset start --daemon --host 127.0.0.1
+```
 
 Verify it's healthy:
 

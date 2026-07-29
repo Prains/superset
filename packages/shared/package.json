@@ -147,6 +147,10 @@
 		"./rrule": {
 			"types": "./src/rrule.ts",
 			"default": "./src/rrule.ts"
+		},
+		"./bind-host": {
+			"types": "./src/bind-host.ts",
+			"default": "./src/bind-host.ts"
 		}
 	},
 	"scripts": {

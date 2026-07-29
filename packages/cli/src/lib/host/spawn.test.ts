@@ -95,4 +95,69 @@ describe("spawnHostService", () => {
 		);
 		expect(spawnCalls[0]?.options.env?.AUTH_TOKEN).toBe("session-token");
 	});
+
+	// Regression for #6054: `superset start` had no way to pin the host service
+	// to loopback, so it always bound every interface.
+	test("forwards --host to the host service as HOST_SERVICE_HOSTNAME", async () => {
+		const fetched: string[] = [];
+		globalThis.fetch = mock(async (url: string) => {
+			fetched.push(String(url));
+			return new Response("ok", { status: 200 });
+		}) as unknown as typeof fetch;
+
+		const result = await spawnHostService({
+			organizationId: "00000000-0000-0000-0000-000000000001",
+			sessionToken: "session-token",
+			api: createApi(),
+			port: 54880,
+			hostname: "127.0.0.1",
+			daemon: true,
+		});
+
+		expect(spawnCalls[0]?.options.env?.HOST_SERVICE_HOSTNAME).toBe("127.0.0.1");
+		expect(result.hostname).toBe("127.0.0.1");
+		expect(result.endpoint).toBe("http://127.0.0.1:54880");
+		expect(fetched[0]).toBe("http://127.0.0.1:54880/trpc/health.check");
+	});
+
+	test("omitting --host keeps the wildcard bind and dials loopback", async () => {
+		const fetched: string[] = [];
+		globalThis.fetch = mock(async (url: string) => {
+			fetched.push(String(url));
+			return new Response("ok", { status: 200 });
+		}) as unknown as typeof fetch;
+
+		const result = await spawnHostService({
+			organizationId: "00000000-0000-0000-0000-000000000001",
+			sessionToken: "session-token",
+			api: createApi(),
+			port: 54881,
+			daemon: true,
+		});
+
+		expect(spawnCalls[0]?.options.env?.HOST_SERVICE_HOSTNAME).toBeUndefined();
+		expect(result.hostname).toBe("0.0.0.0");
+		expect(result.endpoint).toBe("http://127.0.0.1:54881");
+		expect(fetched[0]).toBe("http://127.0.0.1:54881/trpc/health.check");
+	});
+
+	test("dials a pinned non-loopback address instead of 127.0.0.1", async () => {
+		const fetched: string[] = [];
+		globalThis.fetch = mock(async (url: string) => {
+			fetched.push(String(url));
+			return new Response("ok", { status: 200 });
+		}) as unknown as typeof fetch;
+
+		const result = await spawnHostService({
+			organizationId: "00000000-0000-0000-0000-000000000001",
+			sessionToken: "session-token",
+			api: createApi(),
+			port: 54882,
+			hostname: "100.64.0.2",
+			daemon: true,
+		});
+
+		expect(result.endpoint).toBe("http://100.64.0.2:54882");
+		expect(fetched[0]).toBe("http://100.64.0.2:54882/trpc/health.check");
+	});
 });

@@ -19,6 +19,9 @@ export const env = createEnv({
 			.transform((s) => s.split(",").map((o) => o.trim()))
 			.optional(),
 		PORT: z.coerce.number().int().positive().default(4879),
+		// Address to bind. Unset keeps the historical wildcard bind (reachable on
+		// every interface); set it to 127.0.0.1 to restrict to loopback.
+		HOST_SERVICE_HOSTNAME: z.string().min(1).optional(),
 		RELAY_URL: z.string().url().optional(),
 	},
 	runtimeEnv: process.env,

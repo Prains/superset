@@ -1,3 +1,4 @@
+import { toUrlHost } from "@superset/shared/bind-host";
 import type {
 	TunnelHttpRequest,
 	TunnelRequest,
@@ -21,6 +22,8 @@ export interface TunnelClientOptions {
 	hostId: string;
 	getAuthToken: () => Promise<string | null>;
 	localPort: number;
+	/** Host to dial the local service on. Defaults to loopback. */
+	localHost?: string;
 	hostServiceSecret: string;
 }
 
@@ -33,7 +36,7 @@ export class TunnelClient {
 	private readonly relayUrl: string;
 	private readonly hostId: string;
 	private readonly getAuthToken: () => Promise<string | null>;
-	private readonly localPort: number;
+	private readonly localAuthority: string;
 	private readonly hostServiceSecret: string;
 	private socket: WebSocket | null = null;
 	private localChannels = new Map<string, LocalChannel>();
@@ -48,7 +51,7 @@ export class TunnelClient {
 		this.relayUrl = options.relayUrl;
 		this.hostId = options.hostId;
 		this.getAuthToken = options.getAuthToken;
-		this.localPort = options.localPort;
+		this.localAuthority = `${toUrlHost(options.localHost ?? "127.0.0.1")}:${options.localPort}`;
 		this.hostServiceSecret = options.hostServiceSecret;
 	}
 
@@ -239,7 +242,7 @@ export class TunnelClient {
 
 	private async handleHttpRequest(request: TunnelHttpRequest): Promise<void> {
 		try {
-			const url = `http://127.0.0.1:${this.localPort}${request.path}`;
+			const url = `http://${this.localAuthority}${request.path}`;
 			const response = await fetch(url, {
 				method: request.method,
 				headers: {
@@ -278,7 +281,7 @@ export class TunnelClient {
 	}
 
 	private handleWsOpen(request: TunnelWsOpen): void {
-		const wsUrl = new URL(request.path, `ws://127.0.0.1:${this.localPort}`);
+		const wsUrl = new URL(request.path, `ws://${this.localAuthority}`);
 		wsUrl.searchParams.set("token", this.hostServiceSecret);
 		if (request.query) {
 			const params = new URLSearchParams(request.query);

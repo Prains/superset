@@ -1,7 +1,9 @@
 import { serve } from "@hono/node-server";
+import { localDialHost } from "@superset/shared/bind-host";
 import { createApp } from "./app";
 import { getSupervisor, startDaemonBootstrap } from "./daemon";
 import { env } from "./env";
+import { describeListenAddress } from "./listen-address";
 import {
 	ConfigFileSessionTokenSource,
 	JwtApiAuthProvider,
@@ -93,25 +95,35 @@ async function main(): Promise<void> {
 		process.on("SIGTERM", () => void devShutdown("SIGTERM"));
 	}
 
-	const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-		// Install only after the server is listening so startup throws still
-		// reach `main().catch(...)` and exit with a non-zero code.
-		installProcessSafetyNet();
-		console.log(`[host-service] listening on http://localhost:${info.port}`);
+	const server = serve(
+		{
+			fetch: app.fetch,
+			port: env.PORT,
+			hostname: env.HOST_SERVICE_HOSTNAME,
+		},
+		(info) => {
+			// Install only after the server is listening so startup throws still
+			// reach `main().catch(...)` and exit with a non-zero code.
+			installProcessSafetyNet();
+			console.log(`[host-service] listening on ${describeListenAddress(info)}`);
 
-		startTerminalReaper(db);
+			startTerminalReaper(db);
 
-		if (env.RELAY_URL) {
-			void connectRelay({
-				api,
-				relayUrl: env.RELAY_URL,
-				localPort: info.port,
-				organizationId: env.ORGANIZATION_ID,
-				authProvider,
-				hostServiceSecret: env.HOST_SERVICE_SECRET,
-			});
-		}
-	});
+			if (env.RELAY_URL) {
+				void connectRelay({
+					api,
+					relayUrl: env.RELAY_URL,
+					localPort: info.port,
+					// A wildcard bind is reachable on loopback; a pinned bind is
+					// only reachable on the address it was pinned to.
+					localHost: localDialHost(info.address),
+					organizationId: env.ORGANIZATION_ID,
+					authProvider,
+					hostServiceSecret: env.HOST_SERVICE_SECRET,
+				});
+			}
+		},
+	);
 	injectWebSocket(server);
 }
 
