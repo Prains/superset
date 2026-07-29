@@ -33,6 +33,7 @@ import * as terminalsRead from "./terminals/read";
 import * as terminalsSend from "./terminals/send";
 import * as workspacesCreate from "./workspaces/create";
 import * as workspacesDelete from "./workspaces/delete";
+import * as workspacesImport from "./workspaces/import";
 import * as workspacesList from "./workspaces/list";
 import * as workspacesUpdate from "./workspaces/update";
 
@@ -57,6 +58,7 @@ const REGISTRARS = [
 	automationsLogs,
 	workspacesList,
 	workspacesCreate,
+	workspacesImport,
 	workspacesUpdate,
 	workspacesDelete,
 	agentsCreate,

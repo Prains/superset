@@ -636,6 +636,54 @@ superset workspaces create \
 </Command>
 
 <Command
+	name="superset workspaces import"
+	options={[
+		{ flag: "--project <projectId>", required: true, description: "Project ID." },
+		{ flag: "--path <worktreePath>", required: true, description: "Absolute path of the existing worktree on the target host." },
+		{ flag: "--branch <branch>", required: true, description: "Branch checked out in that worktree." },
+		{ flag: "--name <name>", description: "Workspace name. Defaults to the worktree directory name." },
+		{ flag: "--base-branch <branch>", description: "Branch to record as the compare base for this workspace." },
+		{ flag: "--host <id>", description: "Target host machineId. Mutually exclusive with `--local`; one is required." },
+		{ flag: "--local", description: "Target this machine. Mutually exclusive with `--host`; one is required." },
+	]}
+	output={`{
+  workspace: Workspace;
+  terminals: Array<{ terminalId: string; label?: string }>;
+  warnings: string[];
+  branchMismatch: boolean;
+}`}
+>
+Register a git worktree that **already exists** on the target host as a
+workspace, instead of creating a new one. Use this when a script prepared the
+branch and directory under its own naming rules and Superset only needs to
+manage sessions for it — the CLI counterpart of Project Settings → Import in
+the desktop app.
+
+`--path` is interpreted on the target host, so it must be absolute, and the
+worktree must already be registered in that project's `git worktree list`
+(run `git worktree add` first). A path that belongs to a different project's
+repo is rejected.
+
+The host reads the branch actually checked out at `--path` rather than
+trusting `--branch`. If the two disagree, the returned workspace keeps the
+real branch and `branchMismatch` is `true`.
+
+Importing is idempotent: running it again for the same path reuses the
+existing workspace, and a workspace whose branch was renamed in place is
+re-pointed at the new branch rather than duplicated.
+
+```bash
+git -C ~/code/repo worktree add -b eng-123/login-fix ~/code/repo/.worktrees/eng-123
+
+superset workspaces import \
+  --project prj_… \
+  --path ~/code/repo/.worktrees/eng-123 \
+  --branch eng-123/login-fix \
+  --local
+```
+</Command>
+
+<Command
 	name="superset workspaces delete <id...>"
 	args={[
 		{ name: "id", required: true, variadic: true, description: "Workspace IDs to delete." },
