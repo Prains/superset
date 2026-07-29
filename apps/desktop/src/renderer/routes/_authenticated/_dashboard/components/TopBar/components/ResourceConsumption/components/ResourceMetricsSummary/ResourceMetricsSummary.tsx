@@ -24,6 +24,10 @@ export function ResourceMetricsSummary({
 		snapshot.totalMemory,
 		snapshot.host.totalMemory,
 	);
+	const clampedSharePercent = Math.min(
+		100,
+		Math.max(0, trackedMemorySharePercent),
+	);
 
 	const hostShareSeverity = getTrackedHostMemorySeverity(
 		trackedMemorySharePercent,
@@ -60,7 +64,7 @@ export function ResourceMetricsSummary({
 						className="mt-3 h-1 w-full overflow-hidden rounded-full bg-muted/60"
 						role="progressbar"
 						aria-label="System RAM share"
-						aria-valuenow={Math.round(trackedMemorySharePercent)}
+						aria-valuenow={Math.round(clampedSharePercent)}
 						aria-valuemin={0}
 						aria-valuemax={100}
 					>
@@ -69,9 +73,7 @@ export function ResourceMetricsSummary({
 								"h-full rounded-full transition-[width] duration-300",
 								shareBarColorClass,
 							)}
-							style={{
-								width: `${Math.min(100, Math.max(0, trackedMemorySharePercent))}%`,
-							}}
+							style={{ width: `${clampedSharePercent}%` }}
 						/>
 					</div>
 				</TooltipTrigger>
