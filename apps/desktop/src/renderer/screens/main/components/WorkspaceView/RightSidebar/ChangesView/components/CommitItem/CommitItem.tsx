@@ -12,6 +12,7 @@ import type { ChangesViewMode } from "../../types";
 import { formatRelativeDate } from "../../utils";
 import { CollapsibleRow } from "../CollapsibleRow";
 import { FileList } from "../FileList";
+import { CommitMessagePopover } from "./components/CommitMessagePopover";
 
 interface CommitItemProps {
 	commit: CommitInfo;
@@ -102,6 +103,14 @@ export function CommitItem({
 					shortHash={commit.shortHash}
 					message={commit.message}
 					date={commit.date}
+				/>
+			}
+			trailing={
+				<CommitMessagePopover
+					worktreePath={worktreePath}
+					commitHash={commit.hash}
+					shortHash={commit.shortHash}
+					subject={commit.message}
 				/>
 			}
 		>
