@@ -17,6 +17,10 @@ Superset does not assign per-workspace port ranges. It discovers listening ports
 - **Terminal focus** - Select a port to jump back to the terminal that owns it
 - **Browser actions** - Open local web servers in the in-app browser or externally from the port action
 
+## Closing Ports
+
+Closing a port (or **Close all ports** for a workspace) shows a confirmation before killing the underlying process, the same destructive-action prompt used for closing terminals. Cancel or dismiss leaves the processes running. Enable **Don't ask again** to skip the prompt going forward; it shares the same preference as the running-process confirmation for terminals.
+
 ## Port Labels
 
 Add friendly names to automatically detected ports with a workspace

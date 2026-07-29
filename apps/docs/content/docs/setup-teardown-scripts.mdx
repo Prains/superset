@@ -25,6 +25,8 @@ Create `.superset/config.json` in your project:
 
 Setup and teardown commands run sequentially in the workspace directory.
 
+By default, an agent launched alongside workspace creation starts in parallel with setup, in its own terminal. Enable **Wait for workspace setup before starting agents** in **Settings → Experimental** to chain the agent after setup instead: it reuses the setup terminal and only starts once setup finishes successfully, so it never runs in a half-provisioned worktree. A failed setup skips launching the agent.
+
 ## Run Script
 
 The `run` field defines commands that start your dev server or other long-running processes. Unlike setup/teardown, run commands are:

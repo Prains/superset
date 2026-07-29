@@ -876,6 +876,99 @@ superset terminals create --workspace ws_…
 ```
 </Command>
 
+<Command
+	name="superset terminals list"
+	options={[
+		{ flag: "--workspace <id>", required: true, description: "Workspace UUID whose terminals to list." },
+		{ flag: "--host <id>", description: "Host the workspace lives on (default: this machine)." },
+	]}
+	output={`{
+  sessions: Array<{
+    terminalId: string;
+    createdAt: number;
+    exited: boolean;
+    exitCode: number;
+    attached: boolean;
+    title: string | null;
+  }>;
+}`}
+>
+List the live terminal sessions in a workspace.
+
+```bash
+superset terminals list --workspace ws_…
+```
+</Command>
+
+<Command
+	name="superset terminals send"
+	options={[
+		{ flag: "--workspace <id>", required: true, description: "Workspace UUID the terminal runs in." },
+		{ flag: "--host <id>", description: "Host the workspace lives on (default: this machine)." },
+		{ flag: "--terminal <id>", required: true, description: "Terminal ID (the sessionId `agents create` returned)." },
+		{ flag: "--text <text>", required: true, description: "Text to write into the terminal." },
+		{ flag: "--no-submit", description: "Stage the text without pressing Enter." },
+	]}
+	output={`{
+  terminalId: string;
+  submitted: boolean;
+}`}
+>
+Send a follow-up message to a terminal already running in a workspace — e.g.
+a follow-up prompt to a claude/codex agent — instead of spawning a new
+session. Multi-line text is delivered as a single paste.
+
+Prefer `agents create` once to start an agent, then `terminals send` for
+every follow-up: re-running `agents create` per message spawns a new
+session instead of continuing the conversation.
+
+```bash
+superset terminals send --workspace ws_… --terminal <sessionId> --text "Also add a test for the empty case"
+```
+</Command>
+
+<Command
+	name="superset terminals read"
+	options={[
+		{ flag: "--workspace <id>", required: true, description: "Workspace UUID the terminal runs in." },
+		{ flag: "--host <id>", description: "Host the workspace lives on (default: this machine)." },
+		{ flag: "--terminal <id>", required: true, description: "Terminal ID to read." },
+		{ flag: "--max-lines <n>", description: "Cap returned rows from the bottom." },
+	]}
+	output={`{
+  terminalId: string;
+  cols: number;
+  rows: number;
+  text: string;
+}`}
+>
+Read a terminal's current screen (and recent scrollback) back as plain
+text — for a TUI agent this is the agent's rendered output.
+
+```bash
+superset terminals read --workspace ws_… --terminal <sessionId>
+```
+</Command>
+
+<Command
+	name="superset terminals close"
+	options={[
+		{ flag: "--workspace <id>", required: true, description: "Workspace UUID the terminal runs in." },
+		{ flag: "--host <id>", description: "Host the workspace lives on (default: this machine)." },
+		{ flag: "--terminal <id>", required: true, description: "Terminal ID to close." },
+	]}
+	output={`{
+  terminalId: string;
+  status: string;
+}`}
+>
+Close (dispose) a terminal running in a workspace.
+
+```bash
+superset terminals close --workspace ws_… --terminal <sessionId>
+```
+</Command>
+
 ---
 
 ### tasks (alias: `t`)

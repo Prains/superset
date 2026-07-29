@@ -265,6 +265,44 @@ const { terminalId } = await client.terminals.create({
 });
 ```
 
+### `terminals.list({ hostId, workspaceId })`
+
+List the live terminal sessions in a workspace. Returns `{ sessions }`, each
+a `TerminalSummary` (`terminalId`, `createdAt`, `exited`, `exitCode`,
+`attached`, `title`).
+
+### `terminals.send({ hostId, workspaceId, terminalId, text, submit? })`
+
+Send a follow-up message into an already-running terminal (e.g. a
+claude/codex agent) instead of spawning a new session. Multi-line text is
+framed as a single paste. `submit` defaults to `true` (press Enter after the
+text); pass `false` to stage the text without submitting. Returns
+`{ terminalId, submitted }`.
+
+Prefer `agents.create` once to start an agent, then `terminals.send` for
+every follow-up — re-creating an agent per message spawns a new session
+instead of continuing the conversation.
+
+```ts
+await client.terminals.send({
+  hostId: '<machineId>',
+  workspaceId: '<uuid>',
+  terminalId,
+  text: 'Also add a test for the empty case',
+});
+```
+
+### `terminals.read({ hostId, workspaceId, terminalId, maxLines? })`
+
+Read a terminal's current screen (and recent scrollback) back as plain text
+— for a TUI agent this is the agent's rendered output. Returns
+`{ terminalId, cols, rows, text }`.
+
+### `terminals.close({ hostId, workspaceId, terminalId })`
+
+Close (dispose) a terminal — kills the PTY and the agent running in it.
+Returns `{ terminalId, status }`.
+
 ---
 
 ## automations

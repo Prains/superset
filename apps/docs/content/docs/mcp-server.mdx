@@ -18,6 +18,7 @@ Superset provides an [MCP (Model Context Protocol)](https://modelcontextprotocol
 | **Tasks** | list, get (by id or slug), create, update, delete, list statuses |
 | **Workspaces** | list (per host), create on a host, update, delete |
 | **Automations** | list, get metadata, get/set prompt body, create, update metadata, pause, resume, run on demand, list runs, delete |
+| **Terminals** | list, create, send follow-up text to a running terminal, read its screen back, close |
 | **Projects** | list projects on a host |
 | **Hosts** | list hosts (registered machines) you have access to |
 | **Organization** | list members |
@@ -318,6 +319,12 @@ API keys grant full access to your organization. Keep them secret and never comm
 | Tool | Description |
 |------|-------------|
 | `terminals_create` | Create a terminal session in a workspace, optionally running a command |
+| `terminals_list` | List the live terminal sessions in a workspace |
+| `terminals_send` | Send follow-up text to a terminal already running in a workspace (e.g. a claude/codex agent), instead of spawning a new session |
+| `terminals_read` | Read a terminal's current screen and recent scrollback back as plain text |
+| `terminals_close` | Close (dispose) a terminal running in a workspace |
+
+Prefer `agents_create` once to start an agent, then `terminals_send` for every follow-up message and `terminals_read` to observe the reply — re-running `agents_create` per message spawns a new session instead of continuing the conversation.
 
 ### Automations
 
