@@ -5,7 +5,7 @@ import {
 	MCP_SERVER_VERSION,
 	type McpContext,
 	resolveMcpContext,
-} from "@superset/mcp-v2";
+} from "@superset/mcp";
 import { env } from "@/env";
 import { posthog } from "@/lib/analytics";
 import { getOAuthProtectedResourceMetadataUrl } from "@/lib/oauth-metadata";
