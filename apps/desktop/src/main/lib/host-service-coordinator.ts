@@ -3,7 +3,6 @@ import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import * as fs from "node:fs";
 import path from "node:path";
-import * as Sentry from "@sentry/electron/main";
 import { organizations, settings } from "@superset/local-db";
 import { getHostId, getHostName } from "@superset/shared/host-info";
 import { eq } from "drizzle-orm";
@@ -785,18 +784,24 @@ export class HostServiceCoordinator extends EventEmitter {
 			signal != null ? `signal ${signal}` : `exit code ${code ?? "unknown"}`;
 		log.error(`[host-service:${organizationId}] crashed (${cause})`);
 		// The child cannot report its own death for hard kills (SIGSEGV, OOM),
-		// so the supervisor is the only place these are observable.
-		Sentry.captureMessage(`host-service crashed (${cause})`, {
-			level: "error",
-			tags: {
-				exit_code: String(code ?? "none"),
-				exit_signal: signal ?? "none",
-			},
-			extra: {
-				organizationId,
-				respawnAttempts: this.respawns.get(organizationId)?.attempts ?? 0,
-			},
-		});
+		// so the supervisor is the only place these are observable. Imported
+		// lazily: a static @sentry/electron import needs electron APIs the
+		// coordinator tests' stub does not provide.
+		void import("@sentry/electron/main")
+			.then((Sentry) =>
+				Sentry.captureMessage(`host-service crashed (${cause})`, {
+					level: "error",
+					tags: {
+						exit_code: String(code ?? "none"),
+						exit_signal: signal ?? "none",
+					},
+					extra: {
+						organizationId,
+						respawnAttempts: this.respawns.get(organizationId)?.attempts ?? 0,
+					},
+				}),
+			)
+			.catch(() => {});
 		this.scheduleRespawn(organizationId, cause);
 	}
 
