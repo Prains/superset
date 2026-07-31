@@ -426,7 +426,9 @@ if (!gotTheLock) {
 		authEvents.on("token-saved", () => void startKnownHostServices());
 
 		try {
-			setupAgentHooks();
+			const disabledAgentHooks =
+				localDb.select().from(settings).get()?.disabledAgentHooks ?? [];
+			setupAgentHooks({ disabledAgentIds: disabledAgentHooks });
 		} catch (error) {
 			console.error("[main] Failed to set up agent hooks:", error);
 		}

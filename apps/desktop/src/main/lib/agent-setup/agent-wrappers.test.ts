@@ -32,7 +32,7 @@ mock.module("shared/env.shared", () => ({
 
 mock.module("./notify-hook", () => ({
 	NOTIFY_SCRIPT_NAME: "notify.sh",
-	NOTIFY_SCRIPT_MARKER: "# Superset agent notification hook v5",
+	NOTIFY_SCRIPT_MARKER: "# Superset agent notification hook v6",
 	getNotifyScriptPath: () => path.join(TEST_HOOKS_DIR, "notify.sh"),
 	getNotifyScriptContent: () => "#!/bin/bash\nexit 0\n",
 	createNotifyScript: () => {},
@@ -87,9 +87,14 @@ const {
 	getPiExtensionPath,
 	PI_EXTENSION_MARKER,
 } = await import("./agent-wrappers");
-const { reconcileManagedEntries } = await import("./agent-wrappers-common");
+const { getManagedNotifyHookCommand, reconcileManagedEntries } = await import(
+	"./agent-wrappers-common"
+);
 
 const managedClaudeHookCommand = getClaudeManagedHookCommand();
+const managedDroidHookCommand = getManagedNotifyHookCommand("droid");
+const managedCodexHookCommand = getManagedNotifyHookCommand("codex");
+const managedMastraHookCommand = getManagedNotifyHookCommand("mastracode");
 
 describe("reconcileManagedEntries", () => {
 	it("preserves user-managed entries while replacing stale managed entries", () => {
@@ -746,9 +751,9 @@ exit 0
 	});
 
 	it("bumps hook script markers when hook semantics change", () => {
-		expect(COPILOT_HOOK_MARKER).toBe("# Superset copilot hook v2");
-		expect(CURSOR_HOOK_MARKER).toBe("# Superset cursor hook v4");
-		expect(GEMINI_HOOK_MARKER).toBe("# Superset gemini hook v3");
+		expect(COPILOT_HOOK_MARKER).toBe("# Superset copilot hook v3");
+		expect(CURSOR_HOOK_MARKER).toBe("# Superset cursor hook v5");
+		expect(GEMINI_HOOK_MARKER).toBe("# Superset gemini hook v4");
 	});
 
 	it("replaces stale Mastra hook commands from old superset paths", () => {
@@ -802,8 +807,7 @@ exit 0
 				hooks.some(
 					(entry) =>
 						entry.type === "command" &&
-						entry.command ===
-							`SUPERSET_AGENT_ID=mastracode bash '${currentHookPath}'`,
+						entry.command === managedMastraHookCommand,
 				),
 			).toBe(true);
 			expect(hooks.some((entry) => entry.command.includes(staleHookPath))).toBe(
@@ -900,10 +904,7 @@ exit 0
 			expect(Array.isArray(hooks)).toBe(true);
 			expect(
 				hooks.some((def) =>
-					def.hooks.some(
-						(hook) =>
-							hook.command === `SUPERSET_AGENT_ID=droid '${currentHookPath}'`,
-					),
+					def.hooks.some((hook) => hook.command === managedDroidHookCommand),
 				),
 			).toBe(true);
 			expect(
@@ -1224,7 +1225,7 @@ describe("agent-wrappers codex hooks.json", () => {
 			>;
 		};
 
-		const expectedCommand = `SUPERSET_AGENT_ID=codex "${notifyPath}"`;
+		const expectedCommand = managedCodexHookCommand;
 		for (const eventName of [
 			"SessionStart",
 			"UserPromptSubmit",
@@ -1339,7 +1340,7 @@ describe("agent-wrappers codex hooks.json", () => {
 			),
 		).toBe(true);
 
-		const expectedManagedCommand = `SUPERSET_AGENT_ID=codex "${notifyPath}"`;
+		const expectedManagedCommand = managedCodexHookCommand;
 		// Adds managed hooks for SessionStart, UserPromptSubmit, Stop
 		for (const eventName of ["SessionStart", "UserPromptSubmit", "Stop"]) {
 			expect(
@@ -1423,7 +1424,7 @@ describe("agent-wrappers codex hooks.json", () => {
 			>;
 		};
 
-		const expectedManagedCommand = `SUPERSET_AGENT_ID=codex "${currentHookPath}"`;
+		const expectedManagedCommand = managedCodexHookCommand;
 		for (const eventName of [
 			"SessionStart",
 			"UserPromptSubmit",
@@ -1499,7 +1500,7 @@ describe("agent-wrappers codex hooks.json", () => {
 			>;
 		};
 
-		const expectedManagedCommand = `SUPERSET_AGENT_ID=codex "${currentHookPath}"`;
+		const expectedManagedCommand = managedCodexHookCommand;
 		expect(parsed.hooks.UserPromptSubmit).toBeDefined();
 		expect(
 			parsed.hooks.UserPromptSubmit?.some((def) =>
@@ -1563,7 +1564,7 @@ describe("agent-wrappers codex hooks.json", () => {
 			>;
 		};
 
-		const expectedManagedCommand = `SUPERSET_AGENT_ID=codex "${currentHookPath}"`;
+		const expectedManagedCommand = managedCodexHookCommand;
 		for (const eventName of [
 			"SessionStart",
 			"UserPromptSubmit",

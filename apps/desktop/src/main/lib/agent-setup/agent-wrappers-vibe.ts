@@ -81,18 +81,40 @@ function stripOrphanedManagedBlock(base: string, start: number): string {
  * no TOML parser needed since we own the block content.
  */
 export function getVibeHooksTomlContent(existing: string): string {
-	let base = existing;
-	const start = base.indexOf(VIBE_HOOKS_MARKER_START);
-	if (start !== -1) {
-		const end = base.indexOf(VIBE_HOOKS_MARKER_END, start);
-		base =
-			end !== -1
-				? base.slice(0, start) + base.slice(end + VIBE_HOOKS_MARKER_END.length)
-				: stripOrphanedManagedBlock(base, start);
-	}
-	base = base.replace(/\s+$/, "");
+	const base = stripVibeManagedBlock(existing).replace(/\s+$/, "");
 	const block = buildVibeManagedHooksBlock();
 	return base.length > 0 ? `${base}\n\n${block}\n` : `${block}\n`;
+}
+
+function stripVibeManagedBlock(existing: string): string {
+	const start = existing.indexOf(VIBE_HOOKS_MARKER_START);
+	if (start === -1) return existing;
+	const end = existing.indexOf(VIBE_HOOKS_MARKER_END, start);
+	return end !== -1
+		? existing.slice(0, start) +
+				existing.slice(end + VIBE_HOOKS_MARKER_END.length)
+		: stripOrphanedManagedBlock(existing, start);
+}
+
+/**
+ * Removes Superset's marker-owned hook block from ~/.vibe/hooks.toml,
+ * preserving user hooks. Deletes the file when nothing but the managed block
+ * was in it. No-op when the file does not exist.
+ */
+export function removeVibeManagedHooks(): void {
+	const tomlPath = getVibeHooksTomlPath();
+	if (!fs.existsSync(tomlPath)) return;
+	const existing = fs.readFileSync(tomlPath, "utf-8");
+	const base = stripVibeManagedBlock(existing).replace(/\s+$/, "");
+	if (base.length === 0) {
+		fs.unlinkSync(tomlPath);
+		console.log("[agent-setup] Removed Vibe hooks.toml (managed block only)");
+		return;
+	}
+	const changed = writeFileIfChanged(tomlPath, `${base}\n`, 0o644);
+	console.log(
+		`[agent-setup] ${changed ? "Removed" : "Verified no"} Vibe managed hooks`,
+	);
 }
 
 export function createVibeHooksToml(): void {

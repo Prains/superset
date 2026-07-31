@@ -5,6 +5,7 @@ import {
 	buildWrapperScript,
 	createWrapper,
 	getManagedNotifyHookCommand,
+	removeOwnedFileIfMarked,
 	writeFileIfChanged,
 } from "./agent-wrappers-common";
 
@@ -146,17 +147,7 @@ function stripOrphanedManagedBlock(base: string, start: number): string {
  * rejects duplicate table headers, and the user's setting should win anyway.
  */
 export function getGrokConfigTomlContent(existing: string): string {
-	let base = existing;
-	const start = base.indexOf(GROK_COMPAT_MARKER_START);
-	if (start !== -1) {
-		const end = base.indexOf(GROK_COMPAT_MARKER_END, start);
-		base =
-			end !== -1
-				? base.slice(0, start) + base.slice(end + GROK_COMPAT_MARKER_END.length)
-				: stripOrphanedManagedBlock(base, start);
-	}
-
-	base = base.replace(/\s+$/, "");
+	const base = stripGrokManagedBlock(existing).replace(/\s+$/, "");
 	const vendors = GROK_COMPAT_HOOK_VENDORS.filter(
 		(vendor) => !new RegExp(`^\\s*\\[compat\\.${vendor}\\]`, "m").test(base),
 	);
@@ -176,6 +167,43 @@ export function getGrokConfigTomlContent(existing: string): string {
 	return base.length > 0
 		? `${base}\n\n${block}\n${GROK_COMPAT_MARKER_END}\n`
 		: `${block}\n${GROK_COMPAT_MARKER_END}\n`;
+}
+
+function stripGrokManagedBlock(existing: string): string {
+	const start = existing.indexOf(GROK_COMPAT_MARKER_START);
+	if (start === -1) return existing;
+	const end = existing.indexOf(GROK_COMPAT_MARKER_END, start);
+	return end !== -1
+		? existing.slice(0, start) +
+				existing.slice(end + GROK_COMPAT_MARKER_END.length)
+		: stripOrphanedManagedBlock(existing, start);
+}
+
+/**
+ * Removes Superset's Grok footprint: the wholly-owned hooks file and the
+ * marker-owned compat block in config.toml. No-op when neither exists.
+ */
+export function removeGrokManagedHooks(): void {
+	const hooksPath = getGrokHooksJsonPath();
+	removeOwnedFileIfMarked(
+		hooksPath,
+		"SUPERSET_AGENT_ID=grok",
+		"Grok hooks json",
+	);
+
+	const configPath = getGrokConfigTomlPath();
+	if (!fs.existsSync(configPath)) return;
+	const existing = fs.readFileSync(configPath, "utf-8");
+	const base = stripGrokManagedBlock(existing).replace(/\s+$/, "");
+	if (base.length === 0) {
+		fs.unlinkSync(configPath);
+		console.log("[agent-setup] Removed Grok config.toml (managed block only)");
+		return;
+	}
+	const changed = writeFileIfChanged(configPath, `${base}\n`, 0o600);
+	console.log(
+		`[agent-setup] ${changed ? "Removed" : "Verified no"} Grok compat block`,
+	);
 }
 
 export function createGrokConfigToml(): void {

@@ -4,6 +4,8 @@ import path from "node:path";
 import {
 	buildWrapperScript,
 	createWrapper,
+	DYNAMIC_NOTIFY_PATH_MARKER,
+	getManagedNotifyHookCommand,
 	isSupersetManagedHookCommand,
 	reconcileManagedEntries,
 	writeFileIfChanged,
@@ -35,10 +37,6 @@ interface MastraHooksJson {
 	[key: string]: unknown;
 }
 
-function quoteShellPath(filePath: string): string {
-	return `'${filePath.replaceAll("'", "'\\''")}'`;
-}
-
 export function getMastraGlobalHooksJsonPath(): string {
 	return path.join(os.homedir(), ".mastracode", "hooks.json");
 }
@@ -68,7 +66,9 @@ export function getMastraHooksJsonContent(notifyScriptPath: string): string {
 		);
 	}
 
-	const notifyCommand = `SUPERSET_AGENT_ID=mastracode bash ${quoteShellPath(notifyScriptPath)}`;
+	// Guarded on SUPERSET_HOME_DIR so the hook is a no-op in mastracode
+	// sessions launched outside Superset terminals (hooks.json is global).
+	const notifyCommand = getManagedNotifyHookCommand("mastracode");
 	// Session lifecycle drives the pane icon binding; per-prompt drives status.
 	const managedEvents = [
 		"SessionStart",
@@ -85,6 +85,7 @@ export function getMastraHooksJsonContent(notifyScriptPath: string): string {
 			desired: [{ type: "command", command: notifyCommand }],
 			isManaged: (entry: MastraHookDefinition) =>
 				entry.command?.includes(notifyScriptPath) ||
+				entry.command?.includes(DYNAMIC_NOTIFY_PATH_MARKER) ||
 				isSupersetManagedHookCommand(entry.command, NOTIFY_SCRIPT_NAME),
 			isEquivalent: (
 				entry: MastraHookDefinition,
@@ -95,6 +96,53 @@ export function getMastraHooksJsonContent(notifyScriptPath: string): string {
 	}
 
 	return JSON.stringify(existing, null, 2);
+}
+
+/**
+ * Removes Superset-managed hook entries from ~/.mastracode/hooks.json,
+ * preserving user hooks. No-op when the file does not exist.
+ */
+export function removeMastraManagedHooks(): void {
+	const globalPath = getMastraGlobalHooksJsonPath();
+	if (!fs.existsSync(globalPath)) return;
+
+	let existing: MastraHooksJson;
+	try {
+		existing = JSON.parse(fs.readFileSync(globalPath, "utf-8"));
+	} catch {
+		console.warn(
+			"[agent-setup] Could not parse existing ~/.mastracode/hooks.json; skipping Mastra hook removal",
+		);
+		return;
+	}
+	if (typeof existing !== "object" || existing === null) return;
+
+	const notifyScriptPath = getNotifyScriptPath();
+	for (const [eventName, entries] of Object.entries(existing)) {
+		if (!Array.isArray(entries)) continue;
+		const filtered = entries.filter(
+			(entry: MastraHookDefinition) =>
+				!(
+					entry.command?.includes(notifyScriptPath) ||
+					entry.command?.includes(DYNAMIC_NOTIFY_PATH_MARKER) ||
+					isSupersetManagedHookCommand(entry.command, NOTIFY_SCRIPT_NAME)
+				),
+		);
+		if (filtered.length === 0) {
+			delete existing[eventName];
+		} else {
+			existing[eventName] = filtered;
+		}
+	}
+
+	const changed = writeFileIfChanged(
+		globalPath,
+		JSON.stringify(existing, null, 2),
+		0o644,
+	);
+	console.log(
+		`[agent-setup] ${changed ? "Removed" : "Verified no"} Mastra managed hooks`,
+	);
 }
 
 export function createMastraHooksJson(): void {

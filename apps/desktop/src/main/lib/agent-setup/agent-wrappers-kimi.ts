@@ -99,21 +99,42 @@ function stripOrphanedManagedBlock(base: string, start: number): string {
 	return before + lines.slice(cut).join("\n");
 }
 
+function stripKimiManagedBlock(existing: string): string {
+	const start = existing.indexOf(KIMI_HOOKS_MARKER_START);
+	if (start === -1) return existing;
+	const end = existing.indexOf(KIMI_HOOKS_MARKER_END, start);
+	return end !== -1
+		? existing.slice(0, start) +
+				existing.slice(end + KIMI_HOOKS_MARKER_END.length)
+		: stripOrphanedManagedBlock(existing, start);
+}
+
 /** Preserve user config while replacing Superset's marker-owned hook block. */
 export function getKimiConfigTomlContent(existing: string): string {
-	let base = existing;
-	const start = base.indexOf(KIMI_HOOKS_MARKER_START);
-	if (start !== -1) {
-		const end = base.indexOf(KIMI_HOOKS_MARKER_END, start);
-		base =
-			end !== -1
-				? base.slice(0, start) + base.slice(end + KIMI_HOOKS_MARKER_END.length)
-				: stripOrphanedManagedBlock(base, start);
-	}
-
-	base = base.replace(/\s+$/, "");
+	const base = stripKimiManagedBlock(existing).replace(/\s+$/, "");
 	const block = buildKimiManagedHooksBlock();
 	return base.length > 0 ? `${base}\n\n${block}\n` : `${block}\n`;
+}
+
+/**
+ * Removes Superset's marker-owned hook block from Kimi's config.toml,
+ * preserving user config. Deletes the file when nothing but the managed
+ * block was in it. No-op when the file does not exist.
+ */
+export function removeKimiManagedHooks(): void {
+	const configPath = getKimiConfigTomlPath();
+	if (!fs.existsSync(configPath)) return;
+	const existing = fs.readFileSync(configPath, "utf-8");
+	const base = stripKimiManagedBlock(existing).replace(/\s+$/, "");
+	if (base.length === 0) {
+		fs.unlinkSync(configPath);
+		console.log("[agent-setup] Removed Kimi config.toml (managed block only)");
+		return;
+	}
+	const changed = writeFileIfChanged(configPath, `${base}\n`, 0o600);
+	console.log(
+		`[agent-setup] ${changed ? "Removed" : "Verified no"} Kimi managed hooks`,
+	);
 }
 
 export function createKimiConfigToml(): void {

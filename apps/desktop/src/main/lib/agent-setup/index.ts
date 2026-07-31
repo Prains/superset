@@ -2,6 +2,7 @@ import fs from "node:fs";
 import {
 	setupDesktopAgentCapabilities,
 	setupSingleAgent,
+	teardownSingleAgent,
 } from "./desktop-agent-setup";
 import {
 	BASH_DIR,
@@ -18,7 +19,9 @@ import {
 	getShellEnv,
 } from "./shell-wrappers";
 
-export function setupAgentHooks(): void {
+export function setupAgentHooks(
+	options: { disabledAgentIds?: readonly string[] } = {},
+): void {
 	console.log("[agent-setup] Initializing agent hooks...");
 
 	fs.mkdirSync(BIN_DIR, { recursive: true });
@@ -27,7 +30,7 @@ export function setupAgentHooks(): void {
 	fs.mkdirSync(BASH_DIR, { recursive: true });
 	fs.mkdirSync(OPENCODE_PLUGIN_DIR, { recursive: true });
 
-	setupDesktopAgentCapabilities();
+	setupDesktopAgentCapabilities(options);
 
 	createZshWrapper();
 	createBashWrapper();
@@ -39,6 +42,6 @@ export function getSupersetBinDir(): string {
 	return BIN_DIR;
 }
 
-export { setupSingleAgent };
+export { setupSingleAgent, teardownSingleAgent };
 
 export { getCommandShellArgs, getShellArgs, getShellEnv };

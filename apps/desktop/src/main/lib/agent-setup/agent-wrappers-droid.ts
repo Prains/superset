@@ -4,6 +4,8 @@ import path from "node:path";
 import {
 	buildWrapperScript,
 	createWrapper,
+	DYNAMIC_NOTIFY_PATH_MARKER,
+	getManagedNotifyHookCommand,
 	isSupersetManagedHookCommand,
 	writeFileIfChanged,
 } from "./agent-wrappers-common";
@@ -37,6 +39,7 @@ function isManagedHookCommand(
 ): boolean {
 	return (
 		command?.includes(notifyScriptPath) ||
+		command?.includes(DYNAMIC_NOTIFY_PATH_MARKER) ||
 		isSupersetManagedHookCommand(command, NOTIFY_SCRIPT_NAME)
 	);
 }
@@ -92,10 +95,6 @@ function removeManagedHooksFromDefinition(
 	};
 }
 
-function quoteShellPath(filePath: string): string {
-	return `'${filePath.replaceAll("'", "'\\''")}'`;
-}
-
 export function getDroidSettingsJsonPath(): string {
 	return path.join(os.homedir(), ".factory", "settings.json");
 }
@@ -125,7 +124,9 @@ export function getDroidSettingsJsonContent(
 		existing.hooks = {};
 	}
 
-	const managedHookCommand = `SUPERSET_AGENT_ID=droid ${quoteShellPath(notifyScriptPath)}`;
+	// Guarded on SUPERSET_HOME_DIR so the hook is a no-op in droid sessions
+	// launched outside Superset terminals (~/.factory/settings.json is global).
+	const managedHookCommand = getManagedNotifyHookCommand("droid");
 
 	const managedEvents: Array<{
 		eventName:
@@ -191,6 +192,49 @@ export function getDroidSettingsJsonContent(
 	}
 
 	return JSON.stringify(existing, null, 2);
+}
+
+/**
+ * Removes Superset-managed hook entries from ~/.factory/settings.json,
+ * preserving user hooks and non-hook settings. No-op when the file does not
+ * exist — teardown must never create config files.
+ */
+export function removeDroidManagedHooks(): void {
+	const globalPath = getDroidSettingsJsonPath();
+	if (!fs.existsSync(globalPath)) return;
+	const existing = readExistingDroidSettings(globalPath);
+	if (!existing || !existing.hooks || typeof existing.hooks !== "object") {
+		return;
+	}
+
+	const notifyScriptPath = getNotifyScriptPath();
+	for (const [eventName, definitions] of Object.entries(existing.hooks)) {
+		if (!Array.isArray(definitions)) continue;
+		const filtered = definitions.flatMap((definition) => {
+			const cleaned = removeManagedHooksFromDefinition(
+				definition,
+				notifyScriptPath,
+			);
+			return cleaned ? [cleaned] : [];
+		});
+		if (filtered.length === 0) {
+			delete existing.hooks[eventName];
+		} else {
+			existing.hooks[eventName] = filtered;
+		}
+	}
+	if (Object.keys(existing.hooks).length === 0) {
+		delete existing.hooks;
+	}
+
+	const changed = writeFileIfChanged(
+		globalPath,
+		JSON.stringify(existing, null, 2),
+		0o644,
+	);
+	console.log(
+		`[agent-setup] ${changed ? "Removed" : "Verified no"} Droid managed hooks`,
+	);
 }
 
 export function createDroidSettingsJson(): void {

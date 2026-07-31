@@ -14,7 +14,7 @@ import { HOOKS_DIR } from "./paths";
 export const GEMINI_HOOK_SCRIPT_NAME = "gemini-hook.sh";
 
 const GEMINI_HOOK_SIGNATURE = "# Superset gemini hook";
-const GEMINI_HOOK_VERSION = "v3";
+const GEMINI_HOOK_VERSION = "v4";
 export const GEMINI_HOOK_MARKER = `${GEMINI_HOOK_SIGNATURE} ${GEMINI_HOOK_VERSION}`;
 
 const GEMINI_HOOK_TEMPLATE_PATH = path.join(
@@ -142,6 +142,67 @@ export function createGeminiWrapper(): void {
 		agentId: "gemini",
 	});
 	createWrapper("gemini", script);
+}
+
+/**
+ * Removes Superset-managed hook definitions from ~/.gemini/settings.json,
+ * preserving user hooks and non-hook settings. No-op when the file does not
+ * exist.
+ */
+export function removeGeminiManagedHooks(): void {
+	const globalPath = getGeminiSettingsJsonPath();
+	if (!fs.existsSync(globalPath)) return;
+
+	let existing: GeminiSettingsJson;
+	try {
+		existing = JSON.parse(fs.readFileSync(globalPath, "utf-8"));
+	} catch {
+		console.warn(
+			"[agent-setup] Could not parse existing ~/.gemini/settings.json; skipping Gemini hook removal",
+		);
+		return;
+	}
+	if (
+		typeof existing !== "object" ||
+		existing === null ||
+		!existing.hooks ||
+		typeof existing.hooks !== "object"
+	) {
+		return;
+	}
+
+	const hookScriptPath = getGeminiHookScriptPath();
+	const isManaged = (definition: GeminiHookDefinition) =>
+		isSupersetManagedHookCommand(definition.command, GEMINI_HOOK_SCRIPT_NAME) ||
+		Boolean(
+			definition.hooks?.some(
+				(hook) =>
+					hook.command?.includes(hookScriptPath) ||
+					isSupersetManagedHookCommand(hook.command, GEMINI_HOOK_SCRIPT_NAME),
+			),
+		);
+
+	for (const [eventName, definitions] of Object.entries(existing.hooks)) {
+		if (!Array.isArray(definitions)) continue;
+		const filtered = definitions.filter((definition) => !isManaged(definition));
+		if (filtered.length === 0) {
+			delete existing.hooks[eventName];
+		} else {
+			existing.hooks[eventName] = filtered;
+		}
+	}
+	if (Object.keys(existing.hooks).length === 0) {
+		delete existing.hooks;
+	}
+
+	const changed = writeFileIfChanged(
+		globalPath,
+		JSON.stringify(existing, null, 2),
+		0o644,
+	);
+	console.log(
+		`[agent-setup] ${changed ? "Removed" : "Verified no"} Gemini managed hooks`,
+	);
 }
 
 export function createGeminiSettingsJson(): void {

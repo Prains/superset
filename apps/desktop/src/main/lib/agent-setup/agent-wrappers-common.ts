@@ -11,6 +11,14 @@ export { SUPERSET_MANAGED_BINARIES };
 export const MANAGED_NOTIFY_RELATIVE_PATH = `hooks/${NOTIFY_SCRIPT_NAME}`;
 
 /**
+ * Literal substring every guarded managed command contains. Managed-command
+ * predicates must match it: the guarded form carries neither an absolute
+ * notify path nor a `/.superset/` segment, so without this check a re-merge
+ * would fail to recognize its own entries and append duplicates.
+ */
+export const DYNAMIC_NOTIFY_PATH_MARKER = `$SUPERSET_HOME_DIR/${MANAGED_NOTIFY_RELATIVE_PATH}`;
+
+/**
  * Shell command written into an agent's global hook config. The notify path is
  * resolved at runtime from SUPERSET_HOME_DIR so one shared config works for both
  * dev and prod installs, and `SUPERSET_AGENT_ID` is inlined so the v2 hook
@@ -46,6 +54,26 @@ export function writeFileIfChanged(
 
 	fs.writeFileSync(filePath, content, { mode });
 	return true;
+}
+
+/**
+ * Deletes a wholly Superset-owned file, gated on its content signature so a
+ * user file at the same path is never removed.
+ */
+export function removeOwnedFileIfMarked(
+	filePath: string,
+	signature: string,
+	label: string,
+): void {
+	try {
+		if (!fs.existsSync(filePath)) return;
+		const content = fs.readFileSync(filePath, "utf-8");
+		if (!content.includes(signature)) return;
+		fs.unlinkSync(filePath);
+		console.log(`[agent-setup] Removed ${label}`);
+	} catch (error) {
+		console.warn(`[agent-setup] Failed to remove ${label}:`, error);
+	}
 }
 
 export function isSupersetManagedHookCommand(

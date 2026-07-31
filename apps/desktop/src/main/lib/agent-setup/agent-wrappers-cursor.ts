@@ -14,7 +14,7 @@ import { HOOKS_DIR } from "./paths";
 export const CURSOR_HOOK_SCRIPT_NAME = "cursor-hook.sh";
 
 const CURSOR_HOOK_SIGNATURE = "# Superset cursor hook";
-const CURSOR_HOOK_VERSION = "v4";
+const CURSOR_HOOK_VERSION = "v5";
 export const CURSOR_HOOK_MARKER = `${CURSOR_HOOK_SIGNATURE} ${CURSOR_HOOK_VERSION}`;
 
 const CURSOR_HOOK_TEMPLATE_PATH = path.join(
@@ -118,6 +118,59 @@ export function createCursorAgentWrapper(): void {
 		agentId: "cursor-agent",
 	});
 	createWrapper("cursor-agent", script);
+}
+
+/**
+ * Removes Superset-managed hook entries from ~/.cursor/hooks.json, preserving
+ * user hooks. No-op when the file does not exist.
+ */
+export function removeCursorManagedHooks(): void {
+	const globalPath = getCursorGlobalHooksJsonPath();
+	if (!fs.existsSync(globalPath)) return;
+
+	let existing: CursorHooksJson;
+	try {
+		existing = JSON.parse(fs.readFileSync(globalPath, "utf-8"));
+	} catch {
+		console.warn(
+			"[agent-setup] Could not parse existing ~/.cursor/hooks.json; skipping Cursor hook removal",
+		);
+		return;
+	}
+	if (
+		typeof existing !== "object" ||
+		existing === null ||
+		!existing.hooks ||
+		typeof existing.hooks !== "object"
+	) {
+		return;
+	}
+
+	const hookScriptPath = getCursorHookScriptPath();
+	for (const [eventName, entries] of Object.entries(existing.hooks)) {
+		if (!Array.isArray(entries)) continue;
+		const filtered = entries.filter(
+			(entry: CursorHookEntry) =>
+				!(
+					entry.command?.includes(hookScriptPath) ||
+					isSupersetManagedHookCommand(entry.command, CURSOR_HOOK_SCRIPT_NAME)
+				),
+		);
+		if (filtered.length === 0) {
+			delete existing.hooks[eventName];
+		} else {
+			existing.hooks[eventName] = filtered;
+		}
+	}
+
+	const changed = writeFileIfChanged(
+		globalPath,
+		JSON.stringify(existing, null, 2),
+		0o644,
+	);
+	console.log(
+		`[agent-setup] ${changed ? "Removed" : "Verified no"} Cursor managed hooks`,
+	);
 }
 
 export function createCursorHooksJson(): void {

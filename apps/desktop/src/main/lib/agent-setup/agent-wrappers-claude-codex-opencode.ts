@@ -4,9 +4,9 @@ import path from "node:path";
 import {
 	buildWrapperScript,
 	createWrapper,
+	DYNAMIC_NOTIFY_PATH_MARKER,
 	getManagedNotifyHookCommand,
 	isSupersetManagedHookCommand,
-	MANAGED_NOTIFY_RELATIVE_PATH,
 	writeFileIfChanged,
 } from "./agent-wrappers-common";
 import { getNotifyScriptPath, NOTIFY_SCRIPT_NAME } from "./notify-hook";
@@ -67,8 +67,6 @@ interface ClaudeSettingsJson {
 	[key: string]: unknown;
 }
 
-const CLAUDE_DYNAMIC_NOTIFY_PATH_MARKER = `$SUPERSET_HOME_DIR/${MANAGED_NOTIFY_RELATIVE_PATH}`;
-
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -84,7 +82,7 @@ function isManagedClaudeHookCommand(
 ): boolean {
 	return (
 		command?.includes(notifyScriptPath) ||
-		command?.includes(CLAUDE_DYNAMIC_NOTIFY_PATH_MARKER) ||
+		command?.includes(DYNAMIC_NOTIFY_PATH_MARKER) ||
 		isSupersetManagedHookCommand(command, NOTIFY_SCRIPT_NAME)
 	);
 }
@@ -111,6 +109,31 @@ function readExistingClaudeSettings(
 			error,
 		);
 		return null;
+	}
+}
+
+/**
+ * Strips managed hook entries from every event in place, dropping events that
+ * end up empty. Used by both the disable-toggle teardown paths.
+ */
+function stripManagedHooksFromEvents(
+	hooks: Record<string, ClaudeHookDefinition[]>,
+	isManagedCommand: (command: string | undefined) => boolean,
+): void {
+	for (const [eventName, definitions] of Object.entries(hooks)) {
+		if (!Array.isArray(definitions)) continue;
+		const filtered = definitions.flatMap((definition) => {
+			const cleaned = removeManagedHooksFromDefinition(
+				definition,
+				isManagedCommand,
+			);
+			return cleaned ? [cleaned] : [];
+		});
+		if (filtered.length === 0) {
+			delete hooks[eventName];
+		} else {
+			hooks[eventName] = filtered;
+		}
 	}
 }
 
@@ -262,6 +285,67 @@ export function createClaudeSettingsJson(): void {
 }
 
 /**
+ * Removes Superset-managed hook entries from ~/.claude/settings.json,
+ * preserving user hooks and all non-hook settings. No-op when the file does
+ * not exist — teardown must never create config files.
+ */
+export function removeClaudeManagedHooks(): void {
+	const globalPath = getClaudeGlobalSettingsJsonPath();
+	if (!fs.existsSync(globalPath)) return;
+	const existing = readExistingClaudeSettings(globalPath);
+	if (!existing || !existing.hooks || typeof existing.hooks !== "object") {
+		return;
+	}
+
+	const notifyScriptPath = getNotifyScriptPath();
+	stripManagedHooksFromEvents(existing.hooks, (command) =>
+		isManagedClaudeHookCommand(command, notifyScriptPath),
+	);
+	if (Object.keys(existing.hooks).length === 0) {
+		delete existing.hooks;
+	}
+
+	const changed = writeFileIfChanged(
+		globalPath,
+		JSON.stringify(existing, null, 2),
+		0o644,
+	);
+	console.log(
+		`[agent-setup] ${changed ? "Removed" : "Verified no"} Claude managed hooks`,
+	);
+}
+
+/**
+ * Removes Superset-managed hook entries from ~/.codex/hooks.json, preserving
+ * user hooks. No-op when the file does not exist.
+ */
+export function removeCodexManagedHooks(): void {
+	const globalPath = getCodexGlobalHooksJsonPath();
+	if (!fs.existsSync(globalPath)) return;
+	const existing = readExistingCodexHooks(globalPath);
+	if (!existing || !existing.hooks || typeof existing.hooks !== "object") {
+		return;
+	}
+
+	const notifyScriptPath = getNotifyScriptPath();
+	stripManagedHooksFromEvents(existing.hooks, (command) =>
+		isManagedCodexHookCommand(command, notifyScriptPath),
+	);
+	if (Object.keys(existing.hooks).length === 0) {
+		delete existing.hooks;
+	}
+
+	const changed = writeFileIfChanged(
+		globalPath,
+		JSON.stringify(existing, null, 2),
+		0o644,
+	);
+	console.log(
+		`[agent-setup] ${changed ? "Removed" : "Verified no"} Codex managed hooks`,
+	);
+}
+
+/**
  * Renders the OpenCode plugin file content with the current notify script path.
  */
 export function getOpenCodePluginContent(notifyPath: string): string {
@@ -310,6 +394,7 @@ function isManagedCodexHookCommand(
 ): boolean {
 	return (
 		command?.includes(notifyScriptPath) ||
+		command?.includes(DYNAMIC_NOTIFY_PATH_MARKER) ||
 		isSupersetManagedHookCommand(command, NOTIFY_SCRIPT_NAME)
 	);
 }
@@ -394,11 +479,11 @@ export function getCodexGlobalHooksJsonContent(
 		existing.hooks[eventName] = filtered;
 	}
 
-	// Inline SUPERSET_AGENT_ID like getClaudeManagedHookCommand so the v2
-	// payload carries identity even when codex is launched outside the wrapper.
-	// Quote the path: codex executes via /bin/sh -lc, so a space in $HOME
-	// (e.g. "/Users/Some User/...") would otherwise word-split.
-	const codexCommand = `SUPERSET_AGENT_ID=codex "${notifyScriptPath}"`;
+	// Guarded on SUPERSET_HOME_DIR so the hook is a no-op in codex sessions
+	// launched outside Superset terminals. Superset terminals without the PATH
+	// wrapper still export SUPERSET_HOME_DIR, so the outside-wrapper fallback
+	// this file provides keeps working.
+	const codexCommand = getManagedNotifyHookCommand("codex");
 
 	const managedEvents: Array<{
 		eventName: "SessionStart" | "UserPromptSubmit" | "Stop";

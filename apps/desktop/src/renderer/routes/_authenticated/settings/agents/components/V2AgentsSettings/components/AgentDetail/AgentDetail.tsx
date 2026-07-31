@@ -1,4 +1,5 @@
 import type { HostAgentConfig } from "@superset/host-service/settings";
+import { AGENT_TYPES } from "@superset/shared/agent-command";
 import type { PromptTransport } from "@superset/shared/agent-prompt-launch";
 import { getPresetById } from "@superset/shared/host-agent-presets";
 import {
@@ -15,6 +16,7 @@ import {
 import { Button } from "@superset/ui/button";
 import { Input } from "@superset/ui/input";
 import { toast } from "@superset/ui/sonner";
+import { Switch } from "@superset/ui/switch";
 import { useMutation } from "@tanstack/react-query";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -24,6 +26,7 @@ import {
 	parseAgentCommandText,
 } from "renderer/lib/agent-launch-command";
 import { joinArgs, parseArgs } from "renderer/lib/argv";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { getHostServiceUnavailableMessage } from "renderer/lib/host-service-unavailable";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
@@ -51,6 +54,26 @@ export function AgentDetail({
 	const { activeHostUrl } = hostService;
 	const isCustom = config.presetId === "custom";
 	const hasBundledDefault = getPresetById(config.presetId) !== undefined;
+	const isHooksSetupTarget = (AGENT_TYPES as readonly string[]).includes(
+		config.presetId,
+	);
+
+	const electronUtils = electronTrpc.useUtils();
+	const disabledHooksQuery =
+		electronTrpc.settings.getAgentHooksDisabled.useQuery(undefined, {
+			enabled: isHooksSetupTarget,
+		});
+	const hooksEnabled = !disabledHooksQuery.data?.includes(config.presetId);
+	const setHooksEnabledMutation =
+		electronTrpc.settings.setAgentHooksEnabled.useMutation({
+			onSettled: () => {
+				void electronUtils.settings.getAgentHooksDisabled.invalidate();
+			},
+			onError: (err) =>
+				toast.error(
+					err instanceof Error ? err.message : "Failed to update hooks",
+				),
+		});
 
 	const [label, setLabel] = useState(config.label);
 	const [commandText, setCommandText] = useState(getAgentCommandText(config));
@@ -223,6 +246,36 @@ export function AgentDetail({
 					promptTransport={promptTransport}
 					onPromptTransportChange={handleTransportChange}
 				/>
+
+				{isHooksSetupTarget ? (
+					<div className="pt-2 border-t border-border">
+						<div className="flex items-center justify-between gap-8">
+							<div className="min-w-0 flex-1">
+								<div className="text-sm font-medium">Superset hooks</div>
+								<p className="text-sm text-muted-foreground mt-0.5">
+									Registers lifecycle hooks in this agent's global config so
+									Superset can show status and send notifications. Turning this
+									off removes Superset's entries everywhere — status and
+									notifications stop for this agent, including inside Superset.
+								</p>
+							</div>
+							<Switch
+								checked={hooksEnabled}
+								onCheckedChange={(enabled) =>
+									setHooksEnabledMutation.mutate({
+										agentId: config.presetId,
+										enabled,
+									})
+								}
+								disabled={
+									disabledHooksQuery.isLoading ||
+									setHooksEnabledMutation.isPending
+								}
+								className="shrink-0"
+							/>
+						</div>
+					</div>
+				) : null}
 
 				{hasBundledDefault ? (
 					<div className="pt-2 border-t border-border">
