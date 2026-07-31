@@ -32,7 +32,7 @@ export async function GET(request: Request): Promise<Response> {
 		description:
 			"Superset MCP server: create Git-worktree workspaces, launch coding-agent sessions, schedule automations, open terminals, and manage tasks on behalf of a Superset user.",
 		version: "0.1.0",
-		serverUrl: `${origin}/api/v2/agent/mcp`,
+		serverUrl: `${origin}/mcp`,
 		transport: "streamable-http",
 		documentationUrl: "https://docs.superset.sh/mcp-server",
 		authentication: {
