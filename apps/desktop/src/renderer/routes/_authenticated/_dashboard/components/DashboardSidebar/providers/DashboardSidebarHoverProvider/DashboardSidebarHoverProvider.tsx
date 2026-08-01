@@ -41,13 +41,40 @@ function isPointInTriangle(pt: Point, a: Point, b: Point, c: Point): boolean {
 }
 
 // The two corners of the card's near edge — the base of the safe triangle.
-// The card always renders on the sidebar's right (side="right"), so that's
-// always its left edge.
-function getNearCardCorners(cardRect: DOMRect): [Point, Point] {
+// The card is configured to render on the sidebar's right (side="right"),
+// but Radix's collision avoidance (on by default; this popover doesn't
+// disable it) can flip that to the left if there's more room there — a
+// resizable sidebar dragged wide enough, or a narrow window, can trigger it.
+// Read the resolved side straight off the element rather than assuming.
+function getNearCardCorners(
+	cardElement: HTMLElement,
+	cardRect: DOMRect,
+): [Point, Point] {
+	const x =
+		cardElement.getAttribute("data-side") === "left"
+			? cardRect.right
+			: cardRect.left;
 	return [
-		{ x: cardRect.left, y: cardRect.top },
-		{ x: cardRect.left, y: cardRect.bottom },
+		{ x, y: cardRect.top },
+		{ x, y: cardRect.bottom },
 	];
+}
+
+// Re-derives the triangle's base from the card's *current* rect on every
+// call rather than a rect captured once when tracking started — the open
+// card's bounds can keep changing after that (its CSS entrance transition,
+// or content resizing as async data like diff stats loads in).
+function isPointInsideCardCone(
+	point: Point,
+	apex: Point,
+	cardElement: HTMLElement | null,
+): boolean {
+	if (!cardElement) return false;
+	const [cornerA, cornerB] = getNearCardCorners(
+		cardElement,
+		cardElement.getBoundingClientRect(),
+	);
+	return isPointInTriangle(point, apex, cornerA, cornerB);
 }
 
 export interface DashboardSidebarHoverPayload {
@@ -135,12 +162,12 @@ export function DashboardSidebarHoverProvider({
 	const triangleCleanupRef = useRef<(() => void) | null>(null);
 	const activeTriangleRef = useRef<{
 		apex: Point;
-		cornerA: Point;
-		cornerB: Point;
 		forId: string;
 	} | null>(null);
 	const suppressedOpenRef = useRef<{
 		id: string;
+		anchor: HTMLElement;
+		payload: DashboardSidebarHoverPayload;
 		timer: ReturnType<typeof setTimeout>;
 	} | null>(null);
 
@@ -202,6 +229,24 @@ export function DashboardSidebarHoverProvider({
 		[clearCloseTimer, clearOpenTimer, stopSafeTriangleTracking],
 	);
 
+	// Called when a safe triangle is abandoned — the pointer strayed outside
+	// the cone, or the tracking deadline elapsed. If a sibling row grazed
+	// along the way is still waiting out its dwell timer, promote it directly
+	// instead of closing and letting the dwell timer race a cold re-open:
+	// `performOpen` sees `hoveredId` still set here and switches instantly,
+	// with no gap and no re-applied OPEN_DELAY_MS.
+	const abandonCone = useCallback(() => {
+		stopSafeTriangleTracking();
+		const pending = suppressedOpenRef.current;
+		if (pending) {
+			suppressedOpenRef.current = null;
+			clearTimeout(pending.timer);
+			performOpen(pending.id, pending.anchor, pending.payload);
+			return;
+		}
+		scheduleClose();
+	}, [performOpen, scheduleClose, stopSafeTriangleTracking]);
+
 	const requestOpen = useCallback<HoverContextValue["requestOpen"]>(
 		(id, anchor, payload, enterPoint) => {
 			if (suppressedOpenRef.current && suppressedOpenRef.current.id !== id) {
@@ -213,11 +258,10 @@ export function DashboardSidebarHoverProvider({
 				activeTriangle &&
 				activeTriangle.forId !== id &&
 				enterPoint &&
-				isPointInTriangle(
+				isPointInsideCardCone(
 					enterPoint,
 					activeTriangle.apex,
-					activeTriangle.cornerA,
-					activeTriangle.cornerB,
+					cardElementRef.current,
 				)
 			) {
 				// Pointer is cutting through this row on a path aimed at the
@@ -229,7 +273,7 @@ export function DashboardSidebarHoverProvider({
 						suppressedOpenRef.current = null;
 						performOpen(id, anchor, payload);
 					}, SUPPRESSED_OPEN_DWELL_MS);
-					suppressedOpenRef.current = { id, timer };
+					suppressedOpenRef.current = { id, anchor, payload, timer };
 				}
 				return;
 			}
@@ -254,45 +298,36 @@ export function DashboardSidebarHoverProvider({
 			}
 			if (stateRef.current.hoveredId !== id) return;
 
-			const cardRect = cardElementRef.current?.getBoundingClientRect() ?? null;
-			if (!leavePoint || !cardRect) {
+			if (!leavePoint || !cardElementRef.current) {
 				scheduleClose();
 				return;
 			}
-			const corners = getNearCardCorners(cardRect);
 
 			// Safe triangle: apex at the point the pointer left the trigger, base
 			// at the card's near edge. Keep the card open while the pointer stays
-			// inside it — that's a path aimed at the card, not away from it.
+			// inside it — that's a path aimed at the card, not away from it. The
+			// base is re-derived from the card's live rect on each check (see
+			// isPointInsideCardCone), not captured once here.
 			stopSafeTriangleTracking();
-			const [cornerA, cornerB] = corners;
-			activeTriangleRef.current = {
-				apex: leavePoint,
-				cornerA,
-				cornerB,
-				forId: id,
-			};
+			activeTriangleRef.current = { apex: leavePoint, forId: id };
 			const handlePointerMove = (event: MouseEvent) => {
 				const point = { x: event.clientX, y: event.clientY };
-				if (isPointInTriangle(point, leavePoint, cornerA, cornerB)) {
+				if (isPointInsideCardCone(point, leavePoint, cardElementRef.current)) {
 					return;
 				}
-				stopSafeTriangleTracking();
-				scheduleClose();
+				abandonCone();
 			};
 			document.addEventListener("mousemove", handlePointerMove);
 			// Backstop: if the pointer stops moving entirely (or events just don't
 			// arrive) while still "inside" the cone, don't stay open forever.
-			const deadlineTimer = setTimeout(() => {
-				stopSafeTriangleTracking();
-				scheduleClose();
-			}, SAFE_TRIANGLE_MAX_TRACK_MS);
+			const deadlineTimer = setTimeout(abandonCone, SAFE_TRIANGLE_MAX_TRACK_MS);
 			triangleCleanupRef.current = () => {
 				document.removeEventListener("mousemove", handlePointerMove);
 				clearTimeout(deadlineTimer);
 			};
 		},
 		[
+			abandonCone,
 			cancelSuppressedOpen,
 			clearOpenTimer,
 			scheduleClose,
