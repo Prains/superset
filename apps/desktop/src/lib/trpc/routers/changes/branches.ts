@@ -17,6 +17,16 @@ import { getPersistedWorktreeBaseBranch } from "./utils/effective-base-branch";
 import { clearStatusCacheForWorktree } from "./utils/status-cache";
 import { runGitTask } from "./workers/git-task-runner";
 
+// Bumped by branch/base mutations so a refetch fired right after one can't
+// coalesce onto an in-flight getBranches task that read pre-mutation state.
+const branchesGeneration = new Map<string, number>();
+function bumpBranchesGeneration(worktreePath: string): void {
+	branchesGeneration.set(
+		worktreePath,
+		(branchesGeneration.get(worktreePath) ?? 0) + 1,
+	);
+}
+
 export const createBranchesRouter = () => {
 	return router({
 		getBranches: publicProcedure
@@ -43,7 +53,7 @@ export const createBranchesRouter = () => {
 							),
 						},
 						{
-							dedupeKey: `getBranches:${input.worktreePath}`,
+							dedupeKey: `getBranches:${branchesGeneration.get(input.worktreePath) ?? 0}:${input.worktreePath}`,
 							strategy: "coalesce",
 							timeoutMs: 30_000,
 						},
@@ -77,6 +87,7 @@ export const createBranchesRouter = () => {
 					.run();
 
 				clearStatusCacheForWorktree(input.worktreePath);
+				bumpBranchesGeneration(input.worktreePath);
 				return { success: true };
 			}),
 
@@ -116,6 +127,7 @@ export const createBranchesRouter = () => {
 					.run();
 
 				clearStatusCacheForWorktree(input.worktreePath);
+				bumpBranchesGeneration(input.worktreePath);
 				return { success: true };
 			}),
 	});

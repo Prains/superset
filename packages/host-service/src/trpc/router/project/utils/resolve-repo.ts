@@ -79,11 +79,24 @@ function ensureParentDirectory(path: string): void {
 	}
 }
 
+/** Rollback delete inside catch blocks: must never throw, or it would
+ * replace the original error the caller is about to re-throw. */
+async function rollbackTargetDir(targetPath: string): Promise<void> {
+	try {
+		await rm(targetPath, { recursive: true, force: true });
+	} catch (cleanupErr) {
+		console.warn("[project] rollback cleanup failed", {
+			targetPath,
+			cleanupErr,
+		});
+	}
+}
+
 /**
  * Atomic claim: `mkdir` without `recursive` throws EEXIST when the path is
  * present, which avoids the TOCTOU window between an `existsSync` check
  * and the work that follows. If anything fails after this, the caller
- * created the dir and can rmSync it without risk of nuking someone else's.
+ * created the dir and can delete it without risk of nuking someone else's.
  */
 function claimEmptyTargetDir(targetPath: string): void {
 	try {
@@ -298,7 +311,7 @@ export async function initEmptyRepo(
 		}
 		return { repoPath: targetPath, remoteName: null, parsed: null };
 	} catch (err) {
-		await rm(targetPath, { recursive: true, force: true });
+		await rollbackTargetDir(targetPath);
 		throw err;
 	}
 }
@@ -346,7 +359,7 @@ export async function cloneTemplateInto(
 		}
 		return { repoPath: targetPath, remoteName: null, parsed: null };
 	} catch (err) {
-		await rm(targetPath, { recursive: true, force: true });
+		await rollbackTargetDir(targetPath);
 		throw err;
 	}
 }
@@ -396,7 +409,7 @@ export async function cloneRepoInto(
 		const git = createUserSimpleGit();
 		await (env ? git.env(env) : git).clone(repoCloneUrl, targetPath);
 	} catch (err) {
-		await rm(targetPath, { recursive: true, force: true });
+		await rollbackTargetDir(targetPath);
 		throw new TRPCError({
 			code: "BAD_REQUEST",
 			message: `Failed to clone repository: ${
@@ -411,7 +424,7 @@ export async function cloneRepoInto(
 		}
 		return await resolveLocalRepo(targetPath);
 	} catch (err) {
-		await rm(targetPath, { recursive: true, force: true });
+		await rollbackTargetDir(targetPath);
 		throw err;
 	}
 }

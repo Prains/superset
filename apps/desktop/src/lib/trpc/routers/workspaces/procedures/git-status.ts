@@ -184,8 +184,13 @@ export const createGitStatusProcedures = () => {
 							timeoutMs: 30_000,
 						},
 					);
-				} catch {
-					// getAheadBehindCount swallows git errors; keep worker failures equally silent.
+				} catch (error) {
+					// getAheadBehindCount swallows git errors, but worker-infra
+					// failures (crash/timeout) should at least leave a trace.
+					console.warn("[workspaces.getAheadBehind] worker task failed", {
+						workspaceId: input.workspaceId,
+						error,
+					});
 					return { ahead: 0, behind: 0 };
 				}
 			}),

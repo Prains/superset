@@ -24,10 +24,12 @@ entries):
 - Desktop: `changes.getBranches`, `workspaces.getAheadBehind`,
   `changes.get*FileContents` → changes git worker
 
-## Backlog — host-service (allowlist of `no-main-loop-blocking.test.ts`)
+## Backlog — host-service
 
-Priority order; each entry = port to `workers/tasks/git.ts` then delete its
-allowlist line.
+Priority order; port to `workers/tasks/git.ts`. Items constructing git
+clients directly have an allowlist line in `no-main-loop-blocking.test.ts`
+to delete when ported; items 1–3 and 6 spawn via `ctx.git()` (the shared
+factory) so the ratchet doesn't see them — they're backlog-only.
 
 1. `trpc/router/git/git.ts` — `listCommits` (`git log`, unbounded),
    `getDiff` (2× `git show`, buffers file contents), `getBranchSyncStatus`
@@ -46,7 +48,10 @@ allowlist line.
    `workspace-creation/shared/project-helpers.ts`,
    `trpc/router/git/utils/git-helpers.ts` — cheap but on-loop; port last
 
-## Backlog — desktop (allowlist of `no-main-process-blocking.test.ts`)
+## Backlog — desktop
+
+Same convention: entries with a `no-main-process-blocking.test.ts`
+allowlist line lose it when ported; the rest are backlog-only.
 
 1. `workspaces.getGitHubStatus` path (`workspaces/utils/github/*`) — `gh` +
    `ls-remote` polled 10–30s per workspace (biggest remaining win)

@@ -356,7 +356,10 @@ async function getLocalBranchesWithDates(
 			}
 		}
 		return local;
-	} catch {
+	} catch (error) {
+		console.warn("[git-task] branch dates unavailable, sorting degraded", {
+			error,
+		});
 		return localBranches.map((branch) => ({ branch, lastCommitDate: 0 }));
 	}
 }
@@ -382,7 +385,11 @@ async function getCheckedOutBranches(
 				}
 			}
 		}
-	} catch {}
+	} catch (error) {
+		console.warn("[git-task] worktree list failed, checked-out map empty", {
+			error,
+		});
+	}
 
 	return checkedOutBranches;
 }

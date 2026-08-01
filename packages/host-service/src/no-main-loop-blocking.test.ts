@@ -87,7 +87,8 @@ function* walk(dir: string): Generator<string> {
 function relevantFiles(): string[] {
 	const files: string[] = [];
 	for (const file of walk(SRC_DIR)) {
-		const rel = path.relative(SRC_DIR, file);
+		// Forward slashes so allowlists match on Windows too.
+		const rel = path.relative(SRC_DIR, file).split(path.sep).join("/");
 		if (EXEMPT_DIR_PREFIXES.some((prefix) => rel.startsWith(prefix))) continue;
 		if (EXEMPT_FILE_PATTERNS.some((pattern) => pattern.test(rel))) continue;
 		files.push(rel);

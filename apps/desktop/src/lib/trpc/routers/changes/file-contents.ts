@@ -40,7 +40,16 @@ export const createFileContentsRouter = () => {
 						defaultBranch,
 					}),
 					{
-						dedupeKey: `getFileContents:${input.worktreePath}:${input.category}:${filePath}:${originalPath}:${defaultBranch}:${input.commitHash ?? ""}`,
+						// JSON-encoded: paths may contain the delimiter, and a raw
+						// join could coalesce two different files into one task.
+						dedupeKey: `getFileContents:${JSON.stringify([
+							input.worktreePath,
+							input.category,
+							filePath,
+							originalPath,
+							defaultBranch,
+							input.commitHash ?? "",
+						])}`,
 						strategy: "coalesce",
 						timeoutMs: 30_000,
 					},
@@ -81,7 +90,11 @@ export const createFileContentsRouter = () => {
 						category: "original",
 					},
 					{
-						dedupeKey: `getFileContents:${input.worktreePath}:original:${originalPath}`,
+						dedupeKey: `getFileContents:${JSON.stringify([
+							input.worktreePath,
+							"original",
+							originalPath,
+						])}`,
 						strategy: "coalesce",
 						timeoutMs: 30_000,
 					},

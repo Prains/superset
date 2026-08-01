@@ -73,7 +73,9 @@ const RULES: Rule[] = [
 	},
 ];
 
-const EXEMPT_DIR_SUFFIXES = ["lib/trpc/routers/changes/workers"];
+// Prefix, not dirname-suffix: nested subdirectories of the worker dir are
+// worker code too.
+const EXEMPT_DIR_PREFIXES = ["lib/trpc/routers/changes/workers/"];
 const EXEMPT_FILE_PATTERNS = [/\.test\.tsx?$/, /(^|\/)test-helpers\.ts$/];
 
 function* walk(dir: string): Generator<string> {
@@ -97,9 +99,10 @@ function relevantFiles(): string[] {
 		const root = path.join(SRC_DIR, scanned);
 		if (!fs.existsSync(root)) continue;
 		for (const file of walk(root)) {
-			const rel = path.relative(SRC_DIR, file);
-			const dir = path.dirname(rel);
-			if (EXEMPT_DIR_SUFFIXES.some((suffix) => dir.endsWith(suffix))) continue;
+			// Forward slashes so allowlists match on Windows too.
+			const rel = path.relative(SRC_DIR, file).split(path.sep).join("/");
+			if (EXEMPT_DIR_PREFIXES.some((prefix) => rel.startsWith(prefix)))
+				continue;
 			if (EXEMPT_FILE_PATTERNS.some((pattern) => pattern.test(rel))) continue;
 			files.push(rel);
 		}

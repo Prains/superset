@@ -12,18 +12,31 @@ const remoteUrlCache = new Map<
 	string,
 	{ url: string | null; resolvedAt: number }
 >();
+// Cold-miss coalescing: a boot burst of status polls would otherwise spawn
+// one `git remote get-url` per concurrent caller before the first caches.
+const remoteUrlInFlight = new Map<string, Promise<string | null>>();
 
-async function getRemoteUrlCached(
+function getRemoteUrlCached(
 	repoPath: string,
 	env: Record<string, string>,
 ): Promise<string | null> {
 	const cached = remoteUrlCache.get(repoPath);
 	if (cached && Date.now() - cached.resolvedAt < REMOTE_URL_TTL_MS) {
-		return cached.url;
+		return Promise.resolve(cached.url);
 	}
-	const url = await getRemoteUrl(createUserSimpleGit(repoPath).env(env));
-	remoteUrlCache.set(repoPath, { url, resolvedAt: Date.now() });
-	return url;
+	const inFlight = remoteUrlInFlight.get(repoPath);
+	if (inFlight) return inFlight;
+
+	const resolving = getRemoteUrl(createUserSimpleGit(repoPath).env(env))
+		.then((url) => {
+			remoteUrlCache.set(repoPath, { url, resolvedAt: Date.now() });
+			return url;
+		})
+		.finally(() => {
+			remoteUrlInFlight.delete(repoPath);
+		});
+	remoteUrlInFlight.set(repoPath, resolving);
+	return resolving;
 }
 
 /**
