@@ -150,6 +150,10 @@ interface MarkdownEditorProps {
 	searchFiles?: FileMentionSearchFn;
 	/** If provided, pasted file items (e.g. clipboard images) are forwarded here. */
 	onPasteFiles?: (files: File[]) => void;
+	/** Fired on ArrowUp with the caret at the doc start. Return true to consume. */
+	onArrowUpAtStart?: () => boolean;
+	/** Fired on ArrowDown with the caret at the doc end. Return true to consume. */
+	onArrowDownAtEnd?: () => boolean;
 	/** Toggle optional affordances. Each defaults to enabled. */
 	features?: {
 		slashCommand?: boolean;
@@ -211,6 +215,8 @@ export function MarkdownEditor({
 	onEnterSubmit,
 	searchFiles,
 	onPasteFiles,
+	onArrowUpAtStart,
+	onArrowDownAtEnd,
 	features,
 }: MarkdownEditorProps) {
 	const showSlashCommand = features?.slashCommand ?? true;
@@ -226,6 +232,10 @@ export function MarkdownEditor({
 	onPasteFilesRef.current = onPasteFiles;
 	const onEnterSubmitRef = useRef(onEnterSubmit);
 	onEnterSubmitRef.current = onEnterSubmit;
+	const onArrowUpAtStartRef = useRef(onArrowUpAtStart);
+	onArrowUpAtStartRef.current = onArrowUpAtStart;
+	const onArrowDownAtEndRef = useRef(onArrowDownAtEnd);
+	onArrowDownAtEndRef.current = onArrowDownAtEnd;
 	const editorRef = useRef<Editor | null>(null);
 
 	const urlPolicy = useInlineUrlPolicy();
@@ -356,7 +366,7 @@ export function MarkdownEditor({
 			attributes: {
 				class: cn("focus:outline-none min-h-[100px]", editorClassName),
 			},
-			handleKeyDown: (_, event) => {
+			handleKeyDown: (view, event) => {
 				if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
 					onModEnter?.();
 					return true;
@@ -369,6 +379,29 @@ export function MarkdownEditor({
 				) {
 					onEnterSubmitRef.current();
 					return true;
+				}
+				if (
+					(event.key === "ArrowUp" || event.key === "ArrowDown") &&
+					!event.shiftKey &&
+					!event.altKey &&
+					!event.metaKey &&
+					!event.ctrlKey
+				) {
+					const { selection, doc } = view.state;
+					if (
+						event.key === "ArrowUp" &&
+						selection.empty &&
+						selection.from <= 1
+					) {
+						return onArrowUpAtStartRef.current?.() ?? false;
+					}
+					if (
+						event.key === "ArrowDown" &&
+						selection.empty &&
+						selection.to >= doc.content.size - 1
+					) {
+						return onArrowDownAtEndRef.current?.() ?? false;
+					}
 				}
 				return false;
 			},

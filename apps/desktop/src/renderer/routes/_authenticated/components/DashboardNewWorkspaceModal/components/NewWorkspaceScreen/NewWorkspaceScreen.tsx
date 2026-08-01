@@ -53,6 +53,7 @@ import { ProjectPickerPill } from "../DashboardNewWorkspaceForm/PromptGroup/comp
 import { PromptHistoryCommand } from "../DashboardNewWorkspaceForm/PromptGroup/components/PromptHistoryCommand";
 import { useBranchPickerController } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/useBranchPickerController";
 import { useLinkedContext } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/useLinkedContext";
+import { usePromptHistoryRecall } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/usePromptHistoryRecall";
 import { useSubmitWorkspace } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/useSubmitWorkspace";
 import {
 	useFileIdsForHost,
@@ -86,6 +87,7 @@ export function NewWorkspaceScreen({
 }: NewWorkspaceScreenProps) {
 	const navigate = useNavigate();
 	const [promptSeed, setPromptSeed] = useState(0);
+	const [promptCaret, setPromptCaret] = useState<"start" | "end">("end");
 	const openInFinderMutation = electronTrpc.external.openInFinder.useMutation();
 	const { closeModal, draft, updateDraft, resetKey } =
 		useDashboardNewWorkspaceDraft();
@@ -229,6 +231,20 @@ export function NewWorkspaceScreen({
 	const selectedProject = projects.find((project) => project.id === projectId);
 	const needsSetup = selectedProject?.needsSetup === true;
 	const isPromptEmpty = !draft.prompt.trim();
+	// The markdown editor is uncontrolled after mount, so programmatic prompt
+	// insertion bumps promptSeed to remount it with the new content.
+	const applyPrompt = useCallback(
+		(prompt: string, caret: "start" | "end") => {
+			updateDraft({ prompt });
+			setPromptCaret(caret);
+			setPromptSeed((seed) => seed + 1);
+		},
+		[updateDraft],
+	);
+	const { onArrowUpAtStart, onArrowDownAtEnd } = usePromptHistoryRecall({
+		currentPrompt: draft.prompt,
+		applyPrompt,
+	});
 	const {
 		addLinkedIssue,
 		addLinkedGitHubIssue,
@@ -469,6 +485,22 @@ export function NewWorkspaceScreen({
 					</motion.div>
 				)}
 			</AnimatePresence>
+			<div className="absolute right-4 top-4 z-10">
+				<PromptHistoryCommand
+					onSelect={(prompt) => applyPrompt(prompt, "end")}
+					tooltipLabel="Previous prompts"
+				>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						aria-label="Previous prompts"
+						className="size-7 text-muted-foreground"
+					>
+						<HistoryIcon className="size-4" />
+					</Button>
+				</PromptHistoryCommand>
+			</div>
 			<div className="flex flex-1 flex-col items-center justify-center gap-8">
 				<SupersetIcon className="h-10 w-auto text-muted-foreground/70" />
 				<h1 className="text-center text-3xl font-medium text-foreground/90">
@@ -487,10 +519,7 @@ export function NewWorkspaceScreen({
 							className="absolute inset-x-6 bottom-full mb-1"
 						>
 							<SamplePrompts
-								onSelect={(prompt) => {
-									updateDraft({ prompt });
-									setPromptSeed((seed) => seed + 1);
-								}}
+								onSelect={(prompt) => applyPrompt(prompt, "end")}
 							/>
 						</motion.div>
 					)}
@@ -563,7 +592,9 @@ export function NewWorkspaceScreen({
 						onChange={(markdown) => updateDraft({ prompt: markdown })}
 						onPasteFiles={(files) => attachments.add(files)}
 						onEnterSubmit={handleSubmit}
-						autoFocus={promptSeed > 0 ? "end" : "start"}
+						onArrowUpAtStart={onArrowUpAtStart}
+						onArrowDownAtEnd={onArrowDownAtEnd}
+						autoFocus={promptSeed > 0 ? promptCaret : "start"}
 						placeholder="What do you want to do?"
 						className="flex flex-col min-h-[80px] max-h-[200px] px-3 pt-3"
 						editorClassName="overflow-y-auto text-sm"
@@ -606,20 +637,6 @@ export function NewWorkspaceScreen({
 							)}
 						</PromptInputTools>
 						<div className="flex items-center gap-2">
-							<PromptHistoryCommand
-								onSelect={(prompt) => {
-									updateDraft({ prompt });
-									setPromptSeed((seed) => seed + 1);
-								}}
-								tooltipLabel="Previous prompts"
-							>
-								<PromptInputButton
-									aria-label="Previous prompts"
-									className={`${PILL_BUTTON_CLASS} w-[22px]`}
-								>
-									<HistoryIcon className="size-3.5" />
-								</PromptInputButton>
-							</PromptHistoryCommand>
 							<IssueLinkCommand
 								onSelect={addLinkedIssue}
 								tooltipLabel="Link issue"

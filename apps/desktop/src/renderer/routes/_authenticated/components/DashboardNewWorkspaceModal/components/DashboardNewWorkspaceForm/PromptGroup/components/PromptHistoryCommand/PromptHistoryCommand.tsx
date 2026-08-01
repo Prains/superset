@@ -61,7 +61,7 @@ export function PromptHistoryCommand({
 			</Tooltip>
 			<PopoverContent
 				className="w-[440px] p-0"
-				align="start"
+				align="end"
 				side="bottom"
 				onWheel={(event) => event.stopPropagation()}
 			>
