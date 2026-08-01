@@ -80,18 +80,26 @@ if (process.defaultApp) {
 }
 
 async function processDeepLink(url: string): Promise<void> {
-	console.log("[main] Processing deep link:", url);
-
 	const authParams = parseAuthDeepLink(url);
 	if (authParams) {
+		// Never log the auth URL: it contains the desktop session token.
+		console.log("[main] Processing auth deep link");
 		const result = await handleAuthCallback(authParams);
 		if (result.success) {
 			focusMainWindow();
 		} else {
 			console.error("[main] Auth deep link failed:", result.error);
+			focusMainWindow();
+			dialog.showErrorBox(
+				"Sign-in failed",
+				result.error ??
+					"Superset could not complete sign-in. Please try again.",
+			);
 		}
 		return;
 	}
+
+	console.log("[main] Processing deep link:", url);
 
 	// Non-auth deep links: extract path and navigate in renderer
 	// e.g. superset://tasks/my-slug -> /tasks/my-slug

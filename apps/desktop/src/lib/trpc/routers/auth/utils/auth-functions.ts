@@ -1,7 +1,10 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import { join } from "node:path";
-import { SUPERSET_HOME_DIR } from "main/lib/app-environment";
+import {
+	SUPERSET_HOME_DIR,
+	SUPERSET_SENSITIVE_FILE_MODE,
+} from "main/lib/app-environment";
 import { PROTOCOL_SCHEME } from "shared/constants";
 import { decrypt, encrypt } from "./crypto-storage";
 
@@ -10,7 +13,36 @@ interface StoredAuth {
 	expiresAt: string;
 }
 
-export const TOKEN_FILE = join(SUPERSET_HOME_DIR, "auth-token.enc");
+const TOKEN_FILE_NAME = "auth-token.enc";
+
+function getTokenFile(): string {
+	return join(
+		process.env.SUPERSET_HOME_DIR || SUPERSET_HOME_DIR,
+		TOKEN_FILE_NAME,
+	);
+}
+
+async function removeEmptyTokenDirectory(tokenFile: string): Promise<boolean> {
+	try {
+		const stats = await fs.lstat(tokenFile);
+		if (!stats.isDirectory()) return false;
+
+		const entries = await fs.readdir(tokenFile);
+		if (entries.length > 0) {
+			throw new Error(
+				`Auth token storage path is a non-empty directory: ${tokenFile}`,
+			);
+		}
+
+		await fs.rmdir(tokenFile);
+		console.warn("[auth] Repaired empty directory at auth token storage path");
+		return true;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+		throw error;
+	}
+}
+
 export const stateStore = new Map<string, number>();
 
 /**
@@ -31,10 +63,15 @@ export async function loadToken(): Promise<{
 	expiresAt: string | null;
 }> {
 	try {
-		const data = decrypt(await fs.readFile(TOKEN_FILE));
+		const data = decrypt(await fs.readFile(getTokenFile()));
 		const parsed: StoredAuth = JSON.parse(data);
 		return { token: parsed.token, expiresAt: parsed.expiresAt };
-	} catch {
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "EISDIR") {
+			console.warn(
+				"[auth] Auth token storage path is a directory; the next sign-in will repair it",
+			);
+		}
 		return { token: null, expiresAt: null };
 	}
 }
@@ -50,8 +87,26 @@ export async function saveToken({
 	expiresAt: string;
 }): Promise<void> {
 	const storedAuth: StoredAuth = { token, expiresAt };
-	await fs.writeFile(TOKEN_FILE, encrypt(JSON.stringify(storedAuth)));
+	const tokenFile = getTokenFile();
+	await removeEmptyTokenDirectory(tokenFile);
+	await fs.writeFile(tokenFile, encrypt(JSON.stringify(storedAuth)), {
+		mode: SUPERSET_SENSITIVE_FILE_MODE,
+	});
+	await fs.chmod(tokenFile, SUPERSET_SENSITIVE_FILE_MODE);
 	authEvents.emit("token-saved", { token, expiresAt });
+}
+
+export async function clearToken(): Promise<void> {
+	const tokenFile = getTokenFile();
+	const removedDirectory = await removeEmptyTokenDirectory(tokenFile);
+	if (!removedDirectory) {
+		try {
+			await fs.unlink(tokenFile);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		}
+	}
+	authEvents.emit("token-cleared");
 }
 
 /**
@@ -66,9 +121,17 @@ export async function handleAuthCallback(params: {
 	if (!stateStore.has(params.state)) {
 		return { success: false, error: "Invalid or expired auth session" };
 	}
-	stateStore.delete(params.state);
 
-	await saveToken({ token: params.token, expiresAt: params.expiresAt });
+	try {
+		await saveToken({ token: params.token, expiresAt: params.expiresAt });
+		stateStore.delete(params.state);
+	} catch (error) {
+		console.error("[auth] Failed to persist desktop auth token", error);
+		return {
+			success: false,
+			error: `Superset could not save your sign-in. Check the item at ${getTokenFile()} and try again.`,
+		};
+	}
 
 	return { success: true };
 }
