@@ -13,6 +13,7 @@ export interface PullRequestQueryWorkspaceRow {
 }
 
 export interface PullRequestQueryTarget {
+	organizationId: string;
 	machineId: string;
 	hostType: DashboardSidebarWorkspaceHostType;
 	hostUrl: string;
@@ -59,6 +60,7 @@ export function derivePullRequestQueryTargets({
 
 		return [
 			{
+				organizationId: host.organizationId,
 				machineId: host.machineId,
 				hostType: isLocal
 					? ("local-device" as const)
@@ -80,6 +82,7 @@ export function derivePullRequestQueryTargets({
 		const localWorkspaceIds = workspaceIdsByHostId.get(machineId);
 		if (localWorkspaceIds && localWorkspaceIds.length > 0) {
 			targets.push({
+				organizationId: hosts[0]?.organizationId ?? "",
 				machineId,
 				hostType: "local-device",
 				hostUrl: activeHostUrl,
@@ -94,11 +97,15 @@ export function derivePullRequestQueryTargets({
 export function getDashboardSidebarPullRequestQueryKey(
 	target: PullRequestQueryTarget,
 ) {
+	// Keyed on host identity (org + machine), never routing or membership:
+	// workspaceIds in the key made every delete/hide/pin blank and refetch all
+	// PR chips, and hostUrl did the same on every host-service port change.
+	// The queryFn reads the latest ids/url from the target; the poll interval
+	// and hover refresh converge changes.
 	return [
 		"dashboard-sidebar",
 		"pull-requests",
+		target.organizationId,
 		target.machineId,
-		target.hostUrl,
-		target.workspaceIds,
 	] as const;
 }

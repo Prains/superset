@@ -39,6 +39,7 @@ type HostPortsMetadata = Pick<
 >;
 
 export interface HostPortsQueryTarget {
+	organizationId: string;
 	machineId: string;
 	hostType: DashboardSidebarWorkspaceHostType;
 	hostUrl: string;
@@ -58,13 +59,15 @@ export interface DashboardSidebarWorkspaceRow {
 }
 
 export function getHostPortsQueryKey(host: HostPortsQueryTarget) {
+	// Host identity only: hostUrl churns on restarts, and workspaceIds in the
+	// key cold-started the whole ports cache on any membership change. The
+	// queryFn reads both from the target at fetch time.
 	return [
 		"host-service",
 		"ports",
 		"getAll",
+		host.organizationId,
 		host.machineId,
-		host.hostUrl,
-		host.workspaceIds,
 	] as const;
 }
 
@@ -162,6 +165,7 @@ export function deriveHostPortQueryTargets({
 
 		return [
 			{
+				organizationId: host.organizationId,
 				machineId: host.machineId,
 				hostType: isLocal
 					? ("local-device" as const)
@@ -192,6 +196,7 @@ export function deriveHostPortQueryTargets({
 			}
 		} else {
 			targets.push({
+				organizationId: hosts[0]?.organizationId ?? "",
 				machineId,
 				hostType: "local-device",
 				hostUrl: activeHostUrl,
