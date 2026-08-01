@@ -84,6 +84,24 @@ describe("derivePullRequestQueryTargets", () => {
 		expect(targets[0]?.hostUrl).toBe(LOCAL_HOST_URL);
 	});
 
+	it("keeps the local target with a null URL while the host-service is down", () => {
+		// The target must survive the outage so the query stays mounted and
+		// cached chips keep rendering — dropping it unmounts the query and
+		// blanks every chip for the duration of the restart.
+		const targets = derivePullRequestQueryTargets({
+			activeHostUrl: null,
+			hosts: [
+				{ organizationId: "org-1", machineId: MACHINE_ID, isOnline: true },
+			],
+			machineId: MACHINE_ID,
+			relayUrl: RELAY_URL,
+			workspaces: [{ id: "ws-1", hostId: MACHINE_ID }],
+		});
+		expect(targets).toHaveLength(1);
+		expect(targets[0]?.hostUrl).toBeNull();
+		expect(targets[0]?.machineId).toBe(MACHINE_ID);
+	});
+
 	it("omits offline remote hosts", () => {
 		const targets = derivePullRequestQueryTargets({
 			activeHostUrl: LOCAL_HOST_URL,

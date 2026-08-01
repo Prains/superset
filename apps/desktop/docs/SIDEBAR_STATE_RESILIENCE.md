@@ -71,18 +71,26 @@ can't bind (lingering dying process, crash restart) — observed naturally:
 51507 → 53875 → 57324 across three dev sessions in one day. `hostUrl` was in
 every host query key, so a port change cold-started every cache bar-wide.
 
-Fix: caches are keyed on host identity, never routing — workspaces/projects/
-PR-chips/ports on `organizationId + machineId`, agent bindings on
+Fix, part 1: caches are keyed on host identity, never routing — workspaces/
+projects/PR-chips/ports on `organizationId + machineId`, agent bindings on
 `workspaceId` alone (globally unique; shared `getTerminalAgentBindingsQueryKey`
 builder so invalidation sites can't drift). The queryFn resolves the current
 URL from the target at fetch time; staleness after a URL change is bounded by
-the existing polls (10–30 s). The ports key also embedded `workspaceIds` —
-the vector-1 defect again — fixed in the same pass.
+the existing polls (10–30 s). The ports key and the v2-workspaces-page PR key
+also embedded `workspaceIds` — the vector-1 defect again — fixed in the same
+pass. The query cache is persisted, so identity keys additionally mean chips
+start warm across app relaunches.
 
-Residual (accepted): while the host is fully *down*, chip queries can't
-refetch — they now keep showing last-known data instead of blanking, and
-converge after respawn. Making the port sticky in the coordinator would
-shrink the window further but is not required for UI stability.
+Fix, part 2: PR targets survive `activeHostUrl: null` (query disabled, not
+unmounted — same pattern as the workspaces/projects fan-outs), so cached
+chips keep rendering through the outage instead of blanking while the query
+would otherwise unmount.
+
+CDP A/B, forced port change via SIGKILL + port squat (auto-respawn picks a
+fresh port): URL-shaped keys — cache 6 → 12 entries (6 cold-minted, 4
+orphaned on the dead port), all chips blank ~6 s. Identity keys + surviving
+targets — cache byte-identical (0 minted), chips 9/9 and rows 3/3 through
+the entire kill/outage/respawn cycle (33 s observation window).
 
 **Worse, found during verification:** if the respawn fails to bind, the
 coordinator wedges at status `"stopped"` permanently — there is no spawn

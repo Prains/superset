@@ -16,7 +16,12 @@ export interface PullRequestQueryTarget {
 	organizationId: string;
 	machineId: string;
 	hostType: DashboardSidebarWorkspaceHostType;
-	hostUrl: string;
+	/**
+	 * Null while the host is unreachable (host-service restarting). The
+	 * target must survive so the query stays mounted and keeps rendering
+	 * cached chips — same pattern as the workspaces/projects fan-outs.
+	 */
+	hostUrl: string | null;
 	workspaceIds: string[];
 }
 
@@ -56,7 +61,6 @@ export function derivePullRequestQueryTargets({
 		const hostUrl = isLocal
 			? activeHostUrl
 			: `${relayUrl}/hosts/${buildHostRoutingKey(host.organizationId, host.machineId)}`;
-		if (!hostUrl) return [];
 
 		return [
 			{

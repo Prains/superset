@@ -387,7 +387,11 @@ export function useDashboardSidebarData() {
 		queries: pullRequestQueryTargets.map((target) => ({
 			queryKey: getDashboardSidebarPullRequestQueryKey(target),
 			refetchInterval: 10_000,
+			// Unreachable host: keep the query mounted so cached chips stay
+			// rendered through the outage; fetches resume when the URL returns.
+			enabled: target.hostUrl !== null,
 			queryFn: async () => {
+				if (!target.hostUrl) return { workspaces: [] };
 				const client = getHostServiceClientByUrl(target.hostUrl);
 				return client.pullRequests.getByWorkspaces.query({
 					workspaceIds: target.workspaceIds,
@@ -420,7 +424,7 @@ export function useDashboardSidebarData() {
 			const target = pullRequestQueryTargets.find(
 				(candidate) => candidate.machineId === workspace.hostId,
 			);
-			if (!target) return;
+			if (!target?.hostUrl) return;
 
 			const client = getHostServiceClientByUrl(target.hostUrl);
 			await client.pullRequests.refreshByWorkspaces.mutate({
