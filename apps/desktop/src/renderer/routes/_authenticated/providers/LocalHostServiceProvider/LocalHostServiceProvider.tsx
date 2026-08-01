@@ -5,6 +5,7 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 } from "react";
 import { env } from "renderer/env.renderer";
 import { authClient, useAuthToken } from "renderer/lib/auth-client";
@@ -43,10 +44,16 @@ export function LocalHostServiceProvider({
 	const { data: session } = authClient.useSession();
 	const { data: activeOrganization } = authClient.useActiveOrganization();
 	const authToken = useAuthToken();
-	const { mutate: persistOrganizationIds } =
+	const { mutateAsync: persistOrganizationIds } =
 		electronTrpc.auth.persistOrganizationIds.useMutation({
 			networkMode: "always",
 			retry: 3,
+			onError: (error) => {
+				console.error(
+					"[host-service] failed to persist organization membership",
+					error,
+				);
+			},
 		});
 
 	const activeOrganizationId = env.SKIP_ENV_VALIDATION
@@ -55,12 +62,51 @@ export function LocalHostServiceProvider({
 	const organizationIds = env.SKIP_ENV_VALIDATION
 		? MOCK_ORGANIZATION_IDS
 		: session?.session?.organizationIds;
+	const sessionToken = session?.session?.token ?? null;
+	const organizationIdsJson = organizationIds
+		? JSON.stringify([...new Set(organizationIds)].sort())
+		: null;
+	const stableOrganizationIds = useMemo(() => {
+		if (organizationIdsJson === null) return null;
+		return JSON.parse(organizationIdsJson) as string[];
+	}, [organizationIdsJson]);
+	const membershipVersion =
+		authToken && organizationIdsJson
+			? JSON.stringify([authToken, organizationIdsJson])
+			: null;
+	const lastPersistedMembershipRef = useRef<string | null>(null);
+
+	const persistMembership = useCallback(async (): Promise<void> => {
+		if (
+			!stableOrganizationIds ||
+			!authToken ||
+			!membershipVersion ||
+			lastPersistedMembershipRef.current === membershipVersion ||
+			(!env.SKIP_ENV_VALIDATION && sessionToken !== authToken)
+		) {
+			return;
+		}
+		try {
+			await persistOrganizationIds({
+				token: authToken,
+				organizationIds: stableOrganizationIds,
+			});
+			lastPersistedMembershipRef.current = membershipVersion;
+		} catch {
+			// The mutation logs after its bounded retries. A later host-readiness
+			// request calls this again so a transient IPC outage can still heal.
+		}
+	}, [
+		authToken,
+		membershipVersion,
+		persistOrganizationIds,
+		sessionToken,
+		stableOrganizationIds,
+	]);
 
 	useEffect(() => {
-		if (organizationIds && authToken) {
-			persistOrganizationIds({ token: authToken, organizationIds });
-		}
-	}, [authToken, organizationIds, persistOrganizationIds]);
+		void persistMembership();
+	}, [persistMembership]);
 
 	const { data: machineIdData } = electronTrpc.device.getMachineId.useQuery(
 		undefined,
@@ -92,6 +138,7 @@ export function LocalHostServiceProvider({
 		async (timeoutMs = 20_000): Promise<string | null> => {
 			const orgId = activeOrganizationId;
 			if (!orgId) return null;
+			await persistMembership();
 			// Resolve the live host URL if a port is up, else null. Swallows
 			// transient IPC/tRPC fetch failures so a poll error never rejects the
 			// nullable contract callers rely on.
@@ -122,7 +169,7 @@ export function LocalHostServiceProvider({
 			// trailing sleep, after the deadline elapsed.
 			return await tryGetHostUrl();
 		},
-		[activeOrganizationId, utils],
+		[activeOrganizationId, persistMembership, utils],
 	);
 
 	const activeOrganizationName = activeOrganization?.name ?? null;
