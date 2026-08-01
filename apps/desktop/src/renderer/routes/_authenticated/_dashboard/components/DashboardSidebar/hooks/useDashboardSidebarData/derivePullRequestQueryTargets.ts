@@ -31,12 +31,19 @@ export function derivePullRequestQueryTargets({
 	machineId,
 	relayUrl,
 	workspaces,
+	fallbackOrganizationId,
 }: {
 	activeHostUrl: string | null;
 	hosts: PullRequestQueryHostRow[];
 	machineId: string | null;
 	relayUrl: string;
 	workspaces: PullRequestQueryWorkspaceRow[];
+	/**
+	 * Org for the synthesized local target when the hosts list is empty
+	 * (cold start before sync) — without it that target keys the cache
+	 * under "" and re-keys once hosts arrive, cold-starting the entry.
+	 */
+	fallbackOrganizationId?: string | null;
 }): PullRequestQueryTarget[] {
 	const workspaceIdsByHostId = new Map<string, string[]>();
 	for (const workspace of workspaces) {
@@ -86,7 +93,8 @@ export function derivePullRequestQueryTargets({
 		const localWorkspaceIds = workspaceIdsByHostId.get(machineId);
 		if (localWorkspaceIds && localWorkspaceIds.length > 0) {
 			targets.push({
-				organizationId: hosts[0]?.organizationId ?? "",
+				organizationId:
+					hosts[0]?.organizationId ?? fallbackOrganizationId ?? "",
 				machineId,
 				hostType: "local-device",
 				hostUrl: activeHostUrl,

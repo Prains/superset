@@ -128,12 +128,15 @@ export function deriveHostPortQueryTargets({
 	machineId,
 	relayUrl,
 	workspaces,
+	fallbackOrganizationId,
 }: {
 	activeHostUrl: string | null;
 	hosts: DashboardSidebarHostRow[];
 	machineId: string | null;
 	relayUrl: string;
 	workspaces: DashboardSidebarWorkspaceRow[];
+	/** Org for the synthesized local target — see derivePullRequestQueryTargets. */
+	fallbackOrganizationId?: string | null;
 }): HostPortsQueryTarget[] {
 	const workspaceIdsByHostId = new Map<string, string[]>();
 	for (const workspace of workspaces) {
@@ -196,7 +199,8 @@ export function deriveHostPortQueryTargets({
 			}
 		} else {
 			targets.push({
-				organizationId: hosts[0]?.organizationId ?? "",
+				organizationId:
+					hosts[0]?.organizationId ?? fallbackOrganizationId ?? "",
 				machineId,
 				hostType: "local-device",
 				hostUrl: activeHostUrl,

@@ -1,10 +1,9 @@
-import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
+import { get as idbGet, set as idbSet } from "idb-keyval";
 
 /** Host identity fields the target-derivation read paths need. */
 export interface KnownHostRow {
 	organizationId: string;
 	machineId: string;
-	name: string;
 	isOnline: boolean;
 }
 
@@ -16,17 +15,19 @@ function snapshotKey(organizationId: string): string {
 
 /**
  * Pick the host list to derive query targets from. Live (Electric) rows win
- * outright; the last-seen snapshot only fills in when Electric serves
- * nothing — cold start before hydration, or a resync window where the
- * collection is transiently empty. Never merged row-by-row: when live data
- * exists it is the full truth, so a host deleted from the org can't be
- * resurrected by a stale snapshot.
+ * outright when present. An empty live list is authoritative only once the
+ * collection is ready — so deleting an org's last host clears the sidebar
+ * instead of a stale snapshot resurrecting it — while a not-yet-ready empty
+ * result (cold start, resync truncation) falls back to the last-seen
+ * snapshot.
  */
 export function resolveKnownHosts(
 	liveRows: KnownHostRow[],
 	snapshotRows: KnownHostRow[] | undefined,
+	liveReady: boolean,
 ): KnownHostRow[] {
 	if (liveRows.length > 0) return liveRows;
+	if (liveReady) return [];
 	return snapshotRows ?? [];
 }
 
@@ -45,7 +46,11 @@ export async function loadKnownHostsSnapshot(
 				typeof row.machineId === "string" &&
 				row.organizationId === organizationId,
 		);
-	} catch {
+	} catch (error) {
+		console.warn("[known-hosts] snapshot read failed", {
+			organizationId,
+			error,
+		});
 		return undefined;
 	}
 }
@@ -55,10 +60,10 @@ export function saveKnownHostsSnapshot(
 	rows: KnownHostRow[],
 ): void {
 	if (!organizationId) return;
-	void idbSet(snapshotKey(organizationId), rows).catch(() => {});
-}
-
-export function clearKnownHostsSnapshot(organizationId: string): void {
-	if (!organizationId) return;
-	void idbDel(snapshotKey(organizationId)).catch(() => {});
+	void idbSet(snapshotKey(organizationId), rows).catch((error) => {
+		console.warn("[known-hosts] snapshot write failed", {
+			organizationId,
+			error,
+		});
+	});
 }

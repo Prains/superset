@@ -61,11 +61,14 @@ export function deriveHostWorkspacesQueryTargets({
 	hosts,
 	machineId,
 	relayUrl,
+	fallbackOrganizationId,
 }: {
 	activeHostUrl: string | null;
 	hosts: HostRowForTargets[];
 	machineId: string | null;
 	relayUrl: string;
+	/** Org for the synthesized local target — see derivePullRequestQueryTargets. */
+	fallbackOrganizationId?: string | null;
 }): HostWorkspacesQueryTarget[] {
 	const targets: HostWorkspacesQueryTarget[] = hosts.map((host) => {
 		const isLocal = host.machineId === machineId;
@@ -91,7 +94,7 @@ export function deriveHostWorkspacesQueryTargets({
 	) {
 		targets.push({
 			machineId,
-			organizationId: hosts[0]?.organizationId ?? "",
+			organizationId: hosts[0]?.organizationId ?? fallbackOrganizationId ?? "",
 			hostUrl: activeHostUrl,
 			isLocal: true,
 		});

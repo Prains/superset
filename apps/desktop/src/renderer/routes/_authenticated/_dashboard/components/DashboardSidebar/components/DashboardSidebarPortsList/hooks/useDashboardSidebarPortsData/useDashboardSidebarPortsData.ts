@@ -39,7 +39,7 @@ export function useDashboardSidebarPortsData(): {
 	const relayUrl = useRelayUrl();
 	const visibleWorkspaceIds = useVisibleSidebarWorkspaceIds();
 
-	const { hosts } = useKnownHosts();
+	const { hosts, organizationId: knownHostsOrgId } = useKnownHosts();
 
 	const { workspaces: allWorkspaces } = useHostWorkspaces();
 	const workspaces = useMemo(
@@ -62,8 +62,9 @@ export function useDashboardSidebarPortsData(): {
 				machineId,
 				relayUrl,
 				workspaces,
+				fallbackOrganizationId: knownHostsOrgId,
 			}),
-		[activeHostUrl, hosts, machineId, relayUrl, workspaces],
+		[activeHostUrl, hosts, knownHostsOrgId, machineId, relayUrl, workspaces],
 	);
 
 	const queries = useQueries({

@@ -163,7 +163,7 @@ export function useDashboardSidebarData() {
 		(state) => state.byWorkspaceId,
 	);
 
-	const { hosts } = useKnownHosts();
+	const { hosts, organizationId: knownHostsOrgId } = useKnownHosts();
 	const hostsByMachineId = useMemo(
 		() => new Map(hosts.map((host) => [host.machineId, host])),
 		[hosts],
@@ -379,8 +379,16 @@ export function useDashboardSidebarData() {
 				machineId,
 				relayUrl,
 				workspaces: visibleSidebarWorkspaces,
+				fallbackOrganizationId: knownHostsOrgId,
 			}),
-		[activeHostUrl, hosts, machineId, relayUrl, visibleSidebarWorkspaces],
+		[
+			activeHostUrl,
+			hosts,
+			knownHostsOrgId,
+			machineId,
+			relayUrl,
+			visibleSidebarWorkspaces,
+		],
 	);
 
 	const pullRequestQueries = useQueries({

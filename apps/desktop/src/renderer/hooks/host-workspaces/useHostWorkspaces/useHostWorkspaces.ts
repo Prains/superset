@@ -74,7 +74,7 @@ export function useHostWorkspacesSource(
 	const { activeHostUrl, machineId } = useLocalHostService();
 	const relayUrl = useRelayUrl();
 
-	const { hosts } = useKnownHosts();
+	const { hosts, organizationId: knownHostsOrgId } = useKnownHosts();
 
 	const { data: cloudRows = [] } = useLiveQuery(
 		(q) => q.from({ workspaces: collections.v2Workspaces }),
@@ -87,11 +87,19 @@ export function useHostWorkspacesSource(
 			hosts,
 			machineId,
 			relayUrl,
+			fallbackOrganizationId: knownHostsOrgId,
 		});
 		return scopedHostId === undefined
 			? all
 			: all.filter((target) => target.machineId === scopedHostId);
-	}, [activeHostUrl, hosts, machineId, relayUrl, scopedHostId]);
+	}, [
+		activeHostUrl,
+		hosts,
+		knownHostsOrgId,
+		machineId,
+		relayUrl,
+		scopedHostId,
+	]);
 
 	// Last-seen snapshots hydrate once per (org, host); live data always wins.
 	const [snapshots, setSnapshots] = useState<Map<string, HostWorkspaceRow[]>>(

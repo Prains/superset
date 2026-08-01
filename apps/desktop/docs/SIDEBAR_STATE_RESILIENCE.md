@@ -7,7 +7,7 @@ direct React Query cache reads), except where marked.
 
 ## How the sidebar gets its data
 
-```
+```text
 v2Hosts (Electric)  ──┐
 machineId + activeHostUrl (coordinator IPC) ──┤→ targets (one per host)
                       │
