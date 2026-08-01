@@ -63,7 +63,15 @@ describe("getGitAuthorName", () => {
 	});
 
 	test("returns null when user.name is unset", async () => {
-		execFileSync("git", ["config", "--unset", "user.name"], { cwd: repoDir });
+		// Tolerant unset: exits non-zero when the key was never set, so this
+		// test doesn't depend on the set-test having run first.
+		try {
+			execFileSync("git", ["config", "--unset", "user.name"], {
+				cwd: repoDir,
+			});
+		} catch {
+			// key already absent
+		}
 		const git = simpleGit(repoDir).env(isolatedGitEnv());
 		expect(await getGitAuthorName(git)).toBeNull();
 	});
