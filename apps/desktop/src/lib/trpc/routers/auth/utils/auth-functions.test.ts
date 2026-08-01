@@ -8,6 +8,7 @@ const testSupersetHomeDir = fs.mkdtempSync(
 	path.join(os.tmpdir(), "auth-functions-test-"),
 );
 process.env.SUPERSET_HOME_DIR = testSupersetHomeDir;
+const tokenFile = path.join(testSupersetHomeDir, "auth-token.enc");
 
 // Keep this unit test independent from suite-global host-info mocks. The
 // persistence behavior under test only needs a reversible storage boundary.
@@ -16,17 +17,11 @@ mock.module("./crypto-storage", () => ({
 	decrypt: (data: Buffer) => data.toString("utf8"),
 }));
 
-const {
-	authEvents,
-	clearToken,
-	loadToken,
-	saveOrganizationIds,
-	saveToken,
-	TOKEN_FILE,
-} = await import("./auth-functions");
+const { authEvents, clearToken, loadToken, saveOrganizationIds, saveToken } =
+	await import("./auth-functions");
 
 beforeEach(() => {
-	fs.rmSync(TOKEN_FILE, { recursive: true, force: true });
+	fs.rmSync(tokenFile, { recursive: true, force: true });
 });
 
 afterAll(() => {
@@ -126,7 +121,7 @@ describe("cached organization membership", () => {
 	});
 
 	test("does not report sign-out when stored credentials cannot be removed", async () => {
-		fs.mkdirSync(TOKEN_FILE);
+		fs.mkdirSync(tokenFile);
 		const tokenCleared = mock(() => {});
 		authEvents.once("token-cleared", tokenCleared);
 

@@ -11,7 +11,12 @@ interface StoredAuth {
 	organizationIds?: string[];
 }
 
-export const TOKEN_FILE = join(SUPERSET_HOME_DIR, "auth-token.enc");
+function getTokenFile(): string {
+	return join(
+		process.env.SUPERSET_HOME_DIR || SUPERSET_HOME_DIR,
+		"auth-token.enc",
+	);
+}
 export const stateStore = new Map<string, number>();
 let authWriteQueue: Promise<void> = Promise.resolve();
 
@@ -41,7 +46,7 @@ export async function loadToken(): Promise<{
 	organizationIds: string[] | null;
 }> {
 	try {
-		const data = decrypt(await fs.readFile(TOKEN_FILE));
+		const data = decrypt(await fs.readFile(getTokenFile()));
 		const parsed: StoredAuth = JSON.parse(data);
 		return {
 			token: parsed.token,
@@ -70,7 +75,7 @@ export async function saveToken({
 }): Promise<void> {
 	await serializeAuthWrite(async () => {
 		const storedAuth: StoredAuth = { token, expiresAt };
-		await fs.writeFile(TOKEN_FILE, encrypt(JSON.stringify(storedAuth)));
+		await fs.writeFile(getTokenFile(), encrypt(JSON.stringify(storedAuth)));
 		authEvents.emit("token-saved", { token, expiresAt });
 	});
 }
@@ -78,7 +83,7 @@ export async function saveToken({
 export async function clearToken(): Promise<void> {
 	await serializeAuthWrite(async () => {
 		try {
-			await fs.unlink(TOKEN_FILE);
+			await fs.unlink(getTokenFile());
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		}
@@ -116,7 +121,7 @@ export async function saveOrganizationIds({
 		}
 
 		await fs.writeFile(
-			TOKEN_FILE,
+			getTokenFile(),
 			encrypt(
 				JSON.stringify({
 					token: storedAuth.token,
