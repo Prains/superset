@@ -44,7 +44,10 @@ export function LocalHostServiceProvider({
 	const { data: activeOrganization } = authClient.useActiveOrganization();
 	const authToken = useAuthToken();
 	const { mutate: persistOrganizationIds } =
-		electronTrpc.auth.persistOrganizationIds.useMutation();
+		electronTrpc.auth.persistOrganizationIds.useMutation({
+			networkMode: "always",
+			retry: 3,
+		});
 
 	const activeOrganizationId = env.SKIP_ENV_VALIDATION
 		? MOCK_ORG_ID
