@@ -8,10 +8,18 @@ import { decrypt, encrypt } from "./crypto-storage";
 interface StoredAuth {
 	token: string;
 	expiresAt: string;
+	organizationIds?: string[];
 }
 
 export const TOKEN_FILE = join(SUPERSET_HOME_DIR, "auth-token.enc");
 export const stateStore = new Map<string, number>();
+let authWriteQueue: Promise<void> = Promise.resolve();
+
+function serializeAuthWrite(operation: () => Promise<void>): Promise<void> {
+	const nextWrite = authWriteQueue.then(operation, operation);
+	authWriteQueue = nextWrite.catch(() => {});
+	return nextWrite;
+}
 
 /**
  * Event emitter for auth-related events.
@@ -19,6 +27,7 @@ export const stateStore = new Map<string, number>();
  *
  * Events:
  * - "token-saved": { token, expiresAt } - New token saved (OAuth callback)
+ * - "organization-ids-saved": { token, organizationIds } - Membership cached
  * - "token-cleared": (no data) - Token deleted (sign-out)
  */
 export const authEvents = new EventEmitter();
@@ -29,13 +38,23 @@ export const authEvents = new EventEmitter();
 export async function loadToken(): Promise<{
 	token: string | null;
 	expiresAt: string | null;
+	organizationIds: string[] | null;
 }> {
 	try {
 		const data = decrypt(await fs.readFile(TOKEN_FILE));
 		const parsed: StoredAuth = JSON.parse(data);
-		return { token: parsed.token, expiresAt: parsed.expiresAt };
+		return {
+			token: parsed.token,
+			expiresAt: parsed.expiresAt,
+			organizationIds: Array.isArray(parsed.organizationIds)
+				? parsed.organizationIds.filter(
+						(value): value is string =>
+							typeof value === "string" && value.length > 0,
+					)
+				: null,
+		};
 	} catch {
-		return { token: null, expiresAt: null };
+		return { token: null, expiresAt: null, organizationIds: null };
 	}
 }
 
@@ -49,9 +68,64 @@ export async function saveToken({
 	token: string;
 	expiresAt: string;
 }): Promise<void> {
-	const storedAuth: StoredAuth = { token, expiresAt };
-	await fs.writeFile(TOKEN_FILE, encrypt(JSON.stringify(storedAuth)));
-	authEvents.emit("token-saved", { token, expiresAt });
+	await serializeAuthWrite(async () => {
+		const storedAuth: StoredAuth = { token, expiresAt };
+		await fs.writeFile(TOKEN_FILE, encrypt(JSON.stringify(storedAuth)));
+		authEvents.emit("token-saved", { token, expiresAt });
+	});
+}
+
+export async function clearToken(): Promise<void> {
+	await serializeAuthWrite(async () => {
+		await fs.unlink(TOKEN_FILE).catch(() => {});
+		authEvents.emit("token-cleared");
+	});
+}
+
+/** Cache the last membership confirmed by the authenticated session. */
+export async function saveOrganizationIds({
+	token,
+	organizationIds,
+}: {
+	token: string;
+	organizationIds: string[];
+}): Promise<void> {
+	await serializeAuthWrite(async () => {
+		const storedAuth = await loadToken();
+		if (
+			storedAuth.token !== token ||
+			!storedAuth.token ||
+			!storedAuth.expiresAt
+		) {
+			return;
+		}
+
+		const normalizedIds = [...new Set(organizationIds)].sort();
+		if (
+			storedAuth.organizationIds &&
+			storedAuth.organizationIds.length === normalizedIds.length &&
+			storedAuth.organizationIds.every(
+				(id, index) => id === normalizedIds[index],
+			)
+		) {
+			return;
+		}
+
+		await fs.writeFile(
+			TOKEN_FILE,
+			encrypt(
+				JSON.stringify({
+					token: storedAuth.token,
+					expiresAt: storedAuth.expiresAt,
+					organizationIds: normalizedIds,
+				} satisfies StoredAuth),
+			),
+		);
+		authEvents.emit("organization-ids-saved", {
+			token: storedAuth.token,
+			organizationIds: normalizedIds,
+		});
+	});
 }
 
 /**

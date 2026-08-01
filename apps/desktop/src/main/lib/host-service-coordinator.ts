@@ -137,6 +137,7 @@ export class HostServiceCoordinator extends EventEmitter {
 	private machineId = getHostId();
 	private devReloadWatcher: fs.FSWatcher | null = null;
 	private respawns = new Map<string, RespawnState>();
+	private desiredOrganizationIds = new Set<string>();
 	private configProvider: (() => Promise<SpawnConfig | null>) | null = null;
 	/**
 	 * Seam for the respawn delay. Production uses `setTimeout`; tests replace it so
@@ -255,6 +256,7 @@ export class HostServiceCoordinator extends EventEmitter {
 	}
 
 	stopAll(): void {
+		this.desiredOrganizationIds.clear();
 		for (const [id] of this.instances) {
 			this.stop(id);
 		}
@@ -352,40 +354,50 @@ export class HostServiceCoordinator extends EventEmitter {
 	}
 
 	/**
-	 * Start host services for every org this machine has hosted before
-	 * ($SUPERSET_HOME_DIR/host/*). Runs at boot and on sign-in so background
-	 * reachability and port detection never wait for a renderer or cloud sync
-	 * to name orgs; a brand-new org (no dir yet) is started by the renderer
-	 * from its session.
+	 * Reconcile running host services to the authenticated membership set.
+	 * On-disk host directories are storage, not evidence of current membership.
 	 */
-	async startAllKnown(config: SpawnConfig): Promise<void> {
-		const hostRoot = path.join(SUPERSET_HOME_DIR, "host");
-		let entries: fs.Dirent[];
-		try {
-			entries = await fs.promises.readdir(hostRoot, { withFileTypes: true });
-		} catch (error) {
-			// No dir yet = nothing hosted before; anything else is worth seeing.
-			if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-				log.warn(
-					`[host-service-coordinator] cannot read host root ${hostRoot}:`,
-					error,
-				);
-			}
-			return;
-		}
-		const orgIdPattern = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i;
-		await Promise.allSettled(
-			entries
-				.filter((e) => e.isDirectory() && orgIdPattern.test(e.name))
-				.map((e) =>
-					this.start(e.name, config).catch((error) => {
-						log.warn(
-							`[host-service-coordinator] boot start failed for org ${e.name}:`,
-							error,
-						);
-					}),
-				),
+	async reconcile(
+		organizationIds: Iterable<string>,
+		config: SpawnConfig,
+	): Promise<void> {
+		this.desiredOrganizationIds = new Set(organizationIds);
+		this.stopUndesiredOrganizations();
+
+		await Promise.all(
+			[...this.desiredOrganizationIds].map(async (organizationId) => {
+				try {
+					await this.start(organizationId, config);
+				} catch (error) {
+					if (!this.desiredOrganizationIds.has(organizationId)) return;
+					log.warn(
+						`[host-service-coordinator] start failed for org ${organizationId}:`,
+						error,
+					);
+					if (!this.respawns.has(organizationId)) {
+						this.scheduleRespawn(organizationId, "initial start failed");
+					}
+				}
+			}),
 		);
+
+		// A newer reconciliation can replace the desired set while an older start
+		// is in flight. Re-check after every start settles so the older call cannot
+		// leave a service running for an organization that is no longer desired.
+		this.stopUndesiredOrganizations();
+	}
+
+	private stopUndesiredOrganizations(): void {
+		const trackedOrganizationIds = new Set([
+			...this.instances.keys(),
+			...this.pendingStarts.keys(),
+			...this.respawns.keys(),
+		]);
+		for (const organizationId of trackedOrganizationIds) {
+			if (!this.desiredOrganizationIds.has(organizationId)) {
+				this.stop(organizationId);
+			}
+		}
 	}
 
 	/**

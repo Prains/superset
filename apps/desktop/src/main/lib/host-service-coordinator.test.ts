@@ -178,6 +178,122 @@ describe("HostServiceCoordinator preferred ports", () => {
 	});
 });
 
+interface ReconcileInternals {
+	instances: Map<
+		string,
+		{
+			pid: number;
+			port: number;
+			secret: string;
+			status: "running";
+			owned: boolean;
+		}
+	>;
+	respawns: Map<string, unknown>;
+}
+
+describe("HostServiceCoordinator.reconcile", () => {
+	let coordinator: InstanceType<typeof HostServiceCoordinator>;
+	let internals: ReconcileInternals;
+
+	beforeEach(() => {
+		resetMocks();
+		testManifestRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hsc-test-"));
+		coordinator = new HostServiceCoordinator();
+		internals = coordinator as unknown as ReconcileInternals;
+	});
+
+	afterEach(() => {
+		coordinator.stopAll();
+		if (testManifestRoot) {
+			fs.rmSync(testManifestRoot, { recursive: true, force: true });
+			testManifestRoot = "";
+		}
+	});
+
+	test("starts only the unique organizations in the authenticated set", async () => {
+		const startMock = mock(async (organizationId: string) => {
+			internals.instances.set(organizationId, {
+				pid: organizationId === "org-1" ? 1001 : 1002,
+				port: 60_000,
+				secret: "secret",
+				status: "running",
+				owned: true,
+			});
+			return { port: 60_000, secret: "secret", machineId: "host-1" };
+		});
+		coordinator.start = startMock;
+
+		await coordinator.reconcile(["org-1", "org-2", "org-1"], spawnConfig);
+
+		expect(startMock).toHaveBeenCalledTimes(2);
+		expect(startMock).toHaveBeenCalledWith("org-1", spawnConfig);
+		expect(startMock).toHaveBeenCalledWith("org-2", spawnConfig);
+		expect([...internals.instances.keys()].sort()).toEqual(["org-1", "org-2"]);
+	});
+
+	test("stops a running service removed from the authenticated set", async () => {
+		internals.instances.set("stale-org", {
+			pid: 2001,
+			port: 60_001,
+			secret: "secret",
+			status: "running",
+			owned: true,
+		});
+		coordinator.start = mock(async () => ({
+			port: 60_000,
+			secret: "secret",
+			machineId: "host-1",
+		}));
+
+		await coordinator.reconcile([], spawnConfig);
+
+		expect(internals.instances.has("stale-org")).toBe(false);
+		expect(killedPids).toContainEqual({ pid: 2001, signal: "SIGTERM" });
+	});
+
+	test("an older in-flight reconciliation cannot restore a removed org", async () => {
+		let releaseOldStart: () => void = () => {};
+		const startMock = mock(async (organizationId: string) => {
+			if (organizationId === "old-org") {
+				await new Promise<void>((resolve) => {
+					releaseOldStart = resolve;
+				});
+			}
+			internals.instances.set(organizationId, {
+				pid: organizationId === "old-org" ? 3001 : 3002,
+				port: 60_000,
+				secret: "secret",
+				status: "running",
+				owned: true,
+			});
+			return { port: 60_000, secret: "secret", machineId: "host-1" };
+		});
+		coordinator.start = startMock;
+
+		const oldReconciliation = coordinator.reconcile(["old-org"], spawnConfig);
+		await Promise.resolve();
+		await coordinator.reconcile(["new-org"], spawnConfig);
+		releaseOldStart();
+		await oldReconciliation;
+
+		expect([...internals.instances.keys()]).toEqual(["new-org"]);
+		expect(killedPids).toContainEqual({ pid: 3001, signal: "SIGTERM" });
+	});
+
+	test("cancels startup recovery when membership is removed", async () => {
+		coordinator.start = mock(async () => {
+			throw new Error("start failed");
+		});
+
+		await coordinator.reconcile(["org-1"], spawnConfig);
+		expect(internals.respawns.has("org-1")).toBe(true);
+
+		await coordinator.reconcile([], spawnConfig);
+		expect(internals.respawns.has("org-1")).toBe(false);
+	});
+});
+
 describe("HostServiceCoordinator.reset", () => {
 	let coordinator: InstanceType<typeof HostServiceCoordinator>;
 	let spawnMock: ReturnType<typeof mock>;

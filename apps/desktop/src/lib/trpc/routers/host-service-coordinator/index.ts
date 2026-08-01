@@ -13,21 +13,6 @@ const orgInput = z.object({ organizationId: z.string() });
 
 export const createHostServiceCoordinatorRouter = () => {
 	return router({
-		start: publicProcedure.input(orgInput).mutation(async ({ input }) => {
-			const coordinator = getHostServiceCoordinator();
-			const { token } = await loadToken();
-			if (!token) {
-				throw new TRPCError({
-					code: "UNAUTHORIZED",
-					message: "No auth token available — user must be logged in",
-				});
-			}
-			return coordinator.start(input.organizationId, {
-				authToken: token,
-				cloudApiUrl: env.NEXT_PUBLIC_API_URL,
-			});
-		}),
-
 		getConnection: publicProcedure.input(orgInput).query(({ input }) => {
 			const coordinator = getHostServiceCoordinator();
 			return coordinator.getConnection(input.organizationId);
