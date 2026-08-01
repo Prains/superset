@@ -50,10 +50,21 @@ goes too and the sidebar is completely empty. Verified: this dev renderer had
 for the full ~190 s (snapshots never consulted — the targets were gone).
 
 Fix: `useKnownHosts` persists the last-seen host list to IndexedDB per org
-and serves it whenever Electric returns nothing. Live rows win outright when
-present (no row-level merge, so deleted hosts can't resurrect). Swapped into
-the four target-derivation read paths: `useHostWorkspaces`,
-`useHostProjects`, `useDashboardSidebarData`, `useDashboardSidebarPortsData`.
+and serves it while the collection is empty and not yet ready. A
+ready-but-empty list is authoritative (no ghost hosts); live rows win
+outright when present (no row-level merge, so deleted hosts can't
+resurrect). Swapped into the four target-derivation read paths:
+`useHostWorkspaces`, `useHostProjects`, `useDashboardSidebarData`,
+`useDashboardSidebarPortsData`.
+
+Assumption behind "ready + empty is authoritative" (verified in
+`@tanstack/electric-db-collection` 0.3.12 and 0.3.15): must-refetch
+truncation runs inside a transaction, so a synced collection never publicly
+serves a transient empty state. If a future upgrade makes truncation visible
+mid-refill, revisit `resolveKnownHosts`. Relatedly, 0.3.14 fixed progressive
+collections truncating persisted rows when resuming from saved shape
+metadata — a library-level cause of this exact vector — so keep the package
+at ≥0.3.14 (bumped on this branch).
 
 Verified A/B under the same harness: host-service SIGKILL with the snapshot
 seeded — rows held 3/3 through the whole outage (pre-fix: 0/3 for ~190 s);
