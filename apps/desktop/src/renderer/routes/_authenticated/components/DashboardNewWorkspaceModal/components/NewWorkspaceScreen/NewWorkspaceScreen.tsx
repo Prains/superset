@@ -468,9 +468,7 @@ export function NewWorkspaceScreen({
 
 	// ── Render ───────────────────────────────────────────────────────
 	return (
-		// no-drag: the screen overlays the TopBar's drag band, which would
-		// otherwise swallow clicks on controls rendered up there.
-		<div className="no-drag absolute inset-0 z-40 flex flex-col items-center overflow-y-auto bg-background">
+		<div className="absolute inset-0 z-40 flex flex-col items-center overflow-y-auto bg-background">
 			<AnimatePresence>
 				{isDraggingFiles && (
 					<motion.div
@@ -487,7 +485,9 @@ export function NewWorkspaceScreen({
 					</motion.div>
 				)}
 			</AnimatePresence>
-			<div className="absolute right-3 top-2.5 z-10">
+			{/* no-drag + clear of the page's window-drag strip (which ends at
+			    right-12) so the button actually receives clicks. */}
+			<div className="no-drag absolute right-3 top-2.5 z-10">
 				<PromptHistoryCommand
 					onSelect={(prompt) => applyPrompt(prompt, "end")}
 					tooltipLabel="Previous prompts"
