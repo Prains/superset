@@ -11,6 +11,44 @@ import type { DashboardSidebarWorkspace } from "../../types";
 
 const OPEN_DELAY_MS = 400;
 const CLOSE_DELAY_MS = 100;
+// Cap how long we'll tolerate the pointer drifting inside the safe triangle
+// before giving up and closing anyway, in case it stalls mid-gap.
+const SAFE_TRIANGLE_MAX_TRACK_MS = 1000;
+// How long a row suppressed by another row's safe triangle waits before
+// opening anyway. Covers the case where the pointer settles on this row
+// instead of continuing on to the original card — without this, a
+// suppressed open that never gets re-requested (mouseenter only fires once)
+// would just never open.
+const SUPPRESSED_OPEN_DWELL_MS = 150;
+
+interface Point {
+	x: number;
+	y: number;
+}
+
+// Standard same-sign point-in-triangle test via cross-product signs.
+function triangleSign(p1: Point, p2: Point, p3: Point): number {
+	return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+}
+
+function isPointInTriangle(pt: Point, a: Point, b: Point, c: Point): boolean {
+	const d1 = triangleSign(pt, a, b);
+	const d2 = triangleSign(pt, b, c);
+	const d3 = triangleSign(pt, c, a);
+	const hasNegative = d1 < 0 || d2 < 0 || d3 < 0;
+	const hasPositive = d1 > 0 || d2 > 0 || d3 > 0;
+	return !(hasNegative && hasPositive);
+}
+
+// The two corners of the card's near edge — the base of the safe triangle.
+// The card always renders on the sidebar's right (side="right"), so that's
+// always its left edge.
+function getNearCardCorners(cardRect: DOMRect): [Point, Point] {
+	return [
+		{ x: cardRect.left, y: cardRect.top },
+		{ x: cardRect.left, y: cardRect.bottom },
+	];
+}
 
 export interface DashboardSidebarHoverPayload {
 	workspace: DashboardSidebarWorkspace;
@@ -29,18 +67,37 @@ interface HoverContextValue {
 	payload: DashboardSidebarHoverPayload | null;
 	contextMenuOpen: boolean;
 	hoverCardSuppressed: boolean;
+	/**
+	 * `enterPoint` (the pointer position entering this trigger) lets a safe
+	 * triangle in progress for a *different* row suppress this open — rows
+	 * are stacked with no gap, so cutting diagonally toward a taller open
+	 * card routinely crosses over sibling rows on the way.
+	 */
 	requestOpen: (
 		id: string,
 		anchor: HTMLElement,
 		payload: DashboardSidebarHoverPayload,
+		enterPoint?: Point,
 	) => void;
-	requestClose: (id: string) => void;
+	/**
+	 * `leavePoint` (the pointer position where it left the trigger) enables
+	 * safe-triangle tracking: while the pointer keeps moving through the gap
+	 * on a path aimed at the open card, the close is held off instead of
+	 * firing the instant the trigger is left.
+	 */
+	requestClose: (id: string, leavePoint?: Point) => void;
 	cancelClose: () => void;
 	forceClose: () => void;
 	setContextMenuOpen: (open: boolean) => void;
 	beginHoverCardSuppression: () => void;
 	endHoverCardSuppression: () => void;
 	syncIfHovered: (id: string, payload: DashboardSidebarHoverPayload) => void;
+	/**
+	 * Registers the rendered card element so its rect can be read live, on
+	 * demand — the popover has a CSS entrance transition, so a rect snapshot
+	 * cached at mount time can go stale before its transform settles.
+	 */
+	setCardElement: (element: HTMLElement | null) => void;
 }
 
 const HoverContext = createContext<HoverContextValue | null>(null);
@@ -74,6 +131,18 @@ export function DashboardSidebarHoverProvider({
 
 	const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const cardElementRef = useRef<HTMLElement | null>(null);
+	const triangleCleanupRef = useRef<(() => void) | null>(null);
+	const activeTriangleRef = useRef<{
+		apex: Point;
+		cornerA: Point;
+		cornerB: Point;
+		forId: string;
+	} | null>(null);
+	const suppressedOpenRef = useRef<{
+		id: string;
+		timer: ReturnType<typeof setTimeout>;
+	} | null>(null);
 
 	const clearOpenTimer = useCallback(() => {
 		if (openTimerRef.current) {
@@ -87,10 +156,38 @@ export function DashboardSidebarHoverProvider({
 			closeTimerRef.current = null;
 		}
 	}, []);
+	const stopSafeTriangleTracking = useCallback(() => {
+		triangleCleanupRef.current?.();
+		triangleCleanupRef.current = null;
+		activeTriangleRef.current = null;
+	}, []);
+	const cancelSuppressedOpen = useCallback(() => {
+		if (suppressedOpenRef.current) {
+			clearTimeout(suppressedOpenRef.current.timer);
+			suppressedOpenRef.current = null;
+		}
+	}, []);
 
-	const requestOpen = useCallback<HoverContextValue["requestOpen"]>(
-		(id, anchor, payload) => {
+	const setCardElement = useCallback((element: HTMLElement | null) => {
+		cardElementRef.current = element;
+	}, []);
+
+	const scheduleClose = useCallback(() => {
+		clearCloseTimer();
+		closeTimerRef.current = setTimeout(() => {
+			setState({ hoveredId: null, anchorElement: null, payload: null });
+			closeTimerRef.current = null;
+		}, CLOSE_DELAY_MS);
+	}, [clearCloseTimer]);
+
+	const performOpen = useCallback(
+		(
+			id: string,
+			anchor: HTMLElement,
+			payload: DashboardSidebarHoverPayload,
+		) => {
 			clearCloseTimer();
+			stopSafeTriangleTracking();
 			if (stateRef.current.hoveredId !== null) {
 				clearOpenTimer();
 				setState({ hoveredId: id, anchorElement: anchor, payload });
@@ -102,35 +199,127 @@ export function DashboardSidebarHoverProvider({
 				openTimerRef.current = null;
 			}, OPEN_DELAY_MS);
 		},
-		[clearCloseTimer, clearOpenTimer],
+		[clearCloseTimer, clearOpenTimer, stopSafeTriangleTracking],
+	);
+
+	const requestOpen = useCallback<HoverContextValue["requestOpen"]>(
+		(id, anchor, payload, enterPoint) => {
+			if (suppressedOpenRef.current && suppressedOpenRef.current.id !== id) {
+				cancelSuppressedOpen();
+			}
+
+			const activeTriangle = activeTriangleRef.current;
+			if (
+				activeTriangle &&
+				activeTriangle.forId !== id &&
+				enterPoint &&
+				isPointInTriangle(
+					enterPoint,
+					activeTriangle.apex,
+					activeTriangle.cornerA,
+					activeTriangle.cornerB,
+				)
+			) {
+				// Pointer is cutting through this row on a path aimed at the
+				// still-open card — don't switch hover yet, but don't drop the
+				// request either: if the pointer settles here instead of
+				// reaching the card, open it after a short dwell.
+				if (!suppressedOpenRef.current) {
+					const timer = setTimeout(() => {
+						suppressedOpenRef.current = null;
+						performOpen(id, anchor, payload);
+					}, SUPPRESSED_OPEN_DWELL_MS);
+					suppressedOpenRef.current = { id, timer };
+				}
+				return;
+			}
+
+			cancelSuppressedOpen();
+			performOpen(id, anchor, payload);
+		},
+		[cancelSuppressedOpen, performOpen],
 	);
 
 	const requestClose = useCallback<HoverContextValue["requestClose"]>(
-		(id) => {
+		(id, leavePoint) => {
+			if (suppressedOpenRef.current?.id === id) {
+				// Left before the dwell fired — this row was just being cut
+				// through, not settled on.
+				cancelSuppressedOpen();
+			}
 			if (openTimerRef.current && stateRef.current.hoveredId === null) {
 				// Pending open for this id — cancel it.
 				clearOpenTimer();
 				return;
 			}
 			if (stateRef.current.hoveredId !== id) return;
-			clearCloseTimer();
-			closeTimerRef.current = setTimeout(() => {
-				setState({ hoveredId: null, anchorElement: null, payload: null });
-				closeTimerRef.current = null;
-			}, CLOSE_DELAY_MS);
+
+			const cardRect = cardElementRef.current?.getBoundingClientRect() ?? null;
+			if (!leavePoint || !cardRect) {
+				scheduleClose();
+				return;
+			}
+			const corners = getNearCardCorners(cardRect);
+
+			// Safe triangle: apex at the point the pointer left the trigger, base
+			// at the card's near edge. Keep the card open while the pointer stays
+			// inside it — that's a path aimed at the card, not away from it.
+			stopSafeTriangleTracking();
+			const [cornerA, cornerB] = corners;
+			activeTriangleRef.current = {
+				apex: leavePoint,
+				cornerA,
+				cornerB,
+				forId: id,
+			};
+			const handlePointerMove = (event: MouseEvent) => {
+				const point = { x: event.clientX, y: event.clientY };
+				if (isPointInTriangle(point, leavePoint, cornerA, cornerB)) {
+					return;
+				}
+				stopSafeTriangleTracking();
+				scheduleClose();
+			};
+			document.addEventListener("mousemove", handlePointerMove);
+			// Backstop: if the pointer stops moving entirely (or events just don't
+			// arrive) while still "inside" the cone, don't stay open forever.
+			const deadlineTimer = setTimeout(() => {
+				stopSafeTriangleTracking();
+				scheduleClose();
+			}, SAFE_TRIANGLE_MAX_TRACK_MS);
+			triangleCleanupRef.current = () => {
+				document.removeEventListener("mousemove", handlePointerMove);
+				clearTimeout(deadlineTimer);
+			};
 		},
-		[clearCloseTimer, clearOpenTimer],
+		[
+			cancelSuppressedOpen,
+			clearOpenTimer,
+			scheduleClose,
+			stopSafeTriangleTracking,
+		],
 	);
 
 	const cancelClose = useCallback(() => {
 		clearCloseTimer();
-	}, [clearCloseTimer]);
+		stopSafeTriangleTracking();
+		// Pointer reached the real target card — any row it grazed on the way
+		// was just being cut through, not settled on.
+		cancelSuppressedOpen();
+	}, [cancelSuppressedOpen, clearCloseTimer, stopSafeTriangleTracking]);
 
 	const forceClose = useCallback(() => {
 		clearOpenTimer();
 		clearCloseTimer();
+		stopSafeTriangleTracking();
+		cancelSuppressedOpen();
 		setState({ hoveredId: null, anchorElement: null, payload: null });
-	}, [clearCloseTimer, clearOpenTimer]);
+	}, [
+		cancelSuppressedOpen,
+		clearCloseTimer,
+		clearOpenTimer,
+		stopSafeTriangleTracking,
+	]);
 
 	const syncIfHovered = useCallback<HoverContextValue["syncIfHovered"]>(
 		(id, payload) => {
@@ -152,8 +341,15 @@ export function DashboardSidebarHoverProvider({
 		() => () => {
 			clearOpenTimer();
 			clearCloseTimer();
+			stopSafeTriangleTracking();
+			cancelSuppressedOpen();
 		},
-		[clearCloseTimer, clearOpenTimer],
+		[
+			cancelSuppressedOpen,
+			clearCloseTimer,
+			clearOpenTimer,
+			stopSafeTriangleTracking,
+		],
 	);
 
 	const value = useMemo<HoverContextValue>(
@@ -171,6 +367,7 @@ export function DashboardSidebarHoverProvider({
 			beginHoverCardSuppression,
 			endHoverCardSuppression,
 			syncIfHovered,
+			setCardElement,
 		}),
 		[
 			state.hoveredId,
@@ -185,6 +382,7 @@ export function DashboardSidebarHoverProvider({
 			beginHoverCardSuppression,
 			endHoverCardSuppression,
 			syncIfHovered,
+			setCardElement,
 		],
 	);
 
