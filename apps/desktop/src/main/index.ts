@@ -417,12 +417,15 @@ if (!gotTheLock) {
 		// The authenticated session's cached membership is the source of truth.
 		// Host data on disk can outlive membership and must never resurrect an
 		// obsolete service. This cache keeps subsequent launches offline-capable.
+		let authGeneration = 0;
 		const reconcileHostServices = async (providedAuth?: {
 			token: string;
 			organizationIds: string[];
 		}) => {
+			const generation = authGeneration;
 			try {
 				const storedAuth = providedAuth ?? (await loadToken());
+				if (generation !== authGeneration) return;
 				if (!storedAuth.token || !storedAuth.organizationIds) return;
 				await hostServiceCoordinator.reconcile(storedAuth.organizationIds, {
 					authToken: storedAuth.token,
@@ -435,11 +438,20 @@ if (!gotTheLock) {
 		void reconcileHostServices();
 		// A new token can belong to a different account. Stop immediately and wait
 		// for that account's session membership before starting anything.
-		authEvents.on("token-saved", () => hostServiceCoordinator.stopAll());
+		authEvents.on("token-saved", () => {
+			authGeneration++;
+			hostServiceCoordinator.stopAll();
+		});
+		authEvents.on("token-cleared", () => {
+			authGeneration++;
+			hostServiceCoordinator.stopAll();
+		});
 		authEvents.on(
 			"organization-ids-saved",
-			(data: { token: string; organizationIds: string[] }) =>
-				void reconcileHostServices(data),
+			(data: { token: string; organizationIds: string[] }) => {
+				authGeneration++;
+				void reconcileHostServices(data);
+			},
 		);
 
 		try {

@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import { join } from "node:path";
 import { SUPERSET_HOME_DIR } from "main/lib/app-environment";
+import { lock } from "proper-lockfile";
 import { PROTOCOL_SCHEME } from "shared/constants";
 import { decrypt, encrypt } from "./crypto-storage";
 
@@ -9,6 +11,7 @@ interface StoredAuth {
 	token: string;
 	expiresAt: string;
 	organizationIds?: string[];
+	organizationIdsConfirmedAt?: number;
 }
 
 function getTokenFile(): string {
@@ -17,11 +20,76 @@ function getTokenFile(): string {
 		"auth-token.enc",
 	);
 }
+
+async function withAuthLock(operation: () => Promise<void>): Promise<void> {
+	const release = await lock(getTokenFile(), {
+		realpath: false,
+		stale: 10_000,
+		retries: { retries: 10, factor: 1, minTimeout: 25, maxTimeout: 250 },
+	});
+	try {
+		await operation();
+	} finally {
+		await release();
+	}
+}
+
+function parseStoredAuth(data: Buffer): StoredAuth {
+	const parsed: unknown = JSON.parse(decrypt(data));
+	if (!parsed || typeof parsed !== "object") {
+		throw new Error("Invalid stored auth payload");
+	}
+	const candidate = parsed as Record<string, unknown>;
+	if (
+		typeof candidate.token !== "string" ||
+		typeof candidate.expiresAt !== "string"
+	) {
+		throw new Error("Invalid stored auth payload");
+	}
+	return {
+		token: candidate.token,
+		expiresAt: candidate.expiresAt,
+		organizationIds: Array.isArray(candidate.organizationIds)
+			? candidate.organizationIds.filter(
+					(value): value is string =>
+						typeof value === "string" && value.length > 0,
+				)
+			: undefined,
+		organizationIdsConfirmedAt:
+			typeof candidate.organizationIdsConfirmedAt === "number" &&
+			Number.isFinite(candidate.organizationIdsConfirmedAt)
+				? candidate.organizationIdsConfirmedAt
+				: undefined,
+	};
+}
+
+async function readStoredAuth(): Promise<StoredAuth | null> {
+	try {
+		return parseStoredAuth(await fs.readFile(getTokenFile()));
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+		throw error;
+	}
+}
+
+async function writeStoredAuth(storedAuth: StoredAuth): Promise<void> {
+	const tokenFile = getTokenFile();
+	const temporaryFile = `${tokenFile}.${process.pid}.${randomUUID()}.tmp`;
+	try {
+		await fs.writeFile(temporaryFile, encrypt(JSON.stringify(storedAuth)), {
+			mode: 0o600,
+		});
+		await fs.rename(temporaryFile, tokenFile);
+	} finally {
+		await fs.rm(temporaryFile, { force: true });
+	}
+}
 export const stateStore = new Map<string, number>();
 let authWriteQueue: Promise<void> = Promise.resolve();
 
 function serializeAuthWrite(operation: () => Promise<void>): Promise<void> {
-	const nextWrite = authWriteQueue.then(operation, operation);
+	const lockedOperation = () => withAuthLock(operation);
+	const nextWrite = authWriteQueue.then(lockedOperation, lockedOperation);
 	authWriteQueue = nextWrite.catch(() => {});
 	return nextWrite;
 }
@@ -46,17 +114,14 @@ export async function loadToken(): Promise<{
 	organizationIds: string[] | null;
 }> {
 	try {
-		const data = decrypt(await fs.readFile(getTokenFile()));
-		const parsed: StoredAuth = JSON.parse(data);
+		const parsed = await readStoredAuth();
+		if (!parsed) {
+			return { token: null, expiresAt: null, organizationIds: null };
+		}
 		return {
 			token: parsed.token,
 			expiresAt: parsed.expiresAt,
-			organizationIds: Array.isArray(parsed.organizationIds)
-				? parsed.organizationIds.filter(
-						(value): value is string =>
-							typeof value === "string" && value.length > 0,
-					)
-				: null,
+			organizationIds: parsed.organizationIds ?? null,
 		};
 	} catch {
 		return { token: null, expiresAt: null, organizationIds: null };
@@ -75,7 +140,7 @@ export async function saveToken({
 }): Promise<void> {
 	await serializeAuthWrite(async () => {
 		const storedAuth: StoredAuth = { token, expiresAt };
-		await fs.writeFile(getTokenFile(), encrypt(JSON.stringify(storedAuth)));
+		await writeStoredAuth(storedAuth);
 		authEvents.emit("token-saved", { token, expiresAt });
 	});
 }
@@ -95,41 +160,29 @@ export async function clearToken(): Promise<void> {
 export async function saveOrganizationIds({
 	token,
 	organizationIds,
+	confirmedAt,
 }: {
 	token: string;
 	organizationIds: string[];
+	confirmedAt: number;
 }): Promise<void> {
 	await serializeAuthWrite(async () => {
-		const storedAuth = await loadToken();
+		const storedAuth = await readStoredAuth();
 		if (
+			!storedAuth ||
 			storedAuth.token !== token ||
-			!storedAuth.token ||
-			!storedAuth.expiresAt
+			confirmedAt <= (storedAuth.organizationIdsConfirmedAt ?? 0)
 		) {
 			return;
 		}
 
 		const normalizedIds = [...new Set(organizationIds)].sort();
-		if (
-			storedAuth.organizationIds &&
-			storedAuth.organizationIds.length === normalizedIds.length &&
-			storedAuth.organizationIds.every(
-				(id, index) => id === normalizedIds[index],
-			)
-		) {
-			return;
-		}
-
-		await fs.writeFile(
-			getTokenFile(),
-			encrypt(
-				JSON.stringify({
-					token: storedAuth.token,
-					expiresAt: storedAuth.expiresAt,
-					organizationIds: normalizedIds,
-				} satisfies StoredAuth),
-			),
-		);
+		await writeStoredAuth({
+			token: storedAuth.token,
+			expiresAt: storedAuth.expiresAt,
+			organizationIds: normalizedIds,
+			organizationIdsConfirmedAt: confirmedAt,
+		});
 		authEvents.emit("organization-ids-saved", {
 			token: storedAuth.token,
 			organizationIds: normalizedIds,

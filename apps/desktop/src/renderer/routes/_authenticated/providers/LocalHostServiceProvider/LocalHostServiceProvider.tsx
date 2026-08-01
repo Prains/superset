@@ -74,6 +74,20 @@ export function LocalHostServiceProvider({
 		authToken && organizationIdsJson
 			? JSON.stringify([authToken, organizationIdsJson])
 			: null;
+	const membershipSnapshotRef = useRef({
+		version: null as string | null,
+		confirmedAt: 0,
+	});
+	if (membershipSnapshotRef.current.version !== membershipVersion) {
+		membershipSnapshotRef.current = {
+			version: membershipVersion,
+			confirmedAt: Math.max(
+				Date.now(),
+				membershipSnapshotRef.current.confirmedAt + 1,
+			),
+		};
+	}
+	const membershipConfirmedAt = membershipSnapshotRef.current.confirmedAt;
 	const lastPersistedMembershipRef = useRef<string | null>(null);
 
 	const persistMembership = useCallback(async (): Promise<void> => {
@@ -90,6 +104,7 @@ export function LocalHostServiceProvider({
 			await persistOrganizationIds({
 				token: authToken,
 				organizationIds: stableOrganizationIds,
+				confirmedAt: membershipConfirmedAt,
 			});
 			lastPersistedMembershipRef.current = membershipVersion;
 		} catch {
@@ -98,6 +113,7 @@ export function LocalHostServiceProvider({
 		}
 	}, [
 		authToken,
+		membershipConfirmedAt,
 		membershipVersion,
 		persistOrganizationIds,
 		sessionToken,

@@ -42,6 +42,7 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "token",
 			organizationIds: ["org-2", "org-1", "org-2"],
+			confirmedAt: 1,
 		});
 
 		expect(await loadToken()).toEqual({
@@ -55,11 +56,12 @@ describe("cached organization membership", () => {
 		});
 	});
 
-	test("does not emit when the confirmed membership is unchanged", async () => {
+	test("confirms unchanged membership for the current app process", async () => {
 		await saveToken({ token: "token", expiresAt: "2099-01-01" });
 		await saveOrganizationIds({
 			token: "token",
 			organizationIds: ["org-1", "org-2"],
+			confirmedAt: 1,
 		});
 		const membershipSaved = mock(() => {});
 		authEvents.once("organization-ids-saved", membershipSaved);
@@ -67,10 +69,13 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "token",
 			organizationIds: ["org-2", "org-1"],
+			confirmedAt: 2,
 		});
 
-		expect(membershipSaved).not.toHaveBeenCalled();
-		authEvents.off("organization-ids-saved", membershipSaved);
+		expect(membershipSaved).toHaveBeenCalledWith({
+			token: "token",
+			organizationIds: ["org-1", "org-2"],
+		});
 	});
 
 	test("clears cached membership when a different token is saved", async () => {
@@ -78,6 +83,7 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "old-token",
 			organizationIds: ["old-org"],
+			confirmedAt: 1,
 		});
 
 		await saveToken({ token: "new-token", expiresAt: "2099-02-01" });
@@ -95,6 +101,7 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "old-token",
 			organizationIds: ["old-org"],
+			confirmedAt: 1,
 		});
 
 		expect(await loadToken()).toEqual({
@@ -111,6 +118,7 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "old-token",
 			organizationIds: ["old-org"],
+			confirmedAt: 1,
 		});
 
 		expect(await loadToken()).toEqual({
@@ -118,6 +126,39 @@ describe("cached organization membership", () => {
 			expiresAt: null,
 			organizationIds: null,
 		});
+	});
+
+	test("ignores a delayed retry from an older membership snapshot", async () => {
+		await saveToken({ token: "token", expiresAt: "2099-01-01" });
+		await saveOrganizationIds({
+			token: "token",
+			organizationIds: ["current-org"],
+			confirmedAt: 2,
+		});
+
+		await saveOrganizationIds({
+			token: "token",
+			organizationIds: ["removed-org"],
+			confirmedAt: 1,
+		});
+
+		expect(await loadToken()).toEqual({
+			token: "token",
+			expiresAt: "2099-01-01",
+			organizationIds: ["current-org"],
+		});
+	});
+
+	test("surfaces unexpected cache read failures to the retrying mutation", async () => {
+		fs.mkdirSync(tokenFile);
+
+		await expect(
+			saveOrganizationIds({
+				token: "token",
+				organizationIds: ["org-1"],
+				confirmedAt: 1,
+			}),
+		).rejects.toThrow();
 	});
 
 	test("does not report sign-out when stored credentials cannot be removed", async () => {

@@ -338,6 +338,28 @@ describe("HostServiceCoordinator.reconcile", () => {
 		await coordinator.reconcile([], spawnConfig);
 		expect(internals.respawns.has("org-1")).toBe(false);
 	});
+
+	test("does not schedule recovery for a superseded start failure", async () => {
+		let rejectOldStart: (error: Error) => void = () => {};
+		let startCount = 0;
+		coordinator.start = mock(async () => {
+			startCount++;
+			if (startCount === 1) {
+				await new Promise<void>((_resolve, reject) => {
+					rejectOldStart = reject;
+				});
+			}
+			return { port: 60_000, secret: "secret", machineId: "host-1" };
+		});
+
+		const oldReconciliation = coordinator.reconcile(["org-1"], spawnConfig);
+		await Promise.resolve();
+		await coordinator.reconcile(["org-1"], spawnConfig);
+		rejectOldStart(new Error("superseded start"));
+		await oldReconciliation;
+
+		expect(internals.respawns.has("org-1")).toBe(false);
+	});
 });
 
 describe("HostServiceCoordinator.reset", () => {

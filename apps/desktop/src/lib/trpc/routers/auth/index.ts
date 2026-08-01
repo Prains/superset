@@ -44,6 +44,7 @@ export const createAuthRouter = () => {
 				z.object({
 					token: z.string(),
 					organizationIds: z.array(z.string()),
+					confirmedAt: z.number().int().nonnegative(),
 				}),
 			)
 			.mutation(async ({ input }) => {

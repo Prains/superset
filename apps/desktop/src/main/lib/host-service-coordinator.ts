@@ -408,6 +408,7 @@ export class HostServiceCoordinator extends EventEmitter {
 		config: SpawnConfig,
 	): Promise<void> {
 		this.startGeneration++;
+		const reconciliationGeneration = this.startGeneration;
 		this.desiredOrganizationIds = new Set(
 			[...organizationIds].filter(isSafeOrganizationId),
 		);
@@ -418,6 +419,7 @@ export class HostServiceCoordinator extends EventEmitter {
 				try {
 					await this.start(organizationId, config);
 				} catch (error) {
+					if (this.startGeneration !== reconciliationGeneration) return;
 					if (!this.desiredOrganizationIds.has(organizationId)) return;
 					log.warn(
 						`[host-service-coordinator] start failed for org ${organizationId}:`,
