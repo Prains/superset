@@ -3,6 +3,7 @@ import path from "node:path";
 import { ImageResponse } from "next/og";
 import { getChangelogEntry } from "@/lib/changelog";
 import { formatChangelogDate } from "@/lib/changelog-utils";
+import { getInterBold } from "@/lib/og-font";
 
 export const alt = "Superset Changelog";
 export const size = { width: 1200, height: 630 };
@@ -24,10 +25,6 @@ function readFileAsDataUri({
 	}
 }
 
-const interBold = fetch(
-	"https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYMZhrib2Bg-4.ttf",
-).then((res) => res.arrayBuffer());
-
 export default async function Image({
 	params,
 }: {
@@ -35,7 +32,7 @@ export default async function Image({
 }) {
 	const { slug } = await params;
 	const entry = getChangelogEntry(slug);
-	const fontData = await interBold;
+	const fontData = await getInterBold();
 	const logoDataUri = readFileAsDataUri({
 		filePath: "title.svg",
 		mime: "image/svg+xml",

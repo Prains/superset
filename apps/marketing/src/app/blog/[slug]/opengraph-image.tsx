@@ -3,6 +3,7 @@ import path from "node:path";
 import { ImageResponse } from "next/og";
 import { getBlogPost } from "@/lib/blog";
 import { formatBlogDate } from "@/lib/blog-utils";
+import { getInterBold } from "@/lib/og-font";
 
 export const alt = "Superset Blog";
 export const size = { width: 1200, height: 630 };
@@ -35,10 +36,6 @@ function getAvatarDataUri(avatarPath: string): string | null {
 	return readFileAsDataUri({ filePath: avatarPath, mime });
 }
 
-const interBold = fetch(
-	"https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYMZhrib2Bg-4.ttf",
-).then((res) => res.arrayBuffer());
-
 export default async function Image({
 	params,
 }: {
@@ -46,7 +43,7 @@ export default async function Image({
 }) {
 	const { slug } = await params;
 	const post = getBlogPost(slug);
-	const fontData = await interBold;
+	const fontData = await getInterBold();
 	const logoDataUri = readFileAsDataUri({
 		filePath: "title.svg",
 		mime: "image/svg+xml",
