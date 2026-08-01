@@ -4,12 +4,17 @@ import { env } from "main/env.main";
 import {
 	getHostServiceCoordinator,
 	type HostServiceStatusEvent,
+	isSafeOrganizationId,
 } from "main/lib/host-service-coordinator";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { loadToken } from "../auth/utils/auth-functions";
 
-const orgInput = z.object({ organizationId: z.string() });
+const orgInput = z.object({
+	organizationId: z.string().refine(isSafeOrganizationId, {
+		message: "Invalid organization ID",
+	}),
+});
 
 export const createHostServiceCoordinatorRouter = () => {
 	return router({

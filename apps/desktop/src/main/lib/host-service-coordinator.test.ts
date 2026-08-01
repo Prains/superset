@@ -404,6 +404,21 @@ describe("HostServiceCoordinator.reset", () => {
 		expect(conn.port).toBe(60000);
 	});
 
+	test("restart rejects an unsafe organization ID before dispatch", async () => {
+		await expect(
+			coordinator.restart("../outside", spawnConfig),
+		).rejects.toThrow("Invalid organization ID");
+		expect(spawnMock).not.toHaveBeenCalled();
+	});
+
+	test("reset rejects an unsafe organization ID before reading manifests", async () => {
+		await expect(coordinator.reset("../outside", spawnConfig)).rejects.toThrow(
+			"Invalid organization ID",
+		);
+		expect(readManifestMock).not.toHaveBeenCalled();
+		expect(spawnMock).not.toHaveBeenCalled();
+	});
+
 	test("skips SIGKILL when the manifest pid is no longer alive", async () => {
 		manifestStore.current = baseManifest(9999);
 		isProcessAliveMock.mockImplementationOnce(() => false);

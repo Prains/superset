@@ -111,6 +111,16 @@ const STABLE_PORT_BASE = 48_000;
 const STABLE_PORT_COUNT = 1_000;
 const SAFE_ORGANIZATION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
+export function isSafeOrganizationId(organizationId: string): boolean {
+	return SAFE_ORGANIZATION_ID_PATTERN.test(organizationId);
+}
+
+function assertSafeOrganizationId(organizationId: string): void {
+	if (!isSafeOrganizationId(organizationId)) {
+		throw new Error("Invalid organization ID");
+	}
+}
+
 function getStablePortForOrganization(organizationId: string): number {
 	let hash = 2_166_136_261;
 	for (let index = 0; index < organizationId.length; index++) {
@@ -171,6 +181,7 @@ export class HostServiceCoordinator extends EventEmitter {
 		organizationId: string,
 		config: SpawnConfig,
 	): Promise<Connection> {
+		assertSafeOrganizationId(organizationId);
 		return this.startWithPreferredPorts(organizationId, config);
 	}
 
@@ -304,6 +315,7 @@ export class HostServiceCoordinator extends EventEmitter {
 		organizationId: string,
 		config: SpawnConfig,
 	): Promise<Connection> {
+		assertSafeOrganizationId(organizationId);
 		const preferredPorts = this.getPreferredPorts(organizationId);
 		this.stop(organizationId);
 		return this.startWithPreferredPorts(organizationId, config, preferredPorts);
@@ -322,6 +334,7 @@ export class HostServiceCoordinator extends EventEmitter {
 		organizationId: string,
 		config: SpawnConfig,
 	): Promise<Connection> {
+		assertSafeOrganizationId(organizationId);
 		// Capture the manifest pid *before* stop() — stop() removes the manifest
 		// for tracked instances and only sends SIGTERM, which a wedged process
 		// can ignore. We escalate to SIGKILL on whatever pid the manifest named.
@@ -396,9 +409,7 @@ export class HostServiceCoordinator extends EventEmitter {
 	): Promise<void> {
 		this.startGeneration++;
 		this.desiredOrganizationIds = new Set(
-			[...organizationIds].filter((organizationId) =>
-				SAFE_ORGANIZATION_ID_PATTERN.test(organizationId),
-			),
+			[...organizationIds].filter(isSafeOrganizationId),
 		);
 		this.stopUndesiredOrganizations();
 
