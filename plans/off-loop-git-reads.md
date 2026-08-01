@@ -69,6 +69,12 @@ New procedures should not join this list: build them as a worker task plus
 an `offLoop()` resolver (`src/trpc/off-loop.ts`) — `prepare` runs on-loop
 and returns plain data, the task runs in the pool.
 
+Pool-level follow-up: task cancellation. Handlers are non-cancellable today
+(caller abort rejects the promise; the handler and any child process run to
+completion, bounded by their own timeouts). Proper cancellation needs an
+abort message in the worker protocol driving a per-task AbortController —
+applies to all tasks, raised on PR #6107 review.
+
 ## Backlog — desktop
 
 Same convention: entries with a `no-main-process-blocking.test.ts`
