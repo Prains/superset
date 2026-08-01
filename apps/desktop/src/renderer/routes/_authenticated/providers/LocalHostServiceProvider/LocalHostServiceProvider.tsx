@@ -7,7 +7,7 @@ import {
 	useMemo,
 } from "react";
 import { env } from "renderer/env.renderer";
-import { authClient, getAuthToken } from "renderer/lib/auth-client";
+import { authClient, useAuthToken } from "renderer/lib/auth-client";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	setClientMachineId,
@@ -42,6 +42,7 @@ export function LocalHostServiceProvider({
 	const utils = electronTrpc.useUtils();
 	const { data: session } = authClient.useSession();
 	const { data: activeOrganization } = authClient.useActiveOrganization();
+	const authToken = useAuthToken();
 	const { mutate: persistOrganizationIds } =
 		electronTrpc.auth.persistOrganizationIds.useMutation();
 
@@ -53,11 +54,10 @@ export function LocalHostServiceProvider({
 		: session?.session?.organizationIds;
 
 	useEffect(() => {
-		const token = getAuthToken();
-		if (organizationIds && token) {
-			persistOrganizationIds({ token, organizationIds });
+		if (organizationIds && authToken) {
+			persistOrganizationIds({ token: authToken, organizationIds });
 		}
-	}, [organizationIds, persistOrganizationIds]);
+	}, [authToken, organizationIds, persistOrganizationIds]);
 
 	const { data: machineIdData } = electronTrpc.device.getMachineId.useQuery(
 		undefined,

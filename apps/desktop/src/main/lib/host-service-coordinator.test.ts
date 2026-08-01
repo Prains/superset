@@ -232,6 +232,23 @@ describe("HostServiceCoordinator.reconcile", () => {
 		expect([...internals.instances.keys()].sort()).toEqual(["org-1", "org-2"]);
 	});
 
+	test("ignores organization IDs that are unsafe as path segments", async () => {
+		const startMock = mock(async () => ({
+			port: 60_000,
+			secret: "secret",
+			machineId: "host-1",
+		}));
+		coordinator.start = startMock;
+
+		await coordinator.reconcile(
+			["org-1", "../outside", "org/child", "org\\child", ".", ".."],
+			spawnConfig,
+		);
+
+		expect(startMock).toHaveBeenCalledTimes(1);
+		expect(startMock).toHaveBeenCalledWith("org-1", spawnConfig);
+	});
+
 	test("stops a running service removed from the authenticated set", async () => {
 		internals.instances.set("stale-org", {
 			pid: 2001,
@@ -279,6 +296,35 @@ describe("HostServiceCoordinator.reconcile", () => {
 
 		expect([...internals.instances.keys()]).toEqual(["new-org"]);
 		expect(killedPids).toContainEqual({ pid: 3001, signal: "SIGTERM" });
+	});
+
+	test("stopAll tears down a service that finishes starting late", async () => {
+		let releaseStart: () => void = () => {};
+		const startOrAdoptMock = mock(async (organizationId: string) => {
+			await new Promise<void>((resolve) => {
+				releaseStart = resolve;
+			});
+			internals.instances.set(organizationId, {
+				pid: 4001,
+				port: 60_000,
+				secret: "secret",
+				status: "running",
+				owned: true,
+			});
+			return { port: 60_000, secret: "secret", machineId: "host-1" };
+		});
+		(
+			coordinator as unknown as { startOrAdopt: typeof startOrAdoptMock }
+		).startOrAdopt = startOrAdoptMock;
+
+		const pendingStart = coordinator.start("org-1", spawnConfig);
+		await Promise.resolve();
+		coordinator.stopAll();
+		releaseStart();
+
+		await expect(pendingStart).rejects.toThrow("start cancelled");
+		expect(internals.instances.size).toBe(0);
+		expect(killedPids).toContainEqual({ pid: 4001, signal: "SIGTERM" });
 	});
 
 	test("cancels startup recovery when membership is removed", async () => {

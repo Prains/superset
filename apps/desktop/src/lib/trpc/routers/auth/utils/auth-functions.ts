@@ -77,7 +77,11 @@ export async function saveToken({
 
 export async function clearToken(): Promise<void> {
 	await serializeAuthWrite(async () => {
-		await fs.unlink(TOKEN_FILE).catch(() => {});
+		try {
+			await fs.unlink(TOKEN_FILE);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		}
 		authEvents.emit("token-cleared");
 	});
 }

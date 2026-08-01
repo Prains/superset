@@ -26,7 +26,7 @@ const {
 } = await import("./auth-functions");
 
 beforeEach(() => {
-	fs.rmSync(TOKEN_FILE, { force: true });
+	fs.rmSync(TOKEN_FILE, { recursive: true, force: true });
 });
 
 afterAll(() => {
@@ -123,5 +123,15 @@ describe("cached organization membership", () => {
 			expiresAt: null,
 			organizationIds: null,
 		});
+	});
+
+	test("does not report sign-out when stored credentials cannot be removed", async () => {
+		fs.mkdirSync(TOKEN_FILE);
+		const tokenCleared = mock(() => {});
+		authEvents.once("token-cleared", tokenCleared);
+
+		await expect(clearToken()).rejects.toThrow();
+		expect(tokenCleared).not.toHaveBeenCalled();
+		authEvents.off("token-cleared", tokenCleared);
 	});
 });
