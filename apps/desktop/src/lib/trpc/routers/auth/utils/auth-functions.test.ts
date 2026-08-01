@@ -9,6 +9,13 @@ const testSupersetHomeDir = fs.mkdtempSync(
 );
 process.env.SUPERSET_HOME_DIR = testSupersetHomeDir;
 
+// Keep this unit test independent from suite-global host-info mocks. The
+// persistence behavior under test only needs a reversible storage boundary.
+mock.module("./crypto-storage", () => ({
+	encrypt: (plaintext: string) => Buffer.from(plaintext),
+	decrypt: (data: Buffer) => data.toString("utf8"),
+}));
+
 const {
 	authEvents,
 	clearToken,
