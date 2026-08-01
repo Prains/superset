@@ -53,7 +53,6 @@ import { ProjectPickerPill } from "../DashboardNewWorkspaceForm/PromptGroup/comp
 import { PromptHistoryCommand } from "../DashboardNewWorkspaceForm/PromptGroup/components/PromptHistoryCommand";
 import { useBranchPickerController } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/useBranchPickerController";
 import { useLinkedContext } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/useLinkedContext";
-import { usePromptHistoryRecall } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/usePromptHistoryRecall";
 import { useSubmitWorkspace } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/useSubmitWorkspace";
 import {
 	useFileIdsForHost,
@@ -87,7 +86,6 @@ export function NewWorkspaceScreen({
 }: NewWorkspaceScreenProps) {
 	const navigate = useNavigate();
 	const [promptSeed, setPromptSeed] = useState(0);
-	const [promptCaret, setPromptCaret] = useState<"start" | "end">("end");
 	const openInFinderMutation = electronTrpc.external.openInFinder.useMutation();
 	const { closeModal, draft, updateDraft, resetKey } =
 		useDashboardNewWorkspaceDraft();
@@ -234,17 +232,12 @@ export function NewWorkspaceScreen({
 	// The markdown editor is uncontrolled after mount, so programmatic prompt
 	// insertion bumps promptSeed to remount it with the new content.
 	const applyPrompt = useCallback(
-		(prompt: string, caret: "start" | "end") => {
+		(prompt: string) => {
 			updateDraft({ prompt });
-			setPromptCaret(caret);
 			setPromptSeed((seed) => seed + 1);
 		},
 		[updateDraft],
 	);
-	const { onArrowUpAtStart, onArrowDownAtEnd } = usePromptHistoryRecall({
-		currentPrompt: draft.prompt,
-		applyPrompt,
-	});
 	const {
 		addLinkedIssue,
 		addLinkedGitHubIssue,
@@ -489,7 +482,7 @@ export function NewWorkspaceScreen({
 			    right-12) so the button actually receives clicks. */}
 			<div className="no-drag absolute right-3 top-2.5 z-10">
 				<PromptHistoryCommand
-					onSelect={(prompt) => applyPrompt(prompt, "end")}
+					onSelect={applyPrompt}
 					tooltipLabel="Previous prompts"
 				>
 					<Button
@@ -520,9 +513,7 @@ export function NewWorkspaceScreen({
 							transition={{ type: "tween", duration: 0.15, ease: "easeOut" }}
 							className="absolute inset-x-6 bottom-full mb-1"
 						>
-							<SamplePrompts
-								onSelect={(prompt) => applyPrompt(prompt, "end")}
-							/>
+							<SamplePrompts onSelect={applyPrompt} />
 						</motion.div>
 					)}
 				</AnimatePresence>
@@ -594,9 +585,7 @@ export function NewWorkspaceScreen({
 						onChange={(markdown) => updateDraft({ prompt: markdown })}
 						onPasteFiles={(files) => attachments.add(files)}
 						onEnterSubmit={handleSubmit}
-						onArrowUpAtStart={onArrowUpAtStart}
-						onArrowDownAtEnd={onArrowDownAtEnd}
-						autoFocus={promptSeed > 0 ? promptCaret : "start"}
+						autoFocus={promptSeed > 0 ? "end" : "start"}
 						placeholder="What do you want to do?"
 						className="flex flex-col min-h-[80px] max-h-[200px] px-3 pt-3"
 						editorClassName="overflow-y-auto text-sm"

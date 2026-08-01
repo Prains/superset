@@ -55,7 +55,6 @@ import { PromptHistoryCommand } from "./components/PromptHistoryCommand";
 import { UploadingAttachmentPill } from "./components/UploadingAttachmentPill";
 import { useBranchPickerController } from "./hooks/useBranchPickerController";
 import { useLinkedContext } from "./hooks/useLinkedContext";
-import { usePromptHistoryRecall } from "./hooks/usePromptHistoryRecall";
 import { useSubmitWorkspace } from "./hooks/useSubmitWorkspace";
 import {
 	useFileIdsForHost,
@@ -88,7 +87,6 @@ export function PromptGroup({
 	// prompt bumps this seed to remount it with the new content (same pattern
 	// as NewWorkspaceScreen's sample prompts).
 	const [promptSeed, setPromptSeed] = useState(0);
-	const [promptCaret, setPromptCaret] = useState<"start" | "end">("end");
 	const isNewWorkspaceModalOpen = useNewWorkspaceModalOpen();
 	const { closeModal, draft, updateDraft, resetKey } =
 		useDashboardNewWorkspaceDraft();
@@ -214,17 +212,12 @@ export function PromptGroup({
 		: "";
 
 	const applyPrompt = useCallback(
-		(nextPrompt: string, caret: "start" | "end") => {
+		(nextPrompt: string) => {
 			updateDraft({ prompt: nextPrompt });
-			setPromptCaret(caret);
 			setPromptSeed((seed) => seed + 1);
 		},
 		[updateDraft],
 	);
-	const { onArrowUpAtStart, onArrowDownAtEnd } = usePromptHistoryRecall({
-		currentPrompt: prompt,
-		applyPrompt,
-	});
 
 	// Reset baseBranch on project or host change, defaulting to the user's
 	// last selected branch for that project when one exists.
@@ -415,7 +408,7 @@ export function PromptGroup({
 					/>
 				</div>
 				<PromptHistoryCommand
-					onSelect={(selectedPrompt) => applyPrompt(selectedPrompt, "end")}
+					onSelect={applyPrompt}
 					tooltipLabel="Previous prompts"
 				>
 					<Button
@@ -502,9 +495,7 @@ export function PromptGroup({
 					content={prompt}
 					onChange={(markdown) => updateDraft({ prompt: markdown })}
 					onPasteFiles={(files) => attachments.add(files)}
-					onArrowUpAtStart={onArrowUpAtStart}
-					onArrowDownAtEnd={onArrowDownAtEnd}
-					autoFocus={promptSeed > 0 ? promptCaret : "start"}
+					autoFocus={promptSeed > 0 ? "end" : "start"}
 					placeholder="What do you want to do?"
 					className="flex flex-col min-h-[100px] max-h-[200px] px-3 pt-3"
 					editorClassName="overflow-y-auto text-sm"
