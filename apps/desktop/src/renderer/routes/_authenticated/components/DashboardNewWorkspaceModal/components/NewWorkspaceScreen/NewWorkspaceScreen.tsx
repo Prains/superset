@@ -16,7 +16,7 @@ import { toast } from "@superset/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpIcon, PaperclipIcon } from "lucide-react";
+import { ArrowUpIcon, HistoryIcon, PaperclipIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GoIssueOpened } from "react-icons/go";
 import { LuGitPullRequest } from "react-icons/lu";
@@ -50,6 +50,7 @@ import { LinkedGitHubIssuePill } from "../DashboardNewWorkspaceForm/PromptGroup/
 import { LinkedPRPill } from "../DashboardNewWorkspaceForm/PromptGroup/components/LinkedPRPill";
 import { PRLinkCommand } from "../DashboardNewWorkspaceForm/PromptGroup/components/PRLinkCommand";
 import { ProjectPickerPill } from "../DashboardNewWorkspaceForm/PromptGroup/components/ProjectPickerPill";
+import { PromptHistoryCommand } from "../DashboardNewWorkspaceForm/PromptGroup/components/PromptHistoryCommand";
 import { useBranchPickerController } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/useBranchPickerController";
 import { useLinkedContext } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/useLinkedContext";
 import { useSubmitWorkspace } from "../DashboardNewWorkspaceForm/PromptGroup/hooks/useSubmitWorkspace";
@@ -605,6 +606,20 @@ export function NewWorkspaceScreen({
 							)}
 						</PromptInputTools>
 						<div className="flex items-center gap-2">
+							<PromptHistoryCommand
+								onSelect={(prompt) => {
+									updateDraft({ prompt });
+									setPromptSeed((seed) => seed + 1);
+								}}
+								tooltipLabel="Previous prompts"
+							>
+								<PromptInputButton
+									aria-label="Previous prompts"
+									className={`${PILL_BUTTON_CLASS} w-[22px]`}
+								>
+									<HistoryIcon className="size-3.5" />
+								</PromptInputButton>
+							</PromptHistoryCommand>
 							<IssueLinkCommand
 								onSelect={addLinkedIssue}
 								tooltipLabel="Link issue"
