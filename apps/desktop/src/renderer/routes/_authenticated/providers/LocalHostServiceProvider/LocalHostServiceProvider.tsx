@@ -74,20 +74,12 @@ export function LocalHostServiceProvider({
 		authToken && organizationIdsJson
 			? JSON.stringify([authToken, organizationIdsJson])
 			: null;
-	const membershipSnapshotRef = useRef({
-		version: null as string | null,
-		confirmedAt: 0,
-	});
-	if (membershipSnapshotRef.current.version !== membershipVersion) {
-		membershipSnapshotRef.current = {
-			version: membershipVersion,
-			confirmedAt: Math.max(
-				Date.now(),
-				membershipSnapshotRef.current.confirmedAt + 1,
-			),
-		};
+	const currentMembershipVersionRef = useRef(membershipVersion);
+	currentMembershipVersionRef.current = membershipVersion;
+	const membershipRevisionRef = useRef({ token: authToken, revision: 0 });
+	if (membershipRevisionRef.current.token !== authToken) {
+		membershipRevisionRef.current = { token: authToken, revision: 0 };
 	}
-	const membershipConfirmedAt = membershipSnapshotRef.current.confirmedAt;
 	const lastPersistedMembershipRef = useRef<string | null>(null);
 
 	const persistMembership = useCallback(async (): Promise<void> => {
@@ -101,19 +93,38 @@ export function LocalHostServiceProvider({
 			return;
 		}
 		try {
-			await persistOrganizationIds({
-				token: authToken,
-				organizationIds: stableOrganizationIds,
-				confirmedAt: membershipConfirmedAt,
-			});
-			lastPersistedMembershipRef.current = membershipVersion;
+			// Compare-and-swap against a main-process revision. A conflict teaches
+			// this renderer the current revision without allowing an older request
+			// to overwrite a newer membership snapshot.
+			for (let attempt = 0; attempt < 3; attempt++) {
+				const result = await persistOrganizationIds({
+					token: authToken,
+					organizationIds: stableOrganizationIds,
+					expectedRevision: membershipRevisionRef.current.revision,
+				});
+				if (membershipRevisionRef.current.token !== authToken) return;
+				if (result.status === "token-mismatch") return;
+				membershipRevisionRef.current.revision = Math.max(
+					membershipRevisionRef.current.revision,
+					result.revision,
+				);
+				if (result.status === "saved") {
+					if (currentMembershipVersionRef.current === membershipVersion) {
+						lastPersistedMembershipRef.current = membershipVersion;
+					}
+					return;
+				}
+				if (currentMembershipVersionRef.current !== membershipVersion) return;
+			}
+			console.error(
+				"[host-service] membership changed too frequently to persist",
+			);
 		} catch {
 			// The mutation logs after its bounded retries. A later host-readiness
 			// request calls this again so a transient IPC outage can still heal.
 		}
 	}, [
 		authToken,
-		membershipConfirmedAt,
 		membershipVersion,
 		persistOrganizationIds,
 		sessionToken,

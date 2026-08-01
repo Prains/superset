@@ -11,7 +11,7 @@ interface StoredAuth {
 	token: string;
 	expiresAt: string;
 	organizationIds?: string[];
-	organizationIdsConfirmedAt?: number;
+	organizationIdsRevision?: number;
 }
 
 function getTokenFile(): string {
@@ -21,14 +21,16 @@ function getTokenFile(): string {
 	);
 }
 
-async function withAuthLock(operation: () => Promise<void>): Promise<void> {
+async function withAuthLock<Result>(
+	operation: () => Promise<Result>,
+): Promise<Result> {
 	const release = await lock(getTokenFile(), {
 		realpath: false,
 		stale: 10_000,
 		retries: { retries: 10, factor: 1, minTimeout: 25, maxTimeout: 250 },
 	});
 	try {
-		await operation();
+		return await operation();
 	} finally {
 		await release();
 	}
@@ -55,10 +57,11 @@ function parseStoredAuth(data: Buffer): StoredAuth {
 						typeof value === "string" && value.length > 0,
 				)
 			: undefined,
-		organizationIdsConfirmedAt:
-			typeof candidate.organizationIdsConfirmedAt === "number" &&
-			Number.isFinite(candidate.organizationIdsConfirmedAt)
-				? candidate.organizationIdsConfirmedAt
+		organizationIdsRevision:
+			typeof candidate.organizationIdsRevision === "number" &&
+			Number.isSafeInteger(candidate.organizationIdsRevision) &&
+			candidate.organizationIdsRevision >= 0
+				? candidate.organizationIdsRevision
 				: undefined,
 	};
 }
@@ -85,12 +88,17 @@ async function writeStoredAuth(storedAuth: StoredAuth): Promise<void> {
 	}
 }
 export const stateStore = new Map<string, number>();
-let authWriteQueue: Promise<void> = Promise.resolve();
+let authWriteQueue: Promise<unknown> = Promise.resolve();
 
-function serializeAuthWrite(operation: () => Promise<void>): Promise<void> {
+function serializeAuthWrite<Result>(
+	operation: () => Promise<Result>,
+): Promise<Result> {
 	const lockedOperation = () => withAuthLock(operation);
 	const nextWrite = authWriteQueue.then(lockedOperation, lockedOperation);
-	authWriteQueue = nextWrite.catch(() => {});
+	authWriteQueue = nextWrite.then(
+		() => undefined,
+		() => undefined,
+	);
 	return nextWrite;
 }
 
@@ -112,19 +120,31 @@ export async function loadToken(): Promise<{
 	token: string | null;
 	expiresAt: string | null;
 	organizationIds: string[] | null;
+	organizationIdsRevision: number;
 }> {
 	try {
 		const parsed = await readStoredAuth();
 		if (!parsed) {
-			return { token: null, expiresAt: null, organizationIds: null };
+			return {
+				token: null,
+				expiresAt: null,
+				organizationIds: null,
+				organizationIdsRevision: 0,
+			};
 		}
 		return {
 			token: parsed.token,
 			expiresAt: parsed.expiresAt,
 			organizationIds: parsed.organizationIds ?? null,
+			organizationIdsRevision: parsed.organizationIdsRevision ?? 0,
 		};
 	} catch {
-		return { token: null, expiresAt: null, organizationIds: null };
+		return {
+			token: null,
+			expiresAt: null,
+			organizationIds: null,
+			organizationIdsRevision: 0,
+		};
 	}
 }
 
@@ -160,33 +180,43 @@ export async function clearToken(): Promise<void> {
 export async function saveOrganizationIds({
 	token,
 	organizationIds,
-	confirmedAt,
+	expectedRevision,
 }: {
 	token: string;
 	organizationIds: string[];
-	confirmedAt: number;
-}): Promise<void> {
-	await serializeAuthWrite(async () => {
+	expectedRevision: number;
+}): Promise<
+	| { status: "saved"; revision: number }
+	| { status: "conflict"; revision: number }
+	| { status: "token-mismatch"; revision: number }
+> {
+	return await serializeAuthWrite(async () => {
 		const storedAuth = await readStoredAuth();
-		if (
-			!storedAuth ||
-			storedAuth.token !== token ||
-			confirmedAt <= (storedAuth.organizationIdsConfirmedAt ?? 0)
-		) {
-			return;
+		if (!storedAuth || storedAuth.token !== token) {
+			return { status: "token-mismatch" as const, revision: 0 };
+		}
+
+		const currentRevision = storedAuth.organizationIdsRevision ?? 0;
+		if (expectedRevision !== currentRevision) {
+			return { status: "conflict" as const, revision: currentRevision };
+		}
+		if (currentRevision === Number.MAX_SAFE_INTEGER) {
+			throw new Error("Organization membership revision exhausted");
 		}
 
 		const normalizedIds = [...new Set(organizationIds)].sort();
+		const revision = currentRevision + 1;
 		await writeStoredAuth({
 			token: storedAuth.token,
 			expiresAt: storedAuth.expiresAt,
 			organizationIds: normalizedIds,
-			organizationIdsConfirmedAt: confirmedAt,
+			organizationIdsRevision: revision,
 		});
 		authEvents.emit("organization-ids-saved", {
 			token: storedAuth.token,
 			organizationIds: normalizedIds,
 		});
+		return { status: "saved" as const, revision };
 	});
 }
 

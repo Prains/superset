@@ -42,13 +42,14 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "token",
 			organizationIds: ["org-2", "org-1", "org-2"],
-			confirmedAt: 1,
+			expectedRevision: 0,
 		});
 
 		expect(await loadToken()).toEqual({
 			token: "token",
 			expiresAt: "2099-01-01",
 			organizationIds: ["org-1", "org-2"],
+			organizationIdsRevision: 1,
 		});
 		expect(membershipSaved).toHaveBeenCalledWith({
 			token: "token",
@@ -61,7 +62,7 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "token",
 			organizationIds: ["org-1", "org-2"],
-			confirmedAt: 1,
+			expectedRevision: 0,
 		});
 		const membershipSaved = mock(() => {});
 		authEvents.once("organization-ids-saved", membershipSaved);
@@ -69,7 +70,7 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "token",
 			organizationIds: ["org-2", "org-1"],
-			confirmedAt: 2,
+			expectedRevision: 1,
 		});
 
 		expect(membershipSaved).toHaveBeenCalledWith({
@@ -83,7 +84,7 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "old-token",
 			organizationIds: ["old-org"],
-			confirmedAt: 1,
+			expectedRevision: 0,
 		});
 
 		await saveToken({ token: "new-token", expiresAt: "2099-02-01" });
@@ -92,6 +93,7 @@ describe("cached organization membership", () => {
 			token: "new-token",
 			expiresAt: "2099-02-01",
 			organizationIds: null,
+			organizationIdsRevision: 0,
 		});
 	});
 
@@ -101,13 +103,14 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "old-token",
 			organizationIds: ["old-org"],
-			confirmedAt: 1,
+			expectedRevision: 0,
 		});
 
 		expect(await loadToken()).toEqual({
 			token: "new-token",
 			expiresAt: "2099-02-01",
 			organizationIds: null,
+			organizationIdsRevision: 0,
 		});
 	});
 
@@ -118,13 +121,14 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "old-token",
 			organizationIds: ["old-org"],
-			confirmedAt: 1,
+			expectedRevision: 0,
 		});
 
 		expect(await loadToken()).toEqual({
 			token: null,
 			expiresAt: null,
 			organizationIds: null,
+			organizationIdsRevision: 0,
 		});
 	});
 
@@ -133,19 +137,21 @@ describe("cached organization membership", () => {
 		await saveOrganizationIds({
 			token: "token",
 			organizationIds: ["current-org"],
-			confirmedAt: 2,
+			expectedRevision: 0,
 		});
 
-		await saveOrganizationIds({
+		const result = await saveOrganizationIds({
 			token: "token",
 			organizationIds: ["removed-org"],
-			confirmedAt: 1,
+			expectedRevision: 0,
 		});
 
+		expect(result).toEqual({ status: "conflict", revision: 1 });
 		expect(await loadToken()).toEqual({
 			token: "token",
 			expiresAt: "2099-01-01",
 			organizationIds: ["current-org"],
+			organizationIdsRevision: 1,
 		});
 	});
 
@@ -156,7 +162,7 @@ describe("cached organization membership", () => {
 			saveOrganizationIds({
 				token: "token",
 				organizationIds: ["org-1"],
-				confirmedAt: 1,
+				expectedRevision: 0,
 			}),
 		).rejects.toThrow();
 	});
