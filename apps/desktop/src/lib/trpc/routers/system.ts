@@ -43,9 +43,27 @@ async function detectGhCli(): Promise<GhDetectResult> {
 	return { installed: true, authenticated, version, path: "gh" };
 }
 
+interface BrewDetectResult {
+	installed: boolean;
+	version: string | null;
+}
+
+async function detectBrew(): Promise<BrewDetectResult> {
+	try {
+		const { stdout } = await execWithShellEnv("brew", ["--version"], {
+			timeout: 5000,
+		});
+		const version = stdout.match(/Homebrew (\S+)/)?.[1] ?? null;
+		return { installed: true, version };
+	} catch {
+		return { installed: false, version: null };
+	}
+}
+
 export const createSystemRouter = () => {
 	return router({
 		detectGhCli: publicProcedure.query(detectGhCli),
+		detectBrew: publicProcedure.query(detectBrew),
 	});
 };
 

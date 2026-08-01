@@ -8,21 +8,29 @@ import {
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useTerminalAppearance } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/TerminalPane/hooks/useTerminalAppearance";
 
-const GH_AUTH_COMMAND =
-	"gh auth login --hostname github.com --git-protocol https --web";
-
 interface GhAuthTerminalProps {
+	command: string;
 	/** Fired when the gh process exits (success or failure). */
 	onExit: () => void;
+	/** Fired with each chunk of raw terminal output. */
+	onOutput?: (data: string) => void;
 }
 
-export function GhAuthTerminal({ onExit }: GhAuthTerminalProps) {
+export function GhAuthTerminal({
+	command,
+	onExit,
+	onOutput,
+}: GhAuthTerminalProps) {
 	const appearance = useTerminalAppearance();
 	const appearanceRef = useRef(appearance);
 	appearanceRef.current = appearance;
 	const containerRef = useRef<HTMLDivElement>(null);
 	const onExitRef = useRef(onExit);
 	onExitRef.current = onExit;
+	const onOutputRef = useRef(onOutput);
+	onOutputRef.current = onOutput;
+	const commandRef = useRef(command);
+	commandRef.current = command;
 
 	useEffect(() => {
 		const container = containerRef.current;
@@ -61,6 +69,7 @@ export function GhAuthTerminal({ onExit }: GhAuthTerminalProps) {
 			onData: (event) => {
 				if (event.type === "data") {
 					runtime.terminal.write(event.data);
+					onOutputRef.current?.(event.data);
 				} else if (event.type === "exit" && !exited) {
 					exited = true;
 					onExitRef.current();
@@ -72,7 +81,7 @@ export function GhAuthTerminal({ onExit }: GhAuthTerminalProps) {
 			paneId,
 			tabId: paneId,
 			workspaceId: paneId,
-			command: GH_AUTH_COMMAND,
+			command: commandRef.current,
 			cols: runtime.terminal.cols,
 			rows: runtime.terminal.rows,
 			skipColdRestore: true,
