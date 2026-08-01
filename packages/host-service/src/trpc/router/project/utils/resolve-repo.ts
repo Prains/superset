@@ -1,4 +1,8 @@
-import { existsSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
+// Recursive deletes go through async `rm`: a failed clone/init rolls back an
+// entire repo directory, and rmSync would hold the event loop for the whole
+// walk.
+import { rm } from "node:fs/promises";
 import { join, resolve as resolvePath } from "node:path";
 import { parseGitHubRemote } from "@superset/shared/github-remote";
 import { TRPCError } from "@trpc/server";
@@ -294,7 +298,7 @@ export async function initEmptyRepo(
 		}
 		return { repoPath: targetPath, remoteName: null, parsed: null };
 	} catch (err) {
-		rmSync(targetPath, { recursive: true, force: true });
+		await rm(targetPath, { recursive: true, force: true });
 		throw err;
 	}
 }
@@ -330,7 +334,7 @@ export async function cloneTemplateInto(
 		await (env ? cloneGit.env(env) : cloneGit).clone(templateUrl, targetPath, [
 			"--depth=1",
 		]);
-		rmSync(join(targetPath, ".git"), { recursive: true, force: true });
+		await rm(join(targetPath, ".git"), { recursive: true, force: true });
 
 		await gitInitMainBranch(targetPath);
 		const git = createUserSimpleGit(targetPath);
@@ -342,7 +346,7 @@ export async function cloneTemplateInto(
 		}
 		return { repoPath: targetPath, remoteName: null, parsed: null };
 	} catch (err) {
-		rmSync(targetPath, { recursive: true, force: true });
+		await rm(targetPath, { recursive: true, force: true });
 		throw err;
 	}
 }
@@ -392,7 +396,7 @@ export async function cloneRepoInto(
 		const git = createUserSimpleGit();
 		await (env ? git.env(env) : git).clone(repoCloneUrl, targetPath);
 	} catch (err) {
-		rmSync(targetPath, { recursive: true, force: true });
+		await rm(targetPath, { recursive: true, force: true });
 		throw new TRPCError({
 			code: "BAD_REQUEST",
 			message: `Failed to clone repository: ${
@@ -407,7 +411,7 @@ export async function cloneRepoInto(
 		}
 		return await resolveLocalRepo(targetPath);
 	} catch (err) {
-		rmSync(targetPath, { recursive: true, force: true });
+		await rm(targetPath, { recursive: true, force: true });
 		throw err;
 	}
 }

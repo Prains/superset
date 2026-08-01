@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { localDb } from "main/lib/local-db";
 import { z } from "zod";
 import { publicProcedure, router } from "../../..";
+import { runGitTask } from "../../changes/workers/git-task-runner";
 import {
 	getProject,
 	getWorkspace,
@@ -170,10 +171,23 @@ export const createGitStatusProcedures = () => {
 					return { ahead: 0, behind: 0 };
 				}
 
-				return getAheadBehindCount({
-					repoPath: project.mainRepoPath,
-					defaultBranch: workspace.branch,
-				});
+				try {
+					return await runGitTask(
+						"getAheadBehind",
+						{
+							repoPath: project.mainRepoPath,
+							defaultBranch: workspace.branch,
+						},
+						{
+							dedupeKey: `getAheadBehind:${project.mainRepoPath}:${workspace.branch}`,
+							strategy: "coalesce",
+							timeoutMs: 30_000,
+						},
+					);
+				} catch {
+					// getAheadBehindCount swallows git errors; keep worker failures equally silent.
+					return { ahead: 0, behind: 0 };
+				}
 			}),
 
 		getGitHubStatus: publicProcedure
