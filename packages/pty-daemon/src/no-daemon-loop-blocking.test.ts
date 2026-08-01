@@ -1,14 +1,16 @@
-// Ratchet: keeps blocking work off the host-service event loop. One slow
-// in-process git spawn (or a sync fs walk) head-of-line blocks every tRPC
-// response this process serves. Git subprocess work belongs in the worker
-// pool (src/workers/) — see workers/tasks/git.ts for the pattern.
+// Ratchet: the pty-daemon is one long-lived event loop serving every
+// terminal session in the org — a sync spawn or fs walk here stalls all
+// PTY IO at once. The existing spawnSync sites are deliberate (the kill
+// chain and shutdown drain want bounded sync semantics; the hot
+// exit-detection path already uses readProcessTableAsync) — this test
+// freezes them so new ones don't creep in.
 //
 // Counts are per-file matching-line counts, not a file allowlist, so an
 // already-listed file cannot silently grow new call sites. Patterns match
 // bare identifiers (not just calls) so renamed imports and passed-around
 // references count too. Two failure modes, both intentional:
-//  - a file exceeds its count → new blocking call site; route it through
-//    the worker pool (or async fs) instead of bumping the number.
+//  - a file exceeds its count → new blocking call site; use the async
+//    variants instead of bumping the number.
 //  - a file drops below its count → it was partially or fully fixed;
 //    LOWER or DELETE its entry so the ratchet only ever tightens.
 
@@ -17,7 +19,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const SRC_DIR = path.resolve(import.meta.dirname);
-const SELF = path.resolve(import.meta.dirname, "no-main-loop-blocking.test.ts");
+const SELF = path.resolve(
+	import.meta.dirname,
+	"no-daemon-loop-blocking.test.ts",
+);
 
 interface Rule {
 	name: string;
@@ -32,44 +37,25 @@ const RULES: Rule[] = [
 		name: "sync subprocess (execSync/spawnSync/execFileSync)",
 		pattern: /\b(execSync|spawnSync|execFileSync)\b/,
 		allowedCounts: {
-			// Reads a shell-configured credential command at provider init.
-			"providers/model-providers/LocalModelProvider/utils/resolveAnthropicCredential.ts": 2,
+			// Shell probe + shutdown diagnostics; cold paths.
+			"Pty/Pty.ts": 2,
+			// Kill-chain ps reads — bounded by PS_TIMEOUT_MS; the hot polling
+			// path uses readProcessTableAsync instead.
+			"process-tree.ts": 3,
 		},
 		advice:
-			"Sync subprocesses freeze this org's only event loop until the child exits — every tRPC response, status poll, and watcher callback queues behind it. Prefer async spawn/execFile: the caller awaits the same result, but the loop keeps serving while the child runs. Git reads belong in a worker task (workers/tasks/git.ts via getHostWorkerPool()).",
+			"A sync subprocess freezes the daemon's only event loop until the child exits — every terminal session in the org stops flowing (keystrokes and output stall). Prefer async spawn/execFile (see readProcessTableAsync): the caller awaits the same result, but session IO keeps flowing while the child runs.",
 	},
 	{
 		name: "sync recursive fs (rmSync/cpSync)",
 		pattern: /\b(rmSync|cpSync)\b/,
-		allowedCounts: {
-			// Bounded: single attachment files, not repo trees.
-			"trpc/router/attachments/storage.ts": 2,
-		},
+		allowedCounts: {},
 		advice:
-			"rmSync/cpSync walk the whole tree on the event loop — deleting a large worktree stalls every response for seconds. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while the loop keeps serving.",
-	},
-	{
-		name: "in-process git client construction",
-		pattern: /\b(createUserSimpleGit|simpleGit)\b/,
-		allowedCounts: {
-			// Legacy on-loop git spawners — shrink these counts by porting call
-			// sites to worker tasks (workers/tasks/git.ts).
-			"trpc/router/git/git.ts": 2,
-			"trpc/router/git/utils/git-helpers.ts": 2,
-			"trpc/router/project/project.ts": 2,
-			"trpc/router/project/utils/resolve-repo.ts": 10,
-			"trpc/router/settings/branch-prefix.ts": 2,
-			"trpc/router/workspace-creation/shared/project-helpers.ts": 3,
-		},
-		advice:
-			"simple-git is async, but a client constructed here still pays the spawn syscall + stdout drain on the event loop — cost scales linearly with call volume (measured ~830ms/min at light churn). Async isn't enough for git; route it off-loop: add a task to workers/tasks/git.ts and run it via getHostWorkerPool().",
+			"rmSync/cpSync walk the whole tree on the daemon loop — every terminal session's IO stalls for the duration. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while session IO keeps flowing.",
 	},
 ];
 
-// The worker pool and the git runtime own the primitives the rules police;
-// tests (bun + node-test) may do whatever they need.
-const EXEMPT_DIR_PREFIXES = ["workers/", "runtime/git/"];
-const EXEMPT_FILE_PATTERNS = [/\.test\.ts$/, /\.node-test\.ts$/];
+const EXEMPT_FILE_PATTERNS = [/\.test\.ts$/];
 
 /**
  * Matching lines after comment stripping — prose mentions don't count.
@@ -104,14 +90,13 @@ function relevantFiles(): string[] {
 	for (const file of walk(SRC_DIR)) {
 		// Forward slashes so allowlists match on Windows too.
 		const rel = path.relative(SRC_DIR, file).split(path.sep).join("/");
-		if (EXEMPT_DIR_PREFIXES.some((prefix) => rel.startsWith(prefix))) continue;
 		if (EXEMPT_FILE_PATTERNS.some((pattern) => pattern.test(rel))) continue;
 		files.push(rel);
 	}
 	return files;
 }
 
-describe("no new main-loop blocking call sites", () => {
+describe("no new daemon-loop blocking call sites", () => {
 	const files = relevantFiles();
 
 	for (const rule of RULES) {
