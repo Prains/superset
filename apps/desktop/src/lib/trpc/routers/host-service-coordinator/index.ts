@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { env } from "main/env.main";
 import {
@@ -9,6 +8,7 @@ import {
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { loadToken } from "../auth/utils/auth-functions";
+import { requireOrganizationMemberToken } from "./organization-membership";
 
 const orgInput = z.object({
 	organizationId: z.string().refine(isSafeOrganizationId, {
@@ -38,13 +38,10 @@ export const createHostServiceCoordinatorRouter = () => {
 
 		restart: publicProcedure.input(orgInput).mutation(async ({ input }) => {
 			const coordinator = getHostServiceCoordinator();
-			const { token } = await loadToken();
-			if (!token) {
-				throw new TRPCError({
-					code: "UNAUTHORIZED",
-					message: "No auth token available — user must be logged in",
-				});
-			}
+			const token = requireOrganizationMemberToken(
+				await loadToken(),
+				input.organizationId,
+			);
 			return coordinator.restart(input.organizationId, {
 				authToken: token,
 				cloudApiUrl: env.NEXT_PUBLIC_API_URL,
@@ -53,13 +50,10 @@ export const createHostServiceCoordinatorRouter = () => {
 
 		reset: publicProcedure.input(orgInput).mutation(async ({ input }) => {
 			const coordinator = getHostServiceCoordinator();
-			const { token } = await loadToken();
-			if (!token) {
-				throw new TRPCError({
-					code: "UNAUTHORIZED",
-					message: "No auth token available — user must be logged in",
-				});
-			}
+			const token = requireOrganizationMemberToken(
+				await loadToken(),
+				input.organizationId,
+			);
 			return coordinator.reset(input.organizationId, {
 				authToken: token,
 				cloudApiUrl: env.NEXT_PUBLIC_API_URL,

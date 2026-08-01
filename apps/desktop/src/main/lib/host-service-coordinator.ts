@@ -735,7 +735,7 @@ export class HostServiceCoordinator extends EventEmitter {
 			endpoint,
 			secret,
 			HEALTH_POLL_TIMEOUT_MS,
-			() => childExited,
+			() => childExited || !isStartAllowed(),
 		);
 		if (!healthy || !isStartAllowed()) {
 			if (!childExited) child.kill("SIGTERM");
