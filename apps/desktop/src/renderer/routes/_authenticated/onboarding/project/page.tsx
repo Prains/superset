@@ -42,10 +42,18 @@ const GH_AUTH_FAILURE_PATTERNS = [
 	"Repository not found",
 	"Authentication failed",
 	"could not read Username",
-	"Permission denied (publickey)",
 ];
 
-function toCloneError(message: string): CloneError {
+function toCloneError(err: unknown): CloneError {
+	const message =
+		err instanceof Error ? err.message : "Failed to clone repository";
+	if (message.includes("Permission denied (publickey)")) {
+		return {
+			message:
+				"SSH authentication failed — sign in to GitHub CLI and use the HTTPS URL instead.",
+			needsGhAuth: true,
+		};
+	}
 	if (GH_AUTH_FAILURE_PATTERNS.some((pattern) => message.includes(pattern))) {
 		return {
 			message:
@@ -154,25 +162,42 @@ function OnboardingProjectPage() {
 					return;
 				}
 				const hostService = getHostServiceClientByUrl(activeHostUrl);
-				const created = await hostService.project.create.mutate({
-					name: repoNameFromUrl(trimmed),
-					mode: { kind: "clone", parentDir: cloneTargetDir, url: trimmed },
-				});
+				let created: Awaited<
+					ReturnType<typeof hostService.project.create.mutate>
+				>;
+				try {
+					created = await hostService.project.create.mutate({
+						name: repoNameFromUrl(trimmed),
+						mode: { kind: "clone", parentDir: cloneTargetDir, url: trimmed },
+					});
+				} catch (err) {
+					setCloneError(toCloneError(err));
+					return;
+				}
 				finalizeSetup(activeHostUrl, created);
 				await finish(created.projectId);
 			} else {
-				const projectId = await createV1Project.cloneFromUrl({
-					url: trimmed,
-					parentDir: cloneTargetDir,
-				});
+				let projectId: string | null;
+				try {
+					projectId = await createV1Project.cloneFromUrl({
+						url: trimmed,
+						parentDir: cloneTargetDir,
+					});
+				} catch (err) {
+					setCloneError(toCloneError(err));
+					return;
+				}
 				if (projectId) await finish(projectId);
 			}
 		} catch (err) {
-			setCloneError(
-				toCloneError(
-					err instanceof Error ? err.message : "Failed to clone repository",
-				),
-			);
+			// Non-clone failures (setup, navigation) get the raw message, no gh advice.
+			setCloneError({
+				message:
+					err instanceof Error
+						? err.message
+						: "Something went wrong. Please try again.",
+				needsGhAuth: false,
+			});
 		} finally {
 			setBusy(false);
 		}
@@ -248,7 +273,7 @@ function OnboardingProjectPage() {
 					</Button>
 				</form>
 				{cloneError && (
-					<div className="flex flex-col items-start gap-2">
+					<div role="alert" className="flex flex-col items-start gap-2">
 						<p className="select-text cursor-text break-words text-xs text-destructive">
 							{cloneError.message}
 						</p>
