@@ -911,42 +911,27 @@ function createOrgCollections(organizationId: string): OrgCollections {
 	};
 }
 
-// The only collections the org switch must wait for: the sidebar workspace
-// list fans out from these (rows, host reachability, access filtering) and
-// joins them for names and repo labels. Everything else starts syncing during
-// preload but renders cache-first as rows land — settings and content panes
-// all tolerate a not-yet-ready collection. localStorage-backed collections
-// hydrate synchronously at construction, so gating never applies to them.
-const gatingPreloadCollections: ReadonlySet<string> = new Set([
-	"v2Workspaces",
-	"v2Hosts",
-	"v2UsersHosts",
-	"users",
-	"githubRepositories",
-]);
-
 /**
- * Preload collections for an organization by starting Electric sync.
- * Collections are lazy — they don't fetch data until subscribed or preloaded.
- * Call this eagerly so data is ready when the user switches orgs.
+ * Start Electric sync for every collection of an organization. Collections
+ * are lazy — they don't fetch until subscribed or preloaded.
+ *
+ * Resolves once sync is STARTED, not once it completes. `preload()` on a
+ * persisted collection only settles after Electric's initial network sync,
+ * but SQLite-persisted rows hydrate into the collection immediately — the UI
+ * renders cache-first either way, and a never-synced org streams in exactly
+ * like first boot does. Waiting here only delays the switch and lets any
+ * single wedged shape hang it indefinitely.
  */
 export async function preloadCollections(
 	organizationId: string,
 ): Promise<void> {
 	const collections = getCollections(organizationId);
-	const gatingPreloads: Promise<void>[] = [];
 	for (const [name, collection] of Object.entries(collections)) {
 		if (name === "organizations") continue;
-		const preload = (collection as Collection<object>).preload();
-		if (gatingPreloadCollections.has(name)) {
-			gatingPreloads.push(preload);
-		} else {
-			preload.catch((error) => {
-				console.error(`[collections] Deferred preload failed: ${name}`, error);
-			});
-		}
+		(collection as Collection<object>).preload().catch((error) => {
+			console.error(`[collections] Preload failed: ${name}`, error);
+		});
 	}
-	await Promise.allSettled(gatingPreloads);
 }
 
 /**
