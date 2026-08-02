@@ -6,7 +6,7 @@ import type { HostDb } from "../../db";
 import { projects, pullRequests, workspaces } from "../../db/schema";
 import type { GitWatcher } from "../../events/git-watcher";
 import type { ExecGh } from "../../trpc/router/workspace-creation/utils/exec-gh";
-import type { GitFactory } from "../git";
+import { type GitFactory, resolveDefaultBranchName } from "../git";
 import {
 	fetchOpenPullRequests,
 	fetchOpenPullRequestsFromGh,
@@ -38,6 +38,10 @@ import {
 	parseChecksJson,
 	type ReviewDecision,
 } from "./utils/pull-request-mappers";
+import {
+	readWorkspaceRefs,
+	type WorkspaceRefsSnapshot,
+} from "./utils/workspace-refs";
 
 // Long-cadence sweep that catches anything `GitWatcher` might miss
 // (overflow, fs.watch errors, transient watcher failures). Steady-state
@@ -53,130 +57,6 @@ const PROJECT_REFRESH_INTERVAL_MS = 5 * 60_000;
 // PROJECT_REFRESH). Otherwise the cache is always stale at poll time and
 // each tick fires fresh GitHub calls for the same upstream branch.
 const REPO_PULL_REQUEST_CACHE_TTL_MS = 60_000;
-const UNBORN_HEAD_ERROR_PATTERNS = [
-	"ambiguous argument 'head'",
-	"unknown revision or path not in the working tree",
-	"bad revision 'head'",
-	"not a valid object name head",
-	"needed a single revision",
-];
-
-async function getCurrentBranchName(git: Awaited<ReturnType<GitFactory>>) {
-	try {
-		const branch = await git.raw(["symbolic-ref", "--short", "HEAD"]);
-		const trimmed = branch.trim();
-		return trimmed || null;
-	} catch {
-		try {
-			const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
-			const trimmed = branch.trim();
-			return trimmed && trimmed !== "HEAD" ? trimmed : null;
-		} catch {
-			return null;
-		}
-	}
-}
-
-async function getHeadSha(git: Awaited<ReturnType<GitFactory>>) {
-	try {
-		const branch = await git.revparse(["HEAD"]);
-		const trimmed = branch.trim();
-		return trimmed || null;
-	} catch (error) {
-		const message =
-			error instanceof Error
-				? error.message.toLowerCase()
-				: String(error).toLowerCase();
-		if (
-			UNBORN_HEAD_ERROR_PATTERNS.some((pattern) => message.includes(pattern))
-		) {
-			return null;
-		}
-
-		throw error;
-	}
-}
-
-// `pushRemote` / `branch.remote` accept a remote name or a URL.
-async function resolveRemoteValueToUrl(
-	git: Awaited<ReturnType<GitFactory>>,
-	value: string,
-): Promise<string | null> {
-	if (/^(https?:|git@|ssh:)/.test(value)) return value;
-	try {
-		const url = await git.remote(["get-url", value]);
-		return typeof url === "string" ? url.trim() || null : null;
-	} catch {
-		return null;
-	}
-}
-
-async function resolveWorkspaceUpstream(
-	git: Awaited<ReturnType<GitFactory>>,
-	localBranch: string,
-): Promise<{ owner: string; name: string; branch: string } | null> {
-	// `@{push}` resolves remote+branch respecting all config precedence in one call.
-	const pushRef = await tryRaw(git, [
-		"rev-parse",
-		"--abbrev-ref",
-		`${localBranch}@{push}`,
-	]);
-	if (pushRef) {
-		const slash = pushRef.indexOf("/");
-		if (slash > 0) {
-			const url = await resolveRemoteValueToUrl(git, pushRef.slice(0, slash));
-			const parsed = url ? parseGitHubRemote(url) : null;
-			if (parsed) {
-				return {
-					owner: parsed.owner,
-					name: parsed.name,
-					branch: pushRef.slice(slash + 1),
-				};
-			}
-		}
-	}
-
-	// Fallback when `@{push}` isn't configured — mirrors gh's config chain.
-	// Require `branch.<n>.merge`; without it, `remote.pushDefault` alone would
-	// re-open the same-name collision hole on untracked branches.
-	const mergeRef = await tryConfig(git, `branch.${localBranch}.merge`);
-	const trackedBranch = mergeRef?.replace(/^refs\/heads\//, "");
-	if (!trackedBranch) return null;
-
-	const remoteValue =
-		(await tryConfig(git, `branch.${localBranch}.pushRemote`)) ??
-		(await tryConfig(git, "remote.pushDefault")) ??
-		(await tryConfig(git, `branch.${localBranch}.remote`));
-	if (!remoteValue) return null;
-
-	const url = await resolveRemoteValueToUrl(git, remoteValue);
-	const parsed = url ? parseGitHubRemote(url) : null;
-	if (!parsed) return null;
-
-	// `gh pr checkout` renames the local branch on collision (`main` →
-	// `quueli-main`) but the PR's headRefName stays `main`, so we key on the
-	// tracked remote branch, not the local name.
-	return { owner: parsed.owner, name: parsed.name, branch: trackedBranch };
-}
-
-async function tryRaw(
-	git: Awaited<ReturnType<GitFactory>>,
-	args: string[],
-): Promise<string | null> {
-	try {
-		return (await git.raw(args)).trim() || null;
-	} catch {
-		return null;
-	}
-}
-
-async function tryConfig(
-	git: Awaited<ReturnType<GitFactory>>,
-	key: string,
-): Promise<string | null> {
-	return tryRaw(git, ["config", "--get", key]);
-}
-
 // Dedup + link-assignment key. Branch stays case-sensitive: `feature` and
 // `Feature` are distinct branches with distinct PRs, so collapsing them here
 // would mislink. Case drift is tolerated only in the fallback in
@@ -215,6 +95,10 @@ export interface PullRequestRuntimeManagerOptions {
 	git: GitFactory;
 	github: () => Promise<Octokit>;
 	gitWatcher: GitWatcher;
+	/** Override to run the per-workspace branch/HEAD/upstream read off the
+	 * event loop (app wiring passes a worker-pool-backed reader). Defaults
+	 * to reading in-process via `git`. */
+	readWorkspaceRefs?: (worktreePath: string) => Promise<WorkspaceRefsSnapshot>;
 }
 
 interface NormalizedRepoIdentity {
@@ -223,6 +107,8 @@ interface NormalizedRepoIdentity {
 	name: string;
 	url: string;
 	remoteName: string;
+	// Null when the repo can't be opened. Drives the default-branch link guard.
+	defaultBranch: string | null;
 }
 
 type PullRequestRow = typeof pullRequests.$inferSelect;
@@ -286,6 +172,9 @@ export class PullRequestRuntimeManager {
 		string,
 		{ promise: Promise<GitHubPullRequestNode[]>; fetchedAt: number }
 	>();
+	private readonly readWorkspaceRefs: (
+		worktreePath: string,
+	) => Promise<WorkspaceRefsSnapshot>;
 
 	constructor(options: PullRequestRuntimeManagerOptions) {
 		this.db = options.db;
@@ -293,6 +182,9 @@ export class PullRequestRuntimeManager {
 		this.git = options.git;
 		this.github = options.github;
 		this.gitWatcher = options.gitWatcher;
+		this.readWorkspaceRefs =
+			options.readWorkspaceRefs ??
+			(async (worktreePath) => readWorkspaceRefs(await this.git(worktreePath)));
 	}
 
 	start() {
@@ -526,12 +418,11 @@ export class PullRequestRuntimeManager {
 		workspace: typeof workspaces.$inferSelect,
 	): Promise<string | null> {
 		try {
-			const git = await this.git(workspace.worktreePath);
-			const branch = await getCurrentBranchName(git);
+			const { branch, headSha, upstream } = await this.readWorkspaceRefs(
+				workspace.worktreePath,
+			);
 			if (!branch) return null;
 
-			const headSha = await getHeadSha(git);
-			const upstream = await resolveWorkspaceUpstream(git, branch);
 			const upstreamOwner = upstream?.owner ?? null;
 			const upstreamRepo = upstream?.name ?? null;
 			const upstreamBranch = upstream?.branch ?? null;
@@ -644,7 +535,7 @@ export class PullRequestRuntimeManager {
 			const upstreamOwner = workspace.upstreamOwner;
 			const upstreamRepo = workspace.upstreamRepo;
 			const upstreamBranch = workspace.upstreamBranch ?? workspace.branch;
-			const key = upstreamKey(upstreamOwner, upstreamRepo, upstreamBranch);
+			const key = this.effectiveUpstreamKey(workspace, repo);
 			if (key && upstreamOwner && upstreamRepo) {
 				wantedRefs.set(key, {
 					owner: upstreamOwner,
@@ -658,11 +549,7 @@ export class PullRequestRuntimeManager {
 			await this.fetchRepoPullRequests(projectId, repo, wantedRefs, options);
 
 		for (const workspace of projectWorkspaces) {
-			const key = upstreamKey(
-				workspace.upstreamOwner,
-				workspace.upstreamRepo,
-				workspace.upstreamBranch ?? workspace.branch,
-			);
+			const key = this.effectiveUpstreamKey(workspace, repo);
 			if (!key) {
 				// PR checkouts recovered from GitHub's archived refs intentionally
 				// have no upstream. Keep the explicit PR link only while the
@@ -712,6 +599,7 @@ export class PullRequestRuntimeManager {
 			.sync();
 		if (!project) return null;
 
+		let identity: Omit<NormalizedRepoIdentity, "defaultBranch">;
 		if (
 			project.repoProvider === "github" &&
 			project.repoOwner &&
@@ -719,47 +607,82 @@ export class PullRequestRuntimeManager {
 			project.repoUrl &&
 			project.remoteName
 		) {
-			return {
+			identity = {
 				provider: "github",
 				owner: project.repoOwner,
 				name: project.repoName,
 				url: project.repoUrl,
 				remoteName: project.remoteName,
 			};
-		}
-
-		const git = await this.git(project.repoPath);
-		const remoteName = "origin";
-		let remoteUrl: string;
-		try {
-			const value = await git.remote(["get-url", remoteName]);
-			if (typeof value !== "string") {
+		} else {
+			const git = await this.git(project.repoPath);
+			const remoteName = "origin";
+			let remoteUrl: string;
+			try {
+				const value = await git.remote(["get-url", remoteName]);
+				if (typeof value !== "string") {
+					return null;
+				}
+				remoteUrl = value.trim();
+			} catch {
 				return null;
 			}
-			remoteUrl = value.trim();
+
+			const parsedRemote = parseGitHubRemote(remoteUrl);
+			if (!parsedRemote) return null;
+
+			this.db
+				.update(projects)
+				.set({
+					repoProvider: parsedRemote.provider,
+					repoOwner: parsedRemote.owner,
+					repoName: parsedRemote.name,
+					repoUrl: parsedRemote.url,
+					remoteName,
+				})
+				.where(eq(projects.id, projectId))
+				.run();
+
+			identity = { ...parsedRemote, remoteName };
+		}
+
+		const defaultBranch = await this.resolveDefaultBranch(project.repoPath);
+		return { ...identity, defaultBranch };
+	}
+
+	// Shared origin/HEAD resolver; a repo-open failure disables the guard
+	// rather than aborting the whole refresh.
+	private async resolveDefaultBranch(repoPath: string): Promise<string | null> {
+		try {
+			return await resolveDefaultBranchName(await this.git(repoPath));
 		} catch {
 			return null;
 		}
+	}
 
-		const parsedRemote = parseGitHubRemote(remoteUrl);
-		if (!parsedRemote) return null;
-
-		this.db
-			.update(projects)
-			.set({
-				repoProvider: parsedRemote.provider,
-				repoOwner: parsedRemote.owner,
-				repoName: parsedRemote.name,
-				repoUrl: parsedRemote.url,
-				remoteName,
-			})
-			.where(eq(projects.id, projectId))
-			.run();
-
-		return {
-			...parsedRemote,
-			remoteName,
-		};
+	// Guard: a workspace that merely tracks `origin/<default>` (branched off it,
+	// never pushed) must not key on `<default>` and grab a head=<default> PR —
+	// only its own default-branch workspace may. Base repo only, so fork /
+	// `gh pr checkout` renames whose head is `<default>` still link.
+	private effectiveUpstreamKey(
+		workspace: typeof workspaces.$inferSelect,
+		repo: NormalizedRepoIdentity,
+	): string | null {
+		const upstreamBranch = workspace.upstreamBranch ?? workspace.branch;
+		if (
+			repo.defaultBranch &&
+			upstreamBranch === repo.defaultBranch &&
+			workspace.branch !== repo.defaultBranch &&
+			workspace.upstreamOwner?.toLowerCase() === repo.owner.toLowerCase() &&
+			workspace.upstreamRepo?.toLowerCase() === repo.name.toLowerCase()
+		) {
+			return null;
+		}
+		return upstreamKey(
+			workspace.upstreamOwner,
+			workspace.upstreamRepo,
+			upstreamBranch,
+		);
 	}
 
 	private findPullRequestRow(

@@ -30,8 +30,9 @@ import { cn } from "@superset/ui/utils";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LuPlus, LuSearchX, LuTerminal, LuX } from "react-icons/lu";
+import { useRecentProjects } from "renderer/hooks/host-projects/useRecentProjects";
 import { apiTrpcClient } from "renderer/lib/api-trpc-client";
 import { authClient } from "renderer/lib/auth-client";
 import {
@@ -49,9 +50,9 @@ import { AutomationRow } from "./components/AutomationRow";
 import { AutomationsEmptyState } from "./components/AutomationsEmptyState";
 import { CreateAutomationDialog } from "./components/CreateAutomationDialog";
 import { HostOfflineRunDialog } from "./components/HostOfflineRunDialog";
-import { useRecentProjects } from "./hooks/useRecentProjects";
 import type { AutomationTemplate } from "./templates";
 import { isHostOfflineError } from "./utils/hostOfflineError";
+import { isStaleAgentError, STALE_AGENT_HELP } from "./utils/staleAgentError";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/automations/")(
 	{
@@ -95,6 +96,10 @@ function AutomationsPage() {
 				setHostOfflineRun({ hostId: targetHostId });
 				return;
 			}
+			if (isStaleAgentError(message)) {
+				toast.error(STALE_AGENT_HELP);
+				return;
+			}
 			toast.error(message ?? "Failed to trigger run");
 		},
 	});
@@ -135,7 +140,13 @@ function AutomationsPage() {
 			})),
 		[collections.users],
 	);
-	const { lastRunStatusById } = useFailedAutomations();
+	const { lastRunStatusById, markMyFailuresSeen } = useFailedAutomations();
+
+	// Opening the page clears the sidebar failure badge; failures that sync in
+	// while it stays open are marked seen too, until a newer run fails.
+	useEffect(() => {
+		markMyFailuresSeen();
+	}, [markMyFailuresSeen]);
 
 	const recentProjects = useRecentProjects();
 	const { workspaces: hostWorkspaces } = useHostWorkspaces();
@@ -283,6 +294,9 @@ function AutomationsPage() {
 						</TabsList>
 					</Tabs>
 				</div>
+
+				{/* Window-drag leaf standing in for the hidden TopBar. */}
+				<div className="drag h-full min-w-0 flex-1" />
 
 				<div className="flex items-center gap-2">
 					<Button

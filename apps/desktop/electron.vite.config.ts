@@ -80,6 +80,9 @@ export default defineConfig({
 			"process.env.SENTRY_DSN_DESKTOP": defineEnv(
 				process.env.SENTRY_DSN_DESKTOP,
 			),
+			"process.env.SENTRY_DSN_HOST_SERVICE": defineEnv(
+				process.env.SENTRY_DSN_HOST_SERVICE,
+			),
 			"process.env.RELAY_URL": defineEnv(process.env.RELAY_URL),
 			// Must match renderer for analytics in main process
 			"process.env.NEXT_PUBLIC_POSTHOG_KEY": defineEnv(
@@ -118,6 +121,9 @@ export default defineConfig({
 					// pty-daemon - long-lived per-org Unix-socket server that owns PTYs.
 					// Spawned by PtyDaemonCoordinator; survives host-service restarts.
 					"pty-daemon": resolve("src/main/pty-daemon/index.ts"),
+					// host-service worker thread — emitted side-by-side with
+					// host-service.js so the pool's script resolution finds it.
+					"host-worker": resolve("src/main/host-worker/index.ts"),
 				},
 				output: {
 					dir: resolve(devPath, "main"),

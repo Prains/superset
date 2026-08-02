@@ -1,3 +1,4 @@
+import type { HostAgentConfig } from "@superset/host-service/settings";
 import {
 	type ExecutionMode,
 	normalizeExecutionMode,
@@ -9,6 +10,7 @@ import { useLiveQuery } from "@tanstack/react-db";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HiOutlinePlus } from "react-icons/hi2";
 import { useIsDarkTheme } from "renderer/assets/app-icons/preset-icons";
+import { useHostProjects } from "renderer/hooks/host-projects/useHostProjects";
 import { useV2AgentConfigs } from "renderer/hooks/useV2AgentConfigs";
 import { getAgentCommandText } from "renderer/lib/agent-launch-command";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
@@ -69,12 +71,14 @@ export function V2PresetsSection({
 		[collections],
 	);
 
-	const { data: v2Projects = [] } = useLiveQuery(
-		(query) =>
-			query
-				.from({ v2Projects: collections.v2Projects })
-				.orderBy(({ v2Projects }) => v2Projects.name),
-		[collections],
+	// Projects are fully local — identity comes from the host fan-out.
+	const { projects: hostProjects } = useHostProjects();
+	const v2Projects = useMemo(
+		() =>
+			[...hostProjects]
+				.sort((a, b) => a.name.localeCompare(b.name))
+				.map((project) => ({ id: project.projectKey, name: project.name })),
+		[hostProjects],
 	);
 
 	// V2TerminalPresetRow is a superset of TerminalPreset — safe to cast
@@ -285,6 +289,27 @@ export function V2PresetsSection({
 			collections.v2TerminalPresets.delete(id);
 		},
 		[collections.v2TerminalPresets],
+	);
+
+	// The stored `commands` array is the launch fallback used whenever the
+	// agent config isn't loaded, so it must track the edited agent command —
+	// otherwise launches can silently run the command from preset-creation time.
+	const syncLinkedPresetSnapshots = useCallback(
+		(updated: HostAgentConfig) => {
+			const commandText = getAgentCommandText(updated);
+			if (commandText.trim().length === 0) return;
+			for (const preset of serverPresetsRef.current) {
+				const row = preset as V2TerminalPresetRow;
+				if (row.agentId !== updated.id && row.agentId !== updated.presetId) {
+					continue;
+				}
+				if (row.commands.length === 1 && row.commands[0] === commandText) {
+					continue;
+				}
+				updateV2Preset(row.id, { commands: [commandText] });
+			}
+		},
+		[updateV2Preset],
 	);
 
 	const reorderV2Presets = useCallback(
@@ -646,6 +671,7 @@ export function V2PresetsSection({
 				preset={editingPreset}
 				projects={projectOptions}
 				agents={agents}
+				onLinkedAgentSaved={syncLinkedPresetSnapshots}
 				open={!!editingPreset}
 				onOpenChange={(open) => !open && handleCloseEditor()}
 				onDeletePreset={handleDeleteEditingPreset}

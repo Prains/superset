@@ -5,25 +5,24 @@ import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { projects, workspaces } from "../../../db/schema";
-import {
-	asRemoteRef,
-	type ResolvedRef,
-	resolveDefaultBranchName,
-	resolveRef,
-	resolveUpstream,
-} from "../../../runtime/git/refs";
-import {
-	ensureHostRegistered,
-	pushWorkspaceCreateToCloud,
-} from "../../../runtime/workspace-cloud-sync";
+import { createGitEnvResolver } from "../../../runtime/git";
+import { type ResolvedRef, resolveRef } from "../../../runtime/git/refs";
 import type { HostServiceContext } from "../../../types";
+import { getHostWorkerPool } from "../../../workers/host-worker-pool";
+import { gitFetchBaseRefTask } from "../../../workers/tasks/git";
 import {
 	getLocalWorkspace,
 	insertLocalWorkspace,
 	toCloudShape,
 } from "../../../workspaces/local-workspace-store";
 import { protectedProcedure, router } from "../../index";
-import { type AgentRunResult, runAgentInWorkspace } from "../agents";
+import {
+	type AgentRunResult,
+	buildTerminalAgentLaunch,
+	isChatAgent,
+	runAgentInWorkspace,
+	validateAgentLaunchEffort,
+} from "../agents";
 import { ensureMainWorkspace } from "../project/utils/ensure-main-workspace";
 import { getHostWorktreeBaseDir } from "../settings/worktree-location";
 import { adoptExistingWorktree } from "../workspace-creation/shared/adopt-existing-worktree";
@@ -54,7 +53,10 @@ import {
 	PrBranchConflictError,
 } from "../workspace-creation/utils/pr-branch-materialize";
 import { derivePrLocalBranchName } from "../workspace-creation/utils/pr-branch-name";
-import { resolveStartPoint } from "../workspace-creation/utils/resolve-start-point";
+import {
+	type BaseRefFetcher,
+	resolveNewBranchStartPoint,
+} from "../workspace-creation/utils/resolve-new-branch-start-point";
 import { deduplicateBranchName } from "../workspace-creation/utils/sanitize-branch";
 
 /**
@@ -92,6 +94,11 @@ const createInputSchema = z
 		baseBranch: z.string().min(1).optional(),
 		taskId: z.string().uuid().optional(),
 		agents: z.array(agentLaunchSchema).optional(),
+		// Desktop "Wait for workspace setup before starting agents" setting,
+		// sent per-request. When true and setup commands resolve, a single
+		// terminal sugar agent is chained behind them in the setup terminal
+		// (`setup && agent`) instead of launching in parallel.
+		waitForSetupBeforeAgents: z.boolean().optional(),
 		command: z.string().min(1).optional(),
 		namingPrompt: z.string().min(1).optional(),
 		id: z.string().uuid().optional(),
@@ -99,6 +106,9 @@ const createInputSchema = z
 		// inferring the path from `branch`. When present, `branch` is
 		// caller context only; the server reads the current branch from git.
 		worktreePath: z.string().min(1).optional(),
+		// When false, skip the setup terminal. Used by worktree import,
+		// where the worktree is usually already set up.
+		runSetup: z.boolean().optional(),
 	})
 	.refine((value) => !(value.branch && value.pr), {
 		message: "`branch` and `pr` cannot both be set",
@@ -249,70 +259,32 @@ interface BranchSourcePlan {
 	usedExistingBranch: boolean;
 }
 
-/**
- * Resolve the start point a *new* branch should fork from. No
- * `resolveRef(branch)` check — callers are responsible for guaranteeing
- * the branch name is fresh (e.g. via `deduplicateBranchName`). Useful
- * when the branch name is being chosen at the same time the start point
- * is resolved (auto-gen + AI naming path), so it can run in parallel
- * with the LLM call.
- */
-async function resolveNewBranchStartPoint(
-	git: GitClient,
-	baseBranch: string | undefined,
-): Promise<ResolvedRef> {
-	let startPoint = await resolveStartPoint(git, baseBranch);
-
-	// Fork from upstream of the default branch when the user didn't specify
-	// a base — locals are often stale.
-	if (startPoint.kind === "local") {
-		const defaultBranchName = await resolveDefaultBranchName(git);
-		if (startPoint.shortName === defaultBranchName) {
-			const upstream = await resolveUpstream(git, defaultBranchName);
-			if (upstream) {
-				const remoteRef = asRemoteRef(upstream.remote, upstream.remoteBranch);
-				// `--quiet` confuses simple-git's `raw` (resolves on missing
-				// refs with empty stdout). Drop it; verify a sha was printed.
-				const remoteExists = await git
-					.raw(["rev-parse", "--verify", `${remoteRef}^{commit}`])
-					.then((out) => /^[0-9a-f]{40,}/.test(out.trim()))
-					.catch(() => false);
-				if (remoteExists) {
-					startPoint = {
-						kind: "remote-tracking",
-						fullRef: remoteRef,
-						shortName: upstream.remoteBranch,
-						remote: upstream.remote,
-						remoteShortName: `${upstream.remote}/${upstream.remoteBranch}`,
-					};
-				}
-			}
-		}
-	}
-
-	if (startPoint.kind === "remote-tracking") {
-		try {
-			await git.fetch([
-				startPoint.remote,
-				startPoint.shortName,
-				"--quiet",
-				"--no-tags",
-			]);
-		} catch (err) {
-			console.warn(
-				`[workspaces.create] fetch ${startPoint.remoteShortName} failed:`,
-				err,
-			);
-		}
-	}
-
-	return startPoint;
+/** Base-ref fetch for workspace creation, executed in the worker pool so the
+ * network fetch's spawn + stdout drain stay off the host-service event loop.
+ * Concurrent creates on the same base coalesce into one fetch. */
+function createWorkerBaseRefFetcher(
+	ctx: Pick<HostServiceContext, "credentials">,
+	repoPath: string,
+): BaseRefFetcher {
+	return async (target) => {
+		const gitEnv = await createGitEnvResolver(ctx.credentials)(repoPath);
+		return getHostWorkerPool().run(
+			gitFetchBaseRefTask,
+			{ worktreePath: repoPath, target, gitEnv },
+			{
+				timeoutMs: 30_000,
+				strategy: "coalesce",
+				dedupeKey: `${repoPath}:base-ref:${target.remote}/${target.branch}`,
+			},
+		);
+	};
 }
 
 async function planBranchSource(
 	git: GitClient,
 	branch: string,
 	baseBranch: string | undefined,
+	fetchRemoteRef?: BaseRefFetcher,
 ): Promise<BranchSourcePlan> {
 	const resolved = await resolveRef(git, branch);
 
@@ -337,7 +309,11 @@ async function planBranchSource(
 		});
 	}
 
-	const startPoint = await resolveNewBranchStartPoint(git, baseBranch);
+	const startPoint = await resolveNewBranchStartPoint(
+		git,
+		baseBranch,
+		fetchRemoteRef,
+	);
 	return { branch, startPoint, usedExistingBranch: false };
 }
 
@@ -430,24 +406,10 @@ async function recordBaseBranchConfig(args: {
 }
 
 /**
- * Kicks off `host.ensure` so the cloud round-trip overlaps with the
- * git work in `workspaces.create`. Shares the sync module's cached
- * registration, so the later `pushWorkspaceCreateToCloud` reuses this
- * result instead of re-registering.
+ * Fully local registration: the host mints the id and commits the local
+ * row — the authoritative and only record; workspaces have no cloud mirror.
  */
-function startHostEnsure(
-	ctx: HostServiceContext,
-): Promise<{ machineId: string }> {
-	return ensureHostRegistered(ctx);
-}
-
-/**
- * Local-first registration: the host mints the id and commits the local row
- * (the authoritative record), then mirrors to the cloud best-effort. Cloud
- * unavailability no longer fails the create or rolls back the worktree —
- * the row stays cloud-dirty and the reconciler pushes it later.
- */
-async function registerCloudAndLocal(args: {
+async function registerLocalWorkspace(args: {
 	ctx: HostServiceContext;
 	id: string | undefined;
 	projectId: string;
@@ -456,7 +418,6 @@ async function registerCloudAndLocal(args: {
 	worktreePath: string;
 	taskId: string | undefined;
 	rollbackWorktree: () => Promise<void>;
-	hostPromise: Promise<{ machineId: string }>;
 }): Promise<CloudWorkspace> {
 	const { ctx } = args;
 
@@ -478,22 +439,7 @@ async function registerCloudAndLocal(args: {
 		});
 	}
 
-	// The pre-warmed host.ensure keeps registration latency off this path;
-	// pushWorkspaceCreateToCloud runs its own ensure, so failures here are
-	// non-fatal and already suppressed at the creation site.
-	await args.hostPromise.catch(() => {});
-
-	const cloudRow = await pushWorkspaceCreateToCloud(
-		{
-			api: ctx.api,
-			db: ctx.db,
-			eventBus: ctx.eventBus,
-			organizationId: ctx.organizationId,
-			clientMachineId: ctx.clientMachineId,
-		},
-		localRow,
-	);
-	return cloudRow ?? toCloudShape(localRow, ctx.organizationId);
+	return toCloudShape(localRow, ctx.organizationId);
 }
 
 async function dispatchSugarAgents(
@@ -528,14 +474,11 @@ export const workspacesRouter = router({
 	create: protectedProcedure
 		.input(createInputSchema)
 		.mutation(async ({ ctx, input }) => {
-			const localProject = requireLocalProject(ctx, input.projectId);
+			for (const launch of input.agents ?? []) {
+				validateAgentLaunchEffort(ctx.db, launch);
+			}
 
-			// Kick off host.ensure immediately so the cloud round-trip
-			// overlaps with the git work below. Suppressing unhandled
-			// rejection here — the await in registerCloudAndLocal turns
-			// the promise rejection into a TRPCError with rollback.
-			const hostPromise = startHostEnsure(ctx);
-			hostPromise.catch(() => {});
+			const localProject = requireLocalProject(ctx, input.projectId);
 
 			// Kick off AI naming in parallel when the user supplied a prompt
 			// but left at least one of (name, branch) blank. The LLM call
@@ -549,9 +492,13 @@ export const workspacesRouter = router({
 				input.pr === undefined &&
 				(input.branch === undefined || input.name === undefined) &&
 				!!composerPrompt;
+			const namingAgent = input.agents?.[0]?.agent;
 			const aiNamesPromise: Promise<GeneratedWorkspaceNames | null> | null =
 				wantAi
-					? generateWorkspaceNamesFromPrompt(composerPrompt).catch((err) => {
+					? generateWorkspaceNamesFromPrompt(
+							composerPrompt,
+							namingAgent ? { db: ctx.db, agent: namingAgent } : undefined,
+						).catch((err) => {
 							console.warn("[workspaces.create] AI naming failed", err);
 							return null;
 						})
@@ -565,6 +512,10 @@ export const workspacesRouter = router({
 			await ensureMainWorkspace(ctx, input.projectId, localProject.repoPath);
 
 			const git = await ctx.git(localProject.repoPath);
+			const fetchBaseRefOffLoop = createWorkerBaseRefFetcher(
+				ctx,
+				localProject.repoPath,
+			);
 			const worktreeBaseDir =
 				localProject.worktreeBaseDir ?? getHostWorktreeBaseDir(ctx);
 
@@ -669,7 +620,6 @@ export const workspacesRouter = router({
 								baseBranch: prMetadata.baseRefName,
 								idempotencyId: input.id,
 								taskId: input.taskId,
-								hostPromise,
 							});
 							workspaceRow = result.workspace;
 							alreadyExists = result.alreadyExists;
@@ -767,7 +717,7 @@ export const workspacesRouter = router({
 								}
 							}
 
-							workspaceRow = await registerCloudAndLocal({
+							workspaceRow = await registerLocalWorkspace({
 								ctx,
 								id: input.id,
 								projectId: input.projectId,
@@ -776,7 +726,6 @@ export const workspacesRouter = router({
 								worktreePath,
 								taskId: input.taskId,
 								rollbackWorktree: rollbackCreatedWorktree,
-								hostPromise,
 							});
 
 							if (prMetadata.baseRefName) {
@@ -818,7 +767,6 @@ export const workspacesRouter = router({
 					baseBranch: input.baseBranch,
 					idempotencyId: input.id,
 					taskId: input.taskId,
-					hostPromise,
 				});
 				workspaceRow = result.workspace;
 				alreadyExists = result.alreadyExists;
@@ -837,7 +785,12 @@ export const workspacesRouter = router({
 					// aware planner. Title-rename can race with that lookup.
 					resolvedBranch = typedBranch;
 					const [planResult, aiNames, existing] = await Promise.all([
-						planBranchSource(git, resolvedBranch, input.baseBranch),
+						planBranchSource(
+							git,
+							resolvedBranch,
+							input.baseBranch,
+							fetchBaseRefOffLoop,
+						),
 						aiNamesPromise ?? Promise.resolve(null),
 						listBranchNames(ctx, localProject.repoPath),
 					]);
@@ -872,7 +825,11 @@ export const workspacesRouter = router({
 					// is a fallback for no-prompt or LLM failure.
 					const [aiNames, startPoint, existing] = await Promise.all([
 						aiNamesPromise ?? Promise.resolve(null),
-						resolveNewBranchStartPoint(git, input.baseBranch),
+						resolveNewBranchStartPoint(
+							git,
+							input.baseBranch,
+							fetchBaseRefOffLoop,
+						),
 						listBranchNames(ctx, localProject.repoPath),
 					]);
 					autoNameFellBack = wantAi && aiNames === null;
@@ -925,7 +882,6 @@ export const workspacesRouter = router({
 							baseBranch: baseShortName,
 							idempotencyId: input.id,
 							taskId: input.taskId,
-							hostPromise,
 						});
 						workspaceRow = result.workspace;
 						alreadyExists = result.alreadyExists;
@@ -985,7 +941,6 @@ export const workspacesRouter = router({
 										baseBranch: baseShortName,
 										idempotencyId: input.id,
 										taskId: input.taskId,
-										hostPromise,
 									});
 									adoptedRow = result.workspace;
 									alreadyExists = result.alreadyExists;
@@ -1027,7 +982,7 @@ export const workspacesRouter = router({
 									});
 							}
 
-							workspaceRow = await registerCloudAndLocal({
+							workspaceRow = await registerLocalWorkspace({
 								ctx,
 								id: input.id,
 								projectId: input.projectId,
@@ -1036,7 +991,6 @@ export const workspacesRouter = router({
 								worktreePath,
 								taskId: input.taskId,
 								rollbackWorktree,
-								hostPromise,
 							});
 						}
 					}
@@ -1044,12 +998,48 @@ export const workspacesRouter = router({
 			}
 
 			const terminalsResult: Array<{ terminalId: string; label?: string }> = [];
+			const sugarLaunches = input.agents ?? [];
 
-			if (!alreadyExists) {
-				const { terminal, warning } = await startSetupTerminalIfPresent({
-					ctx,
-					workspaceId: workspaceRow.id,
-				});
+			// Wait-for-setup gate: chain a single terminal agent behind the setup
+			// commands in the setup terminal, so the agent starts only after setup
+			// succeeds and no second terminal is created. Chat agents and
+			// multi-agent launches keep the parallel path, mirroring the renderer's
+			// v1 gating. Build the agent command up-front; if it fails (unknown
+			// agent, missing attachment) fall back to the parallel dispatch, which
+			// surfaces the error in the agents result.
+			let chainAgent: { fullCommand: string; label: string } | null = null;
+			const soleLaunch = sugarLaunches.length === 1 ? sugarLaunches[0] : null;
+			if (
+				!alreadyExists &&
+				input.waitForSetupBeforeAgents &&
+				soleLaunch &&
+				!isChatAgent(soleLaunch.agent)
+			) {
+				try {
+					chainAgent = buildTerminalAgentLaunch(ctx.db, {
+						workspaceId: workspaceRow.id,
+						agent: soleLaunch.agent,
+						prompt: soleLaunch.prompt,
+						attachmentIds: soleLaunch.attachmentIds,
+						model: soleLaunch.model,
+						effort: soleLaunch.effort,
+					});
+				} catch (err) {
+					console.warn(
+						"[workspaces.create] wait-for-setup chain unavailable, dispatching agent in parallel:",
+						err,
+					);
+				}
+			}
+
+			let chainedAgentResult: AgentLaunchResult | null = null;
+			if (!alreadyExists && input.runSetup !== false) {
+				const { terminal, warning, chained } =
+					await startSetupTerminalIfPresent({
+						ctx,
+						workspaceId: workspaceRow.id,
+						...(chainAgent ? { chainCommand: chainAgent.fullCommand } : {}),
+					});
 				if (warning) {
 					console.warn(`[workspaces.create] setup warning: ${warning}`);
 				}
@@ -1059,10 +1049,22 @@ export const workspacesRouter = router({
 						label: terminal.label,
 					});
 				}
+				if (chained && chainAgent && terminal) {
+					chainedAgentResult = {
+						ok: true,
+						kind: "terminal",
+						sessionId: terminal.id,
+						label: chainAgent.label,
+					};
+				}
 			}
 
 			const [agentsResult, commandResult] = await Promise.all([
-				dispatchSugarAgents(ctx, workspaceRow.id, input.agents ?? []),
+				dispatchSugarAgents(
+					ctx,
+					workspaceRow.id,
+					chainedAgentResult ? [] : sugarLaunches,
+				),
 				input.command
 					? startCommandTerminal({
 							ctx,
@@ -1087,7 +1089,9 @@ export const workspacesRouter = router({
 			return {
 				workspace: workspaceRow,
 				terminals: terminalsResult,
-				agents: agentsResult,
+				agents: chainedAgentResult
+					? [chainedAgentResult, ...agentsResult]
+					: agentsResult,
 				alreadyExists,
 				autoNameWarning:
 					autoNameFellBack && !alreadyExists
