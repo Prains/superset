@@ -127,7 +127,7 @@ export function GhAuthDialog({
 	const isInstall = mode === "install";
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog open={open} modal onOpenChange={onOpenChange}>
 			<DialogContent
 				className="gap-3 sm:max-w-[752px]"
 				aria-describedby={undefined}

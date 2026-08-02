@@ -60,32 +60,56 @@ export function GhAuthTerminal({
 			window.setTimeout(refit, 350),
 		];
 
+		// Queue input until the pane exists: xterm auto-replies to terminal
+		// queries (OSC 11, DSR) at mount, and a write to a not-yet-created pane
+		// makes the terminal service synthesize an exit event for it.
+		let paneReady = false;
+		let exited = false;
+		let exitBeforeReady = false;
+		const pendingInput: string[] = [];
+		const fireExit = () => {
+			if (exited) return;
+			exited = true;
+			onExitRef.current();
+		};
+
 		const inputDisposable = runtime.terminal.onData((data) => {
+			if (!paneReady) {
+				pendingInput.push(data);
+				return;
+			}
 			void electronTrpcClient.terminal.write.mutate({ paneId, data });
 		});
 
-		let exited = false;
 		const subscription = electronTrpcClient.terminal.stream.subscribe(paneId, {
 			onData: (event) => {
 				if (event.type === "data") {
 					runtime.terminal.write(event.data);
 					onOutputRef.current?.(event.data);
-				} else if (event.type === "exit" && !exited) {
-					exited = true;
-					onExitRef.current();
+				} else if (event.type === "exit") {
+					if (paneReady) fireExit();
+					else exitBeforeReady = true;
 				}
 			},
 		});
 
-		void electronTrpcClient.terminal.createOrAttach.mutate({
-			paneId,
-			tabId: paneId,
-			workspaceId: paneId,
-			command: commandRef.current,
-			cols: runtime.terminal.cols,
-			rows: runtime.terminal.rows,
-			skipColdRestore: true,
-		});
+		void electronTrpcClient.terminal.createOrAttach
+			.mutate({
+				paneId,
+				tabId: paneId,
+				workspaceId: paneId,
+				command: commandRef.current,
+				cols: runtime.terminal.cols,
+				rows: runtime.terminal.rows,
+				skipColdRestore: true,
+			})
+			.then(() => {
+				paneReady = true;
+				for (const data of pendingInput.splice(0)) {
+					void electronTrpcClient.terminal.write.mutate({ paneId, data });
+				}
+				if (exitBeforeReady) fireExit();
+			});
 
 		return () => {
 			for (const timer of refitTimers) window.clearTimeout(timer);
