@@ -24,7 +24,10 @@ import type { GitCredentialProvider } from "./runtime/git";
 import { createGitEnvResolver, createGitFactory } from "./runtime/git";
 import { runMainWorkspaceSweep } from "./runtime/main-workspace-sweep";
 import { runProjectBackfill } from "./runtime/project-backfill";
-import { PullRequestRuntimeManager } from "./runtime/pull-requests";
+import {
+	PullRequestRuntimeManager,
+	registerPullRequestDiffRoute,
+} from "./runtime/pull-requests";
 import { runWorkspaceBackfill } from "./runtime/workspace-backfill";
 import { registerWorkspaceTerminalRoute } from "./terminal/terminal";
 import {
@@ -259,6 +262,7 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 	app.use("/acp-sessions/*", wsAuth);
 
 	registerEventBusRoute({ app, eventBus, upgradeWebSocket });
+	registerPullRequestDiffRoute({ app, db, hostAuth: providers.hostAuth });
 	registerWorkspaceTerminalRoute({
 		app,
 		db,

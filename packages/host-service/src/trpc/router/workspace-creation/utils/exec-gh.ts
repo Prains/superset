@@ -7,6 +7,9 @@ const execFileAsync = promisify(execFile);
 export interface ExecGhOptions {
 	cwd?: string;
 	timeout?: number;
+	maxBuffer?: number;
+	/** Return stdout verbatim instead of trimming and attempting JSON.parse. */
+	raw?: boolean;
 }
 
 /**
@@ -27,9 +30,11 @@ export const execGh: ExecGh = async (args, options) => {
 	const { stdout } = await execFileAsync("gh", args, {
 		encoding: "utf8",
 		timeout: options?.timeout ?? 10_000,
+		maxBuffer: options?.maxBuffer,
 		cwd: options?.cwd,
 		env,
 	});
+	if (options?.raw) return stdout;
 	const trimmed = stdout.trim();
 	if (!trimmed) return {};
 	try {

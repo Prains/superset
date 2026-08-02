@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../../index";
 import { getContent } from "./procedures/get-content";
+import { getDiffFiles } from "./procedures/get-diff-files";
 
 export const pullRequestsRouter = router({
 	getByWorkspaces: protectedProcedure
@@ -29,4 +30,5 @@ export const pullRequestsRouter = router({
 			return { ok: true };
 		}),
 	getContent,
+	getDiffFiles,
 });

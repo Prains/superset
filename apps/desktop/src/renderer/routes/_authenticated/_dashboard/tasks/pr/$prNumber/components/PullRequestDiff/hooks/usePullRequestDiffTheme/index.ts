@@ -1,0 +1,1 @@
+export { usePullRequestDiffTheme } from "./usePullRequestDiffTheme";

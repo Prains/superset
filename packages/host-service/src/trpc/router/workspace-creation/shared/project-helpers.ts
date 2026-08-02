@@ -37,7 +37,7 @@ export interface ResolvedGithubRepo {
  * Remote preference: configured `remoteName` → `origin` → first GitHub remote.
  */
 export async function resolveGithubRepo(
-	ctx: HostServiceContext,
+	ctx: Pick<HostServiceContext, "db">,
 	projectId: string,
 ): Promise<ResolvedGithubRepo> {
 	const local = ctx.db.query.projects

@@ -2,7 +2,7 @@ import { Button } from "@superset/ui/button";
 import { ScrollArea } from "@superset/ui/scroll-area";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
 import { LuExternalLink, LuPlus } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
@@ -19,6 +19,7 @@ import {
 } from "renderer/stores/new-workspace-draft";
 import { useOpenNewWorkspaceModal } from "renderer/stores/new-workspace-modal";
 import { Route as TasksLayoutRoute } from "../../layout";
+import { PullRequestDiff } from "./components/PullRequestDiff";
 
 export const Route = createFileRoute(
 	"/_authenticated/_dashboard/tasks/pr/$prNumber/",
@@ -36,6 +37,15 @@ function PullRequestDetailPage() {
 	const updateDraft = useNewWorkspaceDraftStore((s) => s.updateDraft);
 	const resetDraft = useNewWorkspaceDraftStore((s) => s.resetDraft);
 	const openModal = useOpenNewWorkspaceModal();
+	const [activeTab, setActiveTab] = useState<"overview" | "changes">(
+		"overview",
+	);
+	const [hasOpenedChanges, setHasOpenedChanges] = useState(false);
+
+	const openChangesTab = () => {
+		setActiveTab("changes");
+		setHasOpenedChanges(true);
+	};
 
 	const backSearch = useMemo(() => {
 		const s: Record<string, string> = {};
@@ -129,40 +139,75 @@ function PullRequestDetailPage() {
 				onAddToWorkspace={handleAddToWorkspace}
 			/>
 
-			<ScrollArea className="flex-1 min-h-0">
-				<div className="px-6 py-6 max-w-4xl">
-					<div className="flex items-start gap-3 mb-4">
-						<PRIcon state={state} className="size-5 shrink-0 mt-1" />
-						<h1 className="text-2xl font-semibold leading-tight">
-							{data.title}
-						</h1>
-					</div>
+			<div className="flex items-center gap-1 border-b border-border px-6 py-1.5 shrink-0">
+				<Button
+					variant={activeTab === "overview" ? "secondary" : "ghost"}
+					size="sm"
+					className="h-7 px-3 text-xs"
+					onClick={() => setActiveTab("overview")}
+				>
+					Overview
+				</Button>
+				<Button
+					variant={activeTab === "changes" ? "secondary" : "ghost"}
+					size="sm"
+					className="h-7 px-3 text-xs"
+					onClick={openChangesTab}
+				>
+					Files changed
+				</Button>
+			</div>
 
-					<div className="flex items-center gap-3 text-xs text-muted-foreground mb-6">
-						<span className="capitalize">{stateLabel}</span>
-						{data.author && (
-							<>
-								<span>·</span>
-								<span>by {data.author}</span>
-							</>
-						)}
-						{branchSummary && (
-							<>
-								<span>·</span>
-								<span className="font-mono">{branchSummary}</span>
-							</>
+			{activeTab === "overview" ? (
+				<ScrollArea className="flex-1 min-h-0">
+					<div className="px-6 py-6 max-w-4xl">
+						<div className="flex items-start gap-3 mb-4">
+							<PRIcon state={state} className="size-5 shrink-0 mt-1" />
+							<h1 className="text-2xl font-semibold leading-tight">
+								{data.title}
+							</h1>
+						</div>
+
+						<div className="flex items-center gap-3 text-xs text-muted-foreground mb-6">
+							<span className="capitalize">{stateLabel}</span>
+							{data.author && (
+								<>
+									<span>·</span>
+									<span>by {data.author}</span>
+								</>
+							)}
+							{branchSummary && (
+								<>
+									<span>·</span>
+									<span className="font-mono">{branchSummary}</span>
+								</>
+							)}
+						</div>
+
+						{data.body.trim() ? (
+							<MarkdownRenderer content={data.body} />
+						) : (
+							<p className="text-sm text-muted-foreground italic">
+								No description provided.
+							</p>
 						)}
 					</div>
+				</ScrollArea>
+			) : null}
 
-					{data.body.trim() ? (
-						<MarkdownRenderer content={data.body} />
-					) : (
-						<p className="text-sm text-muted-foreground italic">
-							No description provided.
-						</p>
-					)}
+			{hasOpenedChanges ? (
+				<div
+					className={
+						activeTab === "changes" ? "flex-1 min-h-0 flex flex-col" : "hidden"
+					}
+				>
+					<PullRequestDiff
+						hostUrl={hostUrl}
+						projectId={projectId}
+						prNumber={data.number}
+					/>
 				</div>
-			</ScrollArea>
+			) : null}
 		</div>
 	);
 }

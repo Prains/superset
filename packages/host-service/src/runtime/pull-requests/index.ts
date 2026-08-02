@@ -1,3 +1,4 @@
+export { registerPullRequestDiffRoute } from "./diff-route";
 export {
 	type CheckoutPullRequestMetadata,
 	PullRequestRuntimeManager,
