@@ -28,9 +28,11 @@ const {
 	clearToken,
 	handleAuthCallback,
 	loadToken,
+	parseAuthDeepLink,
 	saveToken,
 	stateStore,
 } = await import("./auth-functions");
+const { PROTOCOL_SCHEME } = await import("shared/constants");
 
 function quarantinedTokenPaths(): string[] {
 	return fs
@@ -163,6 +165,19 @@ describe("auth token storage", () => {
 		expect(stateStore.has(state)).toBe(false);
 	});
 
+	test("accepts a concurrently duplicated OAuth callback only once", async () => {
+		const state = "duplicated-state";
+		stateStore.set(state, Date.now());
+
+		const results = await Promise.all([
+			handleAuthCallback({ token: "first", expiresAt: "2099-01-01", state }),
+			handleAuthCallback({ token: "second", expiresAt: "2099-01-01", state }),
+		]);
+
+		expect(results.filter((result) => result.success)).toHaveLength(1);
+		expect(stateStore.has(state)).toBe(false);
+	});
+
 	test("sign-out quarantines invalid storage before reporting success", async () => {
 		fs.writeFileSync(tokenFile, "corrupt credentials");
 		const tokenCleared = mock(() => {});
@@ -180,5 +195,27 @@ describe("auth token storage", () => {
 			"corrupt credentials",
 		);
 		expect(tokenCleared).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("parseAuthDeepLink", () => {
+	test("flags incomplete auth callbacks as malformed, not non-auth", () => {
+		expect(
+			parseAuthDeepLink(`${PROTOCOL_SCHEME}://auth/callback?token=secret`),
+		).toEqual({ type: "malformed" });
+	});
+
+	test("classifies non-auth links and complete callbacks", () => {
+		expect(parseAuthDeepLink(`${PROTOCOL_SCHEME}://tasks/my-slug`)).toEqual({
+			type: "not-auth",
+		});
+		expect(
+			parseAuthDeepLink(
+				`${PROTOCOL_SCHEME}://auth/callback?token=t&expiresAt=2099-01-01&state=s`,
+			),
+		).toEqual({
+			type: "valid",
+			params: { token: "t", expiresAt: "2099-01-01", state: "s" },
+		});
 	});
 });

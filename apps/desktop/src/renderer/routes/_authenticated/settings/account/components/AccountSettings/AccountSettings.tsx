@@ -162,8 +162,8 @@ export function AccountSettings({ visibleItems }: AccountSettingsProps) {
 							<Button
 								variant="outline"
 								onClick={async () => {
-									await signOut();
-									toast.success("Signed out");
+									const { ok } = await signOut();
+									if (ok) toast.success("Signed out");
 								}}
 							>
 								Sign out

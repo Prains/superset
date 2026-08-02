@@ -131,8 +131,10 @@ async function atomicWriteToken(
 		await handle.sync();
 		await handle.close();
 		handle = null;
+		// chmod before the commit rename: the open() mode is masked by umask,
+		// and a failure here must leave the previous token intact.
+		await fs.chmod(temporaryFile, SUPERSET_SENSITIVE_FILE_MODE);
 		await fs.rename(temporaryFile, tokenFile);
-		await fs.chmod(tokenFile, SUPERSET_SENSITIVE_FILE_MODE);
 	} catch (error) {
 		await handle?.close().catch(() => {});
 		await fs.unlink(temporaryFile).catch(() => {});
@@ -226,14 +228,18 @@ export async function handleAuthCallback(params: {
 	expiresAt: string;
 	state: string;
 }): Promise<{ success: boolean; error?: string }> {
-	if (!stateStore.has(params.state)) {
+	// Reserve the state before awaiting so a concurrently delivered duplicate
+	// of the same callback is rejected instead of accepted twice.
+	const stateIssuedAt = stateStore.get(params.state);
+	if (stateIssuedAt === undefined) {
 		return { success: false, error: "Invalid or expired auth session" };
 	}
+	stateStore.delete(params.state);
 
 	try {
 		await saveToken({ token: params.token, expiresAt: params.expiresAt });
-		stateStore.delete(params.state);
 	} catch (error) {
+		stateStore.set(params.state, stateIssuedAt);
 		console.error("[auth] Failed to persist desktop auth token", error);
 		return {
 			success: false,
@@ -244,23 +250,35 @@ export async function handleAuthCallback(params: {
 	return { success: true };
 }
 
+export type ParsedAuthDeepLink =
+	| { type: "not-auth" }
+	| { type: "malformed" }
+	| {
+			type: "valid";
+			params: { token: string; expiresAt: string; state: string };
+	  };
+
 /**
  * Parse and validate auth deep link URL.
+ *
+ * Classifies by host/path before validating fields so a malformed auth
+ * callback (which may still carry a token) is never treated as a plain
+ * deep link and logged or navigated with.
  */
-export function parseAuthDeepLink(
-	url: string,
-): { token: string; expiresAt: string; state: string } | null {
+export function parseAuthDeepLink(url: string): ParsedAuthDeepLink {
 	try {
 		const parsed = new URL(url);
-		if (parsed.protocol !== `${PROTOCOL_SCHEME}:`) return null;
-		if (parsed.host !== "auth" || parsed.pathname !== "/callback") return null;
+		if (parsed.protocol !== `${PROTOCOL_SCHEME}:`) return { type: "not-auth" };
+		if (parsed.host !== "auth" || parsed.pathname !== "/callback") {
+			return { type: "not-auth" };
+		}
 
 		const token = parsed.searchParams.get("token");
 		const expiresAt = parsed.searchParams.get("expiresAt");
 		const state = parsed.searchParams.get("state");
-		if (!token || !expiresAt || !state) return null;
-		return { token, expiresAt, state };
+		if (!token || !expiresAt || !state) return { type: "malformed" };
+		return { type: "valid", params: { token, expiresAt, state } };
 	} catch {
-		return null;
+		return { type: "not-auth" };
 	}
 }
