@@ -18,13 +18,20 @@ interface StoredAuth {
 	organizationIdsRevision?: number;
 }
 
+interface LoadedAuth {
+	token: string | null;
+	expiresAt: string | null;
+	organizationIds: string[] | null;
+	organizationIdsRevision: number;
+}
+
 const TOKEN_FILE_NAME = "auth-token.enc";
-const EMPTY_STORED_AUTH = {
+const EMPTY_LOADED_AUTH: LoadedAuth = {
 	token: null,
 	expiresAt: null,
 	organizationIds: null,
 	organizationIdsRevision: 0,
-} as const;
+};
 
 type InspectedTokenStorage =
 	| { status: "missing" }
@@ -89,11 +96,7 @@ function parseStoredAuth(data: Buffer): StoredAuth {
 function describePathType(stats: Awaited<ReturnType<typeof fs.lstat>>): string {
 	if (stats.isDirectory()) return "directory";
 	if (stats.isSymbolicLink()) return "symbolic link";
-	if (stats.isSocket()) return "socket";
-	if (stats.isFIFO()) return "FIFO";
-	if (stats.isBlockDevice()) return "block device";
-	if (stats.isCharacterDevice()) return "character device";
-	return "unknown filesystem entry";
+	return "special file";
 }
 
 async function inspectTokenStorage(
@@ -216,16 +219,11 @@ export const authEvents = new EventEmitter();
 /**
  * Load token from encrypted disk storage.
  */
-export async function loadToken(): Promise<{
-	token: string | null;
-	expiresAt: string | null;
-	organizationIds: string[] | null;
-	organizationIdsRevision: number;
-}> {
+export async function loadToken(): Promise<LoadedAuth> {
 	const tokenFile = getTokenFile();
 	try {
 		const storedAuth = await readStoredAuth();
-		if (!storedAuth) return EMPTY_STORED_AUTH;
+		if (!storedAuth) return EMPTY_LOADED_AUTH;
 
 		await fs
 			.chmod(tokenFile, SUPERSET_SENSITIVE_FILE_MODE)
@@ -240,7 +238,7 @@ export async function loadToken(): Promise<{
 		};
 	} catch (error) {
 		console.error("[auth] Failed to inspect auth token storage", error);
-		return EMPTY_STORED_AUTH;
+		return EMPTY_LOADED_AUTH;
 	}
 }
 
@@ -255,11 +253,8 @@ export async function saveToken({
 	expiresAt: string;
 }): Promise<void> {
 	await serializeAuthWrite(async () => {
-		const tokenFile = getTokenFile();
-		const inspected = await inspectTokenStorage(tokenFile);
-		if (inspected.status === "invalid") {
-			await quarantineInvalidTokenStorage(tokenFile, inspected.reason);
-		}
+		// Moves unusable storage aside first: renaming onto a directory fails.
+		await readStoredAuth();
 		await writeStoredAuth({ token, expiresAt });
 		authEvents.emit("token-saved", { token, expiresAt });
 	});
@@ -270,9 +265,7 @@ export async function clearToken(): Promise<void> {
 		const tokenFile = getTokenFile();
 		const inspected = await inspectTokenStorage(tokenFile);
 		if (inspected.status === "valid") {
-			await fs.unlink(tokenFile).catch((error) => {
-				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-			});
+			await fs.rm(tokenFile, { force: true });
 		} else if (inspected.status === "invalid") {
 			await quarantineInvalidTokenStorage(tokenFile, inspected.reason);
 		}

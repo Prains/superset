@@ -37,6 +37,16 @@ const {
 } = await import("./auth-functions");
 const { PROTOCOL_SCHEME } = await import("shared/constants");
 
+/** Quarantining logs a warning by design; keep test output readable. */
+async function quietly<Result>(run: () => Promise<Result>): Promise<Result> {
+	const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+	try {
+		return await run();
+	} finally {
+		warnSpy.mockRestore();
+	}
+}
+
 function quarantinedTokenPaths(): string[] {
 	const prefix = `${path.basename(tokenFile)}.corrupt-`;
 	return fs
@@ -82,16 +92,29 @@ describe("auth token storage", () => {
 		});
 	});
 
+	test("reports a missing token without logging a failure", async () => {
+		// loadToken swallows everything it throws, so an internal crash would
+		// otherwise be indistinguishable from "no token stored".
+		const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+		try {
+			expect(await loadToken()).toEqual({
+				token: null,
+				expiresAt: null,
+				organizationIds: null,
+				organizationIdsRevision: 0,
+			});
+			expect(errorSpy).not.toHaveBeenCalled();
+		} finally {
+			errorSpy.mockRestore();
+		}
+	});
+
 	test("quarantines a directory and preserves its contents before saving", async () => {
 		fs.mkdirSync(tokenFile);
 		fs.writeFileSync(path.join(tokenFile, "keep-me"), "important");
-		const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
 
-		try {
-			await saveToken({ token: "token", expiresAt: "2099-01-01" });
-		} finally {
-			warnSpy.mockRestore();
-		}
+		await quietly(() => saveToken({ token: "token", expiresAt: "2099-01-01" }));
 
 		expect(fs.statSync(tokenFile).isFile()).toBe(true);
 		const [quarantinedPath] = quarantinedTokenPaths();
@@ -103,14 +126,8 @@ describe("auth token storage", () => {
 
 	test("quarantines corrupt token contents during load", async () => {
 		fs.writeFileSync(tokenFile, "not valid auth JSON");
-		const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
 
-		let loadedToken: Awaited<ReturnType<typeof loadToken>>;
-		try {
-			loadedToken = await loadToken();
-		} finally {
-			warnSpy.mockRestore();
-		}
+		const loadedToken = await quietly(() => loadToken());
 
 		expect(loadedToken).toEqual({
 			token: null,
@@ -129,13 +146,8 @@ describe("auth token storage", () => {
 		const targetFile = path.join(testSupersetHomeDir, "target-file");
 		fs.writeFileSync(targetFile, "do not touch");
 		fs.symlinkSync(targetFile, tokenFile);
-		const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
 
-		try {
-			await saveToken({ token: "token", expiresAt: "2099-01-01" });
-		} finally {
-			warnSpy.mockRestore();
-		}
+		await quietly(() => saveToken({ token: "token", expiresAt: "2099-01-01" }));
 
 		expect(fs.readFileSync(targetFile, "utf8")).toBe("do not touch");
 		expect(fs.statSync(tokenFile).isFile()).toBe(true);
@@ -180,13 +192,11 @@ describe("auth token storage", () => {
 		fs.writeFileSync(tokenFile, "corrupt credentials");
 		const tokenCleared = mock(() => {});
 		authEvents.once("token-cleared", tokenCleared);
-		const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
 
 		try {
-			await clearToken();
+			await quietly(() => clearToken());
 		} finally {
 			authEvents.off("token-cleared", tokenCleared);
-			warnSpy.mockRestore();
 		}
 
 		expect(fs.existsSync(tokenFile)).toBe(false);
@@ -340,18 +350,14 @@ describe("cached organization membership", () => {
 
 	test("never attaches membership to unusable storage", async () => {
 		fs.mkdirSync(tokenFile);
-		const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
 
-		let result: Awaited<ReturnType<typeof saveOrganizationIds>>;
-		try {
-			result = await saveOrganizationIds({
+		const result = await quietly(() =>
+			saveOrganizationIds({
 				token: "token",
 				organizationIds: ["org-1"],
 				expectedRevision: 0,
-			});
-		} finally {
-			warnSpy.mockRestore();
-		}
+			}),
+		);
 
 		expect(result).toEqual({ status: "token-mismatch", revision: 0 });
 		expect(quarantinedTokenPaths()).toHaveLength(1);
