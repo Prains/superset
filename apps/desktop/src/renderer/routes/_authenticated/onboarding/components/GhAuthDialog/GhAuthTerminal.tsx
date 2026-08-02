@@ -14,12 +14,15 @@ interface GhAuthTerminalProps {
 	onExit: () => void;
 	/** Fired with each chunk of raw terminal output. */
 	onOutput?: (data: string) => void;
+	/** Receives a writer for sending input to the pty (queued until it exists). */
+	onWriterReady?: (write: (data: string) => void) => void;
 }
 
 export function GhAuthTerminal({
 	command,
 	onExit,
 	onOutput,
+	onWriterReady,
 }: GhAuthTerminalProps) {
 	const appearance = useTerminalAppearance();
 	const appearanceRef = useRef(appearance);
@@ -29,6 +32,8 @@ export function GhAuthTerminal({
 	onExitRef.current = onExit;
 	const onOutputRef = useRef(onOutput);
 	onOutputRef.current = onOutput;
+	const onWriterReadyRef = useRef(onWriterReady);
+	onWriterReadyRef.current = onWriterReady;
 	const commandRef = useRef(command);
 	commandRef.current = command;
 
@@ -73,13 +78,15 @@ export function GhAuthTerminal({
 			onExitRef.current();
 		};
 
-		const inputDisposable = runtime.terminal.onData((data) => {
+		const writeToPty = (data: string) => {
 			if (!paneReady) {
 				pendingInput.push(data);
 				return;
 			}
 			void electronTrpcClient.terminal.write.mutate({ paneId, data });
-		});
+		};
+		const inputDisposable = runtime.terminal.onData(writeToPty);
+		onWriterReadyRef.current?.(writeToPty);
 
 		const subscription = electronTrpcClient.terminal.stream.subscribe(paneId, {
 			onData: (event) => {

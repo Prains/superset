@@ -49,6 +49,7 @@ export function GhAuthDialog({
 	const outputBufferRef = useRef("");
 	const closeTimerRef = useRef<number | null>(null);
 	const terminalBoxRef = useRef<HTMLDivElement>(null);
+	const ptyWriteRef = useRef<((data: string) => void) | null>(null);
 	const onExitRef = useRef(onExit);
 	onExitRef.current = onExit;
 
@@ -83,7 +84,12 @@ export function GhAuthDialog({
 		const match = stripAnsi(outputBufferRef.current).match(
 			ONE_TIME_CODE_PATTERN,
 		);
-		if (match?.[1]) setOneTimeCode(match[1]);
+		if (match?.[1]) {
+			setOneTimeCode(match[1]);
+			// gh only waits for Enter so the user can copy the code first —
+			// we've captured it, so advance straight to opening the browser.
+			ptyWriteRef.current?.("\r");
+		}
 	};
 
 	const handleTerminalExit = () => {
@@ -206,7 +212,7 @@ export function GhAuthDialog({
 									{oneTimeCode}
 								</span>
 								<span className="text-xs text-muted-foreground">
-									Press Enter below, then paste this code on GitHub
+									Paste this code on GitHub — your browser is opening
 								</span>
 								{copied ? (
 									<span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-500">
@@ -236,7 +242,7 @@ export function GhAuthDialog({
 							ref={terminalBoxRef}
 							className={cn(
 								"h-[240px] w-full overflow-hidden rounded-lg border bg-[#151110] p-3 transition-opacity duration-300",
-								(oneTimeCode !== null || phase === "failed") && "opacity-60",
+								phase === "failed" && "opacity-60",
 							)}
 						>
 							{open && (
@@ -245,6 +251,9 @@ export function GhAuthDialog({
 									command={isInstall ? GH_INSTALL_COMMAND : GH_AUTH_COMMAND}
 									onExit={handleTerminalExit}
 									onOutput={handleOutput}
+									onWriterReady={(write) => {
+										ptyWriteRef.current = write;
+									}}
 								/>
 							)}
 						</div>
