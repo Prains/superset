@@ -109,7 +109,10 @@ export function GhAuthTerminal({
 					void electronTrpcClient.terminal.write.mutate({ paneId, data });
 				}
 				if (exitBeforeReady) fireExit();
-			});
+			})
+			// A failed create would otherwise leave the dialog running forever
+			// with a dead terminal silently swallowing queued input.
+			.catch(() => fireExit());
 
 		return () => {
 			for (const timer of refitTimers) window.clearTimeout(timer);

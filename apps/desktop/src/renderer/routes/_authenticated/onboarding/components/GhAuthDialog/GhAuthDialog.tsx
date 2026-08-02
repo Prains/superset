@@ -196,7 +196,7 @@ export function GhAuthDialog({
 								</span>
 							</div>
 						) : phase === "checking" ? (
-							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 text-sm text-muted-foreground">
+							<div className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/40 px-3.5 text-sm text-muted-foreground">
 								<Spinner className="size-3.5 shrink-0" />
 								Checking sign-in status…
 							</div>
@@ -227,7 +227,7 @@ export function GhAuthDialog({
 								)}
 							</div>
 						) : (
-							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 text-sm text-muted-foreground">
+							<div className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/40 px-3.5 text-sm text-muted-foreground">
 								<Spinner className="size-3.5 shrink-0" />
 								Follow the prompts below
 							</div>
