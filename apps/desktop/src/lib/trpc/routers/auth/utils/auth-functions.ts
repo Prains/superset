@@ -7,23 +7,29 @@ import {
 	SUPERSET_HOME_DIR_MODE,
 	SUPERSET_SENSITIVE_FILE_MODE,
 } from "main/lib/app-environment";
+import { lock } from "proper-lockfile";
 import { PROTOCOL_SCHEME } from "shared/constants";
 import { decrypt, encrypt } from "./crypto-storage";
 
 interface StoredAuth {
 	token: string;
 	expiresAt: string;
+	organizationIds?: string[];
+	organizationIdsRevision?: number;
 }
 
 const TOKEN_FILE_NAME = "auth-token.enc";
-const EMPTY_STORED_AUTH = { token: null, expiresAt: null } as const;
+const EMPTY_STORED_AUTH = {
+	token: null,
+	expiresAt: null,
+	organizationIds: null,
+	organizationIdsRevision: 0,
+} as const;
 
 type InspectedTokenStorage =
 	| { status: "missing" }
 	| { status: "valid"; storedAuth: StoredAuth }
 	| { status: "invalid"; reason: string };
-
-let authStorageQueue: Promise<void> = Promise.resolve();
 
 function getTokenFile(): string {
 	return join(
@@ -32,25 +38,52 @@ function getTokenFile(): string {
 	);
 }
 
-function serializeAuthStorage<T>(operation: () => Promise<T>): Promise<T> {
-	const result = authStorageQueue.then(operation, operation);
-	authStorageQueue = result.then(
-		() => undefined,
-		() => undefined,
-	);
-	return result;
+async function withAuthLock<Result>(
+	operation: () => Promise<Result>,
+): Promise<Result> {
+	const release = await lock(getTokenFile(), {
+		realpath: false,
+		stale: 10_000,
+		retries: { retries: 10, factor: 1, minTimeout: 25, maxTimeout: 250 },
+	});
+	try {
+		return await operation();
+	} finally {
+		await release();
+	}
 }
 
-function isStoredAuth(value: unknown): value is StoredAuth {
-	if (!value || typeof value !== "object") return false;
-	const candidate = value as Partial<StoredAuth>;
-	return (
-		typeof candidate.token === "string" &&
-		candidate.token.length > 0 &&
-		typeof candidate.expiresAt === "string" &&
-		candidate.expiresAt.length > 0 &&
-		!Number.isNaN(Date.parse(candidate.expiresAt))
-	);
+function parseStoredAuth(data: Buffer): StoredAuth {
+	const parsed: unknown = JSON.parse(decrypt(data));
+	if (!parsed || typeof parsed !== "object") {
+		throw new Error("Invalid stored auth payload");
+	}
+	const candidate = parsed as Record<string, unknown>;
+	if (
+		typeof candidate.token !== "string" ||
+		candidate.token.length === 0 ||
+		typeof candidate.expiresAt !== "string" ||
+		candidate.expiresAt.length === 0 ||
+		Number.isNaN(Date.parse(candidate.expiresAt))
+	) {
+		throw new Error("Invalid stored auth payload");
+	}
+	return {
+		token: candidate.token,
+		expiresAt: candidate.expiresAt,
+		organizationIds: Array.isArray(candidate.organizationIds)
+			? candidate.organizationIds.filter(
+					(value): value is string =>
+						typeof value === "string" && value.length > 0,
+				)
+			: undefined,
+		organizationIdsRevision:
+			typeof candidate.organizationIdsRevision === "number" &&
+			Number.isSafeInteger(candidate.organizationIdsRevision) &&
+			candidate.organizationIdsRevision >= 0
+				? candidate.organizationIdsRevision
+				: undefined,
+	};
 }
 
 function describePathType(stats: Awaited<ReturnType<typeof fs.lstat>>): string {
@@ -85,11 +118,7 @@ async function inspectTokenStorage(
 
 	const encrypted = await fs.readFile(tokenFile);
 	try {
-		const parsed: unknown = JSON.parse(decrypt(encrypted));
-		if (!isStoredAuth(parsed)) {
-			return { status: "invalid", reason: "contents failed validation" };
-		}
-		return { status: "valid", storedAuth: parsed };
+		return { status: "valid", storedAuth: parseStoredAuth(encrypted) };
 	} catch {
 		return {
 			status: "invalid",
@@ -108,6 +137,18 @@ async function quarantineInvalidTokenStorage(
 		`[auth] Quarantined invalid auth token storage (${reason}) as ${basename(quarantinePath)}`,
 	);
 	return quarantinePath;
+}
+
+/** Returns the stored auth, quarantining the file if it is unusable. */
+async function readStoredAuth(): Promise<StoredAuth | null> {
+	const tokenFile = getTokenFile();
+	const inspected = await inspectTokenStorage(tokenFile);
+	if (inspected.status === "missing") return null;
+	if (inspected.status === "invalid") {
+		await quarantineInvalidTokenStorage(tokenFile, inspected.reason);
+		return null;
+	}
+	return inspected.storedAuth;
 }
 
 async function atomicWriteToken(
@@ -142,7 +183,24 @@ async function atomicWriteToken(
 	}
 }
 
+async function writeStoredAuth(storedAuth: StoredAuth): Promise<void> {
+	await atomicWriteToken(getTokenFile(), encrypt(JSON.stringify(storedAuth)));
+}
+
 export const stateStore = new Map<string, number>();
+let authWriteQueue: Promise<unknown> = Promise.resolve();
+
+function serializeAuthWrite<Result>(
+	operation: () => Promise<Result>,
+): Promise<Result> {
+	const lockedOperation = () => withAuthLock(operation);
+	const nextWrite = authWriteQueue.then(lockedOperation, lockedOperation);
+	authWriteQueue = nextWrite.then(
+		() => undefined,
+		() => undefined,
+	);
+	return nextWrite;
+}
 
 /**
  * Event emitter for auth-related events.
@@ -150,6 +208,7 @@ export const stateStore = new Map<string, number>();
  *
  * Events:
  * - "token-saved": { token, expiresAt } - New token saved (OAuth callback)
+ * - "organization-ids-saved": { token, organizationIds } - Membership cached
  * - "token-cleared": (no data) - Token deleted (sign-out)
  */
 export const authEvents = new EventEmitter();
@@ -160,28 +219,29 @@ export const authEvents = new EventEmitter();
 export async function loadToken(): Promise<{
 	token: string | null;
 	expiresAt: string | null;
+	organizationIds: string[] | null;
+	organizationIdsRevision: number;
 }> {
-	return serializeAuthStorage(async () => {
-		const tokenFile = getTokenFile();
-		try {
-			const inspected = await inspectTokenStorage(tokenFile);
-			if (inspected.status === "missing") return EMPTY_STORED_AUTH;
-			if (inspected.status === "invalid") {
-				await quarantineInvalidTokenStorage(tokenFile, inspected.reason);
-				return EMPTY_STORED_AUTH;
-			}
+	const tokenFile = getTokenFile();
+	try {
+		const storedAuth = await readStoredAuth();
+		if (!storedAuth) return EMPTY_STORED_AUTH;
 
-			await fs
-				.chmod(tokenFile, SUPERSET_SENSITIVE_FILE_MODE)
-				.catch((error) =>
-					console.warn("[auth] Failed to repair auth token permissions", error),
-				);
-			return inspected.storedAuth;
-		} catch (error) {
-			console.error("[auth] Failed to inspect auth token storage", error);
-			return EMPTY_STORED_AUTH;
-		}
-	});
+		await fs
+			.chmod(tokenFile, SUPERSET_SENSITIVE_FILE_MODE)
+			.catch((error) =>
+				console.warn("[auth] Failed to repair auth token permissions", error),
+			);
+		return {
+			token: storedAuth.token,
+			expiresAt: storedAuth.expiresAt,
+			organizationIds: storedAuth.organizationIds ?? null,
+			organizationIdsRevision: storedAuth.organizationIdsRevision ?? 0,
+		};
+	} catch (error) {
+		console.error("[auth] Failed to inspect auth token storage", error);
+		return EMPTY_STORED_AUTH;
+	}
 }
 
 /**
@@ -194,28 +254,73 @@ export async function saveToken({
 	token: string;
 	expiresAt: string;
 }): Promise<void> {
-	await serializeAuthStorage(async () => {
-		const storedAuth: StoredAuth = { token, expiresAt };
+	await serializeAuthWrite(async () => {
 		const tokenFile = getTokenFile();
 		const inspected = await inspectTokenStorage(tokenFile);
 		if (inspected.status === "invalid") {
 			await quarantineInvalidTokenStorage(tokenFile, inspected.reason);
 		}
-		await atomicWriteToken(tokenFile, encrypt(JSON.stringify(storedAuth)));
+		await writeStoredAuth({ token, expiresAt });
 		authEvents.emit("token-saved", { token, expiresAt });
 	});
 }
 
 export async function clearToken(): Promise<void> {
-	await serializeAuthStorage(async () => {
+	await serializeAuthWrite(async () => {
 		const tokenFile = getTokenFile();
 		const inspected = await inspectTokenStorage(tokenFile);
 		if (inspected.status === "valid") {
-			await fs.unlink(tokenFile);
+			await fs.unlink(tokenFile).catch((error) => {
+				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+			});
 		} else if (inspected.status === "invalid") {
 			await quarantineInvalidTokenStorage(tokenFile, inspected.reason);
 		}
 		authEvents.emit("token-cleared");
+	});
+}
+
+/** Cache the last membership confirmed by the authenticated session. */
+export async function saveOrganizationIds({
+	token,
+	organizationIds,
+	expectedRevision,
+}: {
+	token: string;
+	organizationIds: string[];
+	expectedRevision: number;
+}): Promise<
+	| { status: "saved"; revision: number }
+	| { status: "conflict"; revision: number }
+	| { status: "token-mismatch"; revision: number }
+> {
+	return await serializeAuthWrite(async () => {
+		const storedAuth = await readStoredAuth();
+		if (!storedAuth || storedAuth.token !== token) {
+			return { status: "token-mismatch" as const, revision: 0 };
+		}
+
+		const currentRevision = storedAuth.organizationIdsRevision ?? 0;
+		if (expectedRevision !== currentRevision) {
+			return { status: "conflict" as const, revision: currentRevision };
+		}
+		if (currentRevision === Number.MAX_SAFE_INTEGER) {
+			throw new Error("Organization membership revision exhausted");
+		}
+
+		const normalizedIds = [...new Set(organizationIds)].sort();
+		const revision = currentRevision + 1;
+		await writeStoredAuth({
+			token: storedAuth.token,
+			expiresAt: storedAuth.expiresAt,
+			organizationIds: normalizedIds,
+			organizationIdsRevision: revision,
+		});
+		authEvents.emit("organization-ids-saved", {
+			token: storedAuth.token,
+			organizationIds: normalizedIds,
+		});
+		return { status: "saved" as const, revision };
 	});
 }
 

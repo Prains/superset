@@ -18,6 +18,8 @@ const testSupersetHomeDir = fs.mkdtempSync(
 process.env.SUPERSET_HOME_DIR = testSupersetHomeDir;
 const tokenFile = path.join(testSupersetHomeDir, "auth-token.enc");
 
+// Keep this unit test independent from suite-global host-info mocks. The
+// persistence behavior under test only needs a reversible storage boundary.
 mock.module("./crypto-storage", () => ({
 	encrypt: (plaintext: string) => Buffer.from(plaintext),
 	decrypt: (data: Buffer) => data.toString("utf8"),
@@ -29,15 +31,17 @@ const {
 	handleAuthCallback,
 	loadToken,
 	parseAuthDeepLink,
+	saveOrganizationIds,
 	saveToken,
 	stateStore,
 } = await import("./auth-functions");
 const { PROTOCOL_SCHEME } = await import("shared/constants");
 
 function quarantinedTokenPaths(): string[] {
+	const prefix = `${path.basename(tokenFile)}.corrupt-`;
 	return fs
 		.readdirSync(testSupersetHomeDir)
-		.filter((name) => name.startsWith("auth-token.enc.corrupt-"))
+		.filter((name) => name.startsWith(prefix))
 		.map((name) => path.join(testSupersetHomeDir, name));
 }
 
@@ -73,6 +77,8 @@ describe("auth token storage", () => {
 		expect(await loadToken()).toEqual({
 			token: "token",
 			expiresAt: "2099-01-01",
+			organizationIds: null,
+			organizationIdsRevision: 0,
 		});
 	});
 
@@ -106,7 +112,12 @@ describe("auth token storage", () => {
 			warnSpy.mockRestore();
 		}
 
-		expect(loadedToken).toEqual({ token: null, expiresAt: null });
+		expect(loadedToken).toEqual({
+			token: null,
+			expiresAt: null,
+			organizationIds: null,
+			organizationIdsRevision: 0,
+		});
 		expect(fs.existsSync(tokenFile)).toBe(false);
 		const [quarantinedPath] = quarantinedTokenPaths();
 		expect(fs.readFileSync(quarantinedPath, "utf8")).toBe(
@@ -178,7 +189,7 @@ describe("auth token storage", () => {
 		expect(stateStore.has(state)).toBe(false);
 	});
 
-	test("sign-out quarantines invalid storage before reporting success", async () => {
+	test("sign-out clears unusable storage from the token path before reporting success", async () => {
 		fs.writeFileSync(tokenFile, "corrupt credentials");
 		const tokenCleared = mock(() => {});
 		authEvents.once("token-cleared", tokenCleared);
@@ -187,6 +198,7 @@ describe("auth token storage", () => {
 		try {
 			await clearToken();
 		} finally {
+			authEvents.off("token-cleared", tokenCleared);
 			warnSpy.mockRestore();
 		}
 
@@ -195,6 +207,168 @@ describe("auth token storage", () => {
 			"corrupt credentials",
 		);
 		expect(tokenCleared).toHaveBeenCalledTimes(1);
+	});
+
+	test("does not report sign-out when the credential cannot be cleared", async () => {
+		const readOnlyHome = path.join(testSupersetHomeDir, "read-only-home");
+		fs.mkdirSync(readOnlyHome);
+		fs.writeFileSync(path.join(readOnlyHome, "auth-token.enc"), "corrupt");
+		fs.chmodSync(readOnlyHome, 0o500);
+		process.env.SUPERSET_HOME_DIR = readOnlyHome;
+		const tokenCleared = mock(() => {});
+		authEvents.once("token-cleared", tokenCleared);
+
+		try {
+			await expect(clearToken()).rejects.toThrow();
+			expect(tokenCleared).not.toHaveBeenCalled();
+		} finally {
+			authEvents.off("token-cleared", tokenCleared);
+			process.env.SUPERSET_HOME_DIR = testSupersetHomeDir;
+			fs.chmodSync(readOnlyHome, 0o700);
+		}
+	});
+});
+
+describe("cached organization membership", () => {
+	test("stores a normalized membership set alongside the encrypted token", async () => {
+		await saveToken({ token: "token", expiresAt: "2099-01-01" });
+		const membershipSaved = mock(() => {});
+		authEvents.once("organization-ids-saved", membershipSaved);
+
+		await saveOrganizationIds({
+			token: "token",
+			organizationIds: ["org-2", "org-1", "org-2"],
+			expectedRevision: 0,
+		});
+
+		expect(await loadToken()).toEqual({
+			token: "token",
+			expiresAt: "2099-01-01",
+			organizationIds: ["org-1", "org-2"],
+			organizationIdsRevision: 1,
+		});
+		expect(membershipSaved).toHaveBeenCalledWith({
+			token: "token",
+			organizationIds: ["org-1", "org-2"],
+		});
+	});
+
+	test("confirms unchanged membership for the current app process", async () => {
+		await saveToken({ token: "token", expiresAt: "2099-01-01" });
+		await saveOrganizationIds({
+			token: "token",
+			organizationIds: ["org-1", "org-2"],
+			expectedRevision: 0,
+		});
+		const membershipSaved = mock(() => {});
+		authEvents.once("organization-ids-saved", membershipSaved);
+
+		await saveOrganizationIds({
+			token: "token",
+			organizationIds: ["org-2", "org-1"],
+			expectedRevision: 1,
+		});
+
+		expect(membershipSaved).toHaveBeenCalledWith({
+			token: "token",
+			organizationIds: ["org-1", "org-2"],
+		});
+	});
+
+	test("clears cached membership when a different token is saved", async () => {
+		await saveToken({ token: "old-token", expiresAt: "2099-01-01" });
+		await saveOrganizationIds({
+			token: "old-token",
+			organizationIds: ["old-org"],
+			expectedRevision: 0,
+		});
+
+		await saveToken({ token: "new-token", expiresAt: "2099-02-01" });
+
+		expect(await loadToken()).toEqual({
+			token: "new-token",
+			expiresAt: "2099-02-01",
+			organizationIds: null,
+			organizationIdsRevision: 0,
+		});
+	});
+
+	test("ignores membership from a stale account session", async () => {
+		await saveToken({ token: "new-token", expiresAt: "2099-02-01" });
+
+		await saveOrganizationIds({
+			token: "old-token",
+			organizationIds: ["old-org"],
+			expectedRevision: 0,
+		});
+
+		expect(await loadToken()).toEqual({
+			token: "new-token",
+			expiresAt: "2099-02-01",
+			organizationIds: null,
+			organizationIdsRevision: 0,
+		});
+	});
+
+	test("does not let stale membership recreate auth after sign-out", async () => {
+		await saveToken({ token: "old-token", expiresAt: "2099-01-01" });
+		await clearToken();
+
+		await saveOrganizationIds({
+			token: "old-token",
+			organizationIds: ["old-org"],
+			expectedRevision: 0,
+		});
+
+		expect(await loadToken()).toEqual({
+			token: null,
+			expiresAt: null,
+			organizationIds: null,
+			organizationIdsRevision: 0,
+		});
+	});
+
+	test("ignores a delayed retry from an older membership snapshot", async () => {
+		await saveToken({ token: "token", expiresAt: "2099-01-01" });
+		await saveOrganizationIds({
+			token: "token",
+			organizationIds: ["current-org"],
+			expectedRevision: 0,
+		});
+
+		const result = await saveOrganizationIds({
+			token: "token",
+			organizationIds: ["removed-org"],
+			expectedRevision: 0,
+		});
+
+		expect(result).toEqual({ status: "conflict", revision: 1 });
+		expect(await loadToken()).toEqual({
+			token: "token",
+			expiresAt: "2099-01-01",
+			organizationIds: ["current-org"],
+			organizationIdsRevision: 1,
+		});
+	});
+
+	test("never attaches membership to unusable storage", async () => {
+		fs.mkdirSync(tokenFile);
+		const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+
+		let result: Awaited<ReturnType<typeof saveOrganizationIds>>;
+		try {
+			result = await saveOrganizationIds({
+				token: "token",
+				organizationIds: ["org-1"],
+				expectedRevision: 0,
+			});
+		} finally {
+			warnSpy.mockRestore();
+		}
+
+		expect(result).toEqual({ status: "token-mismatch", revision: 0 });
+		expect(quarantinedTokenPaths()).toHaveLength(1);
+		expect(fs.existsSync(tokenFile)).toBe(false);
 	});
 });
 

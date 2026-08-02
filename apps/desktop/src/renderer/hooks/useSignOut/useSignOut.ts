@@ -12,7 +12,7 @@ export function useSignOut() {
 	const signOutMutation = electronTrpc.auth.signOut.useMutation();
 	const setAnalyticsUserId = electronTrpc.analytics.setUserId.useMutation();
 
-	return async (): Promise<{ ok: boolean }> => {
+	return async () => {
 		posthog.reset();
 		setAnalyticsUserId.mutate({ userId: null });
 		localStorage.removeItem(ACTIVE_ORG_ID_KEY);
@@ -25,12 +25,11 @@ export function useSignOut() {
 		try {
 			await signOutMutation.mutateAsync();
 		} catch (error) {
-			console.error("Failed to clear stored sign-in", error);
-			toast.error(
-				"Superset could not remove the saved sign-in from this device. You may still be signed in after a restart.",
-			);
-			return { ok: false };
+			toast.error("Couldn't remove the local sign-in", {
+				description:
+					"Superset may sign you back in after restart. Please try signing out again.",
+			});
+			throw error;
 		}
-		return { ok: true };
 	};
 }
