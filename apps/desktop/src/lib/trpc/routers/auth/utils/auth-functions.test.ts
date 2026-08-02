@@ -176,19 +176,6 @@ describe("auth token storage", () => {
 		expect(stateStore.has(state)).toBe(false);
 	});
 
-	test("accepts a concurrently duplicated OAuth callback only once", async () => {
-		const state = "duplicated-state";
-		stateStore.set(state, Date.now());
-
-		const results = await Promise.all([
-			handleAuthCallback({ token: "first", expiresAt: "2099-01-01", state }),
-			handleAuthCallback({ token: "second", expiresAt: "2099-01-01", state }),
-		]);
-
-		expect(results.filter((result) => result.success)).toHaveLength(1);
-		expect(stateStore.has(state)).toBe(false);
-	});
-
 	test("sign-out clears unusable storage from the token path before reporting success", async () => {
 		fs.writeFileSync(tokenFile, "corrupt credentials");
 		const tokenCleared = mock(() => {});

@@ -333,8 +333,6 @@ export async function handleAuthCallback(params: {
 	expiresAt: string;
 	state: string;
 }): Promise<{ success: boolean; error?: string }> {
-	// Reserve the state before awaiting so a concurrently delivered duplicate
-	// of the same callback is rejected instead of accepted twice.
 	const stateIssuedAt = stateStore.get(params.state);
 	if (stateIssuedAt === undefined) {
 		return { success: false, error: "Invalid or expired auth session" };
@@ -344,6 +342,7 @@ export async function handleAuthCallback(params: {
 	try {
 		await saveToken({ token: params.token, expiresAt: params.expiresAt });
 	} catch (error) {
+		// Put the state back so the callback can be retried after a write failure.
 		stateStore.set(params.state, stateIssuedAt);
 		console.error("[auth] Failed to persist desktop auth token", error);
 		return {
