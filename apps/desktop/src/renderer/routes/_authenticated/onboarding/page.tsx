@@ -5,9 +5,7 @@ import { Spinner } from "@superset/ui/spinner";
 import { cn } from "@superset/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
-import { FaAws } from "react-icons/fa";
 import { HiArrowUpRight } from "react-icons/hi2";
-import { LuRefreshCw } from "react-icons/lu";
 import { SiGithub, SiOpenai } from "react-icons/si";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { GhAuthDialog } from "./components/GhAuthDialog";
@@ -35,23 +33,11 @@ function OnboardingDashboardPage() {
 		data: ghStatus,
 		refetch: refetchGh,
 		isPending: isPendingGh,
-		isFetching: isFetchingGh,
 	} = electronTrpc.system.detectGhCli.useQuery(undefined, statusPolling);
-	const {
-		data: anthropicStatus,
-		refetch: refetchAnthropic,
-		isPending: isPendingAnthropic,
-		isFetching: isFetchingAnthropic,
-	} = chatServiceTrpc.auth.getAnthropicStatus.useQuery(
-		undefined,
-		statusPolling,
-	);
-	const {
-		data: openAIStatus,
-		refetch: refetchOpenAI,
-		isPending: isPendingOpenAI,
-		isFetching: isFetchingOpenAI,
-	} = chatServiceTrpc.auth.getOpenAIStatus.useQuery(undefined, statusPolling);
+	const { data: anthropicStatus, isPending: isPendingAnthropic } =
+		chatServiceTrpc.auth.getAnthropicStatus.useQuery(undefined, statusPolling);
+	const { data: openAIStatus, isPending: isPendingOpenAI } =
+		chatServiceTrpc.auth.getOpenAIStatus.useQuery(undefined, statusPolling);
 
 	const ghInstalled = ghStatus?.installed === true;
 	const ghReady = ghInstalled && ghStatus?.authenticated === true;
@@ -73,66 +59,69 @@ function OnboardingDashboardPage() {
 
 	return (
 		<>
-			<div className="divide-y divide-border">
-				<OnboardingRow
-					icon={<SiGithub className="size-4.5" />}
-					chipClassName="bg-foreground text-background"
-					name="GitHub CLI"
-					description="Clone, push, and create PRs."
-					status={rowStatus(isPendingGh, ghReady)}
-					statusLabel={ghStatusLabel}
-					statusTone={ghInstalled ? "warning" : "neutral"}
-					required
-					actionLabel={ghInstalled ? "Sign in" : "Install"}
-					actionIcon={
-						ghInstalled ? undefined : <HiArrowUpRight className="size-3.5" />
-					}
-					onAction={ghInstalled ? () => setGhAuthOpen(true) : openGitHubInstall}
-					onRecheck={() => void refetchGh()}
-					isRechecking={isFetchingGh}
-				/>
-				<OnboardingRow
-					icon={<ClaudeLogo className="size-4.5 text-white" />}
-					chipClassName="bg-[#D97757]"
-					name="Claude Code"
-					description="Anthropic's coding agent."
-					status={rowStatus(isPendingAnthropic, claudeConnected)}
-					statusLabel={claudeConnected ? "Connected" : "Not signed in"}
-					statusTone="warning"
-					actionLabel="Sign in"
-					onAction={() => setConnectProvider("anthropic")}
-					onRecheck={() => void refetchAnthropic()}
-					isRechecking={isFetchingAnthropic}
-				/>
-				<OnboardingRow
-					icon={<SiOpenai className="size-4.5" />}
-					chipClassName="bg-foreground text-background"
-					name="Codex"
-					description="OpenAI's coding agent."
-					status={rowStatus(isPendingOpenAI, codexConnected)}
-					statusLabel={codexConnected ? "Connected" : "Not signed in"}
-					statusTone="warning"
-					actionLabel="Sign in"
-					onAction={() => setConnectProvider("openai")}
-					onRecheck={() => void refetchOpenAI()}
-					isRechecking={isFetchingOpenAI}
-				/>
-				<OnboardingRow
-					icon={<FaAws className="size-4.5" />}
-					chipClassName="bg-foreground text-background"
-					name="More providers"
-					description="Bedrock, Vertex, and more."
-					status="disconnected"
-					actionLabel="Provider docs"
-					actionIcon={<HiArrowUpRight className="size-3.5" />}
-					onAction={() =>
+			<div className="-mt-4">
+				<p className="mb-6 flex items-center gap-2 text-xs text-muted-foreground">
+					<span className="relative flex size-1.5">
+						<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+						<span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+					</span>
+					Detecting automatically · statuses update as you install or sign in
+				</p>
+				<div className="divide-y divide-border">
+					<OnboardingRow
+						icon={<SiGithub className="size-4.5" />}
+						chipClassName="bg-foreground text-background"
+						name="GitHub CLI"
+						description="Clone, push, and create PRs."
+						status={rowStatus(isPendingGh, ghReady)}
+						statusLabel={ghStatusLabel}
+						statusTone={ghInstalled ? "warning" : "neutral"}
+						required
+						actionLabel={ghInstalled ? "Sign in" : "Install"}
+						actionIcon={
+							ghInstalled ? undefined : <HiArrowUpRight className="size-3.5" />
+						}
+						onAction={
+							ghInstalled ? () => setGhAuthOpen(true) : openGitHubInstall
+						}
+					/>
+					<OnboardingRow
+						icon={<ClaudeLogo className="size-4.5 text-white" />}
+						chipClassName="bg-[#D97757]"
+						name="Claude Code"
+						description="Anthropic's coding agent."
+						status={rowStatus(isPendingAnthropic, claudeConnected)}
+						statusLabel={claudeConnected ? "Connected" : "Not signed in"}
+						statusTone="warning"
+						actionLabel="Sign in"
+						onAction={() => setConnectProvider("anthropic")}
+					/>
+					<OnboardingRow
+						icon={<SiOpenai className="size-4.5" />}
+						chipClassName="bg-foreground text-background"
+						name="Codex"
+						description="OpenAI's coding agent."
+						status={rowStatus(isPendingOpenAI, codexConnected)}
+						statusLabel={codexConnected ? "Connected" : "Not signed in"}
+						statusTone="warning"
+						actionLabel="Sign in"
+						onAction={() => setConnectProvider("openai")}
+					/>
+				</div>
+				<button
+					type="button"
+					onClick={() =>
 						window.open(
 							"https://docs.superset.sh/providers",
 							"_blank",
 							"noopener,noreferrer",
 						)
 					}
-				/>
+					className="mt-5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+				>
+					Need Bedrock, Vertex, or another provider? Provider docs
+					<HiArrowUpRight className="size-3" />
+				</button>
 			</div>
 
 			<ProviderConnectModal
@@ -180,8 +169,6 @@ interface OnboardingRowProps {
 	actionLabel: string;
 	actionIcon?: ReactNode;
 	onAction: () => void;
-	onRecheck?: () => void;
-	isRechecking?: boolean;
 }
 
 function OnboardingRow({
@@ -196,8 +183,6 @@ function OnboardingRow({
 	actionLabel,
 	actionIcon,
 	onAction,
-	onRecheck,
-	isRechecking,
 }: OnboardingRowProps) {
 	return (
 		<div className="flex items-center gap-4 py-7 first:pt-0 last:pb-0">
@@ -246,28 +231,12 @@ function OnboardingRow({
 						</span>
 					)
 				)}
-				<div className="flex items-center gap-2">
-					{onRecheck && status !== "loading" && (
-						<Button
-							type="button"
-							size="sm"
-							variant="ghost"
-							onClick={onRecheck}
-							disabled={isRechecking}
-							aria-label={`Recheck ${name}`}
-						>
-							<LuRefreshCw
-								className={cn("size-3.5", isRechecking && "animate-spin")}
-							/>
-						</Button>
-					)}
-					{status === "disconnected" && (
-						<Button type="button" size="sm" onClick={onAction}>
-							{actionLabel}
-							{actionIcon}
-						</Button>
-					)}
-				</div>
+				{status === "disconnected" && (
+					<Button type="button" size="sm" onClick={onAction}>
+						{actionLabel}
+						{actionIcon}
+					</Button>
+				)}
 			</div>
 		</div>
 	);
