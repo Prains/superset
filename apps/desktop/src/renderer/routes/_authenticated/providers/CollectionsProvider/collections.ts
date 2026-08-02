@@ -911,14 +911,18 @@ function createOrgCollections(organizationId: string): OrgCollections {
 	};
 }
 
-// Unbounded org-content tables whose initial sync scales with org size. They
-// start syncing during preload but never gate its promise — the org switch
-// commits once the core set is warm and these render cache-first as rows land.
-const deferredPreloadCollections: ReadonlySet<string> = new Set([
-	"tasks",
-	"chatSessions",
-	"githubPullRequests",
-	"automationRuns",
+// The only collections the org switch must wait for: the sidebar workspace
+// list fans out from these (rows, host reachability, access filtering) and
+// joins them for names and repo labels. Everything else starts syncing during
+// preload but renders cache-first as rows land — settings and content panes
+// all tolerate a not-yet-ready collection. localStorage-backed collections
+// hydrate synchronously at construction, so gating never applies to them.
+const gatingPreloadCollections: ReadonlySet<string> = new Set([
+	"v2Workspaces",
+	"v2Hosts",
+	"v2UsersHosts",
+	"users",
+	"githubRepositories",
 ]);
 
 /**
@@ -934,12 +938,12 @@ export async function preloadCollections(
 	for (const [name, collection] of Object.entries(collections)) {
 		if (name === "organizations") continue;
 		const preload = (collection as Collection<object>).preload();
-		if (deferredPreloadCollections.has(name)) {
+		if (gatingPreloadCollections.has(name)) {
+			gatingPreloads.push(preload);
+		} else {
 			preload.catch((error) => {
 				console.error(`[collections] Deferred preload failed: ${name}`, error);
 			});
-		} else {
-			gatingPreloads.push(preload);
 		}
 	}
 	await Promise.allSettled(gatingPreloads);
