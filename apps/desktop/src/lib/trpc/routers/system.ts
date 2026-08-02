@@ -37,7 +37,16 @@ async function detectGhCli(): Promise<GhDetectResult> {
 		);
 		authenticated = true;
 	} catch {
-		// `gh auth status` exits non-zero when not logged in.
+		// `--active` requires gh >= 2.40; retry without it for older installs.
+		// Both variants exit non-zero when not logged in.
+		try {
+			await execWithShellEnv(
+				"gh",
+				["auth", "status", "--hostname", "github.com"],
+				{ timeout: 5000 },
+			);
+			authenticated = true;
+		} catch {}
 	}
 
 	return { installed: true, authenticated, version, path: "gh" };

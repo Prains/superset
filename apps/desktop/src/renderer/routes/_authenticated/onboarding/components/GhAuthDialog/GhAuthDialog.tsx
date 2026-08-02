@@ -8,7 +8,12 @@ import {
 import { Spinner } from "@superset/ui/spinner";
 import { cn } from "@superset/ui/utils";
 import { useEffect, useRef, useState } from "react";
-import { LuCheck, LuCopy, LuTriangleAlert } from "react-icons/lu";
+import {
+	LuArrowUpRight,
+	LuCheck,
+	LuCopy,
+	LuTriangleAlert,
+} from "react-icons/lu";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import stripAnsi from "strip-ansi";
 import { GhAuthTerminal } from "./GhAuthTerminal";
@@ -164,15 +169,33 @@ export function GhAuthDialog({
 										? "Install or sign-in canceled or failed."
 										: "Sign-in canceled or failed."}
 								</span>
-								<Button
-									type="button"
-									size="sm"
-									variant="outline"
-									className="ml-auto"
-									onClick={handleRetry}
-								>
-									Retry
-								</Button>
+								<span className="ml-auto flex shrink-0 items-center gap-2">
+									{isInstall && (
+										<Button
+											type="button"
+											size="sm"
+											variant="ghost"
+											onClick={() =>
+												window.open(
+													"https://cli.github.com/",
+													"_blank",
+													"noopener,noreferrer",
+												)
+											}
+										>
+											Install manually
+											<LuArrowUpRight className="size-3" />
+										</Button>
+									)}
+									<Button
+										type="button"
+										size="sm"
+										variant="outline"
+										onClick={handleRetry}
+									>
+										Retry
+									</Button>
+								</span>
 							</div>
 						) : phase === "checking" ? (
 							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 text-sm font-medium text-foreground">
