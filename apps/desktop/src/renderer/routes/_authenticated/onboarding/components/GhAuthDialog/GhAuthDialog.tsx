@@ -150,9 +150,7 @@ export function GhAuthDialog({
 				</DialogHeader>
 				{phase === "success" ? (
 					<div className="flex h-[296px] w-full flex-col items-center justify-center gap-2.5 rounded-lg border bg-[#151110]">
-						<div className="flex size-11 items-center justify-center rounded-full bg-emerald-500/10">
-							<LuCheck className="size-5 text-emerald-500" strokeWidth={2.5} />
-						</div>
+						<LuCheck className="size-5 text-emerald-500" strokeWidth={2} />
 						<p className="text-sm font-medium text-foreground">
 							{isInstall
 								? "GitHub CLI installed and signed in"
@@ -162,12 +160,12 @@ export function GhAuthDialog({
 				) : (
 					<>
 						{phase === "failed" ? (
-							<div className="flex min-h-11 items-center gap-2.5 rounded-md border border-destructive/30 bg-destructive/10 px-3.5 py-1.5 text-sm font-medium text-destructive">
-								<LuTriangleAlert className="size-4 shrink-0" />
+							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 py-1.5 text-sm text-foreground">
+								<LuTriangleAlert className="size-3.5 shrink-0 text-destructive" />
 								<span className="select-text cursor-text">
 									{isInstall
-										? "Install or sign-in canceled or failed."
-										: "Sign-in canceled or failed."}
+										? "Installation didn't complete"
+										: "Sign-in didn't complete"}
 								</span>
 								<span className="ml-auto flex shrink-0 items-center gap-2">
 									{isInstall && (
@@ -198,7 +196,7 @@ export function GhAuthDialog({
 								</span>
 							</div>
 						) : phase === "checking" ? (
-							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 text-sm font-medium text-foreground">
+							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 text-sm text-muted-foreground">
 								<Spinner className="size-3.5 shrink-0" />
 								Checking sign-in status…
 							</div>
@@ -229,7 +227,7 @@ export function GhAuthDialog({
 								)}
 							</div>
 						) : (
-							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 text-sm font-medium text-foreground">
+							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 text-sm text-muted-foreground">
 								<Spinner className="size-3.5 shrink-0" />
 								Follow the prompts below
 							</div>
