@@ -2,13 +2,13 @@ import { Button } from "@superset/ui/button";
 import {
 	Dialog,
 	DialogContent,
-	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from "@superset/ui/dialog";
 import { Spinner } from "@superset/ui/spinner";
+import { cn } from "@superset/ui/utils";
 import { useEffect, useRef, useState } from "react";
-import { LuCheck, LuCopy } from "react-icons/lu";
+import { LuCheck, LuCopy, LuTriangleAlert } from "react-icons/lu";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import stripAnsi from "strip-ansi";
 import { GhAuthTerminal } from "./GhAuthTerminal";
@@ -43,6 +43,7 @@ export function GhAuthDialog({
 	const [copied, setCopied] = useState(false);
 	const outputBufferRef = useRef("");
 	const closeTimerRef = useRef<number | null>(null);
+	const terminalBoxRef = useRef<HTMLDivElement>(null);
 	const onExitRef = useRef(onExit);
 	onExitRef.current = onExit;
 
@@ -60,6 +61,16 @@ export function GhAuthDialog({
 			}
 		};
 	}, [open]);
+
+	// Auto-copy so the happy path needs no clicks; the Copy button remains as
+	// a fallback for when the clipboard write is rejected (e.g. window unfocused).
+	useEffect(() => {
+		if (!oneTimeCode) return;
+		navigator.clipboard.writeText(oneTimeCode).then(
+			() => setCopied(true),
+			() => setCopied(false),
+		);
+	}, [oneTimeCode]);
 
 	const handleOutput = (data: string) => {
 		if (oneTimeCode) return;
@@ -96,11 +107,20 @@ export function GhAuthDialog({
 		setAttempt((prev) => prev + 1);
 	};
 
+	const focusTerminal = () => {
+		terminalBoxRef.current
+			?.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea")
+			?.focus();
+	};
+
 	const handleCopyCode = () => {
 		if (!oneTimeCode) return;
-		void navigator.clipboard.writeText(oneTimeCode);
-		setCopied(true);
-		window.setTimeout(() => setCopied(false), 2000);
+		navigator.clipboard.writeText(oneTimeCode).then(
+			() => setCopied(true),
+			() => {},
+		);
+		// Return focus to the terminal so Enter goes to gh, not the button.
+		focusTerminal();
 	};
 
 	const processActive = phase === "running" || phase === "checking";
@@ -109,7 +129,8 @@ export function GhAuthDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
-				className="max-w-[752px] gap-4"
+				className="gap-3 sm:max-w-[752px]"
+				aria-describedby={undefined}
 				onInteractOutside={(event) => {
 					if (processActive) event.preventDefault();
 				}}
@@ -121,82 +142,92 @@ export function GhAuthDialog({
 					<DialogTitle>
 						{isInstall ? "Install GitHub CLI" : "Sign in to GitHub CLI"}
 					</DialogTitle>
-					<DialogDescription>
-						{isInstall
-							? "Homebrew installs the GitHub CLI, then the sign-in flow starts below. "
-							: "Follow the prompts below. "}
-						Confirm authenticating Git with your GitHub credentials, then press
-						Enter to open your browser and enter the one-time code shown here.
-					</DialogDescription>
 				</DialogHeader>
-				{oneTimeCode && phase !== "success" && (
-					<div className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2">
-						<div>
-							<p className="text-xs text-muted-foreground">One-time code</p>
-							<p className="select-text cursor-text font-mono text-lg font-semibold tracking-widest">
-								{oneTimeCode}
-							</p>
-						</div>
-						<Button
-							type="button"
-							size="sm"
-							variant="outline"
-							onClick={handleCopyCode}
-						>
-							{copied ? (
-								<>
-									<LuCheck className="size-3.5" />
-									Copied
-								</>
-							) : (
-								<>
-									<LuCopy className="size-3.5" />
-									Copy
-								</>
-							)}
-						</Button>
-					</div>
-				)}
 				{phase === "success" ? (
-					<div className="flex h-[240px] w-full items-center justify-center rounded-md border">
-						<div className="flex flex-col items-center gap-2">
-							<LuCheck className="size-6 text-emerald-500" strokeWidth={2.5} />
-							<p className="text-sm font-medium text-foreground">
-								{isInstall
-									? "GitHub CLI installed and signed in"
-									: "Signed in to GitHub"}
-							</p>
+					<div className="flex h-[296px] w-full flex-col items-center justify-center gap-2.5 rounded-lg border bg-[#151110]">
+						<div className="flex size-11 items-center justify-center rounded-full bg-emerald-500/10">
+							<LuCheck className="size-5 text-emerald-500" strokeWidth={2.5} />
 						</div>
+						<p className="text-sm font-medium text-foreground">
+							{isInstall
+								? "GitHub CLI installed and signed in"
+								: "Signed in to GitHub"}
+						</p>
 					</div>
 				) : (
-					<div className="h-[240px] w-full overflow-hidden rounded-md bg-[#151110] p-2">
-						{open && (
-							<GhAuthTerminal
-								key={attempt}
-								command={isInstall ? GH_INSTALL_COMMAND : GH_AUTH_COMMAND}
-								onExit={handleTerminalExit}
-								onOutput={handleOutput}
-							/>
+					<>
+						{phase === "failed" ? (
+							<div className="flex min-h-11 items-center gap-2.5 rounded-md border border-destructive/30 bg-destructive/10 px-3.5 py-1.5 text-sm font-medium text-destructive">
+								<LuTriangleAlert className="size-4 shrink-0" />
+								<span className="select-text cursor-text">
+									{isInstall
+										? "Install or sign-in canceled or failed."
+										: "Sign-in canceled or failed."}
+								</span>
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									className="ml-auto"
+									onClick={handleRetry}
+								>
+									Retry
+								</Button>
+							</div>
+						) : phase === "checking" ? (
+							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 text-sm font-medium text-foreground">
+								<Spinner className="size-3.5 shrink-0" />
+								Checking sign-in status…
+							</div>
+						) : oneTimeCode ? (
+							<div className="flex min-h-11 items-center gap-3 rounded-md border bg-muted/40 px-3.5 py-1.5">
+								<span className="select-text cursor-text font-mono text-lg font-semibold tracking-[0.18em] text-foreground">
+									{oneTimeCode}
+								</span>
+								<span className="text-xs text-muted-foreground">
+									Press Enter below, then paste this code on GitHub
+								</span>
+								{copied ? (
+									<span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-500">
+										<LuCheck className="size-3.5" strokeWidth={2.5} />
+										Copied
+									</span>
+								) : (
+									<Button
+										type="button"
+										size="sm"
+										variant="outline"
+										className="ml-auto"
+										onClick={handleCopyCode}
+									>
+										<LuCopy className="size-3.5" />
+										Copy
+									</Button>
+								)}
+							</div>
+						) : (
+							<div className="flex min-h-11 items-center gap-2.5 rounded-md border bg-muted/40 px-3.5 text-sm font-medium text-foreground">
+								<Spinner className="size-3.5 shrink-0" />
+								Follow the prompts below
+							</div>
 						)}
-					</div>
-				)}
-				{phase === "checking" && (
-					<div className="flex items-center gap-2 text-sm text-muted-foreground">
-						<Spinner className="size-3.5" />
-						Checking sign-in status…
-					</div>
-				)}
-				{phase === "failed" && (
-					<div className="flex items-center justify-between gap-2">
-						<p className="text-sm text-destructive">
-							{isInstall
-								? "Install or sign-in canceled or failed."
-								: "Sign-in canceled or failed."}
-						</p>
-						<Button type="button" size="sm" onClick={handleRetry}>
-							Retry
-						</Button>
-					</div>
+						<div
+							ref={terminalBoxRef}
+							className={cn(
+								"h-[240px] w-full overflow-hidden rounded-lg border bg-[#151110] p-3 transition-opacity duration-300",
+								(oneTimeCode !== null || phase === "failed") && "opacity-60",
+							)}
+						>
+							{open && (
+								<GhAuthTerminal
+									key={attempt}
+									command={isInstall ? GH_INSTALL_COMMAND : GH_AUTH_COMMAND}
+									onExit={handleTerminalExit}
+									onOutput={handleOutput}
+								/>
+							)}
+						</div>
+					</>
 				)}
 			</DialogContent>
 		</Dialog>
