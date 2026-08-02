@@ -16,6 +16,22 @@ import {
 	gitWorktreeRemoveTask,
 	gitWorktreeStateTask,
 } from "../../../workers/tasks/git";
+import {
+	WorkerTaskAbortedError,
+	WorkerTaskError,
+} from "../../../workers/WorkerTaskRunner";
+
+/**
+ * Pool-infrastructure failure (timeout, queue rejection, abort) — the git
+ * result is UNKNOWN, unlike a git error thrown by the task handler itself
+ * (whose original `name` — e.g. GitError — is preserved across the worker
+ * boundary). The destroy preflight fails closed on these instead of
+ * proceeding without its dirty-worktree check.
+ */
+export function isIndeterminateGitTaskFailure(err: unknown): boolean {
+	if (err instanceof WorkerTaskAbortedError) return true;
+	return err instanceof WorkerTaskError && err.name === "WorkerTaskError";
+}
 
 export const cleanupGitOps = {
 	/** Same failure surface as `ctx.git(repoPath)` — a throw here maps to the

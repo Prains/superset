@@ -26,7 +26,8 @@ override-exempted. Delete an override entry when its file is fixed.
 
 The former blind spot — call sites spawning via `ctx.git()` (the shared
 factory) — is now covered by a dedicated `ctx.git` count rule in the
-host-service ratchet; no host git call site is invisible anymore.
+host-service ratchet. It matches direct property access only; destructuring
+or aliasing the factory off the context would still slip through (don't).
 
 ## Done (this branch)
 

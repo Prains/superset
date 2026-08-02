@@ -15,6 +15,7 @@ import {
 	workspaceCleanupRouter,
 } from "../src/trpc/router/workspace-cleanup/workspace-cleanup";
 import type { HostServiceContext } from "../src/types";
+import { WorkerTaskError } from "../src/workers/WorkerTaskRunner";
 
 type WorkspaceRow = {
 	id: string;
@@ -609,6 +610,56 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 			"Failed to delete branch feature: branch delete boom",
 		);
 		expect(cloudCallCount).toBe(1);
+	});
+
+	test("preflight pool timeout fails closed instead of skipping the dirty check", async () => {
+		const ctx = makeCtx({
+			workspace: {
+				id: "ws-1",
+				projectId: "p-1",
+				worktreePath: "/branch/wt",
+				branch: "feature",
+			},
+			project: { id: "p-1", repoPath: "/repo" },
+			// Default-named WorkerTaskError = pool infrastructure failure
+			// (timeout) — dirty-state unknown, so the destroy must not proceed.
+			worktreeState: () =>
+				Promise.reject(
+					new WorkerTaskError(
+						'Task "git/worktreeState" timed out after 15000ms',
+					),
+				),
+		});
+		const caller = workspaceCleanupRouter.createCaller(ctx);
+		await expect(
+			caller.destroy({
+				workspaceId: "ws-1",
+				deleteBranch: false,
+				force: false,
+			}),
+		).rejects.toThrow(/Couldn't verify worktree state/);
+		expect(ctx.__mocks.cloudDelete).not.toHaveBeenCalled();
+	});
+
+	test("preflight git failure (missing worktree) still proceeds idempotently", async () => {
+		const ctx = makeCtx({
+			workspace: {
+				id: "ws-1",
+				projectId: "p-1",
+				worktreePath: "/missing/wt",
+				branch: "feature",
+			},
+			project: { id: "p-1", repoPath: "/repo" },
+			// Plain git error (handler-thrown) — cleanup handles missing state.
+			worktreeState: () => Promise.reject(new Error("fatal: not a git repo")),
+		});
+		const caller = workspaceCleanupRouter.createCaller(ctx);
+		const result = await caller.destroy({
+			workspaceId: "ws-1",
+			deleteBranch: false,
+			force: false,
+		});
+		expect(result.success).toBe(true);
 	});
 
 	test("sqlite row-delete failure fails the destroy (local delete is the commit point)", async () => {

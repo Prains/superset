@@ -12,7 +12,7 @@ import type {
 	TeardownFailureCause,
 } from "../../error-types";
 import { protectedProcedure, router } from "../../index";
-import { cleanupGitOps } from "./git-ops";
+import { cleanupGitOps, isIndeterminateGitTaskFailure } from "./git-ops";
 import { isMainWorkspace } from "./is-main-workspace";
 
 /**
@@ -213,6 +213,18 @@ async function runDestroy(
 			}
 		} catch (err) {
 			if (err instanceof TRPCError) throw err;
+			if (isIndeterminateGitTaskFailure(err)) {
+				// Timeout/pool failure: dirty-state is UNKNOWN. Fail closed on
+				// this destructive path rather than silently skipping the
+				// dirty-worktree block — a retry usually succeeds (the first
+				// attempt warmed the FS cache), and force skips preflight
+				// entirely as the explicit escape hatch.
+				const message = err instanceof Error ? err.message : String(err);
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Couldn't verify worktree state at ${local.worktreePath}: ${message}`,
+				});
+			}
 			// Can't read status (missing worktree dir, etc.) — not a
 			// conflict. Continue; step 3b will skip idempotently.
 		}
