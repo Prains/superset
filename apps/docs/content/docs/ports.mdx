@@ -64,7 +64,25 @@ If `ports.json` is malformed:
 
 For [remote workspaces](/remote-workspaces), the ports sidebar lists ports listening **on the remote host**, not on your local machine. Superset does not forward remote ports to your local machine yet, so `localhost:PORT` URLs only resolve on the host itself — opening one from your local browser won't reach the remote server.
 
-To reach a remote port today, set up your own tunnel to the host, for example [Tailscale](https://tailscale.com) or SSH local forwarding (`ssh -L 3000:localhost:3000 user@host`). Built-in port forwarding is on the roadmap.
+To reach a remote port today, set up your own tunnel to the host. Built-in port forwarding is on the roadmap.
+
+### Forward a port yourself
+
+**SSH local forwarding** — if you can SSH into the host, forward the port to your local machine:
+
+```bash
+ssh -N -L 3000:localhost:3000 user@remote-host
+```
+
+Then open `http://localhost:3000` in your local browser. This works even when the dev server only listens on loopback. `-N` keeps the tunnel open without starting a shell; the forward lasts as long as the SSH session. Repeat `-L` for additional ports.
+
+**Tailscale** — install [Tailscale](https://tailscale.com) on both machines. On the host, expose the port to your tailnet:
+
+```bash
+tailscale serve 3000
+```
+
+Then open the URL it prints (e.g. `https://remote-host.your-tailnet.ts.net`) from any device on your tailnet. `tailscale serve` proxies to `localhost` on the host, so it also works for loopback-only dev servers. If the server listens on all interfaces (`0.0.0.0`), you can skip `serve` and hit the host's tailnet name or IP directly, e.g. `http://remote-host:3000`.
 
 ## Discovery and Updates
 
