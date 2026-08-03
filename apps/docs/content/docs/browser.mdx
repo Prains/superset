@@ -36,3 +36,5 @@ Open the DevTools pane alongside any browser tab to inspect and debug the page r
 ## Ports Integration
 
 When Superset detects a port in use (e.g. `localhost:3000`), clicking its external link icon opens it in an in-app browser tab instead of the system browser.
+
+This works for workspaces on the machine you're using. For [remote workspaces](/remote-workspaces), detected ports are listening on the remote host and are not forwarded to your local machine, so `localhost` URLs won't reach them without your own tunnel. See [Port Management](/ports#remote-workspaces).
