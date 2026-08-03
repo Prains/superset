@@ -66,13 +66,13 @@ For [remote workspaces](/remote-workspaces), the sidebar lists ports listening *
 
 ### Forward a port yourself
 
-**SSH** — forward the port, then open `http://localhost:3000` locally:
+**SSH**: forward the port, then open `http://localhost:3000` locally:
 
 ```bash
 ssh -N -L 3000:localhost:3000 user@remote-host
 ```
 
-**[Tailscale](https://tailscale.com)** — on the host, expose the port to your tailnet and open the URL it prints:
+**[Tailscale](https://tailscale.com)**: on the host, expose the port to your tailnet and open the URL it prints:
 
 ```bash
 tailscale serve 3000
