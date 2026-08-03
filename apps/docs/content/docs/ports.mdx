@@ -48,7 +48,7 @@ Create `.superset/ports.json` in your repository:
 - Label entries for ports that are not currently listening are ignored
 - Each workspace reads labels from its own worktree's file
 - Changes are detected automatically
-- Ports can be opened at `localhost:PORT` from the browser action when the workspace runs on the machine you're using (see [Remote workspaces](#remote-workspaces))
+- Ports can be opened at `localhost:PORT` from the browser action ([local workspaces only](#remote-workspaces))
 
 **Error Handling:**
 
@@ -62,27 +62,23 @@ If `ports.json` is malformed:
 
 ## Remote Workspaces
 
-For [remote workspaces](/remote-workspaces), the ports sidebar lists ports listening **on the remote host**, not on your local machine. Superset does not forward remote ports to your local machine yet, so `localhost:PORT` URLs only resolve on the host itself — opening one from your local browser won't reach the remote server.
-
-To reach a remote port today, set up your own tunnel to the host. Built-in port forwarding is on the roadmap.
+For [remote workspaces](/remote-workspaces), the sidebar lists ports listening **on the remote host**. Superset doesn't forward them to your machine yet (it's on the roadmap), so `localhost:PORT` only works on the host itself.
 
 ### Forward a port yourself
 
-**SSH local forwarding** — if you can SSH into the host, forward the port to your local machine:
+**SSH** — forward the port, then open `http://localhost:3000` locally:
 
 ```bash
 ssh -N -L 3000:localhost:3000 user@remote-host
 ```
 
-Then open `http://localhost:3000` in your local browser. This works even when the dev server only listens on loopback. `-N` keeps the tunnel open without starting a shell; the forward lasts as long as the SSH session. Repeat `-L` for additional ports.
-
-**Tailscale** — install [Tailscale](https://tailscale.com) on both machines. On the host, expose the port to your tailnet:
+**[Tailscale](https://tailscale.com)** — on the host, expose the port to your tailnet and open the URL it prints:
 
 ```bash
 tailscale serve 3000
 ```
 
-Then open the URL it prints (e.g. `https://remote-host.your-tailnet.ts.net`) from any device on your tailnet. `tailscale serve` proxies to `localhost` on the host, so it also works for loopback-only dev servers. If the server listens on all interfaces (`0.0.0.0`), you can skip `serve` and hit the host's tailnet name or IP directly, e.g. `http://remote-host:3000`.
+Both work for servers that only listen on loopback. If the server binds `0.0.0.0`, you can skip the tunnel and hit the host's Tailscale name directly (`http://remote-host:3000`).
 
 ## Discovery and Updates
 
