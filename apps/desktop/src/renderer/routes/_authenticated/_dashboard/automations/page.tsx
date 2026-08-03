@@ -172,7 +172,7 @@ function AutomationsPage() {
 					? isStaleAgentError(message)
 						? STALE_AGENT_HELP
 						: (message ?? "Failed to retry automation")
-					: `Failed to retry ${failed.length} of ${outcomes.length} automations`,
+					: `Failed to retry ${other.length} of ${outcomes.length} automations`,
 			);
 		},
 	});
