@@ -7,7 +7,7 @@ import {
 import {
 	ChatHistorySidebar,
 	type ChatHistorySidebarMessage,
-} from "./ChatHistorySidebar";
+} from "../ChatHistorySidebar";
 
 export type ChatHistorySidebarScrollerProps = {
 	messages: ChatHistorySidebarMessage[];

@@ -6,4 +6,4 @@ export {
 export {
 	ChatHistorySidebarScroller,
 	type ChatHistorySidebarScrollerProps,
-} from "./ChatHistorySidebarScroller";
+} from "./ChatHistorySidebarScroller/ChatHistorySidebarScroller";
