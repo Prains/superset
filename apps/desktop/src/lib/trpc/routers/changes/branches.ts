@@ -15,6 +15,10 @@ import {
 } from "./security/path-validation";
 import { getPersistedWorktreeBaseBranch } from "./utils/effective-base-branch";
 import { clearStatusCacheForWorktree } from "./utils/status-cache";
+import {
+	assertWorktreeOnDisk,
+	translateGitTaskError,
+} from "./utils/translate-git-errors";
 import { runGitTask } from "./workers/git-task-runner";
 
 // Bumped by branch/base mutations so a refetch fired right after one can't
@@ -43,21 +47,26 @@ export const createBranchesRouter = () => {
 					currentBranch: string | null;
 				}> => {
 					assertRegisteredWorktree(input.worktreePath);
+					assertWorktreeOnDisk(input.worktreePath);
 
-					return runGitTask(
-						"getBranches",
-						{
-							worktreePath: input.worktreePath,
-							persistedWorktree: getPersistedWorktreeBaseBranch(
-								input.worktreePath,
-							),
-						},
-						{
-							dedupeKey: `getBranches:${branchesGeneration.get(input.worktreePath) ?? 0}:${input.worktreePath}`,
-							strategy: "coalesce",
-							timeoutMs: 30_000,
-						},
-					);
+					try {
+						return await runGitTask(
+							"getBranches",
+							{
+								worktreePath: input.worktreePath,
+								persistedWorktree: getPersistedWorktreeBaseBranch(
+									input.worktreePath,
+								),
+							},
+							{
+								dedupeKey: `getBranches:${branchesGeneration.get(input.worktreePath) ?? 0}:${input.worktreePath}`,
+								strategy: "coalesce",
+								timeoutMs: 30_000,
+							},
+						);
+					} catch (error) {
+						translateGitTaskError(error);
+					}
 				},
 			),
 

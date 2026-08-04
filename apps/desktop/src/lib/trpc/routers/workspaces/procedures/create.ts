@@ -1,4 +1,5 @@
 import { projects, workspaces, worktrees } from "@superset/local-db";
+import { TRPCError } from "@trpc/server";
 import { and, eq, isNull, not } from "drizzle-orm";
 import { track } from "main/lib/analytics";
 import { localDb } from "main/lib/local-db";
@@ -468,7 +469,10 @@ export const createCreateProcedures = () => {
 					.where(eq(projects.id, input.projectId))
 					.get();
 				if (!project) {
-					throw new Error(`Project ${input.projectId} not found`);
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: `Project ${input.projectId} not found`,
+					});
 				}
 				const requestedCompareBaseBranch = input.compareBaseBranch;
 
@@ -731,7 +735,10 @@ export const createCreateProcedures = () => {
 					.where(eq(projects.id, input.projectId))
 					.get();
 				if (!project) {
-					throw new Error(`Project ${input.projectId} not found`);
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: `Project ${input.projectId} not found`,
+					});
 				}
 
 				const branch =
@@ -840,7 +847,10 @@ export const createCreateProcedures = () => {
 			.mutation(async ({ input }) => {
 				const worktree = getWorktree(input.worktreeId);
 				if (!worktree) {
-					throw new Error(`Worktree ${input.worktreeId} not found`);
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: `Worktree ${input.worktreeId} not found`,
+					});
 				}
 
 				const existingWorkspace = localDb
@@ -859,7 +869,10 @@ export const createCreateProcedures = () => {
 
 				const project = getProject(worktree.projectId);
 				if (!project) {
-					throw new Error(`Project ${worktree.projectId} not found`);
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: `Project ${worktree.projectId} not found`,
+					});
 				}
 
 				const exists = await worktreeExists(
@@ -867,7 +880,11 @@ export const createCreateProcedures = () => {
 					worktree.path,
 				);
 				if (!exists) {
-					throw new Error("Worktree no longer exists on disk");
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: "Worktree no longer exists on disk",
+						cause: { kind: "WORKTREE_MISSING", worktreePath: worktree.path },
+					});
 				}
 
 				const maxTabOrder = getMaxProjectChildTabOrder(worktree.projectId);
@@ -933,7 +950,10 @@ export const createCreateProcedures = () => {
 			.mutation(async ({ input }) => {
 				const project = getProject(input.projectId);
 				if (!project) {
-					throw new Error(`Project ${input.projectId} not found`);
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: `Project ${input.projectId} not found`,
+					});
 				}
 
 				const parsed = parsePrUrl(input.prUrl);
@@ -985,7 +1005,10 @@ export const createCreateProcedures = () => {
 			.mutation(async ({ input }) => {
 				const project = getProject(input.projectId);
 				if (!project) {
-					throw new Error(`Project ${input.projectId} not found`);
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: `Project ${input.projectId} not found`,
+					});
 				}
 				const knownBranches = await getKnownBranchesSafe(project.mainRepoPath);
 				const compareBaseBranch = resolveWorkspaceBaseBranch({
@@ -1062,7 +1085,10 @@ export const createCreateProcedures = () => {
 			.mutation(async ({ input }) => {
 				const project = getProject(input.projectId);
 				if (!project) {
-					throw new Error(`Project ${input.projectId} not found`);
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: `Project ${input.projectId} not found`,
+					});
 				}
 				const knownBranches = await getKnownBranchesSafe(project.mainRepoPath);
 				const compareBaseBranch = resolveWorkspaceBaseBranch({

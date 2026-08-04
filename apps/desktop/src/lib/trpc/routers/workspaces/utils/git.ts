@@ -10,10 +10,13 @@ import {
 	sanitizeBranchName,
 	sanitizeBranchNameWithMaxLength,
 } from "@superset/shared/workspace-launch";
+import { TRPCError } from "@trpc/server";
 import friendlyWords from "friendly-words";
 import type { StatusResult } from "simple-git";
+import { translateGitTaskError } from "../../changes/utils/translate-git-errors";
 import { runWithPostCheckoutHookTolerance } from "../../utils/git-hook-tolerance";
 import { execGitWithShellPath, getSimpleGitWithShellPath } from "./git-client";
+import { GitEnvironmentError } from "./git-errors";
 import { execWithShellEnv, getProcessEnvWithShellPath } from "./shell-env";
 import { resolveTrackingRemoteName } from "./upstream-ref";
 
@@ -222,14 +225,18 @@ export async function getStatusNoLock(repoPath: string): Promise<StatusResult> {
 		// Provide more descriptive error messages
 		if (isExecFileException(error)) {
 			if (error.code === "ENOENT") {
-				throw new Error("Git is not installed or not found in PATH");
+				throw new GitEnvironmentError(
+					"Git is not installed or not found in PATH",
+				);
 			}
 			const stderr = error.stderr || error.message || "";
 			if (stderr.includes("not a git repository")) {
 				throw new NotGitRepoError(repoPath);
 			}
 		}
-		throw new Error(
+		// maxBuffer overflows, timeouts, permission walls: pathological working
+		// trees, not bugs.
+		throw new GitEnvironmentError(
 			`Failed to get git status: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
@@ -630,12 +637,14 @@ export async function createWorktree(
 			console.error(
 				`Git lock file error during worktree creation: ${errorMessage}`,
 			);
-			throw new Error(
-				`Failed to create worktree: The git repository is locked by another process. ` +
+			throw new TRPCError({
+				code: "PRECONDITION_FAILED",
+				message:
+					`Failed to create worktree: The git repository is locked by another process. ` +
 					`This usually happens when another git operation is in progress, or a previous operation crashed. ` +
 					`Please wait for the other operation to complete, or manually remove the lock file ` +
 					`(e.g., .git/config.lock or .git/index.lock) if you're sure no git operations are running.`,
-			);
+			});
 		}
 
 		console.error(`Failed to create worktree: ${errorMessage}`);
@@ -719,12 +728,14 @@ export async function createWorktreeFromExistingBranch({
 			console.error(
 				`Git lock file error during worktree creation: ${errorMessage}`,
 			);
-			throw new Error(
-				`Failed to create worktree: The git repository is locked by another process. ` +
+			throw new TRPCError({
+				code: "PRECONDITION_FAILED",
+				message:
+					`Failed to create worktree: The git repository is locked by another process. ` +
 					`This usually happens when another git operation is in progress, or a previous operation crashed. ` +
 					`Please wait for the other operation to complete, or manually remove the lock file ` +
 					`(e.g., .git/config.lock or .git/index.lock) if you're sure no git operations are running.`,
-			);
+			});
 		}
 
 		// Check if the branch is already checked out in another worktree
@@ -732,10 +743,12 @@ export async function createWorktreeFromExistingBranch({
 			lowerError.includes("already checked out") ||
 			lowerError.includes("is already used by worktree")
 		) {
-			throw new Error(
-				`Branch "${branch}" is already checked out in another worktree. ` +
+			throw new TRPCError({
+				code: "PRECONDITION_FAILED",
+				message:
+					`Branch "${branch}" is already checked out in another worktree. ` +
 					`Each branch can only be checked out in one worktree at a time.`,
-			);
+			});
 		}
 
 		console.error(`Failed to create worktree: ${errorMessage}`);
@@ -1115,8 +1128,12 @@ export async function getAheadBehindCount({
 export async function hasUncommittedChanges(
 	worktreePath: string,
 ): Promise<boolean> {
-	const status = await getStatusNoLock(worktreePath);
-	return !status.isClean();
+	try {
+		const status = await getStatusNoLock(worktreePath);
+		return !status.isClean();
+	} catch (error) {
+		translateGitTaskError(error);
+	}
 }
 
 export async function hasUnpushedCommits(
@@ -1634,7 +1651,10 @@ export async function safeCheckoutBranch(
 
 	const safety = await checkBranchCheckoutSafety(repoPath);
 	if (!safety.safe) {
-		throw new Error(safety.error);
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: safety.error,
+		});
 	}
 
 	await checkoutBranch(repoPath, branch);
@@ -1751,21 +1771,28 @@ export async function getPrInfo({
 	} catch (error) {
 		if (isExecFileException(error)) {
 			if (error.code === "ENOENT") {
-				throw new Error(
-					"GitHub CLI (gh) is not installed. Please install it from https://cli.github.com/",
-				);
+				throw new TRPCError({
+					code: "PRECONDITION_FAILED",
+					message:
+						"GitHub CLI (gh) is not installed. Please install it from https://cli.github.com/",
+				});
 			}
 			const stderr = error.stderr || error.message || "";
 			if (stderr.includes("not logged in")) {
-				throw new Error(
-					"Not logged in to GitHub CLI. Please run 'gh auth login' first.",
-				);
+				throw new TRPCError({
+					code: "PRECONDITION_FAILED",
+					message:
+						"Not logged in to GitHub CLI. Please run 'gh auth login' first.",
+				});
 			}
 			if (
 				stderr.includes("Could not resolve") ||
 				stderr.includes("not found")
 			) {
-				throw new Error(`PR #${prNumber} not found in ${owner}/${repo}`);
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: `PR #${prNumber} not found in ${owner}/${repo}`,
+				});
 			}
 		}
 		throw new Error(
@@ -1876,9 +1903,10 @@ export async function createWorktreeFromPr({
 			lowerError.includes("already checked out") ||
 			lowerError.includes("is already used by worktree")
 		) {
-			throw new Error(
-				`This PR's branch is already checked out in another worktree.`,
-			);
+			throw new TRPCError({
+				code: "PRECONDITION_FAILED",
+				message: `This PR's branch is already checked out in another worktree.`,
+			});
 		}
 		throw new Error(`Failed to create worktree from PR: ${errorMessage}`);
 	}

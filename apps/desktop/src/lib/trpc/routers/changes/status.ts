@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import type { ChangedFile, GitChangesStatus } from "shared/changes-types";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -12,6 +11,10 @@ import {
 	setCachedStatus,
 	setInFlightStatus,
 } from "./utils/status-cache";
+import {
+	assertWorktreeOnDisk,
+	translateGitTaskError,
+} from "./utils/translate-git-errors";
 import { runGitTask } from "./workers/git-task-runner";
 
 export const createStatusRouter = () => {
@@ -25,6 +28,7 @@ export const createStatusRouter = () => {
 			)
 			.query(async ({ input }): Promise<GitChangesStatus> => {
 				assertRegisteredWorktree(input.worktreePath);
+				assertWorktreeOnDisk(input.worktreePath);
 
 				const defaultBranch = input.defaultBranch || undefined;
 				const cacheKey = makeStatusCacheKey(input.worktreePath, defaultBranch);
@@ -63,13 +67,7 @@ export const createStatusRouter = () => {
 						}
 						return result;
 					} catch (error) {
-						if (error instanceof Error && error.name === "NotGitRepoError") {
-							throw new TRPCError({
-								code: "BAD_REQUEST",
-								message: error.message,
-							});
-						}
-						throw error;
+						translateGitTaskError(error);
 					}
 				})();
 
@@ -107,13 +105,7 @@ export const createStatusRouter = () => {
 						},
 					);
 				} catch (error) {
-					if (error instanceof Error && error.name === "NotGitRepoError") {
-						throw new TRPCError({
-							code: "BAD_REQUEST",
-							message: error.message,
-						});
-					}
-					throw error;
+					translateGitTaskError(error);
 				}
 			}),
 	});

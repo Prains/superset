@@ -1,9 +1,11 @@
 import { cpus } from "node:os";
 import { join } from "node:path";
 import {
+	WorkerTaskError,
 	type WorkerTaskOptions,
 	WorkerTaskRunner,
 } from "../../../workers/WorkerTaskRunner";
+import { GitEnvironmentError } from "../../workspaces/utils/git-errors";
 import type {
 	GitTaskPayloadMap,
 	GitTaskResultMap,
@@ -60,9 +62,18 @@ export function runGitTask<TTask extends GitTaskType>(
 	payload: GitTaskPayloadMap[TTask],
 	options?: WorkerTaskOptions,
 ): Promise<GitTaskResultMap[TTask]> {
-	return getRunner().runTask<GitTaskResultMap[TTask]>(
-		taskType,
-		payload,
-		options,
-	);
+	return getRunner()
+		.runTask<GitTaskResultMap[TTask]>(taskType, payload, options)
+		.catch((error) => {
+			// Git tasks time out on pathological working trees (huge repos, cold
+			// network volumes) — an environment condition, not a worker bug.
+			if (
+				error instanceof WorkerTaskError &&
+				error.name === "WorkerTaskError" &&
+				/ timed out after \d+ms$/.test(error.message)
+			) {
+				throw new GitEnvironmentError(error.message);
+			}
+			throw error;
+		});
 }

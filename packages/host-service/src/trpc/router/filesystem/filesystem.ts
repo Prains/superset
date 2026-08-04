@@ -3,7 +3,12 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, normalize, resolve } from "node:path";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import {
+	ProjectNotFoundError,
+	WorkspaceNotFoundError,
+} from "../../../runtime/filesystem/filesystem";
 import type { HostServiceContext } from "../../../types";
+import { withFsErrorTranslation } from "../../errno-trpc";
 import { protectedProcedure, queryProcedure, router } from "../../index";
 
 function expandTildeAbsolute(input: string): string {
@@ -28,10 +33,7 @@ function getFilesystemService(ctx: HostServiceContext, workspaceId: string) {
 	try {
 		return ctx.runtime.filesystem.getServiceForWorkspace(workspaceId);
 	} catch (error) {
-		if (
-			error instanceof Error &&
-			error.message.startsWith("Workspace not found:")
-		) {
+		if (error instanceof WorkspaceNotFoundError) {
 			throw new TRPCError({
 				code: "NOT_FOUND",
 				message: error.message,
@@ -51,10 +53,7 @@ function getProjectFilesystemService(
 		// "Project not found" just means the repo hasn't been cloned on this host
 		// yet (no workspace ever created for it). Return null so callers can degrade
 		// gracefully rather than throwing a 404.
-		if (
-			error instanceof Error &&
-			error.message.startsWith("Project not found:")
-		) {
+		if (error instanceof ProjectNotFoundError) {
 			return null;
 		}
 		throw error;
@@ -161,7 +160,9 @@ export const filesystemRouter = router({
 		.query(async ({ ctx, input, signal }) => {
 			const { workspaceId, ...serviceInput } = input;
 			const service = getFilesystemService(ctx, workspaceId);
-			return await service.listDirectory(serviceInput, { signal });
+			return await withFsErrorTranslation(() =>
+				service.listDirectory(serviceInput, { signal }),
+			);
 		}),
 
 	readFile: queryProcedure
@@ -178,7 +179,9 @@ export const filesystemRouter = router({
 		.query(async ({ ctx, input }) => {
 			const { workspaceId, ...serviceInput } = input;
 			const service = getFilesystemService(ctx, workspaceId);
-			const result = await service.readFile(serviceInput);
+			const result = await withFsErrorTranslation(() =>
+				service.readFile(serviceInput),
+			);
 
 			if (result.kind === "bytes") {
 				return {
@@ -200,7 +203,9 @@ export const filesystemRouter = router({
 		.query(async ({ ctx, input }) => {
 			const { workspaceId, ...serviceInput } = input;
 			const service = getFilesystemService(ctx, workspaceId);
-			return await service.getMetadata(serviceInput);
+			return await withFsErrorTranslation(() =>
+				service.getMetadata(serviceInput),
+			);
 		}),
 
 	/**
@@ -287,10 +292,12 @@ export const filesystemRouter = router({
 					? rawContent
 					: new Uint8Array(Buffer.from(rawContent.data, "base64"));
 
-			return await service.writeFile({
-				...serviceInput,
-				content,
-			});
+			return await withFsErrorTranslation(() =>
+				service.writeFile({
+					...serviceInput,
+					content,
+				}),
+			);
 		}),
 
 	createDirectory: protectedProcedure
@@ -304,7 +311,9 @@ export const filesystemRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const { workspaceId, ...serviceInput } = input;
 			const service = getFilesystemService(ctx, workspaceId);
-			return await service.createDirectory(serviceInput);
+			return await withFsErrorTranslation(() =>
+				service.createDirectory(serviceInput),
+			);
 		}),
 
 	deletePath: protectedProcedure
@@ -318,7 +327,9 @@ export const filesystemRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const { workspaceId, ...serviceInput } = input;
 			const service = getFilesystemService(ctx, workspaceId);
-			return await service.deletePath(serviceInput);
+			return await withFsErrorTranslation(() =>
+				service.deletePath(serviceInput),
+			);
 		}),
 
 	movePath: protectedProcedure
@@ -332,7 +343,7 @@ export const filesystemRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const { workspaceId, ...serviceInput } = input;
 			const service = getFilesystemService(ctx, workspaceId);
-			return await service.movePath(serviceInput);
+			return await withFsErrorTranslation(() => service.movePath(serviceInput));
 		}),
 
 	copyPath: protectedProcedure
@@ -346,7 +357,7 @@ export const filesystemRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const { workspaceId, ...serviceInput } = input;
 			const service = getFilesystemService(ctx, workspaceId);
-			return await service.copyPath(serviceInput);
+			return await withFsErrorTranslation(() => service.copyPath(serviceInput));
 		}),
 
 	searchFiles: queryProcedure
@@ -381,10 +392,12 @@ export const filesystemRouter = router({
 				return { matches: [] };
 			}
 
-			return await service.searchFiles({
-				...serviceInput,
-				query: trimmedQuery,
-			});
+			return await withFsErrorTranslation(() =>
+				service.searchFiles({
+					...serviceInput,
+					query: trimmedQuery,
+				}),
+			);
 		}),
 
 	searchContent: queryProcedure
@@ -407,9 +420,11 @@ export const filesystemRouter = router({
 
 			const { workspaceId, ...serviceInput } = input;
 			const service = getFilesystemService(ctx, workspaceId);
-			return await service.searchContent({
-				...serviceInput,
-				query: trimmedQuery,
-			});
+			return await withFsErrorTranslation(() =>
+				service.searchContent({
+					...serviceInput,
+					query: trimmedQuery,
+				}),
+			);
 		}),
 });

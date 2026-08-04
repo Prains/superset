@@ -2,6 +2,7 @@ import { appState } from "main/lib/app-state";
 import type { TabsState, ThemeState } from "main/lib/app-state/schemas";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
+import { withFsErrorTranslation } from "../../utils/errno-trpc";
 
 /**
  * Zod schema for FileViewerState persistence.
@@ -260,7 +261,7 @@ export const createUiStateRouter = () => {
 				.input(tabsStateSchema)
 				.mutation(async ({ input }) => {
 					appState.data.tabsState = input;
-					await appState.write();
+					await withFsErrorTranslation(() => appState.write());
 					return { success: true };
 				}),
 		}),
@@ -275,7 +276,7 @@ export const createUiStateRouter = () => {
 				.input(themeStateSchema)
 				.mutation(async ({ input }) => {
 					appState.data.themeState = input;
-					await appState.write();
+					await withFsErrorTranslation(() => appState.write());
 					return { success: true };
 				}),
 		}),
