@@ -39,6 +39,7 @@ import {
 	sanitizeBranchNameWithMaxLength,
 	worktreeExists,
 } from "../utils/git";
+import { GitEnvironmentError } from "../utils/git-errors";
 import { resolveWorktreePath } from "../utils/resolve-worktree-path";
 import { selectExternalWorktreesForImport } from "../utils/select-external-worktrees-for-import";
 import { copySupersetConfigToWorktree, loadSetupConfig } from "../utils/setup";
@@ -748,7 +749,17 @@ export const createCreateProcedures = () => {
 				}
 
 				if (input.branch) {
-					await safeCheckoutBranch(project.mainRepoPath, input.branch);
+					try {
+						await safeCheckoutBranch(project.mainRepoPath, input.branch);
+					} catch (error) {
+						if (error instanceof GitEnvironmentError) {
+							throw new TRPCError({
+								code: "PRECONDITION_FAILED",
+								message: error.message,
+							});
+						}
+						throw error;
+					}
 				}
 
 				activateProject(project);
@@ -963,11 +974,22 @@ export const createCreateProcedures = () => {
 					);
 				}
 
-				const prInfo = await getPrInfo({
-					owner: parsed.owner,
-					repo: parsed.repo,
-					prNumber: parsed.number,
-				});
+				let prInfo: Awaited<ReturnType<typeof getPrInfo>>;
+				try {
+					prInfo = await getPrInfo({
+						owner: parsed.owner,
+						repo: parsed.repo,
+						prNumber: parsed.number,
+					});
+				} catch (error) {
+					if (error instanceof GitEnvironmentError) {
+						throw new TRPCError({
+							code: "PRECONDITION_FAILED",
+							message: error.message,
+						});
+					}
+					throw error;
+				}
 
 				const localBranchName = getPrLocalBranchName(prInfo);
 				const workspaceName = getPrWorkspaceName(prInfo);
@@ -993,12 +1015,22 @@ export const createCreateProcedures = () => {
 					});
 				}
 
-				return handleNewWorktree({
-					project,
-					prInfo,
-					localBranchName,
-					workspaceName,
-				});
+				try {
+					return await handleNewWorktree({
+						project,
+						prInfo,
+						localBranchName,
+						workspaceName,
+					});
+				} catch (error) {
+					if (error instanceof GitEnvironmentError) {
+						throw new TRPCError({
+							code: "PRECONDITION_FAILED",
+							message: error.message,
+						});
+					}
+					throw error;
+				}
 			}),
 		importAllWorktrees: publicProcedure
 			.input(z.object({ projectId: z.string() }))

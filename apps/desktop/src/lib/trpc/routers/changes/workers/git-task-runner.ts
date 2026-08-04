@@ -5,6 +5,7 @@ import {
 	type WorkerTaskOptions,
 	WorkerTaskRunner,
 } from "../../../workers/WorkerTaskRunner";
+import { NotGitRepoError } from "../../workspaces/utils/git";
 import { GitEnvironmentError } from "../../workspaces/utils/git-errors";
 import type {
 	GitTaskPayloadMap,
@@ -65,14 +66,23 @@ export function runGitTask<TTask extends GitTaskType>(
 	return getRunner()
 		.runTask<GitTaskResultMap[TTask]>(taskType, payload, options)
 		.catch((error) => {
-			// Git tasks time out on pathological working trees (huge repos, cold
-			// network volumes) — an environment condition, not a worker bug.
-			if (
-				error instanceof WorkerTaskError &&
-				error.name === "WorkerTaskError" &&
-				/ timed out after \d+ms$/.test(error.message)
-			) {
-				throw new GitEnvironmentError(error.message);
+			// The worker boundary serializes errors down to {name, message, stack,
+			// code}; rebuild the domain classes here so callers can use instanceof.
+			// Runner timeouts are an environment condition (huge repos, cold
+			// network volumes), not a worker bug.
+			if (error instanceof WorkerTaskError) {
+				if (error.name === "NotGitRepoError") {
+					throw new NotGitRepoError(error.message);
+				}
+				if (error.name === "GitEnvironmentError") {
+					throw new GitEnvironmentError(error.message);
+				}
+				if (
+					error.name === "WorkerTaskError" &&
+					/ timed out after \d+ms$/.test(error.message)
+				) {
+					throw new GitEnvironmentError(error.message);
+				}
 			}
 			throw error;
 		});

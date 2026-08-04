@@ -1,13 +1,16 @@
 import { worktrees } from "@superset/local-db";
+import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { localDb } from "main/lib/local-db";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
+import { pathExistsCached } from "../utils/path-exists-cache";
 import {
 	setBranchBaseConfig,
 	unsetBranchBaseConfig,
 } from "../workspaces/utils/base-branch-config";
-import { getCurrentBranch } from "../workspaces/utils/git";
+import { getCurrentBranch, NotGitRepoError } from "../workspaces/utils/git";
+import { GitEnvironmentError } from "../workspaces/utils/git-errors";
 import { gitSwitchBranch } from "./security/git-commands";
 import {
 	assertRegisteredWorktree,
@@ -15,10 +18,6 @@ import {
 } from "./security/path-validation";
 import { getPersistedWorktreeBaseBranch } from "./utils/effective-base-branch";
 import { clearStatusCacheForWorktree } from "./utils/status-cache";
-import {
-	assertWorktreeOnDisk,
-	translateGitTaskError,
-} from "./utils/translate-git-errors";
 import { runGitTask } from "./workers/git-task-runner";
 
 // Bumped by branch/base mutations so a refetch fired right after one can't
@@ -47,7 +46,16 @@ export const createBranchesRouter = () => {
 					currentBranch: string | null;
 				}> => {
 					assertRegisteredWorktree(input.worktreePath);
-					assertWorktreeOnDisk(input.worktreePath);
+					if (!pathExistsCached(input.worktreePath)) {
+						throw new TRPCError({
+							code: "NOT_FOUND",
+							message: `Worktree no longer exists on disk: ${input.worktreePath}`,
+							cause: {
+								kind: "WORKTREE_MISSING",
+								worktreePath: input.worktreePath,
+							},
+						});
+					}
 
 					try {
 						return await runGitTask(
@@ -65,7 +73,21 @@ export const createBranchesRouter = () => {
 							},
 						);
 					} catch (error) {
-						translateGitTaskError(error);
+						if (error instanceof NotGitRepoError) {
+							throw new TRPCError({
+								code: "BAD_REQUEST",
+								message: error.message,
+								cause: { kind: "NOT_GIT_REPO" },
+							});
+						}
+						if (error instanceof GitEnvironmentError) {
+							throw new TRPCError({
+								code: "PRECONDITION_FAILED",
+								message: error.message,
+								cause: { kind: "GIT_ENVIRONMENT" },
+							});
+						}
+						throw error;
 					}
 				},
 			),
