@@ -47,7 +47,13 @@ export function OnboardingNavigation({
 				<PaginationDots current={currentStep} total={totalSteps} />
 			</div>
 			<div className="flex flex-1 items-center justify-end gap-2">
-				<Button size="sm" variant="ghost" onClick={() => signOut()}>
+				<Button
+					size="sm"
+					variant="ghost"
+					onClick={async () => {
+						await signOut();
+					}}
+				>
 					<HiOutlineArrowRightOnRectangle />
 					Sign out
 				</Button>
