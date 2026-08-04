@@ -142,17 +142,17 @@ function ChatDemo({
 
 export const Default: Story = {
 	args: { messages },
-	render: () => <ChatDemo sidebarMessages={messages} />,
+	render: (args) => <ChatDemo sidebarMessages={args.messages} />,
 };
 
 export const ManyMessages: Story = {
 	args: { messages: manyMessages },
-	render: () => <ChatDemo sidebarMessages={manyMessages} />,
+	render: (args) => <ChatDemo sidebarMessages={args.messages} />,
 };
 
 export const FewMessages: Story = {
 	args: { messages: fewMessages },
-	render: () => <ChatDemo sidebarMessages={fewMessages} />,
+	render: (args) => <ChatDemo sidebarMessages={args.messages} />,
 };
 
 const userMessageIds = messages
@@ -160,22 +160,19 @@ const userMessageIds = messages
 	.map((message) => message.id);
 
 export const SidebarOnly: Story = {
-	args: { messages },
-	render: () => (
+	args: { messages, activeMessageIds: userMessageIds.slice(5, 9) },
+	render: (args) => (
 		<div className="flex h-screen items-center bg-background pl-3">
-			<ChatHistorySidebar
-				messages={messages}
-				activeMessageIds={userMessageIds.slice(5, 9)}
-			/>
+			<ChatHistorySidebar {...args} />
 		</div>
 	),
 };
 
 export const HiddenBelowFourMessages: Story = {
 	args: { messages: belowMinimum },
-	render: () => (
+	render: (args) => (
 		<div className="flex h-screen items-center bg-background pl-3">
-			<ChatHistorySidebar messages={belowMinimum} />
+			<ChatHistorySidebar {...args} />
 			<p className="text-sm text-muted-foreground">
 				Rail renders nothing with fewer than 4 user messages.
 			</p>

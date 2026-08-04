@@ -104,6 +104,11 @@ export function ChatHistorySidebar({
 			aria-label="User messages"
 			className={cn("chat-history-rail relative", className)}
 			onPointerLeave={() => setHovered(null)}
+			onBlur={(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget)) {
+					setHovered(null);
+				}
+			}}
 		>
 			<div
 				ref={listRef}
