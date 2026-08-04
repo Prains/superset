@@ -115,6 +115,16 @@ export const createStatusRouter = () => {
 			)
 			.query(async ({ input }): Promise<ChangedFile[]> => {
 				assertRegisteredWorktree(input.worktreePath);
+				if (!pathExistsCached(input.worktreePath)) {
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: `Worktree no longer exists on disk: ${input.worktreePath}`,
+						cause: {
+							kind: "WORKTREE_MISSING",
+							worktreePath: input.worktreePath,
+						},
+					});
+				}
 
 				try {
 					return await runGitTask(
