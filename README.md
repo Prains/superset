@@ -37,6 +37,8 @@ Superset orchestrates CLI-based coding agents across isolated git worktrees, wit
 
 Wait less, ship more.
 
+> Test note: this line was added as a temporary README edit.
+
 ## Features
 
 <table>
