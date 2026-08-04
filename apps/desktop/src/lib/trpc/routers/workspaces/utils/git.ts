@@ -198,13 +198,14 @@ async function getGitEnv(): Promise<Record<string, string>> {
 export async function getStatusNoLock(repoPath: string): Promise<StatusResult> {
 	const env = await getGitEnv();
 
+	let stdout: string;
 	try {
 		// Run git status with --no-optional-locks to avoid holding locks
 		// Use porcelain=v2 for stable machine-parseable output with branch headers
 		// Use -z for NUL-terminated output (handles filenames with special chars)
 		// Use -uall to show individual files in untracked directories (not just the directory)
 		// Note: porcelain=v2 includes structured rename/copy records without needing -M
-		const { stdout } = await execGitWithShellPath(
+		({ stdout } = await execGitWithShellPath(
 			[
 				"--no-optional-locks",
 				"-C",
@@ -216,9 +217,7 @@ export async function getStatusNoLock(repoPath: string): Promise<StatusResult> {
 				"-uall",
 			],
 			{ env, timeout: 30_000, maxBuffer: 10 * 1024 * 1024 },
-		);
-
-		return parsePorcelainStatusV2(stdout);
+		));
 	} catch (error) {
 		// Provide more descriptive error messages
 		if (isExecFileException(error)) {
@@ -238,6 +237,10 @@ export async function getStatusNoLock(repoPath: string): Promise<StatusResult> {
 			`Failed to get git status: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
+
+	// Parsing failures are our bugs, not the environment's — keep them outside
+	// the catch so they surface as reported 500s.
+	return parsePorcelainStatusV2(stdout);
 }
 
 /**
@@ -848,9 +851,18 @@ export async function worktreeExists(
 		const git = await getSimpleGitWithShellPath(mainRepoPath);
 		const worktrees = await git.raw(["worktree", "list", "--porcelain"]);
 
-		const lines = worktrees.split("\n");
+		// Git keeps deleted worktrees in its metadata as `prunable` entries, so a
+		// listed path is not proof the worktree is live on disk.
 		const worktreePrefix = `worktree ${worktreePath}`;
-		return lines.some((line) => line.trim() === worktreePrefix);
+		return worktrees.split("\n\n").some((block) => {
+			const lines = block.split("\n").map((line) => line.trim());
+			return (
+				lines.some((line) => line === worktreePrefix) &&
+				!lines.some(
+					(line) => line === "prunable" || line.startsWith("prunable "),
+				)
+			);
+		});
 	} catch (error) {
 		console.error(`Failed to check worktree existence: ${error}`);
 		throw error;

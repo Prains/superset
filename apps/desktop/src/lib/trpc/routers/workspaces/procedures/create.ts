@@ -969,9 +969,11 @@ export const createCreateProcedures = () => {
 
 				const parsed = parsePrUrl(input.prUrl);
 				if (!parsed) {
-					throw new Error(
-						"Invalid PR URL. Expected format: https://github.com/owner/repo/pull/123",
-					);
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message:
+							"Invalid PR URL. Expected format: https://github.com/owner/repo/pull/123",
+					});
 				}
 
 				let prInfo: Awaited<ReturnType<typeof getPrInfo>>;
