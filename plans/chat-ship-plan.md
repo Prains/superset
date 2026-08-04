@@ -7,14 +7,14 @@
 - The v1 window's chat pane is untouched — it dies with v1, out of scope here.
 - Dual harness at launch: Claude (Agent SDK) + Codex (app-server), harness picker in the pane from day one.
 - Mobile is a follow-on phase on the same spine (gated on the RN markdown spike); mastra/ACP stacks stay alive until mobile ports, then retire.
-- New package name: **`packages/chat-kit`** (`@superset/chat-kit`) — `packages/chat` is occupied by the mastra stack until retirement.
+- Package naming: the new package owns the canonical **`packages/chat`** (`@superset/chat`); the old mastra-era package was renamed **`packages/chat-legacy`** (`@superset/chat-legacy`) and is deleted when Stack A retires.
 
 ---
 
-## 1. Workstream A — `packages/chat-kit` (client-safe, no Node/DOM/RN deps outside declared entries)
+## 1. Workstream A — `packages/chat` (client-safe, no Node/DOM/RN deps outside declared entries)
 
 ```
-packages/chat-kit/
+packages/chat/
   package.json                 # exports: ./protocol ./core ./client ./react
   src/
     protocol/
@@ -121,12 +121,12 @@ tRPC (mounted in `packages/host-service/src/trpc/router/router.ts` beside existi
 ```
 trpc/router/chat-v3/chat-v3.ts   # createSession, prompt, steer, cancelTurn, respondToApproval,
                                  # setMode/setModel/setConfigOption, listSessions, getSession, getItems
-                                 # all inputs = chat-kit/protocol/commands schemas; OUTPUT schemas too (parse both ways)
+                                 # all inputs = @superset/chat protocol/commands schemas; OUTPUT schemas too (parse both ways)
 ```
 
 Cloud metadata: `createSession` writes the `chat_sessions` row via the **tRPC path only** (`apiTrpcClient.chat.createSession`); the REST PUT path is not used by this stack.
 
-Import boundary (CI-enforced): `runtime/chat/**` imports only `@superset/chat-kit/protocol`, vendor SDKs, `db/` glue, and itself — never host-service workspace/git/terminal modules. This keeps the future `packages/chat-runtime` extraction a `git mv`.
+Import boundary (CI-enforced): `runtime/chat/**` imports only `@superset/chat/protocol`, vendor SDKs, `db/` glue, and itself — never host-service workspace/git/terminal modules. This keeps the future `packages/chat-runtime` extraction a `git mv`.
 
 ## 3. Workstream C — desktop pane (`apps/desktop`)
 
@@ -174,7 +174,7 @@ New pane, co-located per AGENTS.md, registered as pane kind `"chat"`:
 | # | Deliverable | Exit criteria | Est. |
 |---|---|---|---|
 | M0 | Spikes (parallel with M1): record real Claude SDK fixture streams; codex app-server probe + min-version; relay WS soak (N subscribers, cellular reconnect, iOS background/resume); streamdown#473 check → pick desktop markdown renderer | Fixtures committed; go/no-go notes appended to this doc | 3–4d |
-| M1 | chat-kit `protocol/` + `core/` + host `journal/` + `fake/` harness | Reducer property tests + journal tests green; fake-harness golden transcript folds identically via live vs replay | 4d |
+| M1 | `@superset/chat` `protocol/` + `core/` + host `journal/` + `fake/` harness | Reducer property tests + journal tests green; fake-harness golden transcript folds identically via live vs replay | 4d |
 | M2 | `stream/` + `sessions/` + tRPC router | Headless node client E2E: subscribe→prompt(fake)→reconnect mid-turn with since-cursor → identical final snapshot; epoch-reset path covered | 3d |
 | M3 | Claude adapter | All recorded fixtures map + fold green; live smoke: real prompt→approval→decline→continue on a dev host | 4–5d |
 | M4 | Codex adapter (parallel from M2) | Same bar as M3 + min-version gate error path | 4–5d |
@@ -197,4 +197,4 @@ Serial worst case ~4 weeks; with adapter parallelization (M3/M4 concurrent) ~3 w
 3. Relay backpressure/fan-out unknowns — M0 soak; delta-drop-first policy means worst case degrades to spine-only (still correct).
 4. Streaming markdown perf — frozen-history + per-block memoization + fence gating are all in from day one; virtualization is a deliberate later escalation (`@tanstack/react-virtual` `anchorTo:'end'`, pinned exact) with the seam already in `Transcript`.
 5. Old-pane deletion breaking hidden consumers — grep gate + the parity checklist; v1 window untouched.
-6. Scope creep toward mobile — explicitly out; the spine and chat-kit are mobile-ready by construction (no DOM in core/client), which is the whole insurance.
+6. Scope creep toward mobile — explicitly out; the spine and `@superset/chat` are mobile-ready by construction (no DOM in core/client), which is the whole insurance.

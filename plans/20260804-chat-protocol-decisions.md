@@ -19,4 +19,4 @@ Clarifications recorded during the walkthrough:
 - Client-side caching tiers: in-memory snapshot + gap replay is the always-on mechanism; v1 cold-opens fetch a page from the host (no persisted device cache); a persisted device cache is a safe later addition precisely because the epoch check makes stale caches detectable.
 - Decision 3 explicitly does NOT mean mobile behaves differently — v1 defaults are identical everywhere; the per-channel knob is future insurance only.
 
-Not re-litigated here (accepted earlier in planning, recorded in the design docs): vocabulary donors (ACP v2 shapes + Codex mechanics), Claude adapter input = Agent SDK direct, dual-harness launch, single `chat-kit` package with entry-point boundaries, host runtime placement with extraction seam.
+Not re-litigated here (accepted earlier in planning, recorded in the design docs): vocabulary donors (ACP v2 shapes + Codex mechanics), Claude adapter input = Agent SDK direct, dual-harness launch, single `packages/chat` package with entry-point boundaries, host runtime placement with extraction seam.
