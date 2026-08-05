@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { sessionState } from "../fixtures";
 import type { ChatRuntime } from "../index";
-import { createTestRuntime } from "../testRuntime";
+import { sessionState } from "../testing/fixtures";
+import { createTestRuntime } from "../testing/testRuntime";
 
 describe("ChatSessionStore", () => {
 	let runtime: ChatRuntime;

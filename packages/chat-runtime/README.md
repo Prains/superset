@@ -18,7 +18,7 @@ The runtime speaks only the vocabulary in `plans/chat-protocol-v1.md`; it never 
 | `sessions/` | `liveSession/` (one running session: event pump, FIFO prompt queue, cancel) and `registry/`, which builds one per harness |
 | `stream/` | `subscriptions/` — `SubscriptionHub`: replay-then-live subscribe, per-subscriber delta channels, reset frames, delta coalescing |
 | `commands/` | The client-facing verbs, each parsed with the `@superset/chat` command schemas and deduped by `commandId` |
-| `fixtures/`, `testUtils/`, `testRuntime/` | Test helpers at the root because every module's tests consume them: protocol item factories, stream/timing utilities, and the bun-sqlite runtime |
+| `testing/` | The cross-cutting test helpers no single module owns — `fixtures/` (protocol item factories), `testUtils/` (sinks, schedules, waits) and `testRuntime/` (the bun-sqlite runtime). Internal only: relative imports, no package export. Helpers that do have an owner stay beside it, like `harness/fake/` |
 
 ## Wiring a harness
 
@@ -32,6 +32,6 @@ const runtime = createChatRuntime({
 });
 ```
 
-Both adapters land in M3/M4 of `plans/chat-ship-plan.md`. Today the registry is empty by default and only tests register the fake, via `fakeHarnessRegistry()` from `src/testUtils`.
+Both adapters land in M3/M4 of `plans/chat-ship-plan.md`. Today the registry is empty by default and only tests register the fake, via `fakeHarnessRegistry()` from `src/testing/testUtils`.
 
 When host-service mounts this package it must pass `migrationsFolder`: the generated `src/db/drizzle/` directory is a runtime file dependency that the bundler will not inline.

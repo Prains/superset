@@ -6,6 +6,8 @@ import type {
 	SessionState,
 } from "@superset/chat/protocol";
 import { durableEventSchema } from "@superset/chat/protocol";
+import type { AdapterEvent } from "../harness";
+import { FakeHarness, type FakeHarnessScript } from "../harness/fake";
 import {
 	agentMessage,
 	approvalRequest,
@@ -14,10 +16,8 @@ import {
 	toolCall,
 	turn,
 	userMessage,
-} from "../fixtures";
-import type { AdapterEvent } from "../harness";
-import { FakeHarness, type FakeHarnessScript } from "../harness/fake";
-import { createTestRuntime } from "../testRuntime";
+} from "../testing/fixtures";
+import { createTestRuntime } from "../testing/testRuntime";
 import { readSince } from "./replay";
 
 const SESSION = "session-1";

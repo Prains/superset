@@ -2,16 +2,21 @@ import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { emptySnapshot, reduceMany } from "@superset/chat/core";
 import type { DurableEnvelope, UserMessage } from "@superset/chat/protocol";
-import { agentMessage, approvalRequest, toolCall, turn } from "../../fixtures";
 import type { FakeHarnessScript } from "../../harness/fake";
 import type { ChatRuntime } from "../../index";
-import { createTestRuntime } from "../../testRuntime";
+import {
+	agentMessage,
+	approvalRequest,
+	toolCall,
+	turn,
+} from "../../testing/fixtures";
+import { createTestRuntime } from "../../testing/testRuntime";
 import {
 	FAKE_HARNESS,
 	fakeHarnessRegistry,
 	journalEnvelopes,
 	waitFor,
-} from "../../testUtils";
+} from "../../testing/testUtils";
 
 function startSession(script: FakeHarnessScript): {
 	runtime: ChatRuntime;

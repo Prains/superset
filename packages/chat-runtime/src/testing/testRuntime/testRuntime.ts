@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
-import type { ChatDb, ChatDbOptions } from "../db";
-import { CHAT_DB_FILENAME, DEFAULT_MIGRATIONS_FOLDER } from "../db";
-import * as schema from "../db/schema";
+import type { ChatDb, ChatDbOptions } from "../../db";
+import { CHAT_DB_FILENAME, DEFAULT_MIGRATIONS_FOLDER } from "../../db";
+import * as schema from "../../db/schema";
 import {
 	type ChatRuntime,
 	type ChatRuntimeOptions,
 	createChatRuntime,
-} from "../index";
+} from "../../index";
 
 export function createBunChatDb(options: ChatDbOptions): ChatDb {
 	mkdirSync(options.dataDir, { recursive: true });

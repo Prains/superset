@@ -3,17 +3,17 @@ import { randomUUID } from "node:crypto";
 import { emptySnapshot, reduceMany } from "@superset/chat/core";
 import type { Cursor, Envelope } from "@superset/chat/protocol";
 import { isDeltaEnvelope, isDurableEnvelope } from "@superset/chat/protocol";
-import { agentMessage, turn } from "../../fixtures";
 import type { FakeHarnessScript } from "../../harness/fake";
 import type { ChatRuntime } from "../../index";
-import { createTestRuntime } from "../../testRuntime";
+import { agentMessage, turn } from "../../testing/fixtures";
+import { createTestRuntime } from "../../testing/testRuntime";
 import {
 	createManualSchedule,
 	createRecordingSink,
 	FAKE_HARNESS,
 	fakeHarnessRegistry,
 	waitFor,
-} from "../../testUtils";
+} from "../../testing/testUtils";
 
 const STREAMING_TURN: FakeHarnessScript = {
 	turns: [

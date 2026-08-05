@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import type { DurableEnvelope } from "@superset/chat/protocol";
 import { chatJournal } from "../db";
-import { agentMessage } from "../fixtures";
 import type { ChatRuntime } from "../index";
 import { ChatJournal } from "../journal";
-import { createTestRuntime } from "../testRuntime";
+import { agentMessage } from "../testing/fixtures";
+import { createTestRuntime } from "../testing/testRuntime";
 import { readPage, readSince } from "./replay";
 
 const SESSION = "session-1";

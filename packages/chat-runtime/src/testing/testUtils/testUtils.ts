@@ -1,10 +1,10 @@
 import type { DurableEnvelope, Envelope } from "@superset/chat/protocol";
-import type { FakeHarnessScript } from "../harness/fake";
-import { FakeHarness } from "../harness/fake";
-import type { ChatRuntime } from "../index";
-import { readSince } from "../replay";
-import type { HarnessRegistry } from "../sessions";
-import type { Schedule, Sink } from "../stream";
+import type { FakeHarnessScript } from "../../harness/fake";
+import { FakeHarness } from "../../harness/fake";
+import type { ChatRuntime } from "../../index";
+import { readSince } from "../../replay";
+import type { HarnessRegistry } from "../../sessions";
+import type { Schedule, Sink } from "../../stream";
 
 export const FAKE_HARNESS = "fake";
 

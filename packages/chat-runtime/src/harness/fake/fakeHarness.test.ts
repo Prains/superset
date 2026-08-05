@@ -6,7 +6,7 @@ import {
 	toolCall,
 	turn,
 	userMessage,
-} from "../../fixtures";
+} from "../../testing/fixtures";
 import type { AdapterEvent } from "../types";
 import { FakeHarness, type FakeHarnessScript } from "./fakeHarness";
 

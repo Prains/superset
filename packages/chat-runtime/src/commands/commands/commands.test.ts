@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { agentMessage, turn } from "../../fixtures";
 import type { FakeHarnessScript } from "../../harness/fake";
 import type { ChatRuntime } from "../../index";
-import { createTestRuntime } from "../../testRuntime";
+import { agentMessage, turn } from "../../testing/fixtures";
+import { createTestRuntime } from "../../testing/testRuntime";
 import {
 	FAKE_HARNESS,
 	fakeHarnessRegistry,
 	journalEnvelopes,
 	waitFor,
-} from "../../testUtils";
+} from "../../testing/testUtils";
 
 const SCRIPT: FakeHarnessScript = {
 	turns: [

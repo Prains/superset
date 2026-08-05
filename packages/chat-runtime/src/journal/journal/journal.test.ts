@@ -4,10 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gt } from "drizzle-orm";
 import { CHAT_DB_FILENAME, chatJournal } from "../../db";
-import { agentMessage, sessionState, userMessage } from "../../fixtures";
 import { type ChatRuntime, createChatRuntime } from "../../index";
 import { readSince } from "../../replay";
-import { createBunChatDb, createTestRuntime } from "../../testRuntime";
+import {
+	agentMessage,
+	sessionState,
+	userMessage,
+} from "../../testing/fixtures";
+import { createBunChatDb, createTestRuntime } from "../../testing/testRuntime";
 
 const SESSION = "session-1";
 
