@@ -162,7 +162,11 @@ async function execWorktreeAdd({
 	 * Branch the worktree must have checked out for a failed add to count as
 	 * success. When omitted (detached adds), only a worktree registered by
 	 * THIS call qualifies — a path registered beforehand belongs to some
-	 * other checkout and its "already exists" failure must surface.
+	 * other checkout and its "already exists" failure must surface. A
+	 * detached worktree stranded by a killed prior attempt therefore does
+	 * NOT recover via retry: without a branch there is no way to tell a
+	 * same-PR leftover from a foreign checkout, and running
+	 * `gh pr checkout --force` in the latter would clobber it.
 	 */
 	expectedBranch?: string;
 	timeout?: number;
@@ -1693,6 +1697,8 @@ export interface PullRequestInfo {
 	number: number;
 	title: string;
 	headRefName: string;
+	/** Head commit SHA — ground truth for whether a PR checkout completed. */
+	headRefOid?: string;
 	headRepository: {
 		owner: string;
 		name: string;
@@ -1781,7 +1787,7 @@ export async function getPrInfo({
 				"--repo",
 				`${owner}/${repo}`,
 				"--json",
-				"number,title,headRefName,headRepository,headRepositoryOwner,isCrossRepository",
+				"number,title,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository",
 			],
 			{ timeout: 30_000 },
 		);
@@ -1858,11 +1864,33 @@ export async function createWorktreeFromPr({
 			});
 		}
 
-		// Checkouts run post-checkout hooks too — tolerate a hook failure when
-		// the PR branch verifiably ended up checked out.
-		await checkoutBranchWithHookTolerance({
-			repoPath: worktreePath,
-			targetBranch: localBranchName,
+		// Checkouts run post-checkout hooks too — tolerate a hook failure only
+		// when the checkout verifiably completed: right branch AND at the PR's
+		// head commit. Branch name alone is not enough — in the branch-exists
+		// path the branch is already checked out before gh runs, which would
+		// mask genuine gh failures (auth, network) as hook noise.
+		await runWithPostCheckoutHookTolerance({
+			context: `Checked out PR #${prInfo.number} branch "${localBranchName}" in ${worktreePath}`,
+			didSucceed: async () => {
+				if (!prInfo.headRefOid) {
+					return false;
+				}
+				if ((await getCurrentBranch(worktreePath)) !== localBranchName) {
+					return false;
+				}
+				try {
+					const { stdout } = await execGitWithShellPath(
+						["-C", worktreePath, "rev-parse", "HEAD"],
+						{ timeout: 10_000 },
+					);
+					return (
+						stdout.trim().toLowerCase() ===
+						prInfo.headRefOid.trim().toLowerCase()
+					);
+				} catch {
+					return false;
+				}
+			},
 			run: async () => {
 				try {
 					await execWithShellEnv(
