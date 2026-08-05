@@ -7,6 +7,7 @@ import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createApiClient } from "./api";
+import { createChatV3Mount, registerChatV3Routes } from "./chat-v3";
 import { createDb, type HostDb } from "./db";
 import { workspaces } from "./db/schema";
 import { EventBus, GitWatcher, registerEventBusRoute } from "./events";
@@ -168,6 +169,12 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 			persistence: new SqliteAcpSessionPersistence(db),
 		});
 
+	// Chat v3 runtime (plans/chat-v3-pane-mount.md). Same internal-build gate
+	// as ACP: without SUPERSET_CHAT_V3=1 neither route is registered and
+	// chat.db is never created.
+	const chatV3Enabled = process.env.SUPERSET_CHAT_V3 === "1";
+	const chatV3 = createChatV3Mount({ db, dbPath: config.dbPath });
+
 	const runtime = {
 		acpSessions,
 		acpSessionsEnabled,
@@ -257,6 +264,7 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 	app.use("/terminal/*", wsAuth);
 	app.use("/events", wsAuth);
 	app.use("/acp-sessions/*", wsAuth);
+	app.use("/chat-v3/*", wsAuth);
 
 	registerEventBusRoute({ app, eventBus, upgradeWebSocket });
 	registerWorkspaceTerminalRoute({
@@ -271,6 +279,9 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 			sessions: acpSessions,
 			upgradeWebSocket,
 		});
+	}
+	if (chatV3Enabled) {
+		registerChatV3Routes({ app, db, mount: chatV3, upgradeWebSocket });
 	}
 
 	app.use(
@@ -312,6 +323,11 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 			await acpSessions.dispose();
 		} catch (err) {
 			console.warn("[host-service] acpSessions.dispose failed:", err);
+		}
+		try {
+			await chatV3.dispose();
+		} catch (err) {
+			console.warn("[host-service] chatV3.dispose failed:", err);
 		}
 		try {
 			eventBus.close();
