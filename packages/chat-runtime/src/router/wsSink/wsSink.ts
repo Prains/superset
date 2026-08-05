@@ -3,25 +3,38 @@ import type { Sink } from "../../stream";
 export type WsSinkSocket = {
 	send(data: string): void;
 	close(): void;
-	onclose: (() => void) | null;
+	onclose: ((...args: never[]) => unknown) | null;
 };
 
 export function createWsSink(socket: WsSinkSocket): Sink {
 	let open = true;
 	const previous = socket.onclose;
-	socket.onclose = () => {
+
+	function handleClose(...args: never[]): unknown {
 		open = false;
-		previous?.();
+		if (socket.onclose === handleClose) socket.onclose = previous;
+		return previous?.(...args);
+	}
+	socket.onclose = handleClose;
+
+	const close = (): void => {
+		if (!open) return;
+		open = false;
+		if (socket.onclose === handleClose) socket.onclose = previous;
+		try {
+			socket.close();
+		} catch {}
 	};
+
 	return {
 		send(envelope) {
 			if (!open) return;
-			socket.send(JSON.stringify(envelope));
+			try {
+				socket.send(JSON.stringify(envelope));
+			} catch {
+				close();
+			}
 		},
-		close() {
-			if (!open) return;
-			open = false;
-			socket.close();
-		},
+		close,
 	};
 }

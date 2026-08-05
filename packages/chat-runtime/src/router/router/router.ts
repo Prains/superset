@@ -1,5 +1,6 @@
 import {
 	cancelTurnInputSchema,
+	createSessionInputSchema,
 	getItemsInputSchema,
 	getSessionInputSchema,
 	listSessionsInputSchema,
@@ -7,35 +8,80 @@ import {
 	respondToApprovalInputSchema,
 	setModeInputSchema,
 } from "@superset/chat/protocol";
-import { initTRPC } from "@trpc/server";
-import { createSessionCommandSchema } from "../../commands";
+import { initTRPC, TRPCError } from "@trpc/server";
 import type { ChatRuntime } from "../../index";
 
 const t = initTRPC.create();
 
 export const createChatCallerFactory = t.createCallerFactory;
 
-export function createChatRouter(runtime: ChatRuntime) {
+export type ChatRouterOptions = {
+	resolveCwd(workspaceId: string): string | Promise<string>;
+};
+
+const UNKNOWN_HARNESS = /^unknown harness /;
+const NOT_RUNNING = /^chat session (.+) is not running$/;
+
+function mapCommandError(runtime: ChatRuntime, error: unknown): unknown {
+	if (error instanceof TRPCError) return error;
+	if (!(error instanceof Error)) return error;
+	if (UNKNOWN_HARNESS.test(error.message)) {
+		return new TRPCError({
+			code: "BAD_REQUEST",
+			message: error.message,
+			cause: error,
+		});
+	}
+	const sessionId = NOT_RUNNING.exec(error.message)?.[1];
+	if (sessionId) {
+		return new TRPCError({
+			code: runtime.sessions.get(sessionId) ? "CONFLICT" : "NOT_FOUND",
+			message: error.message,
+			cause: error,
+		});
+	}
+	return error;
+}
+
+export function createChatRouter(
+	runtime: ChatRuntime,
+	options: ChatRouterOptions,
+) {
+	function guarded<T>(execute: () => T): T {
+		try {
+			return execute();
+		} catch (error) {
+			throw mapCommandError(runtime, error);
+		}
+	}
+
 	return t.router({
 		createSession: t.procedure
-			.input(createSessionCommandSchema)
-			.mutation(({ input }) => runtime.commands.createSession(input)),
+			.input(createSessionInputSchema)
+			.mutation(async ({ input }) => {
+				const cwd = await options.resolveCwd(input.workspaceId);
+				return guarded(() => runtime.commands.createSession({ ...input, cwd }));
+			}),
 
 		prompt: t.procedure
 			.input(promptInputSchema)
-			.mutation(({ input }) => runtime.commands.prompt(input)),
+			.mutation(({ input }) => guarded(() => runtime.commands.prompt(input))),
 
 		cancelTurn: t.procedure
 			.input(cancelTurnInputSchema)
-			.mutation(({ input }) => runtime.commands.cancelTurn(input)),
+			.mutation(({ input }) =>
+				guarded(() => runtime.commands.cancelTurn(input)),
+			),
 
 		respondToApproval: t.procedure
 			.input(respondToApprovalInputSchema)
-			.mutation(({ input }) => runtime.commands.respondToApproval(input)),
+			.mutation(({ input }) =>
+				guarded(() => runtime.commands.respondToApproval(input)),
+			),
 
 		setMode: t.procedure
 			.input(setModeInputSchema)
-			.mutation(({ input }) => runtime.commands.setMode(input)),
+			.mutation(({ input }) => guarded(() => runtime.commands.setMode(input))),
 
 		getSession: t.procedure
 			.input(getSessionInputSchema)

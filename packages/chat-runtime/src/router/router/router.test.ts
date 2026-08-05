@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { FakeHarnessScript } from "../../harness/fake";
 import type { ChatRuntime } from "../../index";
 import { agentMessage, turn } from "../../testing/fixtures";
@@ -29,8 +32,21 @@ const SCRIPT: FakeHarnessScript = {
 function newCaller() {
 	const { harnesses, adapters } = fakeHarnessRegistry(SCRIPT);
 	const runtime = createTestRuntime({ harnesses });
-	const caller = createChatCallerFactory(createChatRouter(runtime))({});
-	return { runtime, caller, adapterCount: () => adapters.length };
+	const cwd = mkdtempSync(join(tmpdir(), "chat-router-cwd-"));
+	const resolvedWorkspaceIds: string[] = [];
+	const router = createChatRouter(runtime, {
+		resolveCwd: (workspaceId) => {
+			resolvedWorkspaceIds.push(workspaceId);
+			return cwd;
+		},
+	});
+	const caller = createChatCallerFactory(router)({});
+	return {
+		runtime,
+		caller,
+		resolvedWorkspaceIds,
+		adapterCount: () => adapters.length,
+	};
 }
 
 function createSessionInput(workspaceId = "workspace-1") {
@@ -38,7 +54,6 @@ function createSessionInput(workspaceId = "workspace-1") {
 		commandId: randomUUID(),
 		workspaceId,
 		harness: FAKE_HARNESS,
-		cwd: "/tmp/workspace",
 	};
 }
 
@@ -58,9 +73,10 @@ async function promptIdle(
 
 describe("createChatRouter", () => {
 	test("create, prompt and getItems round trip through the router", async () => {
-		const { runtime, caller } = newCaller();
+		const { runtime, caller, resolvedWorkspaceIds } = newCaller();
 		const created = await caller.createSession(createSessionInput());
 		expect(created.sessionId).toMatch(/^[0-9a-f-]{36}$/);
+		expect(resolvedWorkspaceIds).toEqual(["workspace-1"]);
 
 		await promptIdle(caller, runtime, created.sessionId);
 
@@ -91,9 +107,8 @@ describe("createChatRouter", () => {
 		await expect(
 			caller.createSession({
 				commandId: randomUUID(),
-				workspaceId: "workspace-1",
+				workspaceId: "",
 				harness: FAKE_HARNESS,
-				cwd: "",
 			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
@@ -118,6 +133,39 @@ describe("createChatRouter", () => {
 		await expect(
 			caller.getItems({ sessionId: created.sessionId, limit: 0 }),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		await runtime.dispose();
+	});
+
+	test("command errors surface as typed tRPC errors", async () => {
+		const { runtime, caller } = newCaller();
+
+		await expect(
+			caller.createSession({
+				commandId: randomUUID(),
+				workspaceId: "workspace-1",
+				harness: "nope",
+			}),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+		await expect(
+			caller.prompt({
+				commandId: randomUUID(),
+				sessionId: "missing",
+				clientId: "client-1",
+				content: [{ type: "text", text: "hi" }],
+			}),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+		const created = await caller.createSession(createSessionInput());
+		await runtime.live.dispose(created.sessionId);
+		await expect(
+			caller.prompt({
+				commandId: randomUUID(),
+				sessionId: created.sessionId,
+				clientId: "client-1",
+				content: [{ type: "text", text: "hi" }],
+			}),
+		).rejects.toMatchObject({ code: "CONFLICT" });
 		await runtime.dispose();
 	});
 
