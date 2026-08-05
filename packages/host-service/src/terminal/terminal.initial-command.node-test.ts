@@ -127,6 +127,69 @@ describe("initialCommand delivery", () => {
 		await disposeSessionAndWait(terminalId, db);
 	});
 
+	test("staging failure falls back to typing the full command", async () => {
+		const terminalId = `e2e-fallback-${randomUUID().slice(0, 8)}`;
+		const outFile = path.join(TEST_HOME, `fallback-${terminalId}`);
+		// Over the 512-byte staging threshold but under MAX_CANON, so the
+		// typed-directly fallback still delivers it intact.
+		const payload = `fb-${"y".repeat(540)}-fb`;
+		const command = `printf '%s' '${payload}' > "${outFile}"`;
+		assert.ok(Buffer.byteLength(command, "utf8") > 512);
+		assert.ok(Buffer.byteLength(command, "utf8") < 1000);
+
+		// Point tmpdir at a nonexistent directory so writeFileSync throws.
+		const origTmpdir = process.env.TMPDIR;
+		process.env.TMPDIR = path.join(TEST_HOME, "no-such-dir", "nested");
+		try {
+			const session = await createTerminalSessionInternal({
+				terminalId,
+				workspaceId,
+				db,
+				listed: true,
+				initialCommand: command,
+			});
+			assert.ok(!("error" in session), JSON.stringify(session));
+			if ("error" in session) return;
+
+			await waitFor(
+				() =>
+					fs.existsSync(outFile) &&
+					fs.readFileSync(outFile, "utf8") === payload,
+				10_000,
+			);
+		} finally {
+			process.env.TMPDIR = origTmpdir;
+			await disposeSessionAndWait(terminalId, db);
+		}
+	});
+
+	test("pre-Enter teardown unlinks the staged script", async () => {
+		const terminalId = `e2e-cleanup-${randomUUID().slice(0, 8)}`;
+		const command = `echo ${"z".repeat(600)}`;
+
+		const session = await createTerminalSessionInternal({
+			terminalId,
+			workspaceId,
+			db,
+			listed: true,
+			initialCommand: command,
+		});
+		assert.ok(!("error" in session), JSON.stringify(session));
+		if ("error" in session) return;
+
+		const staged = () =>
+			fs
+				.readdirSync(os.tmpdir())
+				.filter((f) => f.startsWith(`superset-launch-${terminalId}`));
+
+		// The script exists in the write→delayed-Enter window…
+		await waitFor(() => staged().length === 1, 5_000);
+
+		// …and disposing the session before the Enter fires removes it.
+		await disposeSessionAndWait(terminalId, db);
+		await waitFor(() => staged().length === 0, 5_000);
+	});
+
 	test("short commands are still typed verbatim into the PTY", async () => {
 		const terminalId = `e2e-shortcmd-${randomUUID().slice(0, 8)}`;
 		const id = randomUUID().slice(0, 6);

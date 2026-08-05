@@ -898,8 +898,10 @@ void (async () => {
 				// raced another instance's sweep — skip
 			}
 		}
-	} catch {
-		// best-effort
+	} catch (error) {
+		// Non-fatal, but this sweep is the only cleanup for crash-stranded
+		// prompt-bearing scripts — surface the miss instead of hiding it.
+		console.warn("[terminal] stale launch-script sweep failed", { error });
 	}
 })();
 
@@ -954,8 +956,15 @@ function queueInitialCommand(
 	// without a verified marker resolve this promise immediately, and a missing
 	// marker resolves it via SHELL_READY_TIMEOUT_MS — the command must
 	// eventually run; only session teardown may cancel it.
+	// Dispose paths that never see onExit (daemon callbacks are unsubscribed
+	// first) leave `exited` false and a non-pending readyState untouched —
+	// only the registry reliably says the session is gone.
+	const isDefunct = () =>
+		session.exited ||
+		session.shellReadyState === "cancelled" ||
+		sessions.get(session.terminalId) !== session;
 	void session.shellReadyPromise.then(() => {
-		if (session.exited || session.shellReadyState === "cancelled") return;
+		if (isDefunct()) return;
 		// Even after the marker, the TTY is still in canonical mode (the marker
 		// fires from precmd, before the line editor takes over), so whatever we
 		// type here rides the kernel's MAX_CANON line limit. Long commands go
@@ -981,7 +990,7 @@ function queueInitialCommand(
 		// so a double-run is impossible.
 		session.pty.write(typedText);
 		setTimeout(() => {
-			if (session.exited || session.shellReadyState === "cancelled") {
+			if (isDefunct()) {
 				// Enter never sent — the staged script won't run, so it can't
 				// self-delete.
 				if (scriptPath) void rm(scriptPath, { force: true }).catch(() => {});
