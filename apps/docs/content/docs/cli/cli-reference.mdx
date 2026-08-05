@@ -884,8 +884,9 @@ superset terminals create --workspace ws_…
 		{ flag: "--workspace <id>", required: true, description: "Workspace UUID." },
 		{ flag: "--host <id>", description: "Host the workspace lives on (default: this machine)." },
 	]}
-	output="Array<TerminalSession>"
-	quiet="terminal IDs"
+	output={`{
+  sessions: Array<TerminalSession>;
+}`}
 >
 List the live terminal sessions in a workspace. Presence in the list means the
 PTY exists, not that an agent inside it is working or idle.
@@ -900,6 +901,9 @@ PTY exists, not that an agent inside it is working or idle.
 		{ flag: "--max-lines <n>", description: "Limit how many trailing lines to return." },
 	]}
 	output={`{
+  terminalId: string;
+  cols: number;
+  rows: number;
   text: string;
 }`}
 >
@@ -916,6 +920,7 @@ superset terminals read --workspace ws_… --terminal term_… --max-lines 240
 		{ flag: "--workspace <id>", required: true, description: "Workspace UUID." },
 		{ flag: "--terminal <id>", required: true, description: "Terminal session ID." },
 		{ flag: "--text <string>", required: true, description: "Text to deliver to the terminal." },
+		{ flag: "--no-submit", description: "Stage the text without pressing Enter." },
 		{ flag: "--host <id>", description: "Host the workspace lives on (default: this machine)." },
 	]}
 >
