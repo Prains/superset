@@ -794,6 +794,12 @@ export class HostServiceCoordinator extends EventEmitter {
 						app.getAppPath(),
 						"../../packages/chat-runtime/src/db/drizzle",
 					),
+			// The Claude Agent SDK's bundled CLI binary is unresolvable from the
+			// bundled host-service (isolated linker + bundling), so its path comes
+			// in as env too. Packaged builds are an open IOU (231MB binary).
+			...(chatV3ClaudeBin()
+				? { SUPERSET_CHAT_V3_CLAUDE_BIN: chatV3ClaudeBin() as string }
+				: {}),
 			DESKTOP_VITE_PORT: String(sharedEnv.DESKTOP_VITE_PORT),
 			SUPERSET_HOME_DIR: SUPERSET_HOME_DIR,
 			SUPERSET_LEGACY_WORKTREE_BASE_DIR: row?.worktreeBaseDir ?? "",
@@ -1115,4 +1121,24 @@ export function getHostServiceCoordinator(): HostServiceCoordinator {
 		coordinator = new HostServiceCoordinator();
 	}
 	return coordinator;
+}
+
+function chatV3ClaudeBin(): string | undefined {
+	if (app.isPackaged) return undefined;
+	const arch = process.arch;
+	const platform = process.platform;
+	const store = path.join(app.getAppPath(), "../../node_modules/.bun");
+	const prefix = `@anthropic-ai+claude-agent-sdk-${platform}-${arch}@`;
+	try {
+		const entry = fs.readdirSync(store).find((d) => d.startsWith(prefix));
+		if (!entry) return undefined;
+		const bin = path.join(
+			store,
+			entry,
+			`node_modules/@anthropic-ai/claude-agent-sdk-${platform}-${arch}/claude`,
+		);
+		return fs.existsSync(bin) ? bin : undefined;
+	} catch {
+		return undefined;
+	}
 }
