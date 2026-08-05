@@ -94,6 +94,7 @@ export type CodexRpcClientOptions = {
 	createTransport(handlers: CodexTransportHandlers): CodexTransport;
 	onNotification(notification: CodexNotification): void;
 	onServerRequest(request: CodexServerRequest): void;
+	onDispatchError?(error: unknown, method: string): void;
 	onFrame?(direction: "in" | "out", frame: unknown): void;
 	onStderr?(chunk: string): void;
 	onExit?(code: number | null, signal: string | null): void;
@@ -198,11 +199,15 @@ export class CodexRpcClient {
 		const { id, method, params, result, error } = frame.data;
 
 		if (method !== undefined) {
-			if (id === undefined) {
-				this.options.onNotification({ method, params });
-				return;
+			try {
+				if (id === undefined) this.options.onNotification({ method, params });
+				else this.options.onServerRequest({ id, method, params });
+			} catch (error) {
+				if (id !== undefined) {
+					this.respondWithError(id, `unhandled by superset chat runtime`);
+				}
+				this.options.onDispatchError?.(error, method);
 			}
-			this.options.onServerRequest({ id, method, params });
 			return;
 		}
 		if (id === undefined) return;

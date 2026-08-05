@@ -122,6 +122,8 @@ export class CodexAdapter implements HarnessAdapter {
 	private readonly inFlight = new Map<string, InFlightItem>();
 	private readonly pendingApprovals = new Map<string, PendingApproval>();
 	private readonly settledTurns = new Set<string>();
+	private pendingTurnStart = false;
+	private cancelRequested = false;
 	private readonly queuedInput: unknown[][] = [];
 	private client: CodexRpcClient | null = null;
 	private threadId: string | null = null;
@@ -152,11 +154,19 @@ export class CodexAdapter implements HarnessAdapter {
 	}
 
 	cancelTurn(): void {
-		const client = this.client;
+		if (!this.client || !this.threadId) return;
 		const turn = this.currentTurn;
-		if (!client || !this.threadId || turn?.status !== "running") return;
-		void client
-			.request("turn/interrupt", { threadId: this.threadId, turnId: turn.id })
+		if (turn?.status === "running") {
+			this.interrupt(turn.id);
+			return;
+		}
+		if (this.pendingTurnStart) this.cancelRequested = true;
+	}
+
+	private interrupt(turnId: string): void {
+		this.cancelRequested = false;
+		void this.client
+			?.request("turn/interrupt", { threadId: this.threadId, turnId })
 			.catch((error: Error) => this.emitNotice("error", error.message));
 	}
 
@@ -208,6 +218,11 @@ export class CodexAdapter implements HarnessAdapter {
 					),
 				onNotification: (notification) => this.handleNotification(notification),
 				onServerRequest: (request) => this.handleServerRequest(request),
+				onDispatchError: (error, method) =>
+					this.emitNotice(
+						"error",
+						`codex ${method} could not be read: ${error instanceof Error ? error.message : String(error)}`,
+					),
 				onExit: (code) => this.handleExit(code),
 			});
 			this.client = client;
@@ -261,6 +276,7 @@ export class CodexAdapter implements HarnessAdapter {
 	private async startTurn(input: unknown[]): Promise<void> {
 		const client = this.client;
 		if (!client || !this.threadId) return;
+		this.pendingTurnStart = true;
 		try {
 			const response = await client.request("turn/start", {
 				threadId: this.threadId,
@@ -326,9 +342,9 @@ export class CodexAdapter implements HarnessAdapter {
 				cachedInputTokens: update.tokenUsage.last.cachedInputTokens,
 				outputTokens: update.tokenUsage.last.outputTokens,
 				contextUsed: update.tokenUsage.total.totalTokens,
-				...(update.tokenUsage.modelContextWindow
-					? { contextSize: update.tokenUsage.modelContextWindow }
-					: {}),
+				...(update.tokenUsage.modelContextWindow == null
+					? {}
+					: { contextSize: update.tokenUsage.modelContextWindow }),
 			};
 			if (this.currentTurn) this.emitTurnState(this.currentTurn);
 			return;
@@ -622,6 +638,13 @@ export class CodexAdapter implements HarnessAdapter {
 		};
 		this.currentTurn = next;
 		this.emit({ kind: "turn", turn: next });
+
+		this.pendingTurnStart = false;
+		if (turn.status !== "running") {
+			this.cancelRequested = false;
+			return;
+		}
+		if (this.cancelRequested) this.interrupt(turn.id);
 	}
 
 	private toCodexInput(content: UserContent[]): unknown[] {
