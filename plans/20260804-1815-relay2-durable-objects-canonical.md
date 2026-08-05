@@ -22,14 +22,13 @@ A working prototype already validated the platform (PR #6165, `apps/relay-do`): 
 ## Assumptions
 
 - The Cloudflare account currently hosting `electric-proxy.avi-6ac.workers.dev` (account `avi-6ac`) is acceptable for production relay traffic. The prod desktop app already allowlists and uses that Worker for Electric sync, so the precedent exists. If a company-owned account is preferred, only `wrangler.jsonc` account config and the hostname change.
-- `*.workers.dev` hostnames are acceptable for the canonical relay endpoint for now. A custom domain (`relay2.superset.sh`) requires the `superset.sh` zone to live on Cloudflare, which is a separate infra decision (DNS is on Vercel today; see Open Questions).
+- `*.workers.dev` hostnames are acceptable during development and the parallel-run rollout (Milestones 1–4). The canonical end-state hostname is `relay.superset.sh`, cut over to relay2 at Milestone 5 via a Cloudflare for SaaS custom hostname — superset.sh DNS stays on Vercel (see D-11/D-14).
+- The org controls at least one spare domain that can be activated as a Cloudflare zone to host the SaaS fallback origin (the `superset-sh/domains` tooling manages a pool of them).
 - Workers paid plan with Durable Objects (SQLite-backed classes) is enabled on the account. The prototype already deployed successfully, so this is effectively confirmed.
 - `apps/mobile` (iOS) consumes the relay through the same `packages/host-client` path as web and can adopt relay2 with no mobile-specific work beyond a dependency bump.
 
 ## Open Questions
 
-- Custom domain timing: do we ever want `relay2.superset.sh`, and if so, does the superset.sh zone move to Cloudflare or do we accept `workers.dev` indefinitely? Impacts Milestone 5 (CSP contents, client config) but blocks nothing earlier. → Decision Log placeholder D-11.
-- What happens to prototype PR #6165: merge as-is for the canary infrastructure (CSP line, deploy precedent) and let relay2 supersede `apps/relay-do` later, or close it and fold the CSP line into this plan's Milestone 4? → Decision Log placeholder D-12.
 - Client-side predictive echo (mosh-style local echo in the terminal renderer) is the biggest lever for perceived typing latency and is intentionally **out of scope** here; does it get its own plan immediately after, or wait for relay2 to land? → Decision Log placeholder D-13.
 
 ## Progress
@@ -87,9 +86,16 @@ A working prototype already validated the platform (PR #6165, `apps/relay-do`): 
 - Decision (D-10): Deploys of relay2 must fail loudly: the deploy workflow posts to Slack on failure and the repo treats a red Deploy Relay2 run as a stop-the-line event.
   Rationale: the July 22–24 outage happened because Deploy Relay failed silently and the fleet stayed on a leaky build for two days; this was the single largest reliability lesson of the audit.
   Date/Author: 2026-08-04 / Claude session.
-- D-11: (open — custom domain timing, see Open Questions)
-- D-12: (open — fate of PR #6165, see Open Questions)
+- Decision (D-11): `relay.superset.sh` — the existing canonical relay hostname — becomes relay2's production endpoint at the Milestone 5 cutover. relay2 runs on `workers.dev` only during development and the parallel-run rollout.
+  Rationale: every shipped desktop build already allowlists `relay.superset.sh` in its CSP and every host-service default points at it, so cutting over on the same name means stale installed apps and un-updated daemons reach relay2 with zero client releases — the migration tail handles itself.
+  Date/Author: 2026-08-04 / Satya.
+- Decision (D-12): PR #6165's wire-compatible implementation (`apps/relay-do`) is not merged as a product; its code is reused inside relay2 as a v1-protocol compatibility layer mounted for the hostname cutover, so old daemons still speaking tunnel v1 keep working the day `relay.superset.sh` flips off the Fly fleet. The compat layer is deleted with the rest of the v1 surface once v1 connections hit zero.
+  Rationale: the cutover in D-11 points old clients at relay2 whether or not they understand tunnel v2; serving v1 during the tail is strictly better than a dead hostname, and the prototype already is that implementation, validated in production on 2026-08-04.
+  Date/Author: 2026-08-04 / Satya + Claude session.
 - D-13: (open — predictive-echo follow-up plan, see Open Questions)
+- Decision (D-14): The hostname cutover uses a Cloudflare for SaaS custom hostname, not a superset.sh nameserver migration. Mechanics: activate one spare org-owned domain as a Cloudflare zone to serve as the SaaS "fallback origin"; on Vercel DNS, add the cert-validation TXT record and repoint the existing `relay.superset.sh` CNAME at the fallback origin; bind the relay2 Worker to the custom hostname. superset.sh's zone and all other records never move.
+  Rationale: a full nameserver migration risks the production apex to serve one subdomain (and the July 2026 CNAME-loss incident showed how expensive DNS mistakes on this domain are); SaaS custom hostnames are the platform-supported way to serve an externally-DNS'd name, cost ~nothing at our scale, and pass WebSockets. A future zone move remains possible but is not required by this plan.
+  Date/Author: 2026-08-04 / Satya + Claude session.
 
 ## Outcomes & Retrospective
 
@@ -170,11 +176,15 @@ Clients: desktop main + renderer, web, and CLI replace flag-based `getRelayUrl`/
 
 Acceptance: with the rollout rule set to "Satya's user only", the production desktop app (post-release) opens a workspace on a v2-routed host: terminal works, `wrangler deploy` mid-session does not wipe the terminal, event bus stays live, and no `primeRelayAffinity` requests appear in the renderer console. Every other user's traffic is untouched (verify: Fly fleet request volume unchanged).
 
-### Milestone 5: rollout, decommission, rename
+### Milestone 5: rollout, hostname cutover, decommission, rename
 
-Widen the rollout rule stepwise (team org → percentage → all), watching Sentry (wire relay2 into the existing `relay` Sentry project conventions from the 2026-08 error-handling contract: capture unexpected exceptions only, expected churn classified out at the throw site) and the Fly fleet's declining traffic. When Fly traffic is zero for 14 days: delete `apps/relay` and `apps/relay-do`, the Fly app + deploy workflows, the Upstash directory database, `packages/shared/src/tunnel-protocol.ts`, `tunnel-client.ts`, `primeRelayAffinity.ts`, and the old relay hostnames from the desktop CSP; retire the `relay-url-override` PostHog flag; rename `apps/relay2` → `apps/relay` (mcp-v2 precedent, D-1); run `bun run lint` + `bun run typecheck` + full test suite; update `AGENTS.md`-adjacent docs and the deploy runbook.
+Widen the rollout rule stepwise (team org → percentage → all), watching Sentry (wire relay2 into the existing `relay` Sentry project conventions from the 2026-08 error-handling contract: capture unexpected exceptions only, expected churn classified out at the throw site) and the Fly fleet's declining traffic.
 
-Acceptance: repo contains exactly one relay app named `apps/relay` (the DO one); `fly apps list` no longer shows `superset-relay`; a fresh host + fresh desktop install communicate exclusively through relay2; the e2e probe passes against the renamed deployment.
+Then the hostname cutover (D-11/D-14), which lets the long tail of un-updated apps and daemons migrate themselves: mount the v1-protocol compatibility layer (the validated `apps/relay-do` prototype code — same wire protocol as the Fly relay) inside relay2 under the same routes the old relay served (D-12). Set up the Cloudflare for SaaS custom hostname: activate a spare org-owned domain as a CF zone for the fallback origin, add the validation TXT record on Vercel DNS, then repoint the `relay.superset.sh` CNAME from `superset-relay.fly.dev` to the fallback origin during a low-traffic window, with a written rollback (repoint the CNAME back — the Fly fleet stays running untouched until after the cutover is verified). Verify with the e2e probe against `https://relay.superset.sh` in both protocols, and confirm a **stale** desktop build (pre-CSP-change) works against it — that is the entire point of cutting over on this name.
+
+When Fly-relay traffic (now only bypass/direct `fly.dev` stragglers) is zero for 14 days: delete `apps/relay` and `apps/relay-do`, the Fly app + deploy workflows, the Upstash directory database, `packages/shared/src/tunnel-protocol.ts`, `tunnel-client.ts`, and `primeRelayAffinity.ts`; drop the v1 compat layer from relay2 once v1 connections hit zero; remove the `workers.dev` relay host from the desktop CSP (keeping `relay.superset.sh`); retire the `relay-url-override` PostHog flag; rename `apps/relay2` → `apps/relay` (mcp-v2 precedent, D-1); run `bun run lint` + `bun run typecheck` + full test suite; update `AGENTS.md`-adjacent docs and the deploy runbook.
+
+Acceptance: repo contains exactly one relay app named `apps/relay` (the DO one); `fly apps list` no longer shows `superset-relay`; `https://relay.superset.sh/health` returns relay2's `{"ok":true,"region":"cf","proto":2}`; a fresh host + fresh desktop install and a deliberately stale desktop build both communicate through relay2 on the canonical hostname; the e2e probe passes against `https://relay.superset.sh`.
 
 ## Concrete Steps
 
@@ -217,3 +227,7 @@ The ~800ms cold connect is edge JWT verify + uncached checkAccess + DO wake; Mil
 - `packages/host-service/src/tunnel/tunnel-client-v2.ts`: `class TunnelClientV2` with the same constructor-options shape as `TunnelClient` plus `relayEndpoint: {url: string; proto: 2}`.
 - `apps/api`: `host.setOnline` gains optional `version: number`; host bootstrap + workspace payloads gain `relayEndpoint: {url: string; proto: 1 | 2}`; a `relay_rollout` setting (org/user/percentage) controls what is served.
 - Cloudflare account: the one hosting `electric-proxy` (`avi-6ac`), Workers paid plan, DO SQLite classes; CI secret `CLOUDFLARE_API_TOKEN` with Workers deploy rights.
+
+---
+
+Revision note (2026-08-04): Resolved the hostname question after discussion. `relay.superset.sh` becomes relay2's canonical endpoint at the Milestone 5 cutover (D-11) via a Cloudflare for SaaS custom hostname so superset.sh DNS never leaves Vercel (D-14); the wire-compatible prototype from PR #6165 is repurposed as relay2's v1-compat layer for the cutover tail (D-12). Milestone 5, Assumptions, and Open Questions updated accordingly; remaining open question is only D-13 (predictive echo follow-up).
