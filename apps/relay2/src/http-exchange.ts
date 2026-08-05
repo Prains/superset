@@ -4,6 +4,8 @@ import type {
 } from "@superset/shared/tunnel-v2-protocol";
 
 const EXCHANGE_TIMEOUT_MS = 30_000;
+// Chunked below the Durable Object's per-message ceiling.
+const BODY_CHUNK_BYTES = 256 * 1024;
 
 export interface HttpExchangeRequest {
 	method: string;
@@ -73,8 +75,9 @@ export class HttpExchanges {
 				headers: exchange.request.headers,
 			}),
 		);
-		if (exchange.request.body.byteLength > 0) {
-			dial.send(exchange.request.body.buffer as ArrayBuffer);
+		const body = exchange.request.body;
+		for (let offset = 0; offset < body.byteLength; offset += BODY_CHUNK_BYTES) {
+			dial.send(body.slice(offset, offset + BODY_CHUNK_BYTES).buffer);
 		}
 		dial.send('{"type":"http:end"}');
 	}

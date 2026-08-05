@@ -1,6 +1,5 @@
 import {
-	CONTROL_PING_JSON,
-	CONTROL_PONG_JSON,
+	type ControlPing,
 	DIAL_TIMEOUT_MS,
 	type StreamDial,
 } from "@superset/shared/tunnel-v2-protocol";
@@ -16,6 +15,9 @@ import type { RelayEnv } from "./types";
 const HOST_TAG = "host";
 // Frames a dial may deliver before the client's deferred upgrade completes.
 const MAX_EARLY_FRAMES = 256;
+// A dial that never pairs with a client (aborted upgrade, late arrival) is
+// closed rather than left open.
+const UNPAIRED_DIAL_TIMEOUT_MS = 15_000;
 
 type ConnState =
 	| { kind: "host" }
@@ -37,13 +39,14 @@ export class HostTunnel extends Server<RelayEnv> {
 		string,
 		(string | ArrayBuffer | ArrayBufferView)[]
 	>();
+	private readonly unpairedDialTimers = new Map<
+		string,
+		ReturnType<typeof setTimeout>
+	>();
 	private readonly httpExchanges = new HttpExchanges();
-
-	onStart(): void {
-		this.ctx.setWebSocketAutoResponse(
-			new WebSocketRequestResponsePair(CONTROL_PING_JSON, CONTROL_PONG_JSON),
-		);
-	}
+	// Single-threaded within the instance, so ++ is atomic; concurrent writes
+	// can't be in flight across a hibernation boundary.
+	private presenceSeq = 0;
 
 	// ── RPC (called by the Worker) ────────────────────────────────────
 
@@ -105,6 +108,9 @@ export class HostTunnel extends Server<RelayEnv> {
 		const ticket = url.searchParams.get("ticket") ?? "";
 
 		if (conn.tags.includes(HOST_TAG)) {
+			// State first: a replaced socket's close is delivered mid-await, and
+			// teardown must be able to tell this connection is the live host.
+			conn.setState({ kind: "host" } satisfies ConnState);
 			// Last-write-wins: the new socket evicts any old one.
 			for (const other of this.getConnections(HOST_TAG)) {
 				if (other.id !== conn.id)
@@ -113,20 +119,36 @@ export class HostTunnel extends Server<RelayEnv> {
 			const token = ctx.request.headers.get("x-relay-token") ?? "";
 			const hostId = url.searchParams.get("hostId") ?? this.name;
 			await this.ctx.storage.put("session", { hostId, token });
-			conn.setState({ kind: "host" } satisfies ConnState);
 			this.ctx.waitUntil(this.presence(hostId, token, true));
 			console.log(`[relay2] host connected: ${hostId}`);
 			return;
 		}
 
 		if (conn.tags.includes("dial")) {
-			conn.setState({ kind: "dial", ticket } satisfies ConnState);
 			if (this.httpExchanges.has(ticket)) {
+				conn.setState({ kind: "dial", ticket } satisfies ConnState);
 				this.httpExchanges.onDialConnect(ticket, conn);
 				return;
 			}
-			this.pendingDials.get(ticket)?.(true);
+			const waiting = this.pendingDials.get(ticket);
+			// An unknown ticket is garbage, expired, or already consumed: the
+			// ticket is this route's only credential, so anything else is
+			// refused rather than left open.
+			if (!waiting) {
+				conn.close(1008, "Unknown or expired ticket");
+				return;
+			}
+			conn.setState({ kind: "dial", ticket } satisfies ConnState);
 			this.pendingDials.delete(ticket);
+			this.unpairedDialTimers.set(
+				ticket,
+				setTimeout(() => {
+					this.unpairedDialTimers.delete(ticket);
+					this.earlyFrames.delete(conn.id);
+					closeQuietly(conn, 1011, "Client never attached");
+				}, UNPAIRED_DIAL_TIMEOUT_MS),
+			);
+			waiting(true);
 			return;
 		}
 
@@ -135,6 +157,11 @@ export class HostTunnel extends Server<RelayEnv> {
 			if (!dial) {
 				conn.close(1011, "Stream expired");
 				return;
+			}
+			const dialTimer = this.unpairedDialTimers.get(ticket);
+			if (dialTimer) {
+				clearTimeout(dialTimer);
+				this.unpairedDialTimers.delete(ticket);
 			}
 			conn.setState({
 				kind: "client",
@@ -162,7 +189,25 @@ export class HostTunnel extends Server<RelayEnv> {
 		message: string | ArrayBuffer | ArrayBufferView,
 	): void {
 		const state = conn.state as ConnState | undefined;
-		if (!state || state.kind === "host") return;
+		if (!state) return;
+
+		// Keepalives are handled here rather than by the DO-wide
+		// setWebSocketAutoResponse: that intercepts a matching payload on
+		// *every* socket, including spliced streams, which would swallow
+		// tunneled bytes that happen to equal it.
+		if (state.kind === "host") {
+			if (typeof message !== "string") return;
+			let ping: ControlPing;
+			try {
+				ping = JSON.parse(message) as ControlPing;
+			} catch {
+				return;
+			}
+			if (ping.type !== "ping") return;
+			if (ping.token) void this.refreshToken(ping.token);
+			conn.send('{"type":"pong"}');
+			return;
+		}
 
 		if (state.kind === "dial" && this.httpExchanges.has(state.ticket)) {
 			this.httpExchanges.onDialMessage(state.ticket, conn, message);
@@ -198,11 +243,14 @@ export class HostTunnel extends Server<RelayEnv> {
 		if (!state) return;
 
 		if (state.kind === "host") {
+			// Tags, not state: tags are assigned synchronously at accept, so a
+			// replacement host socket still mid-onConnect is never torn down.
 			for (const other of this.getConnections()) {
-				const otherState = other.state as ConnState | undefined;
-				if (other.id === conn.id || otherState?.kind === "host") continue;
+				if (other.id === conn.id || other.tags.includes(HOST_TAG)) continue;
 				closeQuietly(other, 1001, "Tunnel disconnected");
 			}
+			for (const [, timer] of this.unpairedDialTimers) clearTimeout(timer);
+			this.unpairedDialTimers.clear();
 			this.httpExchanges.abortAll();
 			const session = await this.ctx.storage.get<{
 				hostId: string;
@@ -217,6 +265,11 @@ export class HostTunnel extends Server<RelayEnv> {
 		}
 
 		this.earlyFrames.delete(conn.id);
+		const dialTimer = this.unpairedDialTimers.get(state.ticket);
+		if (dialTimer) {
+			clearTimeout(dialTimer);
+			this.unpairedDialTimers.delete(state.ticket);
+		}
 		if (state.peer) {
 			const peer = this.getConnection(state.peer);
 			if (peer) closeQuietly(peer, 1001, "Stream closed");
@@ -244,13 +297,24 @@ export class HostTunnel extends Server<RelayEnv> {
 		host.send(JSON.stringify(dial));
 	}
 
+	private async refreshToken(token: string): Promise<void> {
+		const session = await this.ctx.storage.get<{
+			hostId: string;
+			token: string;
+		}>("session");
+		if (session && session.token !== token) {
+			await this.ctx.storage.put("session", { ...session, token });
+		}
+	}
+
 	private presence(
 		hostId: string,
 		token: string,
 		isOnline: boolean,
 	): Promise<void> {
 		return writePresence({
-			storage: this.ctx.storage,
+			version: ++this.presenceSeq,
+			isSuperseded: (version) => version !== this.presenceSeq,
 			apiUrl: this.env.NEXT_PUBLIC_API_URL,
 			hostId,
 			token,

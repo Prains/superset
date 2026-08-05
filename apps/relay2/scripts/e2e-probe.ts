@@ -130,6 +130,23 @@ const wsBase = RELAY.replace(/^http/, "ws");
 			);
 		}
 
+		// The control channel's keepalive payload must not be intercepted on a
+		// spliced stream; a DO-wide auto-response would swallow it.
+		const pingLiteral = '{"type":"ping"}';
+		const pingBack = await new Promise<string | null>((resolve) => {
+			const t = setTimeout(() => resolve(null), 8_000);
+			ws.onmessage = (e) => {
+				clearTimeout(t);
+				resolve(String(e.data));
+			};
+			ws.send(pingLiteral);
+		});
+		check(
+			"ping-shaped frame splices verbatim",
+			pingBack === pingLiteral,
+			`got ${pingBack}`,
+		);
+
 		const bin = new Uint8Array(64 * 1024);
 		crypto.getRandomValues(bin);
 		const binOk = await new Promise<boolean>((resolve) => {
@@ -173,6 +190,29 @@ const wsBase = RELAY.replace(/^http/, "ws");
 		"HTTP proxy injects host secret",
 		data?.auth === "Bearer probe",
 		`auth=${data?.auth}`,
+	);
+}
+
+// 3b. Unauthenticated dial with a bogus ticket must be refused
+{
+	const wsDial = new WebSocket(
+		`${wsBase}/v2/dial?hostId=${HOST_ID}&ticket=not-a-real-ticket`,
+	);
+	const closed = await new Promise<number | null>((resolve) => {
+		const t = setTimeout(() => resolve(null), 10_000);
+		wsDial.onclose = (e) => {
+			clearTimeout(t);
+			resolve(e.code);
+		};
+		wsDial.onerror = () => {
+			clearTimeout(t);
+			resolve(-1);
+		};
+	});
+	check(
+		"bogus dial ticket refused",
+		closed === 1008 || closed === -1,
+		`close=${closed}`,
 	);
 }
 

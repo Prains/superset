@@ -8,6 +8,16 @@ const PING_INTERVAL_MS = 30_000;
 const INBOUND_SILENCE_TIMEOUT_MS = 75_000;
 const WATCHDOG_INTERVAL_MS = 10_000;
 const MAX_BUFFERED_FRAMES = 256;
+// Bodies are chunked below the Durable Object's per-message ceiling; large
+// tRPC payloads (file contents, diffs) would otherwise fail outright.
+const BODY_CHUNK_BYTES = 256 * 1024;
+// fetch() transparently decompresses, so the upstream encoding/length headers
+// no longer describe the bytes being forwarded.
+const STRIPPED_RESPONSE_HEADERS = new Set([
+	"content-encoding",
+	"content-length",
+	"transfer-encoding",
+]);
 
 export interface TunnelClientV2Options {
 	relayUrl: string;
@@ -85,9 +95,22 @@ export class TunnelClientV2 {
 		});
 
 		this.pingTimer = setInterval(() => {
-			if (control.readyState === WebSocket.OPEN) {
-				control.send('{"type":"ping"}');
-			}
+			if (control.readyState !== WebSocket.OPEN) return;
+			// The token rides the keepalive so the relay always holds a fresh
+			// one; its stored copy would otherwise expire on a long-lived
+			// channel and fail the presence write at disconnect.
+			void this.options
+				.getAuthToken()
+				.then((token) => {
+					if (control.readyState === WebSocket.OPEN) {
+						control.send(JSON.stringify({ type: "ping", token }));
+					}
+				})
+				.catch(() => {
+					if (control.readyState === WebSocket.OPEN) {
+						control.send('{"type":"ping"}');
+					}
+				});
 		}, PING_INTERVAL_MS);
 
 		this.watchdogTimer = setInterval(() => {
@@ -215,7 +238,9 @@ export class TunnelClientV2 {
 			);
 			const responseHeaders: Record<string, string> = {};
 			for (const [key, value] of response.headers.entries()) {
-				responseHeaders[key] = value;
+				if (!STRIPPED_RESPONSE_HEADERS.has(key.toLowerCase())) {
+					responseHeaders[key] = value;
+				}
 			}
 			relayWs.send(
 				JSON.stringify({
@@ -225,7 +250,15 @@ export class TunnelClientV2 {
 				}),
 			);
 			const responseBody = new Uint8Array(await response.arrayBuffer());
-			if (responseBody.byteLength > 0) relayWs.send(responseBody);
+			for (
+				let offset = 0;
+				offset < responseBody.byteLength;
+				offset += BODY_CHUNK_BYTES
+			) {
+				relayWs.send(
+					responseBody.slice(offset, offset + BODY_CHUNK_BYTES).buffer,
+				);
+			}
 			relayWs.send('{"type":"http:end"}');
 		} catch (error) {
 			console.error("[host-service:tunnel-v2] HTTP proxy failed", error);
@@ -247,29 +280,51 @@ function pipe(from: WebSocket, to: WebSocket): void {
 		const data = event.data as string | ArrayBuffer;
 		if (to.readyState === WebSocket.OPEN) {
 			to.send(data);
-		} else if (to.readyState === WebSocket.CONNECTING) {
-			if (buffered.length < MAX_BUFFERED_FRAMES) buffered.push(data);
+			return;
 		}
+		if (to.readyState !== WebSocket.CONNECTING) return;
+		// Overflow tears the stream down rather than silently dropping frames:
+		// a terminal missing bytes is worse than one that reconnects.
+		if (buffered.length >= MAX_BUFFERED_FRAMES) {
+			buffered.length = 0;
+			closeQuietly(from, 1011, "Peer too slow to connect");
+			closeQuietly(to, 1011, "Peer too slow to connect");
+			return;
+		}
+		buffered.push(data);
 	});
 	to.addEventListener("open", () => {
 		for (const frame of buffered) to.send(frame);
 		buffered.length = 0;
 	});
 	from.addEventListener("close", (event) => {
-		if (
-			to.readyState === WebSocket.OPEN ||
-			to.readyState === WebSocket.CONNECTING
-		) {
-			try {
-				to.close(event.code === 1006 ? 1011 : event.code, "Peer closed");
-			} catch {
-				try {
-					to.close();
-				} catch {}
-			}
-		}
+		// 1005/1006 are status codes the WebSocket API reports but forbids
+		// sending; anything outside the sendable range becomes 1011.
+		const code =
+			event.code >= 3000 && event.code <= 4999
+				? event.code
+				: event.code === 1000
+					? 1000
+					: 1011;
+		closeQuietly(to, code, "Peer closed");
 	});
 	from.addEventListener("error", () => {
 		// close always follows error
 	});
+}
+
+function closeQuietly(socket: WebSocket, code: number, reason: string): void {
+	if (
+		socket.readyState !== WebSocket.OPEN &&
+		socket.readyState !== WebSocket.CONNECTING
+	) {
+		return;
+	}
+	try {
+		socket.close(code, reason);
+	} catch {
+		try {
+			socket.close();
+		} catch {}
+	}
 }

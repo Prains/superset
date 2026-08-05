@@ -3,30 +3,27 @@ import { createApiClient } from "./api-client";
 const RETRY_BASE_MS = 500;
 const MAX_ATTEMPTS = 3;
 
-export interface PresenceStorage {
-	get<T>(key: string): Promise<T | undefined>;
-	put(key: string, value: unknown): Promise<void>;
-}
-
 // Version-gated: a late offline write from a dying socket must not clobber a
-// newer online write.
+// newer online write. The caller owns the counter (an in-memory sequence in
+// the Durable Object, incremented synchronously so two writes can never share
+// a version).
 export async function writePresence({
-	storage,
+	version,
+	isSuperseded,
 	apiUrl,
 	hostId,
 	token,
 	isOnline,
 }: {
-	storage: PresenceStorage;
+	version: number;
+	isSuperseded: (version: number) => boolean;
 	apiUrl: string;
 	hostId: string;
 	token: string;
 	isOnline: boolean;
 }): Promise<void> {
-	const version = ((await storage.get<number>("onlineVersion")) ?? 0) + 1;
-	await storage.put("onlineVersion", version);
 	for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-		if ((await storage.get<number>("onlineVersion")) !== version) return;
+		if (isSuperseded(version)) return;
 		try {
 			await createApiClient(token, apiUrl).host.setOnline.mutate({
 				hostId,

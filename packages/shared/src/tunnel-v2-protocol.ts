@@ -14,10 +14,19 @@ export interface StreamDial {
 	query?: string;
 }
 
-// Host → relay is keepalive only; answered by the relay's hibernation
-// auto-response without waking the Durable Object.
-export const CONTROL_PING_JSON = '{"type":"ping"}';
-export const CONTROL_PONG_JSON = '{"type":"pong"}';
+/**
+ * Host → relay keepalive, carrying the host's current JWT so long-lived
+ * control channels don't strand the relay with an expired token (JWTs rotate
+ * roughly hourly; the relay needs a valid one to write presence at any time).
+ */
+export interface ControlPing {
+	type: "ping";
+	token?: string;
+}
+
+export interface ControlPong {
+	type: "pong";
+}
 
 // ── HTTP-over-dial frames ───────────────────────────────────────────
 // A kind:"http" dial carries exactly one exchange, for callers that cannot
