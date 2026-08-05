@@ -15,8 +15,10 @@ packages/chat-runtime/
   drizzle.config.ts              # points at src/journal/db/
   src/
     index.ts                     # createChatRuntime — the ONLY cross-module wiring
-    fixtures.ts                  # test-data factories (consumed by tests in every module → highest shared parent = root)
-    testUtils.ts                 # same rule
+    testing/                     # ownerless cross-cutting test helpers ONLY: fixtures/ (protocol item
+                                 #   factories), testUtils/ (sinks, schedules, waits), testRuntime/.
+                                 #   Internal: relative imports, no package export. Helpers WITH an
+                                 #   owner co-locate instead (fake/ lives in harness/)
     journal/                     # owns chat.db and everything about the event log
       index.ts                   # PUBLIC: ChatJournal (append), readSince, readPage,
       journal/                   #         session reads (list/get) — the read model IS the journal's
@@ -32,7 +34,6 @@ packages/chat-runtime/
       index.ts                   # PUBLIC: LiveSessionRegistry
       liveSession/
       registry/
-      testRuntime helper → nests wherever its single consumer lives (likely sessions or root utils)
     stream/
       index.ts                   # PUBLIC: SubscriptionHub
       subscriptions/             # imports journal (barrel) only — not db, not replay
@@ -46,7 +47,7 @@ packages/chat-runtime/
 
 - `journal/index.ts` becomes the storage facade: append, reads (replay), and session-row reads (projection) are its exports. `replay/`, `projection/`, `db/` become journal-internal.
 - `stream` and `commands` drop their `db`/`replay`/`projection` imports and consume the `journal` barrel. `commands` additionally consumes the `sessions` barrel. Resulting graph: `index → {journal, harness, sessions, stream, commands}`; `sessions → {harness, journal}`; `stream → journal`; `commands → {journal, sessions}`. Four top-level modules + wiring — nothing else is visible package-wide.
-- No `testing/` folder, no `./testing` export (repo pattern is co-location): `fake/` sits beside the contract it implements; `fixtures`/`testUtils` sit at src root because every module's tests use them (root *is* their highest shared parent).
+- Test helpers split on **ownership**, not on being test code. A helper with an owner co-locates with it — `fake/` sits inside `harness/`, beside the contract it implements. A helper no single module owns goes in `src/testing/`: `fixtures/`, `testUtils/` and `testRuntime/` are used by every module's tests, so co-location has nowhere to put them. `testing/` stays internal — relative imports only, no `./testing` package export — so it never becomes a public surface.
 - `drizzle.config.ts` stays at package root (drizzle-kit convention) pointing into `src/journal/db/`.
 
 ## Why this is better than the flat version, in one sentence each
