@@ -147,6 +147,15 @@ export const FEATURE_FLAGS = {
 	 * experiment. Checked before eligibility and before the experiment flag.
 	 */
 	NEW_WORKSPACE_SCREEN_OVERRIDE: "new-workspace-screen-override",
+	/**
+	 * Chat v3: the rebuilt chat stack (@superset/chat-runtime behind the
+	 * host-service `/chat-v3/*` routes, plus the ChatV3Pane). Evaluated in the
+	 * desktop main process at host-service spawn time and carried to the child
+	 * as `SUPERSET_CHAT_V3=1`, because the gate has to cross a process
+	 * boundary; the renderer reads the same flag for the pane. A spawned host
+	 * keeps whatever value it started with until it restarts.
+	 */
+	CHAT_V3: "chat-v3",
 } as const;
 
 // Terminal identity presented to shell programs via TERM_PROGRAM. kitty:

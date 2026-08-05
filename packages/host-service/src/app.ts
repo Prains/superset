@@ -169,9 +169,10 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 			persistence: new SqliteAcpSessionPersistence(db),
 		});
 
-	// Chat v3 runtime (plans/chat-v3-pane-mount.md). Same internal-build gate
-	// as ACP: without SUPERSET_CHAT_V3=1 neither route is registered and
-	// chat.db is never created.
+	// Chat v3 runtime (plans/chat-v3-pane-mount.md). The desktop coordinator
+	// sets SUPERSET_CHAT_V3=1 when the `chat-v3` PostHog flag is on for the
+	// user; without it neither route is registered and chat.db is never
+	// created. A running host keeps the value it started with.
 	const chatV3Enabled = process.env.SUPERSET_CHAT_V3 === "1";
 	const chatV3 = createChatV3Mount({ db, dbPath: config.dbPath });
 
