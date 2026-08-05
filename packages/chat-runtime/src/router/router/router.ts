@@ -8,6 +8,7 @@ import {
 	respondToApprovalInputSchema,
 	setModeInputSchema,
 } from "@superset/chat/protocol";
+import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import type { ChatRuntime } from "../../index";
 
@@ -98,3 +99,6 @@ export function createChatRouter(
 }
 
 export type ChatRouter = ReturnType<typeof createChatRouter>;
+
+export type ChatRouterInputs = inferRouterInputs<ChatRouter>;
+export type ChatRouterOutputs = inferRouterOutputs<ChatRouter>;
