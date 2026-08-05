@@ -247,6 +247,11 @@ export const createTerminalRouter = () => {
 				try {
 					terminal.write(input);
 				} catch (error) {
+					// Rethrown as-is so the router middleware classifies it; the
+					// INTERNAL_SERVER_ERROR below would otherwise report a quit.
+					if (error instanceof TerminalHostClientDisposedError) {
+						throw error;
+					}
 					const message =
 						error instanceof Error ? error.message : "Write failed";
 
