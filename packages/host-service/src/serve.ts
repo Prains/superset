@@ -122,9 +122,12 @@ async function main(): Promise<void> {
 	// that takes down the whole process. Keep a listener attached for the
 	// socket's lifetime so resets are logged instead.
 	server.on("upgrade", (request: IncomingMessage, socket: Duplex) => {
+		// Path only: the upgrade URL's query string carries HOST_SERVICE_SECRET
+		// as `token` for relayed connections.
+		const requestPath = request.url?.split("?")[0] ?? "<unknown>";
 		socket.on("error", (error: NodeJS.ErrnoException) => {
 			console.warn(
-				`[host-service] upgrade socket error (${error.code ?? error.message}) on ${request.url ?? "<unknown>"} from ${request.socket.remoteAddress ?? "<unknown>"}`,
+				`[host-service] upgrade socket error (${error.code ?? error.message}) on ${requestPath} from ${request.socket.remoteAddress ?? "<unknown>"}`,
 			);
 		});
 	});
