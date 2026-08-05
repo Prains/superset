@@ -476,6 +476,53 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bunx wrangler deploy
 
+  deploy-relay2:
+    name: Deploy Relay2 to Cloudflare
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        id: setup-bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Cache dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-revision }}-${{ hashFiles('bun.lock') }}
+
+      - name: Install dependencies
+        run: bun install --frozen --ignore-scripts
+
+      - name: Deploy Worker
+        working-directory: apps/relay2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bunx wrangler deploy
+
+      # A deploy that uploads but does not serve is the failure mode that kept
+      # the Fly fleet on a broken build for two days. Retry while the new
+      # version propagates, then fail the job if it never answers.
+      - name: Verify deployment serves
+        run: |
+          for attempt in $(seq 1 12); do
+            body=$(curl -fsS --max-time 10 https://superset-relay2.avi-6ac.workers.dev/health || true)
+            echo "attempt $attempt: $body"
+            case "$body" in
+              *'"proto":2'*) echo "relay2 healthy"; exit 0 ;;
+            esac
+            sleep 10
+          done
+          echo "relay2 did not serve a healthy response after deploy"
+          exit 1
+
   deploy-docs:
     name: Deploy Docs to Vercel
     runs-on: ubuntu-latest
