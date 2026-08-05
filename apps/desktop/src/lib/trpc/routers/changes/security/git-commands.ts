@@ -1,4 +1,4 @@
-import { runWithPostCheckoutHookTolerance } from "../../utils/git-hook-tolerance";
+import { runWithPostCheckoutHookTolerance } from "@superset/shared/git-hook-tolerance";
 import { getCurrentBranch } from "../../workspaces/utils/git";
 import { getSimpleGitWithShellPath } from "../../workspaces/utils/git-client";
 import {

@@ -5,6 +5,7 @@ import { mkdir, rename } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { BranchPrefixMode } from "@superset/local-db";
+import { runWithPostCheckoutHookTolerance } from "@superset/shared/git-hook-tolerance";
 import {
 	sanitizeAuthorPrefix,
 	sanitizeBranchName,
@@ -12,7 +13,6 @@ import {
 } from "@superset/shared/workspace-launch";
 import friendlyWords from "friendly-words";
 import type { StatusResult } from "simple-git";
-import { runWithPostCheckoutHookTolerance } from "../../utils/git-hook-tolerance";
 import { execGitWithShellPath, getSimpleGitWithShellPath } from "./git-client";
 import { execWithShellEnv, getProcessEnvWithShellPath } from "./shell-env";
 import { resolveTrackingRemoteName } from "./upstream-ref";
@@ -142,14 +142,17 @@ async function isWorktreeRegistered({
 
 /**
  * Runs `git worktree add`, tolerating hook failures.
- * Post-checkout hooks can exit non-zero after the worktree is created.
- * If the worktree exists on disk despite the error, we warn and continue.
+ * Post-checkout hooks run after the checkout itself, so they can exit
+ * non-zero — or blow past the timeout and get killed — with the worktree
+ * fully created. If the worktree is registered and has a valid HEAD
+ * despite the error, we warn and continue.
  */
 async function execWorktreeAdd({
 	mainRepoPath,
 	args,
 	worktreePath,
-	timeout = 120_000,
+	// Generous: post-checkout hooks may install dependencies on fresh worktrees.
+	timeout = 600_000,
 }: {
 	mainRepoPath: string;
 	args: string[];
@@ -161,8 +164,22 @@ async function execWorktreeAdd({
 		run: async () => {
 			await execGitWithShellPath(args, { timeout });
 		},
-		didSucceed: async () =>
-			isWorktreeRegistered({ mainRepoPath, worktreePath }),
+		didSucceed: async () => {
+			if (!(await isWorktreeRegistered({ mainRepoPath, worktreePath }))) {
+				return false;
+			}
+			try {
+				// A half-created worktree can stay registered; require a
+				// resolvable HEAD to prove the checkout completed.
+				await execGitWithShellPath(
+					["-C", worktreePath, "rev-parse", "--verify", "HEAD"],
+					{ timeout: 10_000 },
+				);
+				return true;
+			} catch {
+				return false;
+			}
+		},
 	});
 }
 
@@ -1829,7 +1846,9 @@ export async function createWorktreeFromPr({
 					localBranchName,
 					"--force",
 				],
-				{ cwd: worktreePath, timeout: 120_000 },
+				// Generous: checkout runs post-checkout hooks, which may
+				// install dependencies on fresh worktrees.
+				{ cwd: worktreePath, timeout: 600_000 },
 			);
 		} catch (ghError) {
 			const ghMsg =
@@ -1855,7 +1874,8 @@ export async function createWorktreeFromPr({
 					"--no-track",
 					"FETCH_HEAD",
 				],
-				{ timeout: 30_000 },
+				// Generous: checkout runs post-checkout hooks (see above).
+				{ timeout: 600_000 },
 			);
 		}
 
