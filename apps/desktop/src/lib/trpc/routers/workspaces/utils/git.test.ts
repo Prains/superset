@@ -510,6 +510,50 @@ describe("createWorktree hook tolerance", () => {
 		expect(existsSync(worktreePath)).toBe(false);
 	}, 10_000);
 
+	test("throws when destination is a pre-existing worktree on a different branch", async () => {
+		const repoPath = createTestRepo("worktree-foreign-branch");
+		seedCommit(repoPath);
+
+		const worktreePath = join(TEST_DIR, "worktree-foreign-branch-wt");
+		execSync(`git worktree add -b other/branch "${worktreePath}" HEAD`, {
+			cwd: repoPath,
+			stdio: "ignore",
+		});
+
+		// The registered worktree holds other/branch — tolerating this would
+		// hand the workspace a worktree on the wrong branch.
+		await expect(
+			createWorktree(repoPath, "feature/wanted", worktreePath, "HEAD"),
+		).rejects.toThrow("Failed to create worktree");
+		const currentBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+			cwd: worktreePath,
+		})
+			.toString()
+			.trim();
+		expect(currentBranch).toBe("other/branch");
+	}, 10_000);
+
+	test("tolerates a pre-existing worktree already on the requested branch (retry recovery)", async () => {
+		const repoPath = createTestRepo("worktree-retry-recovery");
+		seedCommit(repoPath);
+
+		const worktreePath = join(TEST_DIR, "worktree-retry-recovery-wt");
+		execSync(`git worktree add -b feature/stranded "${worktreePath}" HEAD`, {
+			cwd: repoPath,
+			stdio: "ignore",
+		});
+
+		// Retry after a stranded attempt: the add fails on "already exists"
+		// but the desired state is already in place.
+		await createWorktree(repoPath, "feature/stranded", worktreePath, "HEAD");
+		const currentBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+			cwd: worktreePath,
+		})
+			.toString()
+			.trim();
+		expect(currentBranch).toBe("feature/stranded");
+	}, 10_000);
+
 	test("throws when destination path exists but worktree is not created", async () => {
 		const repoPath = createTestRepo("worktree-existing-path");
 		seedCommit(repoPath);
