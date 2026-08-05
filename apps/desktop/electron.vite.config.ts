@@ -215,6 +215,9 @@ export default defineConfig({
 				process.env.SENTRY_DSN_DESKTOP,
 			),
 			"process.env.RELAY_URL": defineEnv(process.env.RELAY_URL),
+			"process.env.FORCE_RELAY_ROUTING": defineEnv(
+				process.env.FORCE_RELAY_ROUTING,
+			),
 			"process.env.STREAMS_URL": defineEnv(
 				process.env.STREAMS_URL,
 				"https://superset-stream.fly.dev",
