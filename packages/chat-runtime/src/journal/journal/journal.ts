@@ -4,9 +4,14 @@ import type {
 	DurableEvent,
 } from "@superset/chat/protocol";
 import { durableEventSchema } from "@superset/chat/protocol";
+import { eq } from "drizzle-orm";
 import type { ChatDb } from "../../db";
 import { chatJournal } from "../../db";
-import { readSessionRow, writeSessionProjection } from "../../projection";
+import {
+	readSessionRow,
+	removeSessionRow,
+	writeSessionProjection,
+} from "../../projection";
 import { readSince } from "../../replay";
 import type { ChatSessionInit } from "../epoch";
 import { openEpoch } from "../epoch";
@@ -100,6 +105,17 @@ export class ChatJournal {
 
 	forget(sessionId: string): void {
 		this.sessions.delete(sessionId);
+	}
+
+	discard(sessionId: string): void {
+		this.sessions.delete(sessionId);
+		this.db.transaction(() => {
+			this.db
+				.delete(chatJournal)
+				.where(eq(chatJournal.sessionId, sessionId))
+				.run();
+			removeSessionRow(this.db, sessionId);
+		});
 	}
 
 	private projectionFor(

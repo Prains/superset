@@ -32,9 +32,14 @@ export function createChatDb(options: ChatDbOptions) {
 	const db = drizzle(sqlite, { schema });
 
 	// Let a failed migration throw — never serve a half-migrated DB.
-	migrate(db, {
-		migrationsFolder: options.migrationsFolder ?? DEFAULT_MIGRATIONS_FOLDER,
-	});
+	try {
+		migrate(db, {
+			migrationsFolder: options.migrationsFolder ?? DEFAULT_MIGRATIONS_FOLDER,
+		});
+	} catch (error) {
+		sqlite.close();
+		throw error;
+	}
 
 	return db;
 }

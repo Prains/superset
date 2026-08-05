@@ -82,28 +82,36 @@ export function createCommands(options: CommandsOptions): ChatCommands {
 	return {
 		createSession(input) {
 			const parsed = createSessionCommandSchema.parse(input);
-			return options.dedupe.run(parsed.commandId, () => {
+			return options.dedupe.run(`createSession:${parsed.commandId}`, () => {
+				if (!options.live.supports(parsed.harness)) {
+					throw new Error(`unknown harness ${parsed.harness}`);
+				}
 				const sessionId = mintSessionId();
 				const opened = options.journal.open({
 					sessionId,
 					workspaceId: parsed.workspaceId,
 					harness: parsed.harness,
 				});
-				options.live.create({
-					sessionId,
-					workspaceId: parsed.workspaceId,
-					harness: parsed.harness,
-					cwd: parsed.cwd,
-					modeId: parsed.modeId,
-					modelId: parsed.modelId,
-				});
+				try {
+					options.live.create({
+						sessionId,
+						workspaceId: parsed.workspaceId,
+						harness: parsed.harness,
+						cwd: parsed.cwd,
+						modeId: parsed.modeId,
+						modelId: parsed.modelId,
+					});
+				} catch (error) {
+					options.journal.discard(sessionId);
+					throw error;
+				}
 				return { sessionId, epoch: opened.epoch };
 			});
 		},
 
 		prompt(input) {
 			const parsed: PromptInput = promptInputSchema.parse(input);
-			return options.dedupe.run(parsed.commandId, () =>
+			return options.dedupe.run(`prompt:${parsed.commandId}`, () =>
 				options.live
 					.require(parsed.sessionId)
 					.prompt(parsed.content, parsed.clientId),
@@ -112,7 +120,7 @@ export function createCommands(options: CommandsOptions): ChatCommands {
 
 		cancelTurn(input) {
 			const parsed: CancelTurnInput = cancelTurnInputSchema.parse(input);
-			options.dedupe.run(parsed.commandId, () => {
+			options.dedupe.run(`cancelTurn:${parsed.commandId}`, () => {
 				options.live.require(parsed.sessionId).cancelTurn(parsed.turnId);
 			});
 		},
@@ -120,7 +128,7 @@ export function createCommands(options: CommandsOptions): ChatCommands {
 		respondToApproval(input) {
 			const parsed: RespondToApprovalInput =
 				respondToApprovalInputSchema.parse(input);
-			options.dedupe.run(parsed.commandId, () => {
+			options.dedupe.run(`respondToApproval:${parsed.commandId}`, () => {
 				options.live
 					.require(parsed.sessionId)
 					.respondToApproval(parsed.approvalId, parsed.decision);
@@ -129,7 +137,7 @@ export function createCommands(options: CommandsOptions): ChatCommands {
 
 		setMode(input) {
 			const parsed: SetModeInput = setModeInputSchema.parse(input);
-			options.dedupe.run(parsed.commandId, () => {
+			options.dedupe.run(`setMode:${parsed.commandId}`, () => {
 				options.live.require(parsed.sessionId).setMode(parsed.modeId);
 			});
 		},

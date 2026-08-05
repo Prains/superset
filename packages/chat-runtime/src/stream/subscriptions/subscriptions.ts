@@ -92,10 +92,14 @@ export class SubscriptionHub {
 			? readSince(this.db, sessionId, options.since)
 			: readPage(this.db, sessionId, { limit: this.bootstrapLimit });
 
-		if (replay.ok) {
-			for (const envelope of replay.envelopes) sink.send(envelope);
-		} else {
-			sink.send(this.resetEnvelope(sessionId, replay.reset));
+		try {
+			if (replay.ok) {
+				for (const envelope of replay.envelopes) sink.send(envelope);
+			} else {
+				sink.send(this.resetEnvelope(sessionId, replay.reset));
+			}
+		} catch {
+			return { unsubscribe: () => undefined };
 		}
 
 		const subscriber: Subscriber = { sink, deltas: new Set(options.deltas) };
@@ -103,18 +107,12 @@ export class SubscriptionHub {
 		if (existing) existing.add(subscriber);
 		else this.subscribers.set(sessionId, new Set([subscriber]));
 
-		return {
-			unsubscribe: () => {
-				const set = this.subscribers.get(sessionId);
-				if (!set) return;
-				set.delete(subscriber);
-				if (set.size === 0) this.subscribers.delete(sessionId);
-			},
-		};
+		return { unsubscribe: () => this.remove(sessionId, subscriber) };
 	}
 
 	publish(envelope: Envelope): void {
 		if (isDeltaEnvelope(envelope)) {
+			if (this.subscriberCount(envelope.sessionId) === 0) return;
 			this.coalescerFor(envelope.sessionId).push(envelope);
 			return;
 		}
@@ -155,9 +153,32 @@ export class SubscriptionHub {
 		const set = this.subscribers.get(sessionId);
 		if (!set) return;
 		const delta = isDeltaEnvelope(envelope) ? envelope.delta : null;
-		for (const subscriber of set) {
+		for (const subscriber of [...set]) {
 			if (delta && !subscriber.deltas.has(delta.type)) continue;
-			subscriber.sink.send(envelope);
+			try {
+				subscriber.sink.send(envelope);
+			} catch {
+				this.remove(sessionId, subscriber);
+				this.closeQuietly(subscriber);
+			}
+		}
+	}
+
+	private remove(sessionId: string, subscriber: Subscriber): void {
+		const set = this.subscribers.get(sessionId);
+		if (!set) return;
+		set.delete(subscriber);
+		if (set.size > 0) return;
+		this.subscribers.delete(sessionId);
+		this.coalescers.get(sessionId)?.dispose();
+		this.coalescers.delete(sessionId);
+	}
+
+	private closeQuietly(subscriber: Subscriber): void {
+		try {
+			subscriber.sink.close();
+		} catch {
+			return;
 		}
 	}
 

@@ -30,9 +30,16 @@ export class LiveSessionRegistry {
 
 	constructor(private readonly options: LiveSessionRegistryOptions) {}
 
+	supports(harness: string): boolean {
+		return this.options.harnesses.has(harness);
+	}
+
 	create(options: HarnessFactoryOptions): LiveSession {
 		const factory = this.options.harnesses.get(options.harness);
 		if (!factory) throw new Error(`unknown harness ${options.harness}`);
+		if (this.live.has(options.sessionId)) {
+			throw new Error(`chat session ${options.sessionId} is already running`);
+		}
 
 		const session = new LiveSession({
 			sessionId: options.sessionId,
@@ -45,12 +52,18 @@ export class LiveSessionRegistry {
 			now: this.options.now,
 		});
 		this.live.set(options.sessionId, session);
-		session.start({
-			cwd: options.cwd,
-			modeId: options.modeId,
-			modelId: options.modelId,
-			resume: options.resume,
-		});
+		try {
+			session.start({
+				cwd: options.cwd,
+				modeId: options.modeId,
+				modelId: options.modelId,
+				resume: options.resume,
+			});
+		} catch (error) {
+			this.live.delete(options.sessionId);
+			void session.dispose().catch(() => undefined);
+			throw error;
+		}
 		return session;
 	}
 
@@ -74,6 +87,10 @@ export class LiveSessionRegistry {
 	async disposeAll(): Promise<void> {
 		const sessions = [...this.live.values()];
 		this.live.clear();
-		await Promise.all(sessions.map((session) => session.dispose()));
+		const results = await Promise.allSettled(
+			sessions.map((session) => session.dispose()),
+		);
+		const failure = results.find((result) => result.status === "rejected");
+		if (failure?.status === "rejected") throw failure.reason;
 	}
 }

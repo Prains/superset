@@ -3,6 +3,8 @@ export {
 	ChatSessionStore,
 	insertSessionRow,
 	readSessionRow,
+	removeSessionRow,
+	resetSessionForEpoch,
 	setSessionEpoch,
 	writeSessionProjection,
 } from "./projection";

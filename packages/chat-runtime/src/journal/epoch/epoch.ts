@@ -3,7 +3,7 @@ import type { ChatDb } from "../../db";
 import {
 	insertSessionRow,
 	readSessionRow,
-	setSessionEpoch,
+	resetSessionForEpoch,
 } from "../../projection";
 import { latestSeq } from "../../replay";
 
@@ -49,6 +49,12 @@ export function openEpoch(db: ChatDb, init: ChatSessionInit): OpenedEpoch {
 	}
 
 	const epoch = mintEpoch();
-	setSessionEpoch(db, init.sessionId, epoch, Date.now());
+	resetSessionForEpoch(
+		db,
+		init.sessionId,
+		epoch,
+		init.status ?? "starting",
+		Date.now(),
+	);
 	return { epoch, minted: true };
 }

@@ -72,7 +72,15 @@ export class LiveSession {
 
 	start(startOptions: HarnessStartOptions): void {
 		this.emitSession({ status: "starting" });
-		this.pump = this.run(this.options.adapter.start(startOptions));
+		this.pump = this.run(this.options.adapter.start(startOptions)).catch(
+			(error: unknown) => {
+				try {
+					this.fail(error);
+				} catch {
+					this.stopped = true;
+				}
+			},
+		);
 	}
 
 	prompt(content: UserContent[], clientId: string): PromptResult {
@@ -171,7 +179,41 @@ export class LiveSession {
 
 	private deliver(prompt: PendingPrompt): void {
 		this.awaitingTurn = prompt;
-		this.options.adapter.prompt(prompt.content);
+		try {
+			this.options.adapter.prompt(prompt.content);
+		} catch (error) {
+			this.awaitingTurn = null;
+			throw error;
+		}
+	}
+
+	private fail(error: unknown): void {
+		this.stopped = true;
+		const failedAtMs = this.now();
+		const turn = this.currentTurn;
+		if (turn?.status === "running") {
+			this.currentTurn = {
+				...turn,
+				status: "interrupted",
+				completedAtMs: failedAtMs,
+			};
+			this.appendDurable({ type: "turn", turn: this.currentTurn });
+		}
+		this.queue.length = 0;
+		this.awaitingTurn = null;
+		this.appendDurable({
+			type: "item",
+			item: {
+				id: this.mintId(),
+				kind: "notice",
+				noticeKind: "error",
+				text: error instanceof Error ? error.message : String(error),
+				startedAtMs: failedAtMs,
+				completedAtMs: failedAtMs,
+			},
+			turnId: turn?.id ?? this.mintId(),
+		});
+		this.emitSession({ status: "dead" });
 	}
 
 	private deliverNextQueued(): void {

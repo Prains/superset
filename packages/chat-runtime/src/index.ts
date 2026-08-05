@@ -77,9 +77,15 @@ export function createChatRuntime(options: ChatRuntimeOptions): ChatRuntime {
 		subscribe: (sessionId, subscribeOptions, sink) =>
 			subscriptions.subscribe(sessionId, subscribeOptions, sink),
 		dispose: async () => {
-			await live.disposeAll();
-			subscriptions.dispose();
-			db.$client.close();
+			try {
+				await live.disposeAll();
+			} finally {
+				try {
+					subscriptions.dispose();
+				} finally {
+					db.$client.close();
+				}
+			}
 		},
 	};
 }

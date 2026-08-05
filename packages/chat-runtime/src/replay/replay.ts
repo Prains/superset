@@ -35,6 +35,18 @@ export function parseJournalRow(row: JournalRow): DurableEnvelope {
 	return envelope;
 }
 
+function parseJournalRows(rows: JournalRow[]): DurableEnvelope[] | null {
+	const envelopes: DurableEnvelope[] = [];
+	for (const row of rows) {
+		try {
+			envelopes.push(parseJournalRow(row));
+		} catch {
+			return null;
+		}
+	}
+	return envelopes;
+}
+
 export function latestSeq(
 	db: ChatDb,
 	sessionId: string,
@@ -80,7 +92,9 @@ export function readSince(
 		.orderBy(asc(chatJournal.seq))
 		.all();
 
-	return { ok: true, envelopes: rows.map(parseJournalRow) };
+	const envelopes = parseJournalRows(rows);
+	if (!envelopes) return { ok: false, reset: "journal_missing" };
+	return { ok: true, envelopes };
 }
 
 export function readPage(
@@ -92,6 +106,12 @@ export function readPage(
 	if (!session) return { ok: false, reset: "session_not_found" };
 	if (options.before && session.epoch !== options.before.epoch) {
 		return { ok: false, reset: "epoch_changed" };
+	}
+	if (
+		options.before &&
+		options.before.seq > latestSeq(db, sessionId, session.epoch)
+	) {
+		return { ok: false, reset: "invalid_cursor" };
 	}
 	if (options.limit <= 0) return { ok: true, envelopes: [], nextBefore: null };
 
@@ -116,9 +136,8 @@ export function readPage(
 			? { epoch: session.epoch, seq: oldest.seq }
 			: null;
 
-	return {
-		ok: true,
-		envelopes: page.map(parseJournalRow),
-		nextBefore,
-	};
+	const envelopes = parseJournalRows(page);
+	if (!envelopes) return { ok: false, reset: "journal_missing" };
+
+	return { ok: true, envelopes, nextBefore };
 }

@@ -40,6 +40,25 @@ export function setSessionEpoch(
 		.run();
 }
 
+export function resetSessionForEpoch(
+	db: ChatDb,
+	sessionId: string,
+	epoch: string,
+	status: string,
+	updatedAt: number,
+): void {
+	db.update(chatSessionsLocal)
+		.set({ epoch, status, title: null, queuedCount: 0, updatedAt })
+		.where(eq(chatSessionsLocal.sessionId, sessionId))
+		.run();
+}
+
+export function removeSessionRow(db: ChatDb, sessionId: string): void {
+	db.delete(chatSessionsLocal)
+		.where(eq(chatSessionsLocal.sessionId, sessionId))
+		.run();
+}
+
 export function writeSessionProjection(
 	db: ChatDb,
 	sessionId: string,
