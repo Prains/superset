@@ -158,14 +158,21 @@ describe("initialCommand delivery", () => {
 				10_000,
 			);
 		} finally {
-			process.env.TMPDIR = origTmpdir;
+			if (origTmpdir === undefined) {
+				delete process.env.TMPDIR;
+			} else {
+				process.env.TMPDIR = origTmpdir;
+			}
 			await disposeSessionAndWait(terminalId, db);
 		}
 	});
 
 	test("pre-Enter teardown unlinks the staged script", async () => {
 		const terminalId = `e2e-cleanup-${randomUUID().slice(0, 8)}`;
-		const command = `echo ${"z".repeat(600)}`;
+		const sentinel = path.join(TEST_HOME, `cleanup-ran-${terminalId}`);
+		// Padded past the staging threshold; the sentinel write distinguishes
+		// "guard unlinked the script" from "script ran and self-deleted".
+		const command = `echo ran > "${sentinel}" # ${"z".repeat(600)}`;
 
 		const session = await createTerminalSessionInternal({
 			terminalId,
@@ -188,6 +195,11 @@ describe("initialCommand delivery", () => {
 		// …and disposing the session before the Enter fires removes it.
 		await disposeSessionAndWait(terminalId, db);
 		await waitFor(() => staged().length === 0, 5_000);
+
+		// Past the Enter delay, the command must never have executed — the
+		// script vanished via the teardown unlink, not via self-delete-and-run.
+		await new Promise((r) => setTimeout(r, 700));
+		assert.equal(fs.existsSync(sentinel), false);
 	});
 
 	test("short commands are still typed verbatim into the PTY", async () => {
