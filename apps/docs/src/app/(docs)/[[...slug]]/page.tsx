@@ -36,7 +36,7 @@ export default async function Page(props: PageProps<"/[[...slug]]">) {
 			}}
 		>
 			{section ? (
-				<p className="-mb-4 text-xs font-semibold uppercase tracking-wider text-brand dark:text-brand-light">
+				<p className="-mb-4 text-xs font-semibold uppercase tracking-wider text-brand-dark dark:text-brand-light">
 					{section.title}
 				</p>
 			) : null}
