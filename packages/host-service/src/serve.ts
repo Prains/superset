@@ -1,3 +1,5 @@
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app";
 import { getSupervisor, startDaemonBootstrap } from "./daemon";
@@ -113,6 +115,18 @@ async function main(): Promise<void> {
 				hostServiceSecret: env.HOST_SERVICE_SECRET,
 			});
 		}
+	});
+	// Node detaches its own socket error handling before emitting 'upgrade',
+	// and @hono/node-ws awaits app.request() before ws adopts the socket — a
+	// peer reset in that window is an uncaught ECONNRESET at TCP.onStreamRead
+	// that takes down the whole process. Keep a listener attached for the
+	// socket's lifetime so resets are logged instead.
+	server.on("upgrade", (request: IncomingMessage, socket: Duplex) => {
+		socket.on("error", (error: NodeJS.ErrnoException) => {
+			console.warn(
+				`[host-service] upgrade socket error (${error.code ?? error.message}) on ${request.url ?? "<unknown>"} from ${request.socket.remoteAddress ?? "<unknown>"}`,
+			);
+		});
 	});
 	injectWebSocket(server);
 }
