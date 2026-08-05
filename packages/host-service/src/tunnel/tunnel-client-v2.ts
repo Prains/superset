@@ -1,5 +1,4 @@
 import type {
-	ControlServerMessage,
 	HttpDialFrame,
 	StreamDial,
 } from "@superset/shared/tunnel-v2-protocol";
@@ -63,12 +62,11 @@ export class TunnelClientV2 {
 			console.log(
 				`[host-service:tunnel-v2] control connected for ${this.options.hostId}`,
 			);
-			control.send(JSON.stringify({ type: "hello", protoVersion: 2 }));
 		});
 
 		control.addEventListener("message", (event) => {
 			this.lastInboundAt = Date.now();
-			let message: ControlServerMessage | { type: "pong" };
+			let message: StreamDial | { type: "pong" };
 			try {
 				message = JSON.parse(String(event.data));
 			} catch {
@@ -76,9 +74,6 @@ export class TunnelClientV2 {
 			}
 			if (message.type === "stream:dial") {
 				this.handleDial(message);
-			} else if (message.type === "drain") {
-				console.log("[host-service:tunnel-v2] relay drain notice");
-				control.reconnect();
 			}
 		});
 

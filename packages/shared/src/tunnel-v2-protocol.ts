@@ -3,8 +3,7 @@
 // for each stream via a one-time ticket; after pairing, the relay splices
 // bytes verbatim — no envelopes, no base64, no per-frame parsing.
 
-// ── Relay → host (control channel) ──────────────────────────────────
-
+/** Relay → host, on the control channel. The only control message. */
 export interface StreamDial {
 	type: "stream:dial";
 	ticket: string;
@@ -15,40 +14,21 @@ export interface StreamDial {
 	query?: string;
 }
 
-export interface ControlDrain {
-	type: "drain";
-	reason?: string;
-}
-
-export type ControlServerMessage = StreamDial | ControlDrain;
-
-// ── Host → relay (control channel) ──────────────────────────────────
-
-export interface ControlHello {
-	type: "hello";
-	protoVersion: 2;
-	hostServiceVersion?: string;
-}
-
-/** Answered by the relay's hibernation auto-response; never wakes the DO. */
-export interface ControlPing {
-	type: "ping";
-}
-
-export type ControlClientMessage = ControlHello | ControlPing;
-
+// Host → relay is keepalive only; answered by the relay's hibernation
+// auto-response without waking the Durable Object.
 export const CONTROL_PING_JSON = '{"type":"ping"}';
 export const CONTROL_PONG_JSON = '{"type":"pong"}';
 
 // ── HTTP-over-dial frames ───────────────────────────────────────────
-// A kind:"http" dial carries exactly one exchange: relay sends a request
-// header frame, then the body as binary frames, then an end frame; the host
-// replies symmetrically. Text frames are JSON control frames; binary frames
-// are raw body bytes.
+// A kind:"http" dial carries exactly one exchange, for callers that cannot
+// hold a WebSocket (serverless SDK/MCP/API clients): relay sends a request
+// header frame, the body as binary frames, then an end frame; the host
+// replies symmetrically. Text frames are JSON; binary frames are raw bytes.
 
 export interface HttpRequestHeader {
 	type: "http:request";
 	method: string;
+	/** Path plus query string, ready to append to the local origin. */
 	path: string;
 	headers: Record<string, string>;
 }

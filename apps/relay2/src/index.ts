@@ -29,7 +29,7 @@ function extractToken(c: Context<AppContext>): string | null {
 	return c.req.query("token") ?? null;
 }
 
-async function tunnelStub(c: Context<AppContext>, hostId: string) {
+function tunnelStub(c: Context<AppContext>, hostId: string) {
 	return getServerByName(c.env.HostTunnel, hostId);
 }
 
@@ -37,9 +37,9 @@ function isWsUpgrade(c: Context<AppContext>): boolean {
 	return c.req.header("Upgrade")?.toLowerCase() === "websocket";
 }
 
-// The v1 relay accepts an unauthorized tunnel WS and closes 1008 with a reason
-// the peer logs. Workers can't reject an upgrade with a close code via a plain
-// error response, so mirror it: complete the handshake, close 1008.
+// A failed auth on a WebSocket upgrade completes the handshake and closes
+// 1008 with a reason ≤123 bytes — the only way the peer can see *why*
+// (browsers and plain WS clients cannot read a non-101 response).
 function acceptAndClose(reason: string): Response {
 	const pair = new WebSocketPair();
 	pair[1].accept();
@@ -47,10 +47,37 @@ function acceptAndClose(reason: string): Response {
 	return new Response(null, { status: 101, webSocket: pair[0] });
 }
 
-function pathAfterHost(c: Context<AppContext>): string {
-	const hostId = c.req.param("hostId") ?? "";
-	const path = new URL(c.req.url).pathname;
-	return path.slice(`/hosts/${hostId}`.length);
+type Denial = { status: 401 | 403 | 500; message: string };
+
+// JWT + host access in one place; every route maps the same denial to its own
+// wire shape (JSON, tRPC envelope, or WS close reason).
+async function authenticate(
+	c: Context<AppContext>,
+	hostId: string,
+): Promise<{ auth: AuthContext; token: string } | Denial> {
+	const token = extractToken(c);
+	if (!token) return { status: 401, message: "Unauthorized" };
+	const auth = await verifyJWT(token, c.env.NEXT_PUBLIC_API_URL);
+	if (!auth) return { status: 401, message: "Unauthorized" };
+	const access = await checkHostAccess(
+		auth,
+		token,
+		hostId,
+		c.env.NEXT_PUBLIC_API_URL,
+	);
+	if (!access.ok) {
+		const message = `Forbidden: ${accessDenialMessage(access.reason)}`;
+		// "error" means the access check itself failed (API unreachable), not
+		// a denial — 500 so clients keep retrying instead of giving up.
+		return access.reason === "error"
+			? { status: 500, message }
+			: { status: 403, message };
+	}
+	return { auth, token };
+}
+
+function isDenial(value: unknown): value is Denial {
+	return typeof (value as Denial).status === "number";
 }
 
 // ── Host control channel ────────────────────────────────────────────
@@ -60,28 +87,14 @@ app.get("/v2/control", async (c) => {
 		return c.json({ error: "WebSocket upgrade required" }, 426);
 	}
 	const hostId = c.req.query("hostId");
-	const token = extractToken(c);
-	if (!hostId || !token) return acceptAndClose("Missing hostId or token");
-
-	const auth = await verifyJWT(token, c.env.NEXT_PUBLIC_API_URL);
-	if (!auth) return acceptAndClose("Unauthorized");
-
-	const access = await checkHostAccess(
-		auth,
-		token,
-		hostId,
-		c.env.NEXT_PUBLIC_API_URL,
-	);
-	if (!access.ok) {
-		return acceptAndClose(`Forbidden: ${accessDenialMessage(access.reason)}`);
-	}
+	if (!hostId) return acceptAndClose("Missing hostId");
+	const result = await authenticate(c, hostId);
+	if (isDenial(result)) return acceptAndClose(result.message);
 
 	const stub = await tunnelStub(c, hostId);
 	return stub.fetch(
 		`https://relay2/register?hostId=${encodeURIComponent(hostId)}`,
-		{
-			headers: { Upgrade: "websocket", "x-relay-token": token },
-		},
+		{ headers: { Upgrade: "websocket", "x-relay-token": result.token } },
 	);
 });
 
@@ -100,76 +113,48 @@ app.get("/v2/dial", async (c) => {
 	const stub = await tunnelStub(c, hostId);
 	return stub.fetch(
 		`https://relay2/dial?ticket=${encodeURIComponent(ticket)}`,
-		{ headers: { Upgrade: "websocket" } },
+		{
+			headers: { Upgrade: "websocket" },
+		},
 	);
 });
 
-// ── Pre-flight (clients probe before opening a WS to a host) ────────
+// ── Client-facing host routes (wire-identical to the v1 relay) ──────
+
+function pathAfterHost(c: Context<AppContext>): string {
+	const hostId = c.req.param("hostId") ?? "";
+	return new URL(c.req.url).pathname.slice(`/hosts/${hostId}`.length);
+}
 
 app.get("/hosts/:hostId/_whoowns", async (c) => {
-	const token = extractToken(c);
-	if (!token) return c.json({ error: "Unauthorized" }, 401);
-	const auth = await verifyJWT(token, c.env.NEXT_PUBLIC_API_URL);
-	if (!auth) return c.json({ error: "Unauthorized" }, 401);
-
 	const hostId = c.req.param("hostId");
+	const result = await authenticate(c, hostId);
+	if (isDenial(result)) {
+		return c.json({ error: result.message }, result.status);
+	}
 	const stub = await tunnelStub(c, hostId);
-	const status = await stub.fetch("https://relay2/status");
-	const { connected } = (await status.json()) as { connected: boolean };
-	if (!connected) return c.json({ error: "Host not connected" }, 503);
-
-	const access = await checkHostAccess(
-		auth,
-		token,
-		hostId,
-		c.env.NEXT_PUBLIC_API_URL,
-	);
-	if (!access.ok) {
-		const detail = `Forbidden: ${accessDenialMessage(access.reason)}`;
-		// "error" means the access check itself failed (API unreachable), not
-		// a denial — don't 403, or clients would stop retrying permanently.
-		return access.reason === "error"
-			? c.json({ error: detail }, 500)
-			: c.json({ error: detail }, 403);
+	if (!(await stub.isConnected())) {
+		return c.json({ error: "Host not connected" }, 503);
 	}
 	return c.json({ ok: true, region: "cf" });
 });
 
-// ── Client-facing host proxy (wire-identical to the v1 relay) ───────
-
 const authMiddleware: MiddlewareHandler<AppContext> = async (c, next) => {
-	const wantsTrpc = isTrpcPath(pathAfterHost(c));
-
-	const token = extractToken(c);
-	if (!token)
-		return wantsTrpc
-			? trpcErrorResponse(c, "UNAUTHORIZED", "Unauthorized")
-			: c.json({ error: "Unauthorized" }, 401);
-
-	const auth = await verifyJWT(token, c.env.NEXT_PUBLIC_API_URL);
-	if (!auth)
-		return wantsTrpc
-			? trpcErrorResponse(c, "UNAUTHORIZED", "Unauthorized")
-			: c.json({ error: "Unauthorized" }, 401);
-
 	const hostId = c.req.param("hostId");
 	if (!hostId) return c.json({ error: "Missing hostId" }, 400);
-
-	const access = await checkHostAccess(
-		auth,
-		token,
-		hostId,
-		c.env.NEXT_PUBLIC_API_URL,
-	);
-	if (!access.ok) {
-		const detail = `Forbidden: ${accessDenialMessage(access.reason)}`;
-		return wantsTrpc
-			? trpcErrorResponse(c, "FORBIDDEN", detail)
-			: c.json({ error: detail }, 403);
+	const result = await authenticate(c, hostId);
+	if (isDenial(result)) {
+		if (isTrpcPath(pathAfterHost(c))) {
+			return trpcErrorResponse(
+				c,
+				result.status === 403 ? "FORBIDDEN" : "UNAUTHORIZED",
+				result.message,
+			);
+		}
+		return c.json({ error: result.message }, result.status);
 	}
-
-	c.set("auth", auth);
-	c.set("token", token);
+	c.set("auth", result.auth);
+	c.set("token", result.token);
 	c.set("hostId", hostId);
 	return next();
 };
@@ -182,27 +167,27 @@ app.all("/hosts/:hostId/trpc/*", async (c) => {
 	const path = pathAfterHost(c) || "/";
 	const query = url.search.slice(1);
 
-	const stub = await tunnelStub(c, hostId);
-	const res = await stub.fetch(
-		`https://relay2/http?path=${encodeURIComponent(path)}&query=${encodeURIComponent(query)}`,
-		{
-			method: c.req.method,
-			headers: c.req.raw.headers,
-			body: c.req.raw.body,
-		},
-	);
-	if (res.headers.get("content-type")?.includes("application/json")) {
-		const peeked = res.clone();
-		const data = (await peeked.json().catch(() => null)) as {
-			tunnelError?: string;
-		} | null;
-		if (data?.tunnelError !== undefined) {
-			return res.status === 503
-				? trpcErrorResponse(c, "SERVICE_UNAVAILABLE", "Host is not online")
-				: trpcErrorResponse(c, "BAD_GATEWAY", data.tunnelError);
-		}
+	const headers: Record<string, string> = {};
+	for (const [key, value] of c.req.raw.headers.entries()) {
+		if (key !== "host" && key !== "authorization") headers[key] = value;
 	}
-	return res;
+
+	const stub = await tunnelStub(c, hostId);
+	const result = await stub.proxyHttp({
+		method: c.req.method,
+		pathWithQuery: query ? `${path}?${query}` : path,
+		headers,
+		body: new Uint8Array(await c.req.raw.arrayBuffer()),
+	});
+	if (!result.ok) {
+		return (await stub.isConnected())
+			? trpcErrorResponse(c, "BAD_GATEWAY", "Request timed out")
+			: trpcErrorResponse(c, "SERVICE_UNAVAILABLE", "Host is not online");
+	}
+	return new Response(result.body.byteLength > 0 ? result.body : null, {
+		status: result.status,
+		headers: result.headers,
+	});
 });
 
 app.get("/hosts/:hostId/*", async (c) => {
@@ -215,9 +200,19 @@ app.get("/hosts/:hostId/*", async (c) => {
 	const query = url.search.slice(1);
 	const ticket = crypto.randomUUID();
 
+	// Defer the client's 101 until the host has actually dialed: offline and
+	// unresponsive hosts surface as clean HTTP failures before the handshake,
+	// never as open-then-close.
 	const stub = await tunnelStub(c, hostId);
+	const prepared = await stub.prepareStream(ticket, path, query || undefined);
+	if (prepared === "no-host") {
+		return c.json({ error: "Host not connected" }, 503);
+	}
+	if (prepared === "timeout") {
+		return c.json({ error: "Host did not answer" }, 504);
+	}
 	return stub.fetch(
-		`https://relay2/client?ticket=${encodeURIComponent(ticket)}&path=${encodeURIComponent(path)}&query=${encodeURIComponent(query)}`,
+		`https://relay2/client?ticket=${encodeURIComponent(ticket)}`,
 		{ headers: { Upgrade: "websocket" } },
 	);
 });
