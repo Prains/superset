@@ -343,7 +343,19 @@ export async function addBranchWorktree(args: {
 			run: async () => {
 				await git.raw(addArgs);
 			},
-			didSucceed: () => findWorktreeAtPath(git, worktreePath, plan.branch),
+			didSucceed: async () => {
+				if (!(await findWorktreeAtPath(git, worktreePath, plan.branch))) {
+					return false;
+				}
+				try {
+					// The worktree list can report a branch for a half-created
+					// worktree; require a resolvable HEAD in the worktree itself.
+					await git.raw(["-C", worktreePath, "rev-parse", "--verify", "HEAD"]);
+					return true;
+				} catch {
+					return false;
+				}
+			},
 		});
 
 	if (plan.usedExistingBranch) {

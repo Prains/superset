@@ -478,16 +478,33 @@ describe("createWorktree hook tolerance", () => {
 		);
 		execSync(`chmod +x "${hookPath}"`);
 
-		const worktreePath = join(TEST_DIR, "worktree-hook-killed-wt");
-		await createWorktree(repoPath, "feature/killed-hook", worktreePath, "HEAD");
+		const warnSpy = spyOn(console, "warn");
+		try {
+			const worktreePath = join(TEST_DIR, "worktree-hook-killed-wt");
+			await createWorktree(
+				repoPath,
+				"feature/killed-hook",
+				worktreePath,
+				"HEAD",
+			);
 
-		expect(existsSync(worktreePath)).toBe(true);
-		const currentBranch = execSync("git rev-parse --abbrev-ref HEAD", {
-			cwd: worktreePath,
-		})
-			.toString()
-			.trim();
-		expect(currentBranch).toBe("feature/killed-hook");
+			expect(existsSync(worktreePath)).toBe(true);
+			const currentBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+				cwd: worktreePath,
+			})
+				.toString()
+				.trim();
+			expect(currentBranch).toBe("feature/killed-hook");
+			// The kill must actually land: a trivially clean add would skip
+			// the tolerance path entirely and prove nothing.
+			expect(
+				warnSpy.mock.calls.some((call) =>
+					String(call[0]).includes("non-fatal"),
+				),
+			).toBe(true);
+		} finally {
+			warnSpy.mockRestore();
+		}
 	}, 15_000);
 
 	test("throws on an invalid start point even when a hook exists", async () => {
