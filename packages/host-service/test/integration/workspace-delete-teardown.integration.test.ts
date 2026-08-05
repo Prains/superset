@@ -89,14 +89,20 @@ describe("workspace delete teardown integration", () => {
 		mkdirSync(scriptDir, { recursive: true });
 		writeFileSync(
 			join(scriptDir, "teardown.sh"),
-			`#!/usr/bin/env bash\n${teardownScript.replaceAll("{{MARKER}}", shellQuote(markerPath))}\n`,
+			`#!/usr/bin/env bash\n${teardownScript
+				.replaceAll("{{WORKTREE}}", shellQuote(scenario.worktreePath))
+				.replaceAll("{{MARKER}}", shellQuote(markerPath))}\n`,
 			{ mode: 0o755 },
 		);
 		return { scenario, markerPath };
 	}
 
 	test("workspace.delete (external surface) runs teardown before removing the worktree", async () => {
-		const { scenario, markerPath } = await setup("printf ran > {{MARKER}}");
+		// `test -d` pins the ordering: the marker only appears if the worktree
+		// still exists when teardown runs.
+		const { scenario, markerPath } = await setup(
+			"test -d {{WORKTREE}} && printf ran > {{MARKER}}",
+		);
 
 		const result = await scenario.host.trpc.workspace.delete.mutate({
 			id: scenario.featureWorkspaceId,
@@ -111,7 +117,7 @@ describe("workspace delete teardown integration", () => {
 
 	test("workspace.delete surfaces a failed teardown as a warning without blocking the delete", async () => {
 		const { scenario, markerPath } = await setup(
-			"printf ran > {{MARKER}}\nexit 7",
+			'echo "external resources not cleaned" >&2\nprintf ran > {{MARKER}}\nexit 7',
 		);
 
 		const result = await scenario.host.trpc.workspace.delete.mutate({
@@ -122,11 +128,12 @@ describe("workspace delete teardown integration", () => {
 		expect(result.worktreeRemoved).toBe(true);
 		expect(existsSync(markerPath)).toBe(true);
 		expect(existsSync(scenario.worktreePath)).toBe(false);
-		expect(
-			result.warnings.some((w) =>
-				w.includes("Teardown script failed (exit code 7)"),
-			),
-		).toBe(true);
+		const teardownWarning = result.warnings.find((w) =>
+			w.includes("Teardown script failed (exit code 7)"),
+		);
+		expect(teardownWarning).toBeDefined();
+		// The warning must carry the script's output tail, not just the exit code.
+		expect(teardownWarning).toContain("external resources not cleaned");
 	});
 
 	test("workspaceCleanup.destroy with force still skips teardown (interactive force-retry contract)", async () => {
