@@ -93,6 +93,12 @@ A working prototype already validated the platform (PR #6165, `apps/relay-do`): 
   Rationale: the cutover in D-11 points old clients at relay2 whether or not they understand tunnel v2; serving v1 during the tail is strictly better than a dead hostname, and the prototype already is that implementation, validated in production on 2026-08-04.
   Date/Author: 2026-08-04 / Satya + Claude session.
 - D-13: (open — predictive-echo follow-up plan, see Open Questions)
+- Decision (D-15): Buy-over-build is the explicit standard for relay2, with "cleanest end-state" as the tiebreaker. Milestone 1 opens with a timeboxed spike (1 day) building the control-channel + one dial-back stream on `partyserver` (Cloudflare's maintained PartyKit successor for Durable Objects) with `partysocket` on the host and client sides; if the result is cleaner than the raw-DO prototype shape, relay2 adopts the PartyKit stack fully — including replacing the three hand-rolled reconnect implementations (`tunnel-client`, `relaySocket`, event-bus) with `partysocket`. Only the irreducible core stays bespoke: reverse-tunnel dial-back semantics, auth against our API, and the resumable stream buffer. Raw DO APIs are the fallback only if the spike shows the framework fighting the dial-back shape.
+  Rationale: Satya's direction (2026-08-05): converge on the cleanest end-state, full PartyKit if that is what's cleanest; the audit showed hand-rolled WS lifecycle code is where our outages lived.
+  Date/Author: 2026-08-05 / Satya.
+- Decision (D-16): The Cloudflare account is renamed from `avi-6ac` to a Superset-branded name (account renames are a dashboard settings operation; the `workers.dev` subdomain can also be changed, which alters dev-phase URLs — do this before Milestone 4's CSP entry so the allowlisted hostname is the final one). No account migration; it is the company account and keeps `electric-proxy`.
+  Rationale: it is Superset's account, not Avi's personal one; the name should say so before it gets baked into CSPs, docs, and runbooks.
+  Date/Author: 2026-08-05 / Satya.
 - Decision (D-14): The hostname cutover uses a Cloudflare for SaaS custom hostname, not a superset.sh nameserver migration. Mechanics: activate one spare org-owned domain as a Cloudflare zone to serve as the SaaS "fallback origin"; on Vercel DNS, add the cert-validation TXT record and repoint the existing `relay.superset.sh` CNAME at the fallback origin; bind the relay2 Worker to the custom hostname. superset.sh's zone and all other records never move.
   Rationale: a full nameserver migration risks the production apex to serve one subdomain (and the July 2026 CNAME-loss incident showed how expensive DNS mistakes on this domain are); SaaS custom hostnames are the platform-supported way to serve an externally-DNS'd name, cost ~nothing at our scale, and pass WebSockets. A future zone move remains possible but is not required by this plan.
   Date/Author: 2026-08-04 / Satya + Claude session.
@@ -123,6 +129,10 @@ Terms used throughout:
 ## Plan of Work
 
 The work is five milestones. Milestones 1–3 build and prove relay2 in isolation using a checked-in test harness and disposable sandbox hosts (no product surface changes). Milestone 4 wires the product to it behind server-side rollout control. Milestone 5 migrates traffic and deletes the old world.
+
+### Spike (opens Milestone 1): partyserver/partysocket fit — 1 day timebox
+
+Goal: determine whether the PartyKit stack is the cleanest implementation of tunnel v2 (D-15). Build, in a throwaway branch of `apps/relay2`: a `partyserver` Server class handling the host control channel (hibernation on, auto-response ping), the ticketed `stream:dial` flow, and one spliced terminal stream, with `partysocket` as the host-side dialer. Success criteria: the dial-back + splice shape fits `partyserver`'s `onConnect`/`onMessage` model without fighting it (no monkey-patching, no reaching around the framework for hibernation or tags), and the resulting code is smaller and clearer than the raw-DO prototype equivalent. Outcome recorded here and in the Decision Log; the losing shape is deleted.
 
 ### Milestone 1: scaffold, edge auth, DO skeleton, loud deploys
 
@@ -231,3 +241,5 @@ The ~800ms cold connect is edge JWT verify + uncached checkAccess + DO wake; Mil
 ---
 
 Revision note (2026-08-04): Resolved the hostname question after discussion. `relay.superset.sh` becomes relay2's canonical endpoint at the Milestone 5 cutover (D-11) via a Cloudflare for SaaS custom hostname so superset.sh DNS never leaves Vercel (D-14); the wire-compatible prototype from PR #6165 is repurposed as relay2's v1-compat layer for the cutover tail (D-12). Milestone 5, Assumptions, and Open Questions updated accordingly; remaining open question is only D-13 (predictive echo follow-up).
+
+Revision note (2026-08-05): Decision walkthrough with Satya resolved: D-3 transport confirmed (dial-back per stream; clarified the dial cost is per-stream-open, not per-frame), D-4 confirmed (API-served endpoint), D-7 timing confirmed (resumable streams built before client adoption), and added D-15 (buy-over-build with a partyserver/partysocket spike gating Milestone 1 — cleanest end-state wins, full PartyKit adoption if it fits) and D-16 (rename the Cloudflare account from avi-6ac to a Superset-branded name before Milestone 4). Spike section added at the top of Plan of Work.
