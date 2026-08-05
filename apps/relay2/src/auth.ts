@@ -15,14 +15,21 @@ function getJWKS(authUrl: string): ReturnType<typeof createRemoteJWKSet> {
 	return jwks;
 }
 
+/**
+ * `authUrl` is where the relay reaches the API; `issuer` is what the token
+ * must claim. They differ only when the API is reachable at a different
+ * address than the one it issues tokens for — a local API exposed through a
+ * tunnel, for instance.
+ */
 export async function verifyJWT(
 	token: string,
 	authUrl: string,
+	issuer = authUrl,
 ): Promise<AuthContext | null> {
 	try {
 		const { payload } = await jwtVerify(token, getJWKS(authUrl), {
-			issuer: authUrl,
-			audience: authUrl,
+			issuer,
+			audience: issuer,
 		});
 
 		const sub = payload.sub;
