@@ -6,6 +6,8 @@ A harness adapter emits protocol events, `LiveSession` turns them into durable e
 
 The runtime speaks only the vocabulary in `plans/chat-protocol-v1.md`; it never resolves workspaces, spawns processes, or touches host.db. Callers pass a resolved `cwd`.
 
+**chat.db columns may only contain values the caller passed in — nothing resolved by the runtime, nothing owned by another database.** That is why sessions are grouped by `scope_id`: an opaque, caller-defined label the runtime stores and filters by but never interprets. The protocol keeps `workspaceId` as product vocabulary and the tRPC router maps `workspaceId → scopeId` at the binding, so a host that groups sessions by something else needs no schema change here.
+
 ## Reading order
 
 | Folder | What lives there |
