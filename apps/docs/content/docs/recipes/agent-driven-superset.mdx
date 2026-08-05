@@ -1,0 +1,52 @@
+---
+title: Drive Superset from Your Agent
+description: Standups, automations, diagnostics, and repo setup — delegated to the agent you're already talking to
+---
+
+<Callout type="info" title="Use when">
+	you'd rather type one sentence to the agent in front of you than click through the app: catching up on overnight work, scheduling a chore, fixing a broken setup, making a new repo workspace-ready.
+</Callout>
+
+## The Idea
+
+Superset ships [skills](/skills) to your coding agents automatically — Claude Code, Codex, and friends all know how to run Superset itself. That turns app chores into prompts: the agent sweeps your workspaces for a standup, writes and schedules an automation, or diagnoses why a host is offline, while you stay in the conversation you were already having.
+
+## Steps
+
+1. Confirm the skills are there: ask any agent launched through Superset to "list your superset skills". You should see `superset:standup`, `superset:automate`, `superset:doctor`, and friends. (No desktop app on this machine? `npx skills add superset-sh/skills`.)
+2. Start your day in any agent session instead of clicking through workspaces:
+
+```text
+Give me a standup of my Superset agents: what finished overnight, what
+needs my review, and what's blocked. For anything finished, tell me
+which workspace to open first and why.
+```
+
+3. Act on the digest — open the workspace it points you to, review the diff, ship or re-prompt.
+4. When the same chore shows up twice in a week, promote it to a schedule in the same conversation:
+
+```text
+That dependency sweep you just did — make it a Superset automation that
+runs weekdays at 7am on this project, and walk me through the first run.
+```
+
+5. When something's off — a host shows offline, terminals won't attach, auth looks stale — don't debug it yourself:
+
+```text
+Superset says this host is offline but the machine is right here. Diagnose
+and fix it.
+```
+
+6. If the agent finds a real bug in Superset along the way, have it file the report: "report this to the Superset team" sends it privately from your account so the team can reply.
+
+## Steering the Skills
+
+- You rarely need skill names: agents pick the right one from a plain request ("what did my agents do last night?" → `superset:standup`)
+- To be explicit, invoke directly: `/superset:standup` in Claude Code, `/superset/standup` in the in-app chat
+- Skills update with the app — no reinstalling, and files you authored at the same paths are never touched
+
+## Variations
+
+- **New repo, first workspace**: "make this repo Superset-ready" has the agent author `.superset/config.json` with setup and run scripts, then verify with a real workspace
+- **Agent as coordinator**: "run these three refactors in parallel in separate workspaces" hands the whole [Fan Out](/recipes/fan-out-refactor) pattern to one orchestrating agent — see [Agent Orchestration](/orchestration)
+- **Level up**: "audit how I use Superset and show me what I'm missing" gets you a personalized tour of the features you haven't adopted yet
