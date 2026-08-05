@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -874,6 +874,34 @@ function cancelShellReady(session: TerminalSession): void {
 		session.shellReadyResolve = null;
 	}
 }
+
+/**
+ * A staged launch script normally lives well under a second (self-deletes on
+ * execution; unlinked on pre-Enter teardown), but a host-service crash inside
+ * that window skips both paths and leaves the prompt-bearing file behind.
+ * Sweep stale ones at boot — age-gated so a concurrently-running instance's
+ * just-staged script is never touched.
+ */
+const LAUNCH_SCRIPT_STALE_MS = 60 * 60 * 1000;
+void (async () => {
+	try {
+		const dir = tmpdir();
+		for (const name of await readdir(dir)) {
+			if (!name.startsWith("superset-launch-")) continue;
+			const scriptPath = join(dir, name);
+			try {
+				const { mtimeMs } = await stat(scriptPath);
+				if (Date.now() - mtimeMs > LAUNCH_SCRIPT_STALE_MS) {
+					await rm(scriptPath, { force: true });
+				}
+			} catch {
+				// raced another instance's sweep — skip
+			}
+		}
+	} catch {
+		// best-effort
+	}
+})();
 
 /**
  * Stage an oversized initialCommand as a temp script and return the short
