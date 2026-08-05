@@ -1,84 +1,27 @@
-import { CommandDedupe } from "./commands/commandDedupe";
-import type { ChatCommands } from "./commands/commands";
-import { createCommands } from "./commands/commands";
-import type { OpenDatabase, SqliteDatabase } from "./db/db";
-import { openChatDb } from "./db/db";
-import { ChatQueries } from "./db/queries";
-import { ChatJournal } from "./journal/journal";
-import { ChatSessionStore } from "./journal/sessions";
-import type { HarnessRegistry } from "./sessions/registry";
-import { LiveSessionRegistry } from "./sessions/registry";
-import type {
-	Schedule,
-	Sink,
-	SubscribeOptions,
-	Subscription,
-} from "./stream/subscriptions";
-import { SubscriptionHub } from "./stream/subscriptions";
+import type { ChatCommands } from "./commands";
+import { CommandDedupe, createCommands } from "./commands";
+import type { ChatDb, OpenChatDb } from "./db";
+import { createChatDb } from "./db";
+import { ChatJournal } from "./journal";
+import { ChatSessionStore } from "./projection";
+import type { HarnessRegistry } from "./sessions";
+import { LiveSessionRegistry } from "./sessions";
+import type { Schedule, Sink, SubscribeOptions, Subscription } from "./stream";
+import { SubscriptionHub } from "./stream";
 
-export { CommandDedupe } from "./commands/commandDedupe";
-export type {
-	ChatCommands,
-	CommandsOptions,
-	CreateSessionCommandInput,
-	CreateSessionResult,
-	GetSessionResult,
-} from "./commands/commands";
-export {
-	createCommands,
-	createSessionCommandSchema,
-} from "./commands/commands";
-export type {
-	OpenDatabase,
-	SqliteDatabase,
-	SqliteStatement,
-	SqlValue,
-} from "./db/db";
-export { openBetterSqlite3, openChatDb } from "./db/db";
-export { ChatQueries } from "./db/queries";
-export type { ChatSessionRow, JournalRow } from "./db/schema";
-export { CHAT_DB_FILENAME } from "./db/schema";
-export type {
-	FakeHarnessScript,
-	ScriptedEvent,
-} from "./harness/fake/fakeHarness";
-export { FakeHarness } from "./harness/fake/fakeHarness";
-export type {
-	AdapterEvent,
-	HarnessAdapter,
-	HarnessStartOptions,
-} from "./harness/types";
-export type { ChatSessionInit, OpenedEpoch } from "./journal/epoch";
-export { mintEpoch, openEpoch } from "./journal/epoch";
-export type { OpenedSession } from "./journal/journal";
-export { ChatJournal } from "./journal/journal";
-export type {
-	ChatResetReason,
-	PageResult,
-	ReplayResult,
-} from "./journal/replay";
-export { readPage, readSince } from "./journal/replay";
-export { ChatSessionStore } from "./journal/sessions";
-export type { LiveSessionOptions, PromptResult } from "./sessions/liveSession";
-export { LiveSession } from "./sessions/liveSession";
-export type {
-	HarnessFactory,
-	HarnessFactoryOptions,
-	HarnessRegistry,
-} from "./sessions/registry";
-export { LiveSessionRegistry } from "./sessions/registry";
-export type {
-	Schedule,
-	Sink,
-	SubscribeOptions,
-	Subscription,
-	SubscriptionHubOptions,
-} from "./stream/subscriptions";
-export { SubscriptionHub } from "./stream/subscriptions";
+export * from "./commands";
+export * from "./db";
+export * from "./harness";
+export * from "./journal";
+export * from "./projection";
+export * from "./replay";
+export * from "./sessions";
+export * from "./stream";
 
 export type ChatRuntimeOptions = {
 	dataDir: string;
-	openDatabase?: OpenDatabase;
+	migrationsFolder?: string;
+	openDatabase?: OpenChatDb;
 	harnesses?: HarnessRegistry;
 	schedule?: Schedule;
 	bootstrapLimit?: number;
@@ -88,8 +31,7 @@ export type ChatRuntimeOptions = {
 export type ChatRuntime = {
 	journal: ChatJournal;
 	sessions: ChatSessionStore;
-	queries: ChatQueries;
-	db: SqliteDatabase;
+	db: ChatDb;
 	live: LiveSessionRegistry;
 	subscriptions: SubscriptionHub;
 	commands: ChatCommands;
@@ -102,11 +44,13 @@ export type ChatRuntime = {
 };
 
 export function createChatRuntime(options: ChatRuntimeOptions): ChatRuntime {
-	const db = openChatDb(options.dataDir, options.openDatabase);
-	const queries = new ChatQueries(db);
-	const journal = new ChatJournal(queries);
-	const sessions = new ChatSessionStore(queries);
-	const subscriptions = new SubscriptionHub(queries, {
+	const db = (options.openDatabase ?? createChatDb)({
+		dataDir: options.dataDir,
+		migrationsFolder: options.migrationsFolder,
+	});
+	const journal = new ChatJournal(db);
+	const sessions = new ChatSessionStore(db);
+	const subscriptions = new SubscriptionHub(db, {
 		schedule: options.schedule,
 		bootstrapLimit: options.bootstrapLimit,
 	});
@@ -117,7 +61,7 @@ export function createChatRuntime(options: ChatRuntimeOptions): ChatRuntime {
 	});
 	const commands = createCommands({
 		journal,
-		queries,
+		db,
 		sessions,
 		live,
 		dedupe: new CommandDedupe(options.dedupeCapacity),
@@ -126,7 +70,6 @@ export function createChatRuntime(options: ChatRuntimeOptions): ChatRuntime {
 	return {
 		journal,
 		sessions,
-		queries,
 		db,
 		live,
 		subscriptions,
@@ -136,7 +79,7 @@ export function createChatRuntime(options: ChatRuntimeOptions): ChatRuntime {
 		dispose: async () => {
 			await live.disposeAll();
 			subscriptions.dispose();
-			db.close();
+			db.$client.close();
 		},
 	};
 }
