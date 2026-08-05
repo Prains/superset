@@ -60,7 +60,10 @@ function V1Body() {
 				<HighlightText text="Worktree location" query={searchQuery} />
 			</Label>
 			<p className="text-xs text-muted-foreground">
-				Base directory for new worktrees
+				<HighlightText
+					text="Base directory for new worktrees"
+					query={searchQuery}
+				/>
 			</p>
 			<WorktreeLocationPicker
 				currentPath={worktreeBaseDir}
@@ -136,13 +139,18 @@ function V2Body() {
 						<HighlightText text="Worktree location" query={searchQuery} />
 					</Label>
 					<p className="text-xs text-muted-foreground">
-						{hasMultipleHosts
-							? `Base directory for new worktrees on ${
-									selectedHost?.isLocal
-										? "this device"
-										: (selectedHost?.name ?? "this device")
-								}`
-							: "Base directory for new worktrees"}
+						{hasMultipleHosts ? (
+							`Base directory for new worktrees on ${
+								selectedHost?.isLocal
+									? "this device"
+									: (selectedHost?.name ?? "this device")
+							}`
+						) : (
+							<HighlightText
+								text="Base directory for new worktrees"
+								query={searchQuery}
+							/>
+						)}
 					</p>
 				</div>
 				{hasMultipleHosts && effectiveHostId ? (

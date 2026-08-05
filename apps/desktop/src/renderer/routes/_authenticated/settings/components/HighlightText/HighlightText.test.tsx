@@ -22,7 +22,7 @@ describe("HighlightText", () => {
 			<HighlightText text="Branch prefix" query="branch" />,
 		);
 		expect(markup).toBe(
-			'<mark class="rounded-sm bg-highlight-match text-inherit">Branch</mark> prefix',
+			'<span><mark class="rounded-sm bg-highlight-match text-inherit">Branch</mark> prefix</span>',
 		);
 	});
 
@@ -40,7 +40,7 @@ describe("HighlightText", () => {
 			<HighlightText text="Branch prefix" query="branch prefix" />,
 		);
 		expect(markup).toBe(
-			'<mark class="rounded-sm bg-highlight-match text-inherit">Branch</mark> <mark class="rounded-sm bg-highlight-match text-inherit">prefix</mark>',
+			'<span><mark class="rounded-sm bg-highlight-match text-inherit">Branch</mark> <mark class="rounded-sm bg-highlight-match text-inherit">prefix</mark></span>',
 		);
 	});
 
@@ -56,7 +56,24 @@ describe("HighlightText", () => {
 			<HighlightText text="Wait 5s (approx.)" query="5s (approx.)" />,
 		);
 		expect(markup).toBe(
-			'Wait <mark class="rounded-sm bg-highlight-match text-inherit">5s</mark> <mark class="rounded-sm bg-highlight-match text-inherit">(approx.)</mark>',
+			'<span>Wait <mark class="rounded-sm bg-highlight-match text-inherit">5s</mark> <mark class="rounded-sm bg-highlight-match text-inherit">(approx.)</mark></span>',
+		);
+	});
+
+	it("wraps matched output in a single element so flex/grid gap spacing never applies between segments", () => {
+		const markup = renderToStaticMarkup(
+			<HighlightText text="Branch prefix" query="branch" />,
+		);
+		expect(markup.startsWith("<span>")).toBe(true);
+		expect(markup.endsWith("</span>")).toBe(true);
+	});
+
+	it("prefers the longer term when one term is a prefix of another, instead of splitting the word", () => {
+		const markup = renderToStaticMarkup(
+			<HighlightText text="Branch prefix" query="bran branch" />,
+		);
+		expect(markup).toBe(
+			'<span><mark class="rounded-sm bg-highlight-match text-inherit">Branch</mark> prefix</span>',
 		);
 	});
 });

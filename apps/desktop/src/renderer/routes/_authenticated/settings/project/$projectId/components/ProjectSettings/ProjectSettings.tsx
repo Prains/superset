@@ -36,9 +36,9 @@ import {
 	useImportAllWorktrees,
 	useOpenExternalWorktree,
 } from "renderer/react-query/workspaces";
+import { HighlightText } from "renderer/routes/_authenticated/settings/components/HighlightText";
 import { useSettingsSearchQuery } from "renderer/stores/settings-state";
 import { ClickablePath } from "../../../../components/ClickablePath";
-import { HighlightText } from "../../../../components/HighlightText";
 import {
 	useDefaultWorktreePath,
 	WorktreeLocationPicker,

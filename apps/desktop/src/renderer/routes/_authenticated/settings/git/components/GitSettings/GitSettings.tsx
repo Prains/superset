@@ -146,8 +146,10 @@ export function GitSettings({ visibleItems }: GitSettingsProps) {
 								/>
 							</Label>
 							<p className="text-xs text-muted-foreground">
-								Also delete the local git branch when deleting a worktree
-								workspace
+								<HighlightText
+									text="Also delete the local git branch when deleting a worktree workspace"
+									query={searchQuery}
+								/>
 							</p>
 						</div>
 						<Switch

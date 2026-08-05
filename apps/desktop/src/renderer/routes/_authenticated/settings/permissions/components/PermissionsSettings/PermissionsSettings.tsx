@@ -4,8 +4,8 @@ import { Label } from "@superset/ui/label";
 import { Skeleton } from "@superset/ui/skeleton";
 import { LuExternalLink } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { HighlightText } from "renderer/routes/_authenticated/settings/components/HighlightText";
 import { useSettingsSearchQuery } from "renderer/stores/settings-state";
-import { HighlightText } from "../../../components/HighlightText";
 import {
 	isItemVisible,
 	SETTING_ITEM_ID,

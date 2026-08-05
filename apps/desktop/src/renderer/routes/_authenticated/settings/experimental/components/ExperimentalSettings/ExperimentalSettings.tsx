@@ -83,7 +83,10 @@ export function ExperimentalSettings({
 								<HighlightText text="Try Superset v2" query={searchQuery} />
 							</Label>
 							<p className="text-xs text-muted-foreground">
-								Use the new workspace experience.
+								<HighlightText
+									text="Use the new workspace experience."
+									query={searchQuery}
+								/>
 							</p>
 						</div>
 						<Switch
@@ -106,12 +109,17 @@ export function ExperimentalSettings({
 								<HighlightText text="Import from v1" query={searchQuery} />
 							</Label>
 							<p className="text-xs text-muted-foreground">
-								Bring v1 projects, workspaces, and terminal presets over to v2.
-								Each item is imported individually and can be retried.
+								<HighlightText
+									text="Bring v1 projects, workspaces, and terminal presets over to v2. Each item is imported individually and can be retried."
+									query={searchQuery}
+								/>
 							</p>
 							{!isV2CloudEnabled && (
 								<p className="text-xs text-muted-foreground">
-									Available when v2 is enabled.
+									<HighlightText
+										text="Available when v2 is enabled."
+										query={searchQuery}
+									/>
 								</p>
 							)}
 						</div>
@@ -140,8 +148,10 @@ export function ExperimentalSettings({
 								/>
 							</Label>
 							<p className="text-xs text-muted-foreground">
-								Show detected ports under each workspace in the sidebar instead
-								of a single panel at the bottom.
+								<HighlightText
+									text="Show detected ports under each workspace in the sidebar instead of a single panel at the bottom."
+									query={searchQuery}
+								/>
 							</p>
 						</div>
 						<Switch
@@ -158,8 +168,10 @@ export function ExperimentalSettings({
 								<HighlightText text="Workspace agents" query={searchQuery} />
 							</Label>
 							<p className="text-xs text-muted-foreground">
-								Show running agents under each workspace in the sidebar, with
-								their live status.
+								<HighlightText
+									text="Show running agents under each workspace in the sidebar, with their live status."
+									query={searchQuery}
+								/>
 							</p>
 						</div>
 						<Switch

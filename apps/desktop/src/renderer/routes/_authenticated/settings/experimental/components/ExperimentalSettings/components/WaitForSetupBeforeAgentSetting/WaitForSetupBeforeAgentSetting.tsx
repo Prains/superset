@@ -49,8 +49,10 @@ export function WaitForSetupBeforeAgentSetting() {
 					/>
 				</Label>
 				<p className="text-xs text-muted-foreground">
-					Run the agent in the Workspace Setup terminal once setup finishes
-					instead of starting a second terminal alongside it
+					<HighlightText
+						text="Run the agent in the Workspace Setup terminal once setup finishes instead of starting a second terminal alongside it"
+						query={searchQuery}
+					/>
 				</p>
 			</div>
 			<Switch

@@ -353,7 +353,10 @@ export function ThemeSection() {
 						<HighlightText text="Custom themes" query={searchQuery} />
 					</div>
 					<div className="text-xs text-muted-foreground">
-						Import a theme file or grab a starter to edit.
+						<HighlightText
+							text="Import a theme file or grab a starter to edit."
+							query={searchQuery}
+						/>
 					</div>
 				</div>
 				<div className="flex items-center gap-2 shrink-0">
