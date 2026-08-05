@@ -5,6 +5,58 @@ import path from "node:path";
 /** Rotate per-org host-service.log once it exceeds this size. */
 export const MAX_HOST_LOG_BYTES = 5 * 1024 * 1024;
 
+/** Lines of recent child output retained for crash/startup-failure captures. */
+export const CHILD_OUTPUT_TAIL_LINES = 50;
+const CHILD_OUTPUT_MAX_LINE_CHARS = 300;
+
+const USER_PATH_PATTERNS = [
+	/[A-Za-z]:\\Users\\[^\\/\s"']+/g,
+	/\/(?:Users|home)\/[^\\/\s"']+/g,
+];
+
+export function scrubUserPaths(text: string): string {
+	let scrubbed = text;
+	for (const pattern of USER_PATH_PATTERNS) {
+		scrubbed = scrubbed.replace(pattern, "~");
+	}
+	return scrubbed;
+}
+
+/**
+ * Bounded ring of a child process's most recent output lines. User paths are
+ * scrubbed on entry so captures built from the tail never carry usernames.
+ */
+export class ChildOutputRing {
+	private lines: string[] = [];
+	private pending = "";
+
+	append(chunk: Buffer): void {
+		const text = this.pending + chunk.toString("utf8");
+		const parts = text.split("\n");
+		this.pending = parts.pop() ?? "";
+		for (const line of parts) {
+			this.push(line.replace(/\r$/, ""));
+		}
+		if (this.pending.length > CHILD_OUTPUT_MAX_LINE_CHARS) {
+			this.push(this.pending);
+			this.pending = "";
+		}
+	}
+
+	tail(): string[] {
+		if (!this.pending) return [...this.lines];
+		return [
+			...this.lines,
+			scrubUserPaths(this.pending.slice(0, CHILD_OUTPUT_MAX_LINE_CHARS)),
+		].slice(-CHILD_OUTPUT_TAIL_LINES);
+	}
+
+	private push(line: string): void {
+		this.lines.push(scrubUserPaths(line.slice(0, CHILD_OUTPUT_MAX_LINE_CHARS)));
+		if (this.lines.length > CHILD_OUTPUT_TAIL_LINES) this.lines.shift();
+	}
+}
+
 // Before the server becomes reachable, startup must still clear DB migrate and
 // the daemon bootstrap (the shell-env snapshot now runs in the background, off
 // the critical path). At boot every known org starts at once, and multiple app

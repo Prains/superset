@@ -26,6 +26,7 @@ import {
 	nextRespawnDelayMs,
 } from "./host-service-respawn";
 import {
+	ChildOutputRing,
 	findFreePort,
 	HEALTH_POLL_TIMEOUT_MS,
 	MAX_HOST_LOG_BYTES,
@@ -78,6 +79,9 @@ interface HostServiceProcess {
 	 * never kill it or delete its manifest.
 	 */
 	owned: boolean;
+	/** Set for owned children only; adopted entries have no spawn diagnostics. */
+	spawnedAt?: number;
+	output?: ChildOutputRing;
 }
 
 interface PendingStart {
@@ -674,57 +678,77 @@ export class HostServiceCoordinator extends EventEmitter {
 			}
 			throw new Error("Host service start cancelled");
 		}
-		const logFd = openRotatingLogFd(
-			path.join(manifestDir(organizationId), "host-service.log"),
-			MAX_HOST_LOG_BYTES,
-		);
-		// Dev: pipe child stdout/stderr through this process so log lines
-		// land in the developer's `bun dev` terminal. Production: hard-back
-		// stdio with the rotating log file.
 		const isDev = !app.isPackaged;
-		const stdio: childProcess.StdioOptions = isDev
-			? ["ignore", "pipe", "pipe"]
-			: logFd >= 0
-				? ["ignore", logFd, logFd]
-				: ["ignore", "ignore", "ignore"];
+		const logFd = isDev
+			? -1
+			: openRotatingLogFd(
+					path.join(manifestDir(organizationId), "host-service.log"),
+					MAX_HOST_LOG_BYTES,
+				);
+		let logFdClosed = false;
+		const closeLogFd = () => {
+			if (logFd < 0 || logFdClosed) return;
+			logFdClosed = true;
+			try {
+				fs.closeSync(logFd);
+			} catch {}
+		};
 
+		// Child stdio is always piped so this process can retain a bounded tail
+		// of recent output for crash/startup-failure captures. Production
+		// forwards the chunks to the rotating log file the child previously
+		// wrote directly; dev fans them out to the `bun dev` terminal.
 		let child: ReturnType<typeof childProcess.spawn>;
 		try {
 			child = childProcess.spawn(process.execPath, [this.scriptPath], {
 				detached: false,
-				stdio,
+				stdio: ["ignore", "pipe", "pipe"],
 				env: childEnv,
 				// Avoid a flashing CMD window on Windows.
 				windowsHide: true,
 			});
-		} finally {
-			if (logFd >= 0) {
-				try {
-					fs.closeSync(logFd);
-				} catch {
-					// Best-effort — child has its own dup of the fd.
-				}
-			}
+		} catch (error) {
+			closeLogFd();
+			throw error;
 		}
 
-		// In dev, fan child output through to parent stdout/stderr with a
-		// prefix so it's identifiable in `bun dev`.
-		if (isDev && child.stdout && child.stderr) {
-			const tag = `[hs:${organizationId.slice(0, 8)}]`;
-			pipeWithPrefix(child.stdout, process.stdout, tag);
-			pipeWithPrefix(child.stderr, process.stderr, tag);
+		const output = new ChildOutputRing();
+		if (child.stdout && child.stderr) {
+			for (const stream of [child.stdout, child.stderr]) {
+				stream.on("data", (chunk: Buffer) => {
+					output.append(chunk);
+					if (logFd >= 0 && !logFdClosed) fs.write(logFd, chunk, () => {});
+				});
+			}
+			// In dev, fan child output through to parent stdout/stderr with a
+			// prefix so it's identifiable in `bun dev`.
+			if (isDev) {
+				const tag = `[hs:${organizationId.slice(0, 8)}]`;
+				pipeWithPrefix(child.stdout, process.stdout, tag);
+				pipeWithPrefix(child.stderr, process.stderr, tag);
+			}
 		}
+		// "close" (not "exit") so buffered stdio drains into the log first.
+		child.on("close", closeLogFd);
 
 		const childPid = child.pid;
 		if (!childPid) {
+			closeLogFd();
 			this.instances.delete(organizationId);
 			throw new Error("Failed to spawn host service process");
 		}
 
 		instance.pid = childPid;
+		const spawnedAt = Date.now();
+		instance.spawnedAt = spawnedAt;
+		instance.output = output;
 		let childExited = false;
+		let childExitCode: number | null = null;
+		let childExitSignal: NodeJS.Signals | null = null;
 		child.on("exit", (code, signal) => {
 			childExited = true;
+			childExitCode = code;
+			childExitSignal = signal;
 			this.handleChildExit(organizationId, childPid, code, signal);
 		});
 		// Don't let the child block Electron's exit — stopAll() handles teardown.
@@ -743,12 +767,23 @@ export class HostServiceCoordinator extends EventEmitter {
 				this.instances.delete(organizationId);
 			}
 			if (!isStartAllowed()) removeManifest(organizationId);
-			throw new Error(
-				!isStartAllowed()
-					? "Host service start cancelled"
-					: childExited
-						? "Host service process exited during startup"
-						: `Host service failed to start within ${HEALTH_POLL_TIMEOUT_MS}ms`,
+			// The extra props ride into the Sentry capture of this error via
+			// extraErrorDataIntegration (see main/lib/sentry.ts).
+			throw Object.assign(
+				new Error(
+					!isStartAllowed()
+						? "Host service start cancelled"
+						: childExited
+							? "Host service process exited during startup"
+							: `Host service failed to start within ${HEALTH_POLL_TIMEOUT_MS}ms`,
+				),
+				{
+					exitCode: childExitCode,
+					exitSignal: childExitSignal,
+					startupPhase: "health-poll",
+					startupElapsedMs: Date.now() - spawnedAt,
+					childOutputTail: output.tail(),
+				},
 			);
 		}
 
@@ -891,6 +926,9 @@ export class HostServiceCoordinator extends EventEmitter {
 					extra: {
 						organizationId,
 						respawnAttempts: this.respawns.get(organizationId)?.attempts ?? 0,
+						uptimeMs:
+							current.spawnedAt != null ? Date.now() - current.spawnedAt : null,
+						childOutputTail: current.output?.tail() ?? null,
 					},
 				}),
 			)
