@@ -54,6 +54,6 @@ bun run scripts/recordCodexFixtures.ts approval   # one scenario
 
 The recorder copies only `auth.json` into a throwaway `CODEX_HOME`, so recordings carry no local hooks, MCP servers or home paths.
 
-Host-service registers the routes only when `SUPERSET_CHAT_V3=1`. The desktop main process evaluates the `chat-v3` PostHog flag per host-service spawn and sets that variable on the child, so a flag flip takes effect on the next host restart rather than mid-session; setting the variable by hand is the dev override.
+Host-service registers the `/chat-v3/*` routes unconditionally: they carry the same auth as every other host route, and the runtime is built on first request, so a host nobody chats with never creates `chat.db`. Rollout is a client concern — the desktop renderer gates the pane on the `chat-v3` PostHog flag, so flips take effect live rather than waiting for a host restart.
 
 When host-service mounts this package it must pass `migrationsFolder`: the generated `src/db/drizzle/` directory is a runtime file dependency that the bundler will not inline.

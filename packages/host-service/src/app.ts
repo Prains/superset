@@ -169,11 +169,11 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 			persistence: new SqliteAcpSessionPersistence(db),
 		});
 
-	// Chat v3 runtime (plans/chat-v3-pane-mount.md). The desktop coordinator
-	// sets SUPERSET_CHAT_V3=1 when the `chat-v3` PostHog flag is on for the
-	// user; without it neither route is registered and chat.db is never
-	// created. A running host keeps the value it started with.
-	const chatV3Enabled = process.env.SUPERSET_CHAT_V3 === "1";
+	// Chat v3 runtime (plans/chat-v3-pane-mount.md). Registered unconditionally:
+	// the routes sit behind the same auth as every other host route, and the
+	// runtime is built on first request, so chat.db is never created on a host
+	// nobody chats with. Exposure is a client concern — the renderer gates the
+	// pane on the `chat-v3` PostHog flag.
 	const chatV3 = createChatV3Mount({ db, dbPath: config.dbPath });
 
 	const runtime = {
@@ -281,9 +281,7 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 			upgradeWebSocket,
 		});
 	}
-	if (chatV3Enabled) {
-		registerChatV3Routes({ app, db, mount: chatV3, upgradeWebSocket });
-	}
+	registerChatV3Routes({ app, db, mount: chatV3, upgradeWebSocket });
 
 	app.use(
 		"/trpc/*",

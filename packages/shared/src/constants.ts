@@ -148,12 +148,9 @@ export const FEATURE_FLAGS = {
 	 */
 	NEW_WORKSPACE_SCREEN_OVERRIDE: "new-workspace-screen-override",
 	/**
-	 * Chat v3: the rebuilt chat stack (@superset/chat-runtime behind the
-	 * host-service `/chat-v3/*` routes, plus the ChatV3Pane). Evaluated in the
-	 * desktop main process at host-service spawn time and carried to the child
-	 * as `SUPERSET_CHAT_V3=1`, because the gate has to cross a process
-	 * boundary; the renderer reads the same flag for the pane. A spawned host
-	 * keeps whatever value it started with until it restarts.
+	 * Shows the rebuilt chat pane (ChatV3Pane). UI-only: host-service always
+	 * serves its `/chat-v3/*` routes, so this flag decides who sees the pane,
+	 * not what the host can do — flips take effect live, with no host restart.
 	 */
 	CHAT_V3: "chat-v3",
 } as const;

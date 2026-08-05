@@ -13,7 +13,6 @@ import { getProcessEnvWithShellPath } from "../../lib/trpc/routers/workspaces/ut
 import { env as mainEnv } from "../env.main";
 import { SUPERSET_HOME_DIR } from "./app-environment";
 import { isInternalBuild } from "./build-channel";
-import { isChatV3Enabled } from "./chat-v3-flag";
 import { acquireSpawnLock } from "./host-service-lock";
 import {
 	isProcessAlive,
@@ -769,7 +768,6 @@ export class HostServiceCoordinator extends EventEmitter {
 		const organizationDir = manifestDir(organizationId);
 		const row = localDb.select().from(settings).get();
 		const exposeViaRelay = row?.exposeHostServiceViaRelay ?? false;
-		const chatV3Enabled = await isChatV3Enabled();
 
 		const childEnv = await getProcessEnvWithShellPath({
 			...(process.env as Record<string, string>),
@@ -799,10 +797,6 @@ export class HostServiceCoordinator extends EventEmitter {
 			// canary and dev builds, never on stable. The host gates its router
 			// and WS stream route on this env var.
 			...(isInternalBuild() ? { SUPERSET_ACP_SESSIONS: "1" } : {}),
-			// Chat v3 routes, gated by the `chat-v3` PostHog flag (see
-			// main/lib/chat-v3-flag). Evaluated per spawn like the relay URL
-			// below, so a flag flip takes effect on the next host restart.
-			...(chatV3Enabled ? { SUPERSET_CHAT_V3: "1" } : {}),
 			// Namespaced so terminals/agents spawned by the host service don't
 			// inherit a generic SENTRY_DSN — third-party tools with a Sentry SDK
 			// auto-pick it up and report into our project.
