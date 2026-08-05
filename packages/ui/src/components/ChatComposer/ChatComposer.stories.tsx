@@ -2,7 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	ChartNoAxesColumnIcon,
 	CheckIcon,
+	FileCode2Icon,
 	MapIcon,
+	SlashSquareIcon,
 	SparklesIcon,
 	ZapIcon,
 } from "lucide-react";
@@ -26,6 +28,32 @@ type Story = StoryObj<typeof meta>;
 
 const MODELS = ["GPT-5.5", "GPT-5.5 mini", "o4"];
 const EFFORTS = ["Low", "Medium", "High"];
+
+const MENTIONS = [
+	"packages/ui/src/components/ChatComposer/ChatComposer.tsx",
+	"packages/ui/src/components/ChatHistorySidebar/ChatHistorySidebar.tsx",
+	"packages/ui/src/components/ChatHistorySidebar/chat-history-rail.css",
+	"packages/ui/src/globals.css",
+	"apps/web/src/app/page.tsx",
+	"apps/desktop/src/main/index.ts",
+	"packages/db/src/schema/workspaces.ts",
+	"README.md",
+].map((path) => ({
+	id: path,
+	label: path,
+	icon: <FileCode2Icon className="size-4" />,
+}));
+
+const COMMANDS = [
+	{ id: "plan", label: "plan", description: "Draft a plan before coding" },
+	{ id: "review", label: "review", description: "Review the current diff" },
+	{ id: "test", label: "test", description: "Write or run tests" },
+	{ id: "commit", label: "commit", description: "Commit staged changes" },
+	{ id: "explain", label: "explain", description: "Explain selected code" },
+].map((command) => ({
+	...command,
+	icon: <SlashSquareIcon className="size-4" />,
+}));
 
 function ToolbarButton({
 	children,
@@ -126,6 +154,8 @@ function ComposerPlayground() {
 				<ChatComposer
 					status={streaming ? "streaming" : "ready"}
 					toolbar={<DemoToolbar />}
+					mentions={MENTIONS}
+					commands={COMMANDS}
 					onAttach={() => {}}
 					onStop={() => setStreaming(false)}
 					onSubmit={(message) => {
