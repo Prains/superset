@@ -36,6 +36,26 @@ const SAFE_ID = z
 	);
 
 /**
+ * App quit disposes the terminal-host client while requests are still in
+ * flight, so any terminal procedure can be rejected by that teardown —
+ * translated once here rather than per procedure.
+ */
+const terminalProcedure = publicProcedure.use(async ({ next }) => {
+	const result = await next();
+	if (
+		!result.ok &&
+		result.error.cause instanceof TerminalHostClientDisposedError
+	) {
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: "Terminal host client disposed",
+			cause: { kind: "TERMINAL_HOST_CLIENT_DISPOSED" },
+		});
+	}
+	return result;
+});
+
+/**
  * Terminal router using daemon-backed terminal runtime
  * Sessions are keyed by paneId and linked to workspaces for cwd resolution
  *
@@ -60,7 +80,7 @@ export const createTerminalRouter = () => {
 	}
 
 	return router({
-		createOrAttach: publicProcedure
+		createOrAttach: terminalProcedure
 			.input(
 				z.object({
 					paneId: SAFE_ID,
@@ -187,11 +207,7 @@ export const createTerminalRouter = () => {
 						});
 					}
 					if (error instanceof TerminalHostClientDisposedError) {
-						throw new TRPCError({
-							code: "PRECONDITION_FAILED",
-							message: "Terminal host client disposed",
-							cause: { kind: "TERMINAL_HOST_CLIENT_DISPOSED" },
-						});
+						throw error;
 					}
 					if (DEBUG_TERMINAL) {
 						console.warn("[Terminal Router] createOrAttach failed:", {
@@ -206,7 +222,7 @@ export const createTerminalRouter = () => {
 				}
 			}),
 
-		cancelCreateOrAttach: publicProcedure
+		cancelCreateOrAttach: terminalProcedure
 			.input(
 				z.object({
 					paneId: SAFE_ID,
@@ -218,7 +234,7 @@ export const createTerminalRouter = () => {
 				return { success: true };
 			}),
 
-		write: publicProcedure
+		write: terminalProcedure
 			.input(
 				z.object({
 					paneId: z.string(),
@@ -259,13 +275,13 @@ export const createTerminalRouter = () => {
 				}
 			}),
 
-		ackColdRestore: publicProcedure
+		ackColdRestore: terminalProcedure
 			.input(z.object({ paneId: z.string() }))
 			.mutation(({ input }) => {
 				terminal.ackColdRestore(input.paneId);
 			}),
 
-		resize: publicProcedure
+		resize: terminalProcedure
 			.input(
 				z.object({
 					paneId: z.string(),
@@ -278,7 +294,7 @@ export const createTerminalRouter = () => {
 				terminal.resize(input);
 			}),
 
-		signal: publicProcedure
+		signal: terminalProcedure
 			.input(
 				z.object({
 					paneId: z.string(),
@@ -289,7 +305,7 @@ export const createTerminalRouter = () => {
 				terminal.signal(input);
 			}),
 
-		kill: publicProcedure
+		kill: terminalProcedure
 			.input(
 				z.object({
 					paneId: z.string(),
@@ -299,7 +315,7 @@ export const createTerminalRouter = () => {
 				await terminal.kill(input);
 			}),
 
-		detach: publicProcedure
+		detach: terminalProcedure
 			.input(
 				z.object({
 					paneId: z.string(),
@@ -309,7 +325,7 @@ export const createTerminalRouter = () => {
 				terminal.detach(input);
 			}),
 
-		clearScrollback: publicProcedure
+		clearScrollback: terminalProcedure
 			.input(
 				z.object({
 					paneId: z.string(),
@@ -319,12 +335,12 @@ export const createTerminalRouter = () => {
 				await terminal.clearScrollback(input);
 			}),
 
-		listDaemonSessions: publicProcedure.query(async () => {
+		listDaemonSessions: terminalProcedure.query(async () => {
 			const { sessions } = await terminal.management.listSessions();
 			return { sessions };
 		}),
 
-		killAllDaemonSessions: publicProcedure.mutation(async () => {
+		killAllDaemonSessions: terminalProcedure.mutation(async () => {
 			const client = getTerminalHostClient();
 			const before = await terminal.management.listSessions();
 			const beforeIds = before.sessions.map((s) => s.sessionId);
@@ -388,7 +404,7 @@ export const createTerminalRouter = () => {
 			return { killedCount, remainingCount };
 		}),
 
-		killDaemonSessionsForWorkspace: publicProcedure
+		killDaemonSessionsForWorkspace: terminalProcedure
 			.input(z.object({ workspaceId: z.string() }))
 			.mutation(async ({ input }) => {
 				const { sessions } = await terminal.management.listSessions();
@@ -419,23 +435,23 @@ export const createTerminalRouter = () => {
 				return { killedCount: toKill.length };
 			}),
 
-		clearTerminalHistory: publicProcedure.mutation(async () => {
+		clearTerminalHistory: terminalProcedure.mutation(async () => {
 			await terminal.management.resetHistoryPersistence();
 			return { success: true };
 		}),
 
 		/** Restart daemon to recover from stuck state. Kills all sessions. */
-		restartDaemon: publicProcedure.mutation(async () => {
+		restartDaemon: terminalProcedure.mutation(async () => {
 			return restartDaemonShared();
 		}),
 
-		getSession: publicProcedure
+		getSession: terminalProcedure
 			.input(z.string())
 			.query(async ({ input: paneId }) => {
 				return terminal.getSession(paneId);
 			}),
 
-		getWorkspaceCwd: publicProcedure
+		getWorkspaceCwd: terminalProcedure
 			.input(z.string())
 			.query(({ input: workspaceId }) => {
 				const workspace = localDb
@@ -459,7 +475,7 @@ export const createTerminalRouter = () => {
 				return worktree?.path ?? null;
 			}),
 
-		stream: publicProcedure
+		stream: terminalProcedure
 			.input(z.string())
 			.subscription(({ input: paneId }) => {
 				return observable<
