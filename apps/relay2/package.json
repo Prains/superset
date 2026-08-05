@@ -1,18 +1,22 @@
 {
-	"name": "electric-proxy",
-	"version": "0.0.0",
+	"name": "@superset/relay2",
+	"version": "0.1.0",
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "dotenv -e ../../.env -- sh -c 'exec wrangler dev --port ${WRANGLER_PORT:-8787}'",
+		"dev": "wrangler dev",
 		"deploy": "wrangler deploy",
 		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
 	},
 	"dependencies": {
-		"@electric-sql/client": "1.5.23",
-		"@superset/db": "workspace:*",
-		"drizzle-orm": "0.45.2",
-		"jose": "6.2.2"
+		"@superset/shared": "workspace:*",
+		"@superset/trpc": "workspace:*",
+		"@trpc/client": "11.16.0",
+		"hono": "4.12.34",
+		"jose": "6.2.2",
+		"lru-cache": "11.2.7",
+		"partyserver": "0.5.9",
+		"superjson": "2.2.6"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "5.20260801.1",
