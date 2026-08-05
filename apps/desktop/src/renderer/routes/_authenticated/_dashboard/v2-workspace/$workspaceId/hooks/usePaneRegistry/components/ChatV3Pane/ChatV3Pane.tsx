@@ -6,8 +6,6 @@ import { SessionPicker } from "./components/SessionPicker";
 import { SessionView } from "./components/SessionView";
 import { useSessionClient } from "./hooks/useSessionClient";
 
-export const CHAT_V3_FLAG = "chat-v3";
-
 export function ChatV3Pane({
 	onSessionIdChange,
 	sessionId,
