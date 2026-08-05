@@ -22,17 +22,31 @@ Review recently merged PRs and update documentation to reflect any new features,
    | Changed behavior/UI | Update the relevant doc page to reflect new behavior |
    | New keyboard shortcut | Update `keyboard-shortcuts.mdx` |
    | New terminal feature | Update `terminal-integration.mdx` or `terminal-presets.mdx` |
-   | New MCP capability | Update `mcp.mdx` |
+   | New MCP capability | Update `mcp-server.mdx` |
    | New agent feature | Update `agent-integration.mdx` |
+   | Agent status, activity strip, dock badge, or notification changes | Update `agent-status.mdx` |
+   | Tasks/PRs view changes | Update `tasks.mdx` |
+   | File explorer, built-in editor, or search changes | Update `editor.mdx` |
    | New workspace feature | Update `workspaces.mdx` |
    | Changed port behavior | Update `ports.mdx` |
    | New setup/teardown script feature | Update `setup-teardown-scripts.mdx` |
-   | Diff viewer changes | Update `diff-viewer.mdx` |
+   | Diff viewer or PR review changes | Update `diff-viewer.mdx` |
+   | New or changed CLI command/flag | Update `cli/cli-reference.mdx`. Verify flags and output shapes against the command source in `packages/cli/src/commands/` - never document a contract from memory |
+   | SDK changes | Update `sdk/reference.mdx` or `sdk/advanced.mdx` |
+   | Remote workspaces / relay / hosts changes | Update `remote-workspaces.mdx` |
+   | Automations changes | Update `automations.mdx` |
+   | Slack bot changes | Update `use-with-slack.mdx` |
+   | Orchestration skill changes | Update `orchestration.mdx` |
+   | Onboarding or install requirement changes | Update `install.mdx` |
    | IDE integration changes | Update `use-with-ide.mdx` |
+   | Linear integration changes | Update `use-with-linear.mdx` |
    | Monorepo changes | Update `using-monorepos.mdx` |
    | Customization changes | Update `customization.mdx` |
+   | Fix for an issue users hit (from a bug-report PR) | Consider a `troubleshooting.mdx` entry (symptom → fix) if users may still hit older versions or need a workaround |
    | Removed feature | Remove or update the relevant section |
    | Internal-only change (CI, refactor, dev tooling) | **Skip** - no docs update needed |
+
+   Workflow-shaped changes (a new way of working, not a single feature) may also warrant an update to a recipe in `recipes/`, or rarely a new recipe. Recipes follow a fixed shape: `<Callout type="info" title="Use when">` at the top, then The Idea, Steps with a copyable prompt, and Variations.
 
 4. **Skip if nothing needs updating**
    - If no merged PRs require documentation changes, make no edits and report that docs are up to date
@@ -53,23 +67,27 @@ Review recently merged PRs and update documentation to reflect any new features,
      description: Brief description of what this page covers
      ---
      ```
-   - Add the new page slug to `apps/docs/content/docs/meta.json` in the appropriate section
-   - Follow the style of existing pages - concise, scannable, focused on what users can do
+   - Add the new page slug to `apps/docs/content/docs/meta.json` in the appropriate section. Sections are separator entries with plain names (`---Core Features---`, `---Integrations---`, `---Configuration---`, etc.); pick by content type: feature reference → Core Features, external service how-to → Integrations, config/tuning → Configuration, workflow pattern → Recipes
+   - Feature pages should get one product screenshot when a good one exists. Beautified shots live in `apps/marketing/public/changelog/`; copy the file into `apps/docs/public/images/` with a short descriptive name rather than referencing across apps
+   - `Card`/`Cards`, `Callout`, and a set of lucide icons are registered in `apps/docs/src/mdx-components.tsx` for use in MDX
 
-7. **Writing style**
-   - **Match existing tone** - The docs are concise and practical, not verbose
+7. **Writing style - two voices, by section**
+   - **Funnel pages** (overview, install, first-workspace, superset-model, recipes/): coaching voice is intentional - second person, workflow prescriptions, copyable prompts. Match it; don't neutralize it
+   - **Everything else** (Core Features, CLI, SDK, Integrations, Configuration): neutral reference voice - concise, practical, no marketing language
    - **Lead with what the user can do** - Not implementation details
-   - **Use bullet points** for feature lists
-   - **Use headings** (##) to organize sections
-   - **Keep sentences short** - One idea per sentence
-   - **No fluff** - Skip filler words and marketing language
+   - **Use bullet points** for feature lists, **##** headings, short sentences, no fluff
+   - **FAQ vs Troubleshooting boundary**: `faq.mdx` is for what/why one-liners; `troubleshooting.mdx` is for symptom → fix walkthroughs. Don't grow the FAQ with fix procedures
+
+8. **Validate before finishing**
+   - Run `bun run --cwd apps/docs typecheck` (compiles all MDX) and `bun run lint`; both must exit clean
 
 ## Existing doc pages for reference
 
 Read these to match the format and style:
-- `apps/docs/content/docs/overview.mdx` - Product overview
-- `apps/docs/content/docs/terminal-integration.mdx` - Feature doc example
-- `apps/docs/content/docs/keyboard-shortcuts.mdx` - Reference doc example
+- `apps/docs/content/docs/agent-status.mdx` - Feature doc example (neutral voice, screenshot, cross-links)
+- `apps/docs/content/docs/recipes/race-agents.mdx` - Recipe format (Use-when callout, steps, copyable prompt)
+- `apps/docs/content/docs/cli/cli-reference.mdx` - Reference doc example (`<Command>` blocks with exact contracts)
+- `apps/docs/content/docs/keyboard-shortcuts.mdx` - Simple reference table example
 
 ## Output
 
