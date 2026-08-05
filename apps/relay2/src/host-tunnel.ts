@@ -20,7 +20,7 @@ const MAX_EARLY_FRAMES = 256;
 const UNPAIRED_DIAL_TIMEOUT_MS = 15_000;
 
 type ConnState =
-	| { kind: "host" }
+	| { kind: "host"; hostId: string }
 	| { kind: "client"; ticket: string; peer?: string }
 	| { kind: "dial"; ticket: string; peer?: string };
 
@@ -108,16 +108,16 @@ export class HostTunnel extends Server<RelayEnv> {
 		const ticket = url.searchParams.get("ticket") ?? "";
 
 		if (conn.tags.includes(HOST_TAG)) {
+			const token = ctx.request.headers.get("x-relay-token") ?? "";
+			const hostId = url.searchParams.get("hostId") ?? this.name;
 			// State first: a replaced socket's close is delivered mid-await, and
 			// teardown must be able to tell this connection is the live host.
-			conn.setState({ kind: "host" } satisfies ConnState);
+			conn.setState({ kind: "host", hostId } satisfies ConnState);
 			// Last-write-wins: the new socket evicts any old one.
 			for (const other of this.getConnections(HOST_TAG)) {
 				if (other.id !== conn.id)
 					closeQuietly(other, 1000, "Replaced by new tunnel");
 			}
-			const token = ctx.request.headers.get("x-relay-token") ?? "";
-			const hostId = url.searchParams.get("hostId") ?? this.name;
 			await this.ctx.storage.put("session", { hostId, token });
 			this.ctx.waitUntil(this.presence(hostId, token, true));
 			console.log(`[relay2] host connected: ${hostId}`);
@@ -204,7 +204,15 @@ export class HostTunnel extends Server<RelayEnv> {
 				return;
 			}
 			if (ping.type !== "ping") return;
-			if (ping.token) void this.refreshToken(ping.token);
+			// Only the live host may rewrite the session: a ping in flight from
+			// a socket that has just been replaced would otherwise revert the
+			// replacement's token to its own stale one.
+			if (ping.token && this.hostConn()?.id === conn.id) {
+				void this.ctx.storage.put("session", {
+					hostId: state.hostId,
+					token: ping.token,
+				});
+			}
 			conn.send('{"type":"pong"}');
 			return;
 		}
@@ -295,16 +303,6 @@ export class HostTunnel extends Server<RelayEnv> {
 
 	private sendDial(host: Connection, dial: StreamDial): void {
 		host.send(JSON.stringify(dial));
-	}
-
-	private async refreshToken(token: string): Promise<void> {
-		const session = await this.ctx.storage.get<{
-			hostId: string;
-			token: string;
-		}>("session");
-		if (session && session.token !== token) {
-			await this.ctx.storage.put("session", { ...session, token });
-		}
 	}
 
 	private presence(
