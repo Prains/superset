@@ -25,12 +25,6 @@ const envSchema = z.object({
 	NEXT_PUBLIC_POSTHOG_HOST: z.string().default("https://us.i.posthog.com"),
 	SENTRY_DSN_DESKTOP: z.string().optional(),
 	RELAY_URL: z.url().default("https://relay.superset.sh"),
-	/**
-	 * "1" routes workspaces on THIS machine through the relay instead of
-	 * straight to 127.0.0.1, so relay changes can be exercised end-to-end
-	 * without a second machine. Development only.
-	 */
-	FORCE_RELAY_ROUTING: z.string().optional(),
 });
 
 /**
@@ -54,7 +48,6 @@ const rawEnv = {
 		| undefined,
 	SENTRY_DSN_DESKTOP: import.meta.env.SENTRY_DSN_DESKTOP as string | undefined,
 	RELAY_URL: process.env.RELAY_URL,
-	FORCE_RELAY_ROUTING: process.env.FORCE_RELAY_ROUTING,
 };
 
 // Only allow skipping validation in development (never in production)

@@ -55,11 +55,7 @@ async function authenticate(
 ): Promise<{ auth: AuthContext; token: string } | Denial> {
 	const token = extractToken(c);
 	if (!token) return { status: 401, message: "Unauthorized" };
-	const auth = await verifyJWT(
-		token,
-		c.env.NEXT_PUBLIC_API_URL,
-		c.env.JWT_ISSUER || c.env.NEXT_PUBLIC_API_URL,
-	);
+	const auth = await verifyJWT(token, c.env.NEXT_PUBLIC_API_URL);
 	if (!auth) return { status: 401, message: "Unauthorized" };
 	const access = await checkHostAccess(
 		auth,

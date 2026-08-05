@@ -1,6 +1,5 @@
 import { buildHostRoutingKey } from "@superset/shared/host-routing";
 import { useMemo } from "react";
-import { env } from "renderer/env.renderer";
 import { useRelayUrl } from "renderer/hooks/useRelayUrl";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
@@ -32,10 +31,7 @@ export function useWorkspaceHostTarget(
 	return useMemo(() => {
 		if (!workspaceId || (!isReady && !match)) return { status: "loading" };
 		if (!match) return { status: "not-found" };
-		// FORCE_RELAY_ROUTING sends this machine's own workspaces over the
-		// relay so relay changes can be tested without a second machine.
-		const forceRelay = env.FORCE_RELAY_ROUTING === "1";
-		if (machineId && match.hostId === machineId && !forceRelay) {
+		if (machineId && match.hostId === machineId) {
 			if (activeHostUrl) {
 				return {
 					status: "ready",
