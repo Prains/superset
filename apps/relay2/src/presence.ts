@@ -8,10 +8,8 @@ export interface PresenceStorage {
 	put(key: string, value: unknown): Promise<void>;
 }
 
-// Monotonic per-host version, persisted across hibernation, so a late offline
-// write from a dying socket can never clobber a newer online write (the
-// gray-dot race demonstrated in prod on 2026-08-04). Any attempt superseded
-// by a newer one aborts between retries.
+// Version-gated: a late offline write from a dying socket must not clobber a
+// newer online write.
 export async function writePresence({
 	storage,
 	apiUrl,

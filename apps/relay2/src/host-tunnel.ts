@@ -14,9 +14,7 @@ import { writePresence } from "./presence";
 import type { RelayEnv } from "./types";
 
 const HOST_TAG = "host";
-// Frames the host's dial may deliver before the client's deferred upgrade
-// completes (a ~ms window: the local service can emit its attach snapshot the
-// instant the host dials). Bounded; overflow closes the stream.
+// Frames a dial may deliver before the client's deferred upgrade completes.
 const MAX_EARLY_FRAMES = 256;
 
 type ConnState =
@@ -26,20 +24,11 @@ type ConnState =
 
 export type PrepareStreamResult = "ready" | "no-host" | "timeout";
 
-// One Durable Object per hostId. The host keeps one small JSON control
-// channel here; every proxied stream (terminal WS, event bus, one HTTP
-// exchange) is its own WebSocket pair spliced verbatim — this class never
-// parses stream traffic. partyserver owns hibernation, connection identity,
-// and tag bookkeeping. The Worker talks to this object over typed RPC
-// (prepareStream / isConnected / proxyHttp); plain fetch is used only where
-// RPC cannot go — WebSocket upgrades.
-//
-// Stream lifecycle: the Worker calls prepareStream, which asks the host to
-// dial back and resolves only once the dial socket is here (so the client's
-// own upgrade is deferred until the stream can actually work — "host offline"
-// is an HTTP 503, never an open-then-close). In-memory maps only ever span
-// that dial window or one HTTP exchange; live traffic keeps the object awake
-// through them, so hibernation cannot strand an entry.
+// One Durable Object per hostId: the host's control channel plus every
+// spliced stream terminate here. Stream traffic is never parsed. The Worker
+// talks to this object over RPC; fetch is used only for WebSocket upgrades.
+// In-memory maps span at most one dial window or HTTP exchange — traffic
+// keeps the object awake through them, so hibernation cannot strand an entry.
 export class HostTunnel extends Server<RelayEnv> {
 	static options = { hibernate: true };
 
@@ -116,8 +105,7 @@ export class HostTunnel extends Server<RelayEnv> {
 		const ticket = url.searchParams.get("ticket") ?? "";
 
 		if (conn.tags.includes(HOST_TAG)) {
-			// Last-write-wins: a flaky host's new socket evicts the
-			// dead-but-undetected old one.
+			// Last-write-wins: the new socket evicts any old one.
 			for (const other of this.getConnections(HOST_TAG)) {
 				if (other.id !== conn.id)
 					closeQuietly(other, 1000, "Replaced by new tunnel");
@@ -143,8 +131,6 @@ export class HostTunnel extends Server<RelayEnv> {
 		}
 
 		if (conn.tags.includes("client")) {
-			// prepareStream already confirmed this dial exists; pair both ends
-			// and flush anything the host sent during the upgrade round trip.
 			const dial = this.findByTicket(ticket, "dial");
 			if (!dial) {
 				conn.close(1011, "Stream expired");
@@ -188,9 +174,7 @@ export class HostTunnel extends Server<RelayEnv> {
 			return;
 		}
 
-		// Dial delivering host frames before the client's deferred upgrade
-		// lands (~ms). Clients are always paired at connect, so an unpaired
-		// sender here is necessarily the dial side.
+		// Unpaired sender is necessarily a dial waiting for its client.
 		const buffer = this.earlyFrames.get(conn.id) ?? [];
 		if (buffer.length >= MAX_EARLY_FRAMES) {
 			this.earlyFrames.delete(conn.id);
@@ -224,9 +208,7 @@ export class HostTunnel extends Server<RelayEnv> {
 				hostId: string;
 				token: string;
 			}>("session");
-			// Only mark offline when no replacement socket is already up: the
-			// last-write-wins close of an old socket lands here after the new
-			// host registered.
+			// A replaced socket's close lands after the new one registered.
 			if (session && !this.hostConn()) {
 				console.log(`[relay2] host disconnected: ${session.hostId}`);
 				this.ctx.waitUntil(this.presence(session.hostId, session.token, false));

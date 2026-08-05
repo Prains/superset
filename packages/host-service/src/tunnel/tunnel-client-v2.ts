@@ -39,8 +39,7 @@ export class TunnelClientV2 {
 	async connect(): Promise<void> {
 		if (this.closed || this.control) return;
 
-		// partysocket re-invokes the URL provider on every reconnect, so token
-		// rotation is handled without any of v1's hand-rolled retry logic.
+		// Re-invoked on every reconnect, picking up rotated tokens.
 		const urlProvider = async (): Promise<string> => {
 			const token = await this.options.getAuthToken();
 			const url = new URL("/v2/control", toWs(this.options.relayUrl));

@@ -49,8 +49,6 @@ function acceptAndClose(reason: string): Response {
 
 type Denial = { status: 401 | 403 | 500; message: string };
 
-// JWT + host access in one place; every route maps the same denial to its own
-// wire shape (JSON, tRPC envelope, or WS close reason).
 async function authenticate(
 	c: Context<AppContext>,
 	hostId: string,
@@ -200,9 +198,8 @@ app.get("/hosts/:hostId/*", async (c) => {
 	const query = url.search.slice(1);
 	const ticket = crypto.randomUUID();
 
-	// Defer the client's 101 until the host has actually dialed: offline and
-	// unresponsive hosts surface as clean HTTP failures before the handshake,
-	// never as open-then-close.
+	// The 101 is deferred until the host has dialed, so offline hosts fail
+	// before the handshake instead of open-then-close.
 	const stub = await tunnelStub(c, hostId);
 	const prepared = await stub.prepareStream(ticket, path, query || undefined);
 	if (prepared === "no-host") {
