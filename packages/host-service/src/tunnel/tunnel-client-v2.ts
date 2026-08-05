@@ -1,0 +1,281 @@
+import type {
+	ControlServerMessage,
+	HttpDialFrame,
+	StreamDial,
+} from "@superset/shared/tunnel-v2-protocol";
+import ReconnectingWebSocket from "partysocket/ws";
+
+const PING_INTERVAL_MS = 30_000;
+const INBOUND_SILENCE_TIMEOUT_MS = 75_000;
+const WATCHDOG_INTERVAL_MS = 10_000;
+const MAX_BUFFERED_FRAMES = 256;
+
+export interface TunnelClientV2Options {
+	relayUrl: string;
+	hostId: string;
+	getAuthToken: () => Promise<string | null>;
+	localPort: number;
+	hostServiceSecret: string;
+}
+
+function toWs(url: string): string {
+	return url.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+}
+
+// Tunnel v2 host client. One reconnecting control WebSocket (partysocket owns
+// backoff/jitter/retry); each proxied stream is a fresh dial-back socket piped
+// byte-for-byte to the local host-service — no multiplexing, no envelopes.
+export class TunnelClientV2 {
+	private readonly options: TunnelClientV2Options;
+	private control: ReconnectingWebSocket | null = null;
+	private pingTimer: ReturnType<typeof setInterval> | null = null;
+	private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+	private lastInboundAt = 0;
+	private closed = false;
+
+	constructor(options: TunnelClientV2Options) {
+		this.options = options;
+	}
+
+	async connect(): Promise<void> {
+		if (this.closed || this.control) return;
+
+		// partysocket re-invokes the URL provider on every reconnect, so token
+		// rotation is handled without any of v1's hand-rolled retry logic.
+		const urlProvider = async (): Promise<string> => {
+			const token = await this.options.getAuthToken();
+			const url = new URL("/v2/control", toWs(this.options.relayUrl));
+			url.searchParams.set("hostId", this.options.hostId);
+			url.searchParams.set("token", token ?? "");
+			return url.toString();
+		};
+
+		const control = new ReconnectingWebSocket(urlProvider, [], {
+			WebSocket: globalThis.WebSocket,
+			maxReconnectionDelay: 5_000,
+			minReconnectionDelay: 1_000,
+			connectionTimeout: 20_000,
+		});
+		this.control = control;
+
+		control.addEventListener("open", () => {
+			this.lastInboundAt = Date.now();
+			console.log(
+				`[host-service:tunnel-v2] control connected for ${this.options.hostId}`,
+			);
+			control.send(JSON.stringify({ type: "hello", protoVersion: 2 }));
+		});
+
+		control.addEventListener("message", (event) => {
+			this.lastInboundAt = Date.now();
+			let message: ControlServerMessage | { type: "pong" };
+			try {
+				message = JSON.parse(String(event.data));
+			} catch {
+				return;
+			}
+			if (message.type === "stream:dial") {
+				this.handleDial(message);
+			} else if (message.type === "drain") {
+				console.log("[host-service:tunnel-v2] relay drain notice");
+				control.reconnect();
+			}
+		});
+
+		control.addEventListener("close", (event) => {
+			if (event.code === 1008) {
+				console.warn(
+					`[host-service:tunnel-v2] relay rejected connection (${event.reason ?? ""}); partysocket will retry`,
+				);
+			}
+		});
+
+		this.pingTimer = setInterval(() => {
+			if (control.readyState === WebSocket.OPEN) {
+				control.send('{"type":"ping"}');
+			}
+		}, PING_INTERVAL_MS);
+
+		this.watchdogTimer = setInterval(() => {
+			if (control.readyState !== WebSocket.OPEN) return;
+			const silentFor = Date.now() - this.lastInboundAt;
+			if (silentFor > INBOUND_SILENCE_TIMEOUT_MS) {
+				console.warn(
+					`[host-service:tunnel-v2] no inbound traffic for ${silentFor}ms, forcing reconnect`,
+				);
+				control.reconnect();
+			}
+		}, WATCHDOG_INTERVAL_MS);
+	}
+
+	close(): void {
+		this.closed = true;
+		if (this.pingTimer) clearInterval(this.pingTimer);
+		if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+		this.pingTimer = null;
+		this.watchdogTimer = null;
+		this.control?.close(1000, "Shutting down");
+		this.control = null;
+	}
+
+	private dialUrl(ticket: string): string {
+		const url = new URL("/v2/dial", toWs(this.options.relayUrl));
+		url.searchParams.set("hostId", this.options.hostId);
+		url.searchParams.set("ticket", ticket);
+		return url.toString();
+	}
+
+	private handleDial(dial: StreamDial): void {
+		if (dial.kind === "http") {
+			this.handleHttpDial(dial);
+			return;
+		}
+
+		const relayWs = new WebSocket(this.dialUrl(dial.ticket));
+		relayWs.binaryType = "arraybuffer";
+
+		const localUrl = new URL(
+			dial.path,
+			`ws://127.0.0.1:${this.options.localPort}`,
+		);
+		localUrl.searchParams.set("token", this.options.hostServiceSecret);
+		if (dial.query) {
+			for (const [key, value] of new URLSearchParams(dial.query)) {
+				if (key !== "token") localUrl.searchParams.set(key, value);
+			}
+		}
+		const localWs = new WebSocket(localUrl.toString());
+		localWs.binaryType = "arraybuffer";
+
+		pipe(relayWs, localWs);
+		pipe(localWs, relayWs);
+	}
+
+	private handleHttpDial(dial: StreamDial): void {
+		const relayWs = new WebSocket(this.dialUrl(dial.ticket));
+		relayWs.binaryType = "arraybuffer";
+
+		let header: {
+			method: string;
+			path: string;
+			headers: Record<string, string>;
+		} | null = null;
+		const chunks: Uint8Array[] = [];
+
+		relayWs.onmessage = (event) => {
+			const data = event.data;
+			if (typeof data === "string") {
+				let frame: HttpDialFrame;
+				try {
+					frame = JSON.parse(data) as HttpDialFrame;
+				} catch {
+					return;
+				}
+				if (frame.type === "http:request") {
+					header = frame;
+				} else if (frame.type === "http:end") {
+					void this.forwardHttp(relayWs, header, chunks);
+				}
+				return;
+			}
+			if (data instanceof ArrayBuffer) chunks.push(new Uint8Array(data));
+		};
+		relayWs.onerror = () => {
+			try {
+				relayWs.close();
+			} catch {}
+		};
+	}
+
+	private async forwardHttp(
+		relayWs: WebSocket,
+		header: {
+			method: string;
+			path: string;
+			headers: Record<string, string>;
+		} | null,
+		chunks: Uint8Array[],
+	): Promise<void> {
+		if (!header) {
+			relayWs.close(1011, "Missing request header");
+			return;
+		}
+		try {
+			const size = chunks.reduce((n, c) => n + c.byteLength, 0);
+			const body = new Uint8Array(size);
+			let offset = 0;
+			for (const chunk of chunks) {
+				body.set(chunk, offset);
+				offset += chunk.byteLength;
+			}
+			const response = await fetch(
+				`http://127.0.0.1:${this.options.localPort}${header.path}`,
+				{
+					method: header.method,
+					headers: {
+						...header.headers,
+						Authorization: `Bearer ${this.options.hostServiceSecret}`,
+					},
+					body: size > 0 ? body : undefined,
+				},
+			);
+			const responseHeaders: Record<string, string> = {};
+			for (const [key, value] of response.headers.entries()) {
+				responseHeaders[key] = value;
+			}
+			relayWs.send(
+				JSON.stringify({
+					type: "http:response",
+					status: response.status,
+					headers: responseHeaders,
+				}),
+			);
+			const responseBody = new Uint8Array(await response.arrayBuffer());
+			if (responseBody.byteLength > 0) relayWs.send(responseBody);
+			relayWs.send('{"type":"http:end"}');
+		} catch (error) {
+			console.error("[host-service:tunnel-v2] HTTP proxy failed", error);
+			relayWs.send(
+				JSON.stringify({ type: "http:response", status: 502, headers: {} }),
+			);
+			relayWs.send('{"type":"http:end"}');
+		}
+	}
+}
+
+// One-directional splice with buffering until the destination opens. Close on
+// either side tears down the other; error handlers defer to the close that
+// always follows.
+function pipe(from: WebSocket, to: WebSocket): void {
+	const buffered: (string | ArrayBuffer)[] = [];
+
+	from.addEventListener("message", (event) => {
+		const data = event.data as string | ArrayBuffer;
+		if (to.readyState === WebSocket.OPEN) {
+			to.send(data);
+		} else if (to.readyState === WebSocket.CONNECTING) {
+			if (buffered.length < MAX_BUFFERED_FRAMES) buffered.push(data);
+		}
+	});
+	to.addEventListener("open", () => {
+		for (const frame of buffered) to.send(frame);
+		buffered.length = 0;
+	});
+	from.addEventListener("close", (event) => {
+		if (
+			to.readyState === WebSocket.OPEN ||
+			to.readyState === WebSocket.CONNECTING
+		) {
+			try {
+				to.close(event.code === 1006 ? 1011 : event.code, "Peer closed");
+			} catch {
+				try {
+					to.close();
+				} catch {}
+			}
+		}
+	});
+	from.addEventListener("error", () => {
+		// close always follows error
+	});
+}

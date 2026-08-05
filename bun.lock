@@ -647,6 +647,26 @@
         "wrangler": "4.118.0",
       },
     },
+    "apps/relay2": {
+      "name": "@superset/relay2",
+      "version": "0.1.0",
+      "dependencies": {
+        "@superset/shared": "workspace:*",
+        "@superset/trpc": "workspace:*",
+        "@trpc/client": "11.16.0",
+        "hono": "4.12.34",
+        "jose": "6.2.2",
+        "lru-cache": "11.2.7",
+        "partyserver": "0.5.9",
+        "superjson": "2.2.6",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "5.20260801.1",
+        "@superset/typescript": "workspace:*",
+        "typescript": "6.0.3",
+        "wrangler": "4.118.0",
+      },
+    },
     "apps/streams": {
       "name": "streams",
       "version": "0.0.0",
@@ -889,6 +909,7 @@
         "mastracode": "0.18.1",
         "mime-types": "3.0.2",
         "node-pty": "1.2.0-beta.14",
+        "partysocket": "1.3.0",
         "semver": "7.7.4",
         "simple-git": "3.36.0",
         "superjson": "2.2.6",
@@ -2896,6 +2917,8 @@
     "@superset/relay": ["@superset/relay@workspace:apps/relay"],
 
     "@superset/relay-do": ["@superset/relay-do@workspace:apps/relay-do"],
+
+    "@superset/relay2": ["@superset/relay2@workspace:apps/relay2"],
 
     "@superset/sdk": ["@superset/sdk@workspace:packages/sdk"],
 
@@ -5409,6 +5432,8 @@
 
     "partial-json": ["partial-json@0.1.7", "", {}, "sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA=="],
 
+    "partyserver": ["partyserver@0.5.9", "", { "dependencies": { "nanoid": "^5.1.9" }, "peerDependencies": { "@cloudflare/workers-types": "^4.20260424.1 || ^5.20260703.1" } }, "sha512-0T1OGQD9Ggllrlp8Bt8XLOglEEktH4bui28Z1dbSGEX/iFmZnEWR148Qmvc1Od3rl64OAOfVtr2sG4XOMI9Y6Q=="],
+
     "partysocket": ["partysocket@1.3.0", "", { "dependencies": { "event-target-polyfill": "^0.0.4" }, "peerDependencies": { "react": ">=17" }, "optionalPeers": ["react"] }, "sha512-1zToNyolZFK/7nuAw/K2bZrNzFqaZyRoCEkS+9vG6WSC5ikrN6qWRe96q6ImU51uptz2r+dAwSkwhJVdQi4LiA=="],
 
     "patch-console": ["patch-console@2.0.0", "", {}, "sha512-0YNdUceMdaQwoKce1gatDScmMo5pu/tfABfnzEqeG0gtTmd7mh/WcwgUjtAeOU7N8nFFlbQBnFK2gXW5fGvmMA=="],
@@ -7354,6 +7379,8 @@
     "parse5-htmlparser2-tree-adapter/parse5": ["parse5@6.0.1", "", {}, "sha512-Ofn/CTFzRGTTxwpNEs9PP93gXShHcTq255nzRYSKe8AkVpZY7e1fpmTfOyoIvjP5HG7Z2ZM7VS9PPhQGW2pOpw=="],
 
     "parse5-parser-stream/parse5": ["parse5@7.3.0", "", { "dependencies": { "entities": "^6.0.0" } }, "sha512-IInvU7fabl34qmi9gY8XOVxhYyMyuH2xUNpb2q8/Y+7552KlejkRvqvD19nMoUW/uQGGbqNpA6Tufu5FL5BZgw=="],
+
+    "partyserver/nanoid": ["nanoid@5.1.16", "", { "bin": { "nanoid": "bin/nanoid.js" } }, "sha512-kVrnsrJqMR8+oLJnGEmSWw9BivK5mt7H3FZatVRjrc5wGqFYuBxX1yG7+A7Gi5AefkX6t/oCkizcQgpu0cY1dQ=="],
 
     "pino-pretty/pino-abstract-transport": ["pino-abstract-transport@3.0.0", "", { "dependencies": { "split2": "^4.0.0" } }, "sha512-wlfUczU+n7Hy/Ha5j9a/gZNy7We5+cXp8YL+X+PG8S0KXxw7n/JXA3c46Y0zQznIJ83URJiwy7Lh56WLokNuxg=="],
 
