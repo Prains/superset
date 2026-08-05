@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -66,7 +66,8 @@ const SCENARIOS: Scenario[] = [
 	},
 	{
 		name: "abort-mid-tool",
-		prompt: "Run the shell command `sleep 30` and then say done.",
+		prompt:
+			"Run this exact shell command and report its output: for i in $(seq 1 30); do echo tick; sleep 1; done",
 		allowedTools: ["Bash"],
 		decide: (_name, input) => allow(input),
 		abortAfterToolUse: true,
@@ -102,6 +103,16 @@ function optionsFor(
 	};
 }
 
+// Fixtures are committed and public: never ship the recording machine's paths.
+function redact(line: string, cwd: string): string {
+	return line
+		.split(JSON.stringify(cwd).slice(1, -1))
+		.join("/workspace")
+		.split(JSON.stringify(homedir()).slice(1, -1))
+		.join("/home/user")
+		.replace(/\/private\/var\/folders\/[^"\\ ]*/g, "/workspace");
+}
+
 async function record(scenario: Scenario): Promise<void> {
 	const cwd = mkdtempSync(join(tmpdir(), `claude-fixture-${scenario.name}-`));
 	scenario.seed?.(cwd);
@@ -124,7 +135,7 @@ async function record(scenario: Scenario): Promise<void> {
 					message.message.content.some((block) => block.type === "tool_use");
 				if (isToolUse) {
 					sawToolUse = true;
-					setTimeout(() => abortController.abort(), 1500);
+					abortController.abort();
 				}
 			}
 		}
@@ -137,7 +148,9 @@ async function record(scenario: Scenario): Promise<void> {
 		} as unknown as SDKMessage);
 	}
 
-	const lines = messages.map((message) => JSON.stringify(message)).join("\n");
+	const lines = messages
+		.map((message) => redact(JSON.stringify(message), cwd))
+		.join("\n");
 	writeFileSync(join(FIXTURES_DIR, `${scenario.name}.jsonl`), `${lines}\n`);
 
 	const kinds = new Map<string, number>();

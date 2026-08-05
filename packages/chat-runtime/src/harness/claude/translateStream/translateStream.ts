@@ -18,6 +18,10 @@ const IGNORED_SYSTEM_SUBTYPES = new Set([
 	"status",
 	"thinking_tokens",
 	"recorder_abort",
+	"task_started",
+	"task_updated",
+	"task_notification",
+	"task_progress",
 ]);
 
 const IGNORED_TYPES = new Set(["rate_limit_event", "user_replay"]);
@@ -44,10 +48,9 @@ function usageFrom(raw: unknown): Usage | undefined {
 	const number = (value: unknown): number =>
 		typeof value === "number" ? value : 0;
 	return {
-		inputTokens: number(usage.input_tokens),
-		cachedInputTokens:
-			number(usage.cache_read_input_tokens) +
-			number(usage.cache_creation_input_tokens),
+		inputTokens:
+			number(usage.input_tokens) + number(usage.cache_creation_input_tokens),
+		cachedInputTokens: number(usage.cache_read_input_tokens),
 		outputTokens: number(usage.output_tokens),
 	};
 }
@@ -70,6 +73,7 @@ export class ClaudeTranslator {
 	private readonly settledBlocks = new Map<string, number>();
 	private readonly tools = new Map<string, TrackedTool>();
 	private readonly declined = new Set<string>();
+	private interruptReason: string | null = null;
 
 	constructor(private readonly options: ClaudeTranslatorOptions) {}
 
@@ -79,6 +83,10 @@ export class ClaudeTranslator {
 
 	markDeclined(toolUseId: string): void {
 		this.declined.add(toolUseId);
+	}
+
+	markInterrupted(reason: string): void {
+		this.interruptReason = reason;
 	}
 
 	translate(message: unknown): AdapterEvent[] {
@@ -298,7 +306,13 @@ export class ClaudeTranslator {
 
 		if (eventType === "content_block_start") {
 			const index = typeof event.index === "number" ? event.index : 0;
-			this.streamingBlocks.set(index, `${this.currentMessageId}#${index}`);
+			const block = asObject(event.content_block);
+			const toolUseId =
+				asString(block?.type) === "tool_use" ? asString(block?.id) : null;
+			this.streamingBlocks.set(
+				index,
+				toolUseId ?? `${this.currentMessageId}#${index}`,
+			);
 			return [];
 		}
 
@@ -327,6 +341,15 @@ export class ClaudeTranslator {
 
 	private result(envelope: Json): AdapterEvent[] {
 		if (!this.turnId) return [];
+
+		const interruptReason = this.interruptReason;
+		if (interruptReason !== null) {
+			this.interruptReason = null;
+			this.settledBlocks.clear();
+			this.streamingBlocks.clear();
+			return this.interrupt(interruptReason);
+		}
+
 		const completedAtMs = this.now();
 		const isError = envelope.is_error === true;
 		const usage = usageFrom(envelope.usage);
@@ -341,7 +364,12 @@ export class ClaudeTranslator {
 			startedAtMs: this.turnStartedAtMs,
 			completedAtMs,
 			...(usage
-				? { usage: { ...usage, ...(cost ? { costUsd: cost } : {}) } }
+				? {
+						usage: {
+							...usage,
+							...(cost === undefined ? {} : { costUsd: cost }),
+						},
+					}
 				: {}),
 			...(isError
 				? { error: { message: asString(envelope.subtype) ?? "error" } }

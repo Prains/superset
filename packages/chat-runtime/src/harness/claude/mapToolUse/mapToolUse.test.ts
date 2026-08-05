@@ -110,6 +110,71 @@ describe("contentFor", () => {
 			[],
 		);
 	});
+
+	test("applies every MultiEdit step in order, not the top-level strings", () => {
+		const content = contentFor(
+			{
+				id: "toolu_1",
+				name: "MultiEdit",
+				input: {
+					file_path: "/repo/note.txt",
+					edits: [
+						{ old_string: "one", new_string: "1" },
+						{ old_string: "two", new_string: "2" },
+						{ old_string: "x", new_string: "y", replace_all: true },
+					],
+				},
+			},
+			{
+				rawOutput: {
+					filePath: "/repo/note.txt",
+					originalFile: "one two x x\n",
+				},
+				modelFacingText: "updated",
+				isError: false,
+			},
+		);
+
+		expect(content).toEqual([
+			{
+				type: "diff",
+				path: "/repo/note.txt",
+				oldText: "one two x x\n",
+				newText: "1 2 y y\n",
+			},
+		]);
+	});
+
+	test("renders a subagent report but never its internal metadata", () => {
+		const metadata = {
+			agentId: "a1f0309f3871e6a02",
+			outputFile: "/workspace/.agent/out.json",
+			status: "running",
+		};
+
+		expect(
+			contentFor(
+				{ id: "toolu_1", name: "Agent", input: {} },
+				{
+					rawOutput: metadata,
+					modelFacingText:
+						"Async agent launched successfully. agentId: a1f0309f3871e6a02",
+					isError: false,
+				},
+			),
+		).toEqual([]);
+
+		expect(
+			contentFor(
+				{ id: "toolu_1", name: "Agent", input: {} },
+				{
+					rawOutput: { ...metadata, report: "ping" },
+					modelFacingText: "internal metadata",
+					isError: false,
+				},
+			),
+		).toEqual([{ type: "text", text: "ping" }]);
+	});
 });
 
 describe("locationsFor", () => {

@@ -1,6 +1,7 @@
 export type {
 	ClaudeAdapterOptions,
 	ClaudeQuery,
+	ClaudeSession,
 } from "./claudeAdapter";
 export { ClaudeAdapter } from "./claudeAdapter";
 export type { ToolOutcome, ToolUse } from "./mapToolUse";

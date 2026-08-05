@@ -30,10 +30,14 @@ type QueryOptions = {
 	) => Promise<PermissionResult>;
 };
 
+export type ClaudeSession = AsyncIterable<unknown> & {
+	interrupt?: () => Promise<void>;
+};
+
 export type ClaudeQuery = (params: {
 	prompt: AsyncIterable<unknown>;
 	options: QueryOptions;
-}) => AsyncIterable<unknown>;
+}) => ClaudeSession;
 
 export type ClaudeAdapterOptions = {
 	query: ClaudeQuery;
@@ -137,6 +141,7 @@ export class ClaudeAdapter implements HarnessAdapter {
 	private readonly approvals = new Map<string, PendingApproval>();
 	private readonly abortController = new AbortController();
 	private translator: ClaudeTranslator | null = null;
+	private session: ClaudeSession | null = null;
 	private pump: Promise<void> | null = null;
 	private disposed = false;
 
@@ -165,6 +170,7 @@ export class ClaudeAdapter implements HarnessAdapter {
 			},
 		});
 
+		this.session = stream;
 		this.pump = this.run(stream, translator);
 		const events = this.events;
 		return {
@@ -184,7 +190,15 @@ export class ClaudeAdapter implements HarnessAdapter {
 	}
 
 	cancelTurn(): void {
-		this.abortController.abort();
+		const interrupt = this.session?.interrupt;
+		if (!interrupt) {
+			this.abortController.abort();
+			return;
+		}
+		this.translator?.markInterrupted("Turn canceled by user");
+		void interrupt.call(this.session).catch(() => {
+			this.abortController.abort();
+		});
 	}
 
 	respondToApproval(approvalId: string, decision: Decision): void {

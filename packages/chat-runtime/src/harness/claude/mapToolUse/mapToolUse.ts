@@ -107,6 +107,43 @@ function applyEdit(
 		: original.replace(oldString, newString);
 }
 
+type EditStep = {
+	oldString: string;
+	newString: string;
+	replaceAll: boolean;
+};
+
+function editSteps(
+	use: ToolUse,
+	output: Record<string, unknown> | null,
+): EditStep[] {
+	const edits = Array.isArray(use.input.edits) ? use.input.edits : null;
+	if (edits) {
+		return edits.flatMap((raw) => {
+			const step = raw as Record<string, unknown>;
+			const oldString = text(step.old_string);
+			if (oldString === null) return [];
+			return [
+				{
+					oldString,
+					newString: text(step.new_string) ?? "",
+					replaceAll: step.replace_all === true,
+				},
+			];
+		});
+	}
+
+	const oldString = text(output?.oldString) ?? text(use.input.old_string);
+	if (oldString === null) return [];
+	return [
+		{
+			oldString,
+			newString: text(output?.newString) ?? text(use.input.new_string) ?? "",
+			replaceAll: output?.replaceAll === true || use.input.replace_all === true,
+		},
+	];
+}
+
 function editContent(use: ToolUse, outcome: ToolOutcome | null): ToolContent[] {
 	const output =
 		outcome && typeof outcome.rawOutput === "object" && outcome.rawOutput
@@ -116,23 +153,27 @@ function editContent(use: ToolUse, outcome: ToolOutcome | null): ToolContent[] {
 	const path =
 		text(output?.filePath) ?? text(use.input.file_path) ?? "unknown file";
 	const original = text(output?.originalFile);
-	const oldString = text(output?.oldString) ?? text(use.input.old_string);
-	const newString = text(output?.newString) ?? text(use.input.new_string) ?? "";
+	const steps = editSteps(use, output);
 
-	if (original === null || oldString === null) return [];
-	return [
-		{
-			type: "diff",
-			path,
-			oldText: original,
-			newText: applyEdit(
-				original,
-				oldString,
-				newString,
-				output?.replaceAll === true || use.input.replace_all === true,
-			),
-		},
-	];
+	if (original === null || steps.length === 0) return [];
+	const newText = steps.reduce(
+		(current, step) =>
+			applyEdit(current, step.oldString, step.newString, step.replaceAll),
+		original,
+	);
+
+	return [{ type: "diff", path, oldText: original, newText }];
+}
+
+function subagentContent(outcome: ToolOutcome | null): ToolContent[] {
+	const output =
+		outcome && typeof outcome.rawOutput === "object" && outcome.rawOutput
+			? (outcome.rawOutput as Record<string, unknown>)
+			: null;
+
+	const report =
+		text(output?.report) ?? text(output?.result) ?? text(output?.output);
+	return report ? [{ type: "text", text: report }] : [];
 }
 
 function writeContent(use: ToolUse): ToolContent[] {
@@ -179,6 +220,9 @@ export function contentFor(
 			return writeContent(use);
 		case "Bash":
 			return terminalContent(use, outcome);
+		case "Task":
+		case "Agent":
+			return subagentContent(outcome);
 		default: {
 			const body = outcome?.modelFacingText;
 			return body ? [{ type: "text", text: body }] : [];
