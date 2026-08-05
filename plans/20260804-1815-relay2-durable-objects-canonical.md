@@ -37,8 +37,9 @@ A working prototype already validated the platform (PR #6165, `apps/relay-do`): 
 - [x] (2026-08-04) Wire-compatible prototype `apps/relay-do` built, deployed to `superset-relay-do.avi-6ac.workers.dev`, and validated end-to-end in production with a sandbox host: latency parity with Fly, deploy-survival ≤10s, 1MB frame limit shown to be a non-issue. Results table in PR #6165 comment.
 - [x] (2026-08-04) Desktop CSP gap discovered (packaged app blocks `workers.dev` fetches) and canary-channel fix shipped on branch `relay-do-prototype`.
 - [x] (2026-08-04) `setOnline` write-race demonstrated in production (dying host's `false` clobbered new host's `true` → host showed offline while tunnel was live). Confirms the Fly relay's write-versioning is load-bearing and must exist in relay2.
-- [ ] Milestone 1: scaffold, edge auth, DO skeleton, CI deploy with loud failure.
-- [ ] Milestone 2: protocol v2 core (control channel + dial-back streams) + host-service `tunnel-client-v2`.
+- [x] (2026-08-05) Spike RESOLVED — partyserver adopted: `apps/relay2` built on `partyserver` (HostTunnel extends Server, hibernate: true, tags via getConnectionTags) + `partysocket/ws` for the host control channel. The dial-back shape fit the framework without friction; raw-DO fallback not needed.
+- [x] (2026-08-05) Milestone 1 (canary scope): `apps/relay2` scaffolded, edge auth ported, deployed to `superset-relay2.avi-6ac.workers.dev`. Remaining from M1: CI deploy workflow with loud Slack failure (D-10), versioned `host.setOnline` API column (interim: version enforced inside the DO only).
+- [x] (2026-08-05) Milestone 2 core COMPLETE: tunnel-v2 protocol (`packages/shared/src/tunnel-v2-protocol.ts`), ticketed dial-back streams spliced verbatim, HTTP-over-dial, hibernation auto-response pings, `TunnelClientV2` in host-service. Protocol selection: host probes relay `/health` for `proto: 2` (negotiation instead of config plumbing — supersedes the flag-payload `proto` idea). Client-facing routes wire-identical to v1, so desktop/web/CLI clients need zero changes pre-M3. E2E probe (`apps/relay2/scripts/e2e-probe.ts`) ALL PASS against the deployed Worker: text + 64KB binary splice intact, HTTP proxy with host-secret injection, offline detection.
 - [ ] Milestone 3: resumable streams (sequence numbers, ring buffer, re-attach).
 - [ ] Milestone 4: client adoption (desktop/web/CLI) + API-served relay endpoint config + CSP.
 - [ ] Milestone 5: rollout, decommission `apps/relay` + Fly fleet + Upstash, rename `relay2` → `relay`.
@@ -53,6 +54,10 @@ A working prototype already validated the platform (PR #6165, `apps/relay-do`): 
   Evidence: host log `no inbound traffic for 177484ms, forcing reconnect` after a sprite suspend.
 - Observation: PTY output naturally chunks at ≤~12KB per WebSocket frame through the tunnel, so Durable Objects' 1MB message limit is irrelevant for terminal traffic.
   Evidence: 1.49MB burst → 1,628 frames, max 12,363 bytes (prototype test harness).
+- Observation: A freshly deployed Worker + new DO class can serve 500 (Cloudflare error 1104) and route-level 404s for a minute or two after `wrangler deploy` while the deployment settles; the identical code passed all probes minutes later. Deploy verification (and the future CI health check) must retry before declaring failure.
+  Evidence: first post-deploy probe of relay2 failed 5/7 checks; a re-run after redeploy passed 7/7 twice with only logging changed.
+- Observation: `apps/electric-proxy` typecheck was already failing (23 drizzle table-variance errors in `src/where.ts`) on the base commit before any relay2 work — pre-existing breakage, not introduced here, but it makes root `bun run typecheck` red on this branch.
+  Evidence: `git stash` → same 23 errors on the untouched tree.
 
 ## Decision Log
 
