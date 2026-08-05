@@ -11,7 +11,10 @@ import {
 	TERMINAL_SESSION_KILLED_MESSAGE,
 	TerminalKilledError,
 } from "main/lib/terminal/errors";
-import { getTerminalHostClient } from "main/lib/terminal-host/client";
+import {
+	getTerminalHostClient,
+	TerminalHostClientDisposedError,
+} from "main/lib/terminal-host/client";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -181,6 +184,13 @@ export const createTerminalRouter = () => {
 						throw new TRPCError({
 							code: "BAD_REQUEST",
 							message: TERMINAL_ATTACH_CANCELED_MESSAGE,
+						});
+					}
+					if (error instanceof TerminalHostClientDisposedError) {
+						throw new TRPCError({
+							code: "PRECONDITION_FAILED",
+							message: "Terminal host client disposed",
+							cause: { kind: "TERMINAL_HOST_CLIENT_DISPOSED" },
 						});
 					}
 					if (DEBUG_TERMINAL) {
