@@ -36,15 +36,20 @@ import {
 	getHostServiceWsToken,
 } from "renderer/lib/host-service-auth";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
+import { HighlightText } from "renderer/routes/_authenticated/settings/components/HighlightText";
+import { useSettingsSearchQuery } from "renderer/stores/settings-state";
 
 const REFETCH_WHILE_OPEN_MS = 5_000;
 
 export function V2SessionsSection() {
+	const searchQuery = useSettingsSearchQuery();
 	const { activeHostUrl } = useLocalHostService();
 	if (!activeHostUrl) {
 		return (
 			<div className="space-y-1">
-				<h3 className="text-sm font-medium">Terminal daemon</h3>
+				<h3 className="text-sm font-medium">
+					<HighlightText text="Terminal daemon" query={searchQuery} />
+				</h3>
 				<p className="text-sm text-muted-foreground">
 					Host service is starting…
 				</p>

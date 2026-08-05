@@ -9,10 +9,12 @@ import { apiTrpcClient } from "renderer/lib/api-trpc-client";
 import { authClient } from "renderer/lib/auth-client";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
+import { useSettingsSearchQuery } from "renderer/stores/settings-state";
 import {
 	getImageExtensionFromMimeType,
 	parseBase64DataUrl,
 } from "shared/file-types";
+import { HighlightText } from "../../../components/HighlightText";
 import {
 	isItemVisible,
 	SETTING_ITEM_ID,
@@ -183,12 +185,18 @@ interface SettingRowProps {
 }
 
 function SettingRow({ label, hint, children }: SettingRowProps) {
+	const searchQuery = useSettingsSearchQuery();
+
 	return (
 		<div className="flex items-center justify-between gap-8">
 			<div className="flex-1 min-w-0">
-				<div className="text-sm font-medium">{label}</div>
+				<div className="text-sm font-medium">
+					<HighlightText text={label} query={searchQuery} />
+				</div>
 				{hint && (
-					<div className="text-xs text-muted-foreground mt-0.5">{hint}</div>
+					<div className="text-xs text-muted-foreground mt-0.5">
+						<HighlightText text={hint} query={searchQuery} />
+					</div>
 				)}
 			</div>
 			<div className="flex-shrink-0">{children}</div>

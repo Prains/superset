@@ -6,10 +6,12 @@ import {
 	useIsV2OnlyUser,
 } from "renderer/hooks/useIsV2CloudEnabled";
 import { track } from "renderer/lib/analytics";
+import { HighlightText } from "renderer/routes/_authenticated/settings/components/HighlightText";
 import {
 	useInlineWorkspacePortsEnabled,
 	useInlineWorkspacePortsStore,
 } from "renderer/stores/inline-workspace-ports";
+import { useSettingsSearchQuery } from "renderer/stores/settings-state";
 import { useOpenV1ImportModal } from "renderer/stores/v1-import-modal";
 import { useV2LocalOverrideStore } from "renderer/stores/v2-local-override";
 import {
@@ -30,6 +32,7 @@ interface ExperimentalSettingsProps {
 export function ExperimentalSettings({
 	visibleItems,
 }: ExperimentalSettingsProps) {
+	const searchQuery = useSettingsSearchQuery();
 	const showSupersetV2 = isItemVisible(
 		SETTING_ITEM_ID.EXPERIMENTAL_SUPERSET_V2,
 		visibleItems,
@@ -77,7 +80,7 @@ export function ExperimentalSettings({
 					<div className="flex items-center justify-between gap-6">
 						<div className="min-w-0 flex-1 space-y-0.5">
 							<Label htmlFor="superset-v2" className="text-sm font-medium">
-								Try Superset v2
+								<HighlightText text="Try Superset v2" query={searchQuery} />
 							</Label>
 							<p className="text-xs text-muted-foreground">
 								Use the new workspace experience.
@@ -99,7 +102,9 @@ export function ExperimentalSettings({
 				{showV1Migration && !isV2OnlyUser && (
 					<div className="flex items-center justify-between gap-6">
 						<div className="min-w-0 flex-1 space-y-0.5">
-							<Label className="text-sm font-medium">Import from v1</Label>
+							<Label className="text-sm font-medium">
+								<HighlightText text="Import from v1" query={searchQuery} />
+							</Label>
 							<p className="text-xs text-muted-foreground">
 								Bring v1 projects, workspaces, and terminal presets over to v2.
 								Each item is imported individually and can be retried.
@@ -129,7 +134,10 @@ export function ExperimentalSettings({
 								htmlFor="inline-workspace-ports"
 								className="text-sm font-medium"
 							>
-								Inline workspace ports
+								<HighlightText
+									text="Inline workspace ports"
+									query={searchQuery}
+								/>
 							</Label>
 							<p className="text-xs text-muted-foreground">
 								Show detected ports under each workspace in the sidebar instead
@@ -147,7 +155,7 @@ export function ExperimentalSettings({
 					<div className="flex items-center justify-between gap-6">
 						<div className="min-w-0 flex-1 space-y-0.5">
 							<Label htmlFor="workspace-agents" className="text-sm font-medium">
-								Workspace agents
+								<HighlightText text="Workspace agents" query={searchQuery} />
 							</Label>
 							<p className="text-xs text-muted-foreground">
 								Show running agents under each workspace in the sidebar, with
