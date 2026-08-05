@@ -1,6 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { HarnessAdapter } from "../../types";
-import type { ClaudeQuery } from "../claudeAdapter";
 import { ClaudeAdapter } from "../claudeAdapter";
 
 /**
@@ -8,5 +7,5 @@ import { ClaudeAdapter } from "../claudeAdapter";
  * injected so tests never spawn a Claude Code process.
  */
 export function createClaudeAdapter(): HarnessAdapter {
-	return new ClaudeAdapter({ query: query as unknown as ClaudeQuery });
+	return new ClaudeAdapter({ query });
 }
