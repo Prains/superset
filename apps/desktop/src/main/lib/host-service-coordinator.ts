@@ -785,6 +785,15 @@ export class HostServiceCoordinator extends EventEmitter {
 			HOST_MIGRATIONS_FOLDER: app.isPackaged
 				? path.join(process.resourcesPath, "resources/host-migrations")
 				: path.join(app.getAppPath(), "../../packages/host-service/drizzle"),
+			// chat.db's migrations ship the same way host.db's do: the bundled
+			// host-service can't resolve them from its own module path, so the
+			// folder travels as a resource and the path comes in as env.
+			SUPERSET_CHAT_V3_MIGRATIONS: app.isPackaged
+				? path.join(process.resourcesPath, "resources/chat-migrations")
+				: path.join(
+						app.getAppPath(),
+						"../../packages/chat-runtime/src/db/drizzle",
+					),
 			DESKTOP_VITE_PORT: String(sharedEnv.DESKTOP_VITE_PORT),
 			SUPERSET_HOME_DIR: SUPERSET_HOME_DIR,
 			SUPERSET_LEGACY_WORKTREE_BASE_DIR: row?.worktreeBaseDir ?? "",
