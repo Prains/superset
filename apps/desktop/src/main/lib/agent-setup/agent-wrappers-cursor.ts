@@ -6,9 +6,14 @@ import {
 	buildWrapperScript,
 	createWrapper,
 	isSupersetManagedHookCommand,
-	reconcileManagedEntries,
 	writeFileIfChanged,
 } from "./agent-wrappers-common";
+import {
+	ensureManagedJsonHooks,
+	getManagedJsonHooksContent,
+	type ManagedJsonHooksSpec,
+	removeManagedJsonHooks,
+} from "./managed-json-hooks";
 import { HOOKS_DIR } from "./paths";
 
 export const CURSOR_HOOK_SCRIPT_NAME = "cursor-hook.sh";
@@ -28,12 +33,6 @@ interface CursorHookEntry {
 	[key: string]: unknown;
 }
 
-interface CursorHooksJson {
-	version?: number;
-	hooks?: Record<string, CursorHookEntry[]>;
-	[key: string]: unknown;
-}
-
 export function getCursorHookScriptPath(): string {
 	return path.join(HOOKS_DIR, CURSOR_HOOK_SCRIPT_NAME);
 }
@@ -49,59 +48,51 @@ export function getCursorHookScriptContent(): string {
 		.replaceAll("{{DEFAULT_PORT}}", String(env.DESKTOP_NOTIFICATIONS_PORT));
 }
 
+// Cursor invokes the hook script with the event name as argv; the script
+// path is absolute (per-install), so the outside-Superset guard lives inside
+// the script rather than in the registered command.
+const CURSOR_MANAGED_EVENT_ARGS: Record<string, string> = {
+	sessionStart: "SessionStart",
+	sessionEnd: "SessionEnd",
+	beforeSubmitPrompt: "Start",
+	stop: "Stop",
+	beforeShellExecution: "PermissionRequest",
+	beforeMCPExecution: "PermissionRequest",
+};
+
+function cursorHooksSpec(
+	hookScriptPath: string,
+): ManagedJsonHooksSpec<CursorHookEntry> {
+	return {
+		fileLabel: "Cursor hooks.json",
+		agentLabel: "Cursor",
+		getFilePath: getCursorGlobalHooksJsonPath,
+		eventsContainerKey: "hooks",
+		desiredEntriesByEvent: Object.fromEntries(
+			Object.entries(CURSOR_MANAGED_EVENT_ARGS).map(([eventName, arg]) => [
+				eventName,
+				[{ command: `${hookScriptPath} ${arg}` }],
+			]),
+		),
+		cleanEntry: (entry) =>
+			entry.command?.includes(hookScriptPath) ||
+			isSupersetManagedHookCommand(entry.command, CURSOR_HOOK_SCRIPT_NAME)
+				? null
+				: entry,
+		applyRootDefaults: (root) => {
+			if (!root.version) root.version = 1;
+		},
+	};
+}
+
 /**
  * Reads existing ~/.cursor/hooks.json, merges our hook entries (identified by
  * hook script path), and preserves any user-defined hooks.
  */
-export function getCursorHooksJsonContent(hookScriptPath: string): string {
-	const globalPath = getCursorGlobalHooksJsonPath();
-
-	let existing: CursorHooksJson = {};
-	try {
-		if (fs.existsSync(globalPath)) {
-			existing = JSON.parse(fs.readFileSync(globalPath, "utf-8"));
-		}
-	} catch {
-		console.warn(
-			"[agent-setup] Could not parse existing ~/.cursor/hooks.json, merging carefully",
-		);
-	}
-
-	if (!existing.version) {
-		existing.version = 1;
-	}
-	if (!existing.hooks || typeof existing.hooks !== "object") {
-		existing.hooks = {};
-	}
-
-	const ourHooks: Record<string, CursorHookEntry> = {
-		sessionStart: { command: `${hookScriptPath} SessionStart` },
-		sessionEnd: { command: `${hookScriptPath} SessionEnd` },
-		beforeSubmitPrompt: { command: `${hookScriptPath} Start` },
-		stop: { command: `${hookScriptPath} Stop` },
-		beforeShellExecution: {
-			command: `${hookScriptPath} PermissionRequest`,
-		},
-		beforeMCPExecution: {
-			command: `${hookScriptPath} PermissionRequest`,
-		},
-	};
-
-	for (const [eventName, ourEntry] of Object.entries(ourHooks)) {
-		const current = existing.hooks[eventName];
-		const { entries } = reconcileManagedEntries({
-			current,
-			desired: [ourEntry],
-			isManaged: (entry: CursorHookEntry) =>
-				entry.command?.includes(hookScriptPath) ||
-				isSupersetManagedHookCommand(entry.command, CURSOR_HOOK_SCRIPT_NAME),
-			isEquivalent: (entry: CursorHookEntry, desiredEntry: CursorHookEntry) =>
-				entry.command === desiredEntry.command,
-		});
-		existing.hooks[eventName] = entries;
-	}
-
-	return JSON.stringify(existing, null, 2);
+export function getCursorHooksJsonContent(
+	hookScriptPath: string,
+): string | null {
+	return getManagedJsonHooksContent(cursorHooksSpec(hookScriptPath));
 }
 
 export function createCursorHookScript(): void {
@@ -125,63 +116,9 @@ export function createCursorAgentWrapper(): void {
  * user hooks. No-op when the file does not exist.
  */
 export function removeCursorManagedHooks(): void {
-	const globalPath = getCursorGlobalHooksJsonPath();
-	if (!fs.existsSync(globalPath)) return;
-
-	let existing: CursorHooksJson;
-	try {
-		existing = JSON.parse(fs.readFileSync(globalPath, "utf-8"));
-	} catch {
-		console.warn(
-			"[agent-setup] Could not parse existing ~/.cursor/hooks.json; skipping Cursor hook removal",
-		);
-		return;
-	}
-	if (
-		typeof existing !== "object" ||
-		existing === null ||
-		!existing.hooks ||
-		typeof existing.hooks !== "object"
-	) {
-		return;
-	}
-
-	const hookScriptPath = getCursorHookScriptPath();
-	for (const [eventName, entries] of Object.entries(existing.hooks)) {
-		if (!Array.isArray(entries)) continue;
-		const filtered = entries.filter(
-			(entry: CursorHookEntry) =>
-				!(
-					entry.command?.includes(hookScriptPath) ||
-					isSupersetManagedHookCommand(entry.command, CURSOR_HOOK_SCRIPT_NAME)
-				),
-		);
-		if (filtered.length === 0) {
-			delete existing.hooks[eventName];
-		} else {
-			existing.hooks[eventName] = filtered;
-		}
-	}
-
-	const changed = writeFileIfChanged(
-		globalPath,
-		JSON.stringify(existing, null, 2),
-		0o644,
-	);
-	console.log(
-		`[agent-setup] ${changed ? "Removed" : "Verified no"} Cursor managed hooks`,
-	);
+	removeManagedJsonHooks(cursorHooksSpec(getCursorHookScriptPath()));
 }
 
 export function createCursorHooksJson(): void {
-	const hookScriptPath = getCursorHookScriptPath();
-	const globalPath = getCursorGlobalHooksJsonPath();
-	const content = getCursorHooksJsonContent(hookScriptPath);
-
-	const dir = path.dirname(globalPath);
-	fs.mkdirSync(dir, { recursive: true });
-	const changed = writeFileIfChanged(globalPath, content, 0o644);
-	console.log(
-		`[agent-setup] ${changed ? "Updated" : "Verified"} Cursor hooks.json`,
-	);
+	ensureManagedJsonHooks(cursorHooksSpec(getCursorHookScriptPath()));
 }

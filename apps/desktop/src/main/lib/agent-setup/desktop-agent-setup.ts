@@ -41,63 +41,97 @@ import {
 	removeVibeManagedHooks,
 } from "./agent-wrappers";
 import {
-	DESKTOP_AGENT_SETUP_BOOTSTRAP_ACTIONS,
 	DESKTOP_AGENT_SETUP_TARGETS,
-	type DesktopAgentSetupAction,
-	type DesktopAgentTeardownAction,
+	type DesktopAgentSetupTargetId,
 } from "./desktop-agent-capabilities";
 import { createNotifyScript } from "./notify-hook";
 
-const DESKTOP_AGENT_SETUP_RUNNERS: Record<DesktopAgentSetupAction, () => void> =
-	{
-		"notify-script": createNotifyScript,
-		"cleanup-global-opencode-plugin": cleanupGlobalOpenCodePlugin,
-		"amp-plugin": createAmpPlugin,
-		"amp-wrapper": createAmpWrapper,
-		"claude-settings-json": createClaudeSettingsJson,
-		"claude-wrapper": createClaudeWrapper,
-		"codex-hooks-json": createCodexHooksJson,
-		"codex-wrapper": createCodexWrapper,
-		"droid-wrapper": createDroidWrapper,
-		"droid-settings-json": createDroidSettingsJson,
-		"opencode-plugin": createOpenCodePlugin,
-		"opencode-wrapper": createOpenCodeWrapper,
-		"pi-extension": createPiExtension,
-		"cursor-hook-script": createCursorHookScript,
-		"cursor-agent-wrapper": createCursorAgentWrapper,
-		"cursor-hooks-json": createCursorHooksJson,
-		"gemini-hook-script": createGeminiHookScript,
-		"gemini-wrapper": createGeminiWrapper,
-		"gemini-settings-json": createGeminiSettingsJson,
-		"kimi-config-toml": createKimiConfigToml,
-		"kimi-wrapper": createKimiWrapper,
-		"grok-hooks-json": createGrokHooksJson,
-		"grok-config-toml": createGrokConfigToml,
-		"grok-wrapper": createGrokWrapper,
-		"mastra-wrapper": createMastraWrapper,
-		"mastra-hooks-json": createMastraHooksJson,
-		"copilot-hook-script": createCopilotHookScript,
-		"copilot-wrapper": createCopilotWrapper,
-		"vibe-hooks-toml": createVibeHooksToml,
-		"vibe-wrapper": createVibeWrapper,
-	};
+/** Shared prerequisites: per-agent hooks reference the notify script. */
+const BOOTSTRAP_SETUP: readonly (() => void)[] = [
+	cleanupGlobalOpenCodePlugin,
+	createNotifyScript,
+];
 
-const DESKTOP_AGENT_TEARDOWN_RUNNERS: Record<
-	DesktopAgentTeardownAction,
-	() => void
+interface AgentSetupDefinition {
+	/** Writers that (re)register the agent's Superset integration. */
+	setup: readonly (() => void)[];
+	/**
+	 * Removes Superset's footprint from the agent's global config when the
+	 * user disables its hook integration. Wrappers and scripts under
+	 * ~/.superset/ stay — they are Superset-owned and inert outside its
+	 * terminals. Absent when the agent has no global footprint (Copilot,
+	 * OpenCode).
+	 */
+	teardown?: readonly (() => void)[];
+}
+
+const AGENT_SETUP_DEFINITIONS: Record<
+	DesktopAgentSetupTargetId,
+	AgentSetupDefinition
 > = {
-	"amp-plugin-remove": removeAmpPlugin,
-	"claude-settings-json-remove": removeClaudeManagedHooks,
-	"codex-hooks-json-remove": removeCodexManagedHooks,
-	"droid-settings-json-remove": removeDroidManagedHooks,
-	"pi-extension-remove": removePiExtension,
-	"cursor-hooks-json-remove": removeCursorManagedHooks,
-	"gemini-settings-json-remove": removeGeminiManagedHooks,
-	"kimi-config-toml-remove": removeKimiManagedHooks,
-	"grok-hooks-remove": removeGrokManagedHooks,
-	"mastra-hooks-json-remove": removeMastraManagedHooks,
-	"vibe-hooks-toml-remove": removeVibeManagedHooks,
+	amp: {
+		setup: [createAmpPlugin, createAmpWrapper],
+		teardown: [removeAmpPlugin],
+	},
+	claude: {
+		setup: [createClaudeSettingsJson, createClaudeWrapper],
+		teardown: [removeClaudeManagedHooks],
+	},
+	codex: {
+		setup: [createCodexHooksJson, createCodexWrapper],
+		teardown: [removeCodexManagedHooks],
+	},
+	droid: {
+		setup: [createDroidWrapper, createDroidSettingsJson],
+		teardown: [removeDroidManagedHooks],
+	},
+	opencode: {
+		setup: [createOpenCodePlugin, createOpenCodeWrapper],
+	},
+	pi: {
+		setup: [createPiExtension],
+		teardown: [removePiExtension],
+	},
+	"cursor-agent": {
+		setup: [
+			createCursorHookScript,
+			createCursorAgentWrapper,
+			createCursorHooksJson,
+		],
+		teardown: [removeCursorManagedHooks],
+	},
+	gemini: {
+		setup: [
+			createGeminiHookScript,
+			createGeminiWrapper,
+			createGeminiSettingsJson,
+		],
+		teardown: [removeGeminiManagedHooks],
+	},
+	mastracode: {
+		setup: [createMastraWrapper, createMastraHooksJson],
+		teardown: [removeMastraManagedHooks],
+	},
+	kimi: {
+		setup: [createKimiConfigToml, createKimiWrapper],
+		teardown: [removeKimiManagedHooks],
+	},
+	grok: {
+		setup: [createGrokHooksJson, createGrokConfigToml, createGrokWrapper],
+		teardown: [removeGrokManagedHooks],
+	},
+	copilot: {
+		setup: [createCopilotHookScript, createCopilotWrapper],
+	},
+	vibe: {
+		setup: [createVibeHooksToml, createVibeWrapper],
+		teardown: [removeVibeManagedHooks],
+	},
 };
+
+function run(actions: readonly (() => void)[] | undefined): void {
+	for (const action of actions ?? []) action();
+}
 
 interface SetupDesktopAgentCapabilitiesOptions {
 	/**
@@ -112,44 +146,29 @@ export function setupDesktopAgentCapabilities({
 	disabledAgentIds = [],
 }: SetupDesktopAgentCapabilitiesOptions = {}): void {
 	const disabled = new Set(disabledAgentIds);
-	for (const action of DESKTOP_AGENT_SETUP_BOOTSTRAP_ACTIONS) {
-		DESKTOP_AGENT_SETUP_RUNNERS[action]();
-	}
+	run(BOOTSTRAP_SETUP);
 
 	for (const target of DESKTOP_AGENT_SETUP_TARGETS) {
+		const definition = AGENT_SETUP_DEFINITIONS[target.id];
 		if (disabled.has(target.id)) {
-			runTeardownActions(target);
-			continue;
+			run(definition.teardown);
+		} else {
+			run(definition.setup);
 		}
-		for (const action of target.setupActions) {
-			DESKTOP_AGENT_SETUP_RUNNERS[action]();
-		}
-	}
-}
-
-function runTeardownActions(
-	target: (typeof DESKTOP_AGENT_SETUP_TARGETS)[number],
-): void {
-	if (!("teardownActions" in target)) return;
-	for (const action of target.teardownActions) {
-		DESKTOP_AGENT_TEARDOWN_RUNNERS[action]();
 	}
 }
 
 /**
- * Re-run setupActions for one agent. Bootstrap actions run first because
- * per-agent hooks reference the shared notify script — without them the
- * per-agent setup isn't self-sufficient. Returns `false` for unknown ids.
+ * Re-run setup for one agent. Bootstrap actions run first because per-agent
+ * hooks reference the shared notify script — without them the per-agent setup
+ * isn't self-sufficient. Returns `false` for unknown ids.
  */
 export function setupSingleAgent(agentId: string): boolean {
-	const target = DESKTOP_AGENT_SETUP_TARGETS.find((t) => t.id === agentId);
-	if (!target) return false;
-	for (const action of DESKTOP_AGENT_SETUP_BOOTSTRAP_ACTIONS) {
-		DESKTOP_AGENT_SETUP_RUNNERS[action]();
-	}
-	for (const action of target.setupActions) {
-		DESKTOP_AGENT_SETUP_RUNNERS[action]();
-	}
+	const definition =
+		AGENT_SETUP_DEFINITIONS[agentId as DesktopAgentSetupTargetId];
+	if (!definition) return false;
+	run(BOOTSTRAP_SETUP);
+	run(definition.setup);
 	return true;
 }
 
@@ -159,8 +178,9 @@ export function setupSingleAgent(agentId: string): boolean {
  * actions (no global footprint to remove).
  */
 export function teardownSingleAgent(agentId: string): boolean {
-	const target = DESKTOP_AGENT_SETUP_TARGETS.find((t) => t.id === agentId);
-	if (!target) return false;
-	runTeardownActions(target);
+	const definition =
+		AGENT_SETUP_DEFINITIONS[agentId as DesktopAgentSetupTargetId];
+	if (!definition) return false;
+	run(definition.teardown);
 	return true;
 }

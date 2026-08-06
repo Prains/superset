@@ -86,42 +86,20 @@ export function isSupersetManagedHookCommand(
 	return SUPERSET_MANAGED_HOOK_PATH_PATTERN.test(normalized);
 }
 
-interface ReconcileManagedEntriesOptions<T> {
-	current: T[] | undefined;
-	desired: T[];
-	isManaged: (entry: T) => boolean;
-	isEquivalent: (entry: T, desiredEntry: T) => boolean;
-}
-
-interface ReconcileManagedEntriesResult<T> {
-	entries: T[];
-	replacedManagedEntries: T[];
-}
-
-export function reconcileManagedEntries<T>({
-	current,
-	desired,
-	isManaged,
-	isEquivalent,
-}: ReconcileManagedEntriesOptions<T>): ReconcileManagedEntriesResult<T> {
-	const existing = Array.isArray(current) ? current : [];
-	const entries: T[] = [];
-	const replacedManagedEntries: T[] = [];
-
-	for (const entry of existing) {
-		if (!isManaged(entry)) {
-			entries.push(entry);
-			continue;
-		}
-
-		if (!desired.some((desiredEntry) => isEquivalent(entry, desiredEntry))) {
-			replacedManagedEntries.push(entry);
-		}
-	}
-
-	entries.push(...desired);
-
-	return { entries, replacedManagedEntries };
+/**
+ * Recognizes every form of Superset's notify hook command: the current
+ * guarded form (dynamic marker), a current absolute notify path, and stale
+ * absolute paths from other installs/worktrees.
+ */
+export function isManagedNotifyCommand(
+	command: string | undefined,
+	notifyScriptPath: string,
+): boolean {
+	return Boolean(
+		command?.includes(notifyScriptPath) ||
+			command?.includes(DYNAMIC_NOTIFY_PATH_MARKER) ||
+			isSupersetManagedHookCommand(command, NOTIFY_SCRIPT_NAME),
+	);
 }
 
 function buildRealBinaryResolver(): string {
