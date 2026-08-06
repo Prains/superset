@@ -127,6 +127,8 @@ export function V2ProjectSettings({
 		icon: projectIcon,
 		repoOwner: project.repoOwner,
 	});
+	// Accent color follows the same per-host precedence as the icon.
+	const projectColor = hostProject ? hostProject.color : project.color;
 	const canRename = Boolean(
 		targetHostUrl && targetHostId && project.hostIds.includes(targetHostId),
 	);
@@ -135,7 +137,11 @@ export function V2ProjectSettings({
 		<div className="p-6 max-w-4xl w-full mx-auto select-text">
 			<header className="mb-8 flex items-center justify-between gap-4">
 				<div className="flex min-w-0 items-center gap-3">
-					<ProjectThumbnail projectName={project.name} iconUrl={iconUrl} />
+					<ProjectThumbnail
+						projectName={project.name}
+						iconUrl={iconUrl}
+						color={projectColor}
+					/>
 					<h2 className="truncate text-xl font-semibold">{project.name}</h2>
 				</div>
 				{hasMultipleHosts && targetHostId ? (
@@ -173,13 +179,14 @@ export function V2ProjectSettings({
 					</SettingsRow>
 					<SettingsRow
 						label="Icon"
-						hint="Upload a custom image. Defaults to the linked GitHub owner's avatar."
+						hint="Pick an icon and a color, or upload a custom image. Defaults to the linked GitHub owner's avatar."
 					>
 						<IconUploadField
 							projectId={projectId}
 							hostUrl={targetHostUrl}
 							iconUrl={iconUrl}
 							hasCustomIcon={Boolean(projectIcon)}
+							color={projectColor}
 						/>
 					</SettingsRow>
 					{targetHostUrl && hostProject && (

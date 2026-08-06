@@ -1,14 +1,29 @@
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@superset/ui/dropdown-menu";
+import { Button } from "@superset/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@superset/ui/popover";
 import { toast } from "@superset/ui/sonner";
-import { useCallback, useRef, useState } from "react";
-import { LuImagePlus, LuRotateCcw, LuUpload } from "react-icons/lu";
+import { cn } from "@superset/ui/utils";
+import { createElement, useCallback, useRef, useState } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { IconType } from "react-icons";
+import {
+	LuBug,
+	LuCode,
+	LuFlame,
+	LuFolder,
+	LuGlobe,
+	LuHeart,
+	LuImagePlus,
+	LuLeaf,
+	LuPackage,
+	LuRocket,
+	LuStar,
+	LuTerminal,
+	LuUpload,
+	LuZap,
+} from "react-icons/lu";
+import { ColorSelector } from "renderer/components/ColorSelector";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
+import { PROJECT_COLOR_DEFAULT } from "shared/constants/project-colors";
 
 const ACCEPTED_MIME_TYPES = "image/png,image/jpeg,image/webp";
 // Guard the source file before we bother decoding it; the stored icon is the
@@ -16,14 +31,76 @@ const ACCEPTED_MIME_TYPES = "image/png,image/jpeg,image/webp";
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 const ICON_SIZE = 128;
 
+// Neutral glyph tint when the project has no accent color (slate).
+const DEFAULT_GLYPH_COLOR = "#64748b";
+
+const GLYPHS: Array<{ name: string; icon: IconType }> = [
+	{ name: "Folder", icon: LuFolder },
+	{ name: "Rocket", icon: LuRocket },
+	{ name: "Star", icon: LuStar },
+	{ name: "Heart", icon: LuHeart },
+	{ name: "Zap", icon: LuZap },
+	{ name: "Flame", icon: LuFlame },
+	{ name: "Leaf", icon: LuLeaf },
+	{ name: "Globe", icon: LuGlobe },
+	{ name: "Code", icon: LuCode },
+	{ name: "Terminal", icon: LuTerminal },
+	{ name: "Bug", icon: LuBug },
+	{ name: "Package", icon: LuPackage },
+];
+
 interface IconUploadFieldProps {
 	projectId: string;
-	/** Host serving this project; null when unreachable (upload disabled). */
+	/** Host serving this project; null when unreachable (picker disabled). */
 	hostUrl: string | null;
 	/** Resolved icon to preview (custom icon, else GitHub avatar, else none). */
 	iconUrl: string | null;
 	/** True when a custom icon is set — enables "Reset to default". */
 	hasCustomIcon: boolean;
+	/** Persisted accent color (`#rrggbb`), or null for the default. */
+	color: string | null;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+	const r = Number.parseInt(hex.slice(1, 3), 16);
+	const g = Number.parseInt(hex.slice(3, 5), 16);
+	const b = Number.parseInt(hex.slice(5, 7), 16);
+	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** Rasterize an SVG string to a square PNG data-URI. */
+async function svgToPngDataUri(svg: string): Promise<string> {
+	const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+		const el = new Image();
+		el.onload = () => resolve(el);
+		el.onerror = () => reject(new Error("Could not render icon"));
+		el.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+	});
+	const canvas = document.createElement("canvas");
+	canvas.width = ICON_SIZE;
+	canvas.height = ICON_SIZE;
+	const ctx = canvas.getContext("2d");
+	if (!ctx) throw new Error("Could not render icon");
+	ctx.drawImage(img, 0, 0, ICON_SIZE, ICON_SIZE);
+	return canvas.toDataURL("image/png");
+}
+
+/** Bake a glyph onto a tinted tile as a PNG data-URI (same treatment as the
+ * letter fallback: full-strength glyph on a 15%-alpha background). */
+function glyphToDataUri(
+	glyph: IconType,
+	color: string | null,
+): Promise<string> {
+	const stroke = color ?? DEFAULT_GLYPH_COLOR;
+	const bg = hexToRgba(stroke, color ? 0.15 : 0.12);
+	const glyphMarkup = renderToStaticMarkup(
+		createElement(glyph, { size: 72, color: stroke }),
+	);
+	const svg =
+		`<svg xmlns="http://www.w3.org/2000/svg" width="${ICON_SIZE}" height="${ICON_SIZE}">` +
+		`<rect width="${ICON_SIZE}" height="${ICON_SIZE}" fill="${bg}"/>` +
+		`<g transform="translate(28,28)">${glyphMarkup}</g></svg>`;
+	return svgToPngDataUri(svg);
 }
 
 /** Downscale an image file to a small square PNG data-URI (cover-fit). */
@@ -56,9 +133,13 @@ export function IconUploadField({
 	hostUrl,
 	iconUrl,
 	hasCustomIcon,
+	color,
 }: IconUploadFieldProps) {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [isPending, setIsPending] = useState(false);
+	// Glyph picked in this popover session — lets a later color pick re-bake
+	// it, since a baked PNG can't follow the color on its own.
+	const [sessionGlyph, setSessionGlyph] = useState<IconType | null>(null);
 	const disabled = isPending || !hostUrl;
 
 	const setIcon = useCallback(
@@ -80,6 +161,55 @@ export function IconUploadField({
 			}
 		},
 		[hostUrl, projectId],
+	);
+
+	const setColor = useCallback(
+		async (nextColor: string | null) => {
+			if (!hostUrl) {
+				toast.error("This project's host is offline");
+				return;
+			}
+			setIsPending(true);
+			try {
+				await getHostServiceClientByUrl(hostUrl).project.setColor.mutate({
+					projectId,
+					color: nextColor,
+				});
+			} catch (err) {
+				toast.error(err instanceof Error ? err.message : "Failed to set color");
+			} finally {
+				setIsPending(false);
+			}
+		},
+		[hostUrl, projectId],
+	);
+
+	const handleSelectGlyph = useCallback(
+		async (glyph: IconType) => {
+			setSessionGlyph(() => glyph);
+			try {
+				await setIcon(await glyphToDataUri(glyph, color));
+			} catch (err) {
+				toast.error(err instanceof Error ? err.message : "Could not set icon");
+			}
+		},
+		[color, setIcon],
+	);
+
+	const handleSelectColor = useCallback(
+		async (value: string) => {
+			const nextColor = value === PROJECT_COLOR_DEFAULT ? null : value;
+			await setColor(nextColor);
+			// Keep a glyph picked this session in sync with the new color.
+			if (sessionGlyph) {
+				try {
+					await setIcon(await glyphToDataUri(sessionGlyph, nextColor));
+				} catch {
+					// Color persisted; a failed re-bake keeps the previous tile.
+				}
+			}
+		},
+		[sessionGlyph, setColor, setIcon],
 	);
 
 	const handleClickUpload = useCallback(() => {
@@ -106,63 +236,100 @@ export function IconUploadField({
 				);
 				return;
 			}
+			setSessionGlyph(null);
 			await setIcon(dataUri);
 		},
 		[setIcon],
 	);
 
-	const Thumbnail = (
-		<button
-			type="button"
-			onClick={hasCustomIcon ? undefined : handleClickUpload}
-			disabled={disabled}
-			aria-label={
-				hasCustomIcon
-					? "Project icon options"
-					: iconUrl
-						? "Replace icon"
-						: "Upload icon"
-			}
-			className="size-9 rounded-md border overflow-hidden flex items-center justify-center text-muted-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-		>
-			{iconUrl ? (
-				<img
-					src={iconUrl}
-					alt="Project icon"
-					className="size-full object-cover"
-				/>
-			) : (
-				<LuImagePlus className="size-4" />
-			)}
-		</button>
-	);
-
 	return (
 		<>
-			{hasCustomIcon ? (
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>{Thumbnail}</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-48">
-						<DropdownMenuItem onSelect={handleClickUpload} disabled={disabled}>
-							<LuUpload className="size-4" />
-							Upload image…
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							variant="destructive"
-							disabled={disabled}
-							onSelect={() => {
-								void setIcon(null);
+			<Popover>
+				<PopoverTrigger asChild>
+					<button
+						type="button"
+						disabled={disabled}
+						aria-label="Change project icon and color"
+						className="size-9 rounded-md border overflow-hidden flex items-center justify-center text-muted-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						{iconUrl ? (
+							<img
+								src={iconUrl}
+								alt="Project icon"
+								className="size-full object-cover"
+							/>
+						) : (
+							<LuImagePlus className="size-4" />
+						)}
+					</button>
+				</PopoverTrigger>
+				<PopoverContent align="start" className="w-66 space-y-3">
+					<div>
+						<p className="mb-1.5 text-xs font-medium text-muted-foreground">
+							Color
+						</p>
+						<ColorSelector
+							includeDefault
+							selectedColor={color}
+							onSelectColor={(value) => {
+								void handleSelectColor(value);
 							}}
+						/>
+					</div>
+					<div>
+						<p className="mb-1.5 text-xs font-medium text-muted-foreground">
+							Icon
+						</p>
+						<div className="grid grid-cols-6 gap-1">
+							{GLYPHS.map((glyph) => (
+								<button
+									key={glyph.name}
+									type="button"
+									title={glyph.name}
+									aria-label={`Set icon to ${glyph.name}`}
+									disabled={disabled}
+									onClick={() => {
+										void handleSelectGlyph(glyph.icon);
+									}}
+									className={cn(
+										"flex size-8 items-center justify-center rounded-md border border-transparent",
+										"hover:bg-accent hover:text-accent-foreground",
+										"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+										"disabled:cursor-not-allowed disabled:opacity-50",
+									)}
+									style={{ color: color ?? undefined }}
+								>
+									<glyph.icon className="size-4" />
+								</button>
+							))}
+						</div>
+					</div>
+					<div className="flex items-center gap-2 border-t pt-3">
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={disabled}
+							onClick={handleClickUpload}
 						>
-							<LuRotateCcw className="size-4" />
-							Reset to default
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			) : (
-				Thumbnail
-			)}
+							<LuUpload className="size-3.5" />
+							Upload image…
+						</Button>
+						{hasCustomIcon && (
+							<Button
+								variant="ghost"
+								size="sm"
+								disabled={disabled}
+								onClick={() => {
+									setSessionGlyph(null);
+									void setIcon(null);
+								}}
+							>
+								Reset icon
+							</Button>
+						)}
+					</div>
+				</PopoverContent>
+			</Popover>
 			<input
 				ref={fileInputRef}
 				type="file"

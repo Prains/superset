@@ -6,6 +6,8 @@ export interface V1ProjectLike {
 	name: string;
 	mainRepoPath: string;
 	githubOwner: string | null;
+	/** v1 accent color: a `#rrggbb` hex or the "default" sentinel. */
+	color?: string | null;
 }
 
 export type ProjectFindByPathResult = Awaited<
@@ -126,6 +128,7 @@ export async function importV1Project({
 					allowRelocate,
 				},
 			});
+			await carryV1ProjectColor(hostClient, targetCandidate.id, project.color);
 			return {
 				kind: "imported",
 				v2ProjectId: targetCandidate.id,
@@ -148,10 +151,32 @@ export async function importV1Project({
 		name: project.name,
 		mode: { kind: "importLocal", repoPath: project.mainRepoPath },
 	});
+	await carryV1ProjectColor(hostClient, result.projectId, project.color);
 	return {
 		kind: "imported",
 		v2ProjectId: result.projectId,
 		mainWorkspaceId: result.mainWorkspaceId,
 		repoPath: result.repoPath,
 	};
+}
+
+/**
+ * Best-effort: copy a v1 accent color onto the imported v2 project. v1 stores
+ * either a hex or the "default" sentinel — only real hexes carry over. Never
+ * fails the import (color is cosmetic, and older hosts lack setColor).
+ */
+async function carryV1ProjectColor(
+	hostClient: HostServiceClient,
+	v2ProjectId: string,
+	color: string | null | undefined,
+): Promise<void> {
+	if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) return;
+	try {
+		await hostClient.project.setColor.mutate({ projectId: v2ProjectId, color });
+	} catch (err) {
+		console.error("[v1-migration] carrying project color failed", {
+			v2ProjectId,
+			err,
+		});
+	}
 }
