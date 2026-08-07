@@ -119,17 +119,22 @@ export const projectRouter = router({
 
 	/**
 	 * Set (or clear) this project's custom icon. Local-first: the icon is a
-	 * small downscaled data-URI stored on the host row. A null clears it so the
-	 * project falls back to the GitHub owner avatar / placeholder.
+	 * small downscaled data-URI stored on the host row. The "none" sentinel
+	 * means "explicitly no icon" (renderers show the letter placeholder); a
+	 * null clears back to the default (GitHub owner avatar / placeholder).
 	 */
 	setIcon: protectedProcedure
 		.input(
 			z.object({
 				projectId: z.string().uuid(),
 				icon: z
-					.string()
-					.max(MAX_PROJECT_ICON_LENGTH, "Icon image is too large")
-					.regex(/^data:image\//, "Icon must be an image data URI")
+					.union([
+						z
+							.string()
+							.max(MAX_PROJECT_ICON_LENGTH, "Icon image is too large")
+							.regex(/^data:image\//, "Icon must be an image data URI"),
+						z.literal("none"),
+					])
 					.nullable(),
 			}),
 		)

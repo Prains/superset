@@ -12,7 +12,6 @@ import {
 	LuFolder,
 	LuGlobe,
 	LuHeart,
-	LuImagePlus,
 	LuLeaf,
 	LuPackage,
 	LuRocket,
@@ -22,7 +21,9 @@ import {
 	LuZap,
 } from "react-icons/lu";
 import { ColorSelector } from "renderer/components/ColorSelector";
+import { PROJECT_ICON_NONE } from "renderer/hooks/host-projects/resolveProjectIconUrl";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
+import { ProjectThumbnail } from "renderer/routes/_authenticated/components/ProjectThumbnail";
 import { PROJECT_COLOR_DEFAULT } from "shared/constants/project-colors";
 
 const ACCEPTED_MIME_TYPES = "image/png,image/jpeg,image/webp";
@@ -51,12 +52,16 @@ const GLYPHS: Array<{ name: string; icon: IconType }> = [
 
 interface IconUploadFieldProps {
 	projectId: string;
+	/** For the letter placeholder when no icon resolves. */
+	projectName: string;
 	/** Host serving this project; null when unreachable (picker disabled). */
 	hostUrl: string | null;
 	/** Resolved icon to preview (custom icon, else GitHub avatar, else none). */
 	iconUrl: string | null;
-	/** True when a custom icon is set — enables "Reset to default". */
+	/** True when a custom icon (glyph/upload) is set. */
 	hasCustomIcon: boolean;
+	/** True when the icon is explicitly removed (the "none" sentinel). */
+	isIconRemoved: boolean;
 	/** Persisted accent color (`#rrggbb`), or null for the default. */
 	color: string | null;
 }
@@ -130,9 +135,11 @@ async function toIconDataUri(file: File): Promise<string> {
 
 export function IconUploadField({
 	projectId,
+	projectName,
 	hostUrl,
 	iconUrl,
 	hasCustomIcon,
+	isIconRemoved,
 	color,
 }: IconUploadFieldProps) {
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -250,17 +257,14 @@ export function IconUploadField({
 						type="button"
 						disabled={disabled}
 						aria-label="Change project icon and color"
-						className="size-9 rounded-md border overflow-hidden flex items-center justify-center text-muted-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+						className="rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						{iconUrl ? (
-							<img
-								src={iconUrl}
-								alt="Project icon"
-								className="size-full object-cover"
-							/>
-						) : (
-							<LuImagePlus className="size-4" />
-						)}
+						<ProjectThumbnail
+							projectName={projectName}
+							iconUrl={iconUrl}
+							color={color}
+							className="size-9 rounded-md text-sm"
+						/>
 					</button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-66 space-y-3">
@@ -304,7 +308,7 @@ export function IconUploadField({
 							))}
 						</div>
 					</div>
-					<div className="flex items-center gap-2 border-t pt-3">
+					<div className="flex flex-wrap items-center gap-2 border-t pt-3">
 						<Button
 							variant="outline"
 							size="sm"
@@ -314,7 +318,20 @@ export function IconUploadField({
 							<LuUpload className="size-3.5" />
 							Upload image…
 						</Button>
-						{hasCustomIcon && (
+						{iconUrl && (
+							<Button
+								variant="ghost"
+								size="sm"
+								disabled={disabled}
+								onClick={() => {
+									setSessionGlyph(null);
+									void setIcon(PROJECT_ICON_NONE);
+								}}
+							>
+								Remove icon
+							</Button>
+						)}
+						{(hasCustomIcon || isIconRemoved) && (
 							<Button
 								variant="ghost"
 								size="sm"
@@ -324,7 +341,7 @@ export function IconUploadField({
 									void setIcon(null);
 								}}
 							>
-								Reset icon
+								Reset to default
 							</Button>
 						)}
 					</div>

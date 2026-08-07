@@ -115,6 +115,11 @@ class FakeHost {
 						this.mutations.push({ kind: "project.setColor", args });
 					},
 				},
+				setIcon: {
+					mutate: async (args: unknown) => {
+						this.mutations.push({ kind: "project.setIcon", args });
+					},
+				},
 				setWorktreeBaseDir: {
 					mutate: async (args: unknown) => {
 						this.mutations.push({ kind: "project.setWorktreeBaseDir", args });
@@ -234,12 +239,14 @@ const project = (
 	id: string,
 	repoPath: string,
 	color = "default",
+	hideImage: boolean | null = null,
 ): V1ProjectRow => ({
 	id,
 	name: id,
 	mainRepoPath: repoPath,
 	githubOwner: null,
 	color,
+	hideImage,
 	worktreeBaseDir: null,
 	branchPrefixMode: null,
 	branchPrefixCustom: null,
@@ -284,23 +291,29 @@ describe("runV1Migration scenarios", () => {
 		expect(second.gateComplete).toBe(true);
 	});
 
-	test("custom v1 project color carries over; default sentinel does not", async () => {
+	test("custom v1 color and hide-image carry over; defaults do not", async () => {
 		const ipc = new FakeIpc();
 		const host = new FakeHost();
 		ipc.projects = [
 			project("colored", "/repo/a", "#ef4444"),
-			project("plain", "/repo/b"), // "default" sentinel
+			project("plain", "/repo/b"), // "default" sentinel, no hideImage
+			project("hidden", "/repo/c", "default", true),
 		];
 
 		const summary = await run(ipc, host);
-		expect(summary.projects.migrated).toBe(2);
-		const colorMutations = host.mutations.filter(
-			(m) => m.kind === "project.setColor",
+		expect(summary.projects.migrated).toBe(3);
+		expect(host.mutations.filter((m) => m.kind === "project.setColor")).toEqual(
+			[
+				{
+					kind: "project.setColor",
+					args: { projectId: "v2p-1", color: "#ef4444" },
+				},
+			],
 		);
-		expect(colorMutations).toEqual([
+		expect(host.mutations.filter((m) => m.kind === "project.setIcon")).toEqual([
 			{
-				kind: "project.setColor",
-				args: { projectId: "v2p-1", color: "#ef4444" },
+				kind: "project.setIcon",
+				args: { projectId: "v2p-5", icon: "none" },
 			},
 		]);
 	});

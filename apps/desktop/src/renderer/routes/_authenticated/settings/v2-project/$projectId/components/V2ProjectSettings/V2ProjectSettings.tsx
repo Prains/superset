@@ -2,7 +2,10 @@ import { Label } from "@superset/ui/label";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
-import { resolveProjectIconUrl } from "renderer/hooks/host-projects/resolveProjectIconUrl";
+import {
+	PROJECT_ICON_NONE,
+	resolveProjectIconUrl,
+} from "renderer/hooks/host-projects/resolveProjectIconUrl";
 import { useHostProjects } from "renderer/hooks/host-projects/useHostProjects";
 import { useHostUrl } from "renderer/hooks/host-service/useHostTargetUrl";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
@@ -183,9 +186,13 @@ export function V2ProjectSettings({
 					>
 						<IconUploadField
 							projectId={projectId}
+							projectName={project.name}
 							hostUrl={targetHostUrl}
 							iconUrl={iconUrl}
-							hasCustomIcon={Boolean(projectIcon)}
+							hasCustomIcon={Boolean(
+								projectIcon && projectIcon !== PROJECT_ICON_NONE,
+							)}
+							isIconRemoved={projectIcon === PROJECT_ICON_NONE}
 							color={projectColor}
 						/>
 					</SettingsRow>
