@@ -150,10 +150,10 @@ export function IconUploadField({
 	const disabled = isPending || !hostUrl;
 
 	const setIcon = useCallback(
-		async (icon: string | null) => {
+		async (icon: string | null): Promise<boolean> => {
 			if (!hostUrl) {
 				toast.error("This project's host is offline");
-				return;
+				return false;
 			}
 			setIsPending(true);
 			try {
@@ -161,8 +161,10 @@ export function IconUploadField({
 					projectId,
 					icon,
 				});
+				return true;
 			} catch (err) {
 				toast.error(err instanceof Error ? err.message : "Failed to set icon");
+				return false;
 			} finally {
 				setIsPending(false);
 			}
@@ -171,10 +173,10 @@ export function IconUploadField({
 	);
 
 	const setColor = useCallback(
-		async (nextColor: string | null) => {
+		async (nextColor: string | null): Promise<boolean> => {
 			if (!hostUrl) {
 				toast.error("This project's host is offline");
-				return;
+				return false;
 			}
 			setIsPending(true);
 			try {
@@ -182,8 +184,10 @@ export function IconUploadField({
 					projectId,
 					color: nextColor,
 				});
+				return true;
 			} catch (err) {
 				toast.error(err instanceof Error ? err.message : "Failed to set color");
+				return false;
 			} finally {
 				setIsPending(false);
 			}
@@ -193,12 +197,15 @@ export function IconUploadField({
 
 	const handleSelectGlyph = useCallback(
 		async (glyph: IconType) => {
-			setSessionGlyph(() => glyph);
+			let dataUri: string;
 			try {
-				await setIcon(await glyphToDataUri(glyph, color));
+				dataUri = await glyphToDataUri(glyph, color);
 			} catch (err) {
 				toast.error(err instanceof Error ? err.message : "Could not set icon");
+				return;
 			}
+			// Only a stored glyph may re-bake on later color picks.
+			if (await setIcon(dataUri)) setSessionGlyph(() => glyph);
 		},
 		[color, setIcon],
 	);
@@ -206,7 +213,10 @@ export function IconUploadField({
 	const handleSelectColor = useCallback(
 		async (value: string) => {
 			const nextColor = value === PROJECT_COLOR_DEFAULT ? null : value;
-			await setColor(nextColor);
+			// A rejected color (offline host, old host without setColor) must not
+			// re-tint the icon — the tile would show a color the project never
+			// stored.
+			if (!(await setColor(nextColor))) return;
 			// Keep a glyph picked this session in sync with the new color.
 			if (sessionGlyph) {
 				try {
@@ -275,6 +285,7 @@ export function IconUploadField({
 						<ColorSelector
 							includeDefault
 							selectedColor={color}
+							disabled={disabled}
 							onSelectColor={(value) => {
 								void handleSelectColor(value);
 							}}

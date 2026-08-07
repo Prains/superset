@@ -16,8 +16,10 @@ function hexToRgba(hex: string, alpha: number): string {
 	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// Exact #rrggbb only — hexToRgba slices fixed offsets, so anything shorter
+// (e.g. #fff) would produce NaN channels. Treat malformed values as unset.
 function isHexColor(color: string | null | undefined): color is string {
-	return !!color?.startsWith("#");
+	return !!color && /^#[0-9a-fA-F]{6}$/.test(color);
 }
 
 export function ProjectThumbnail({
