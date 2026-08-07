@@ -125,7 +125,9 @@ export function getTerminalAgentBindingSessionId(
 /**
  * The ended binding a dead terminal can be resumed from: agent session id
  * captured, and the terminal died under the agent rather than the agent
- * detaching cleanly.
+ * detaching cleanly. Bindings that never progressed past the session start
+ * are excluded — agents only persist a conversation once it has a message,
+ * so resuming a never-prompted session fails with "no conversation found".
  */
 export function findResumeCandidateBinding(
 	db: HostDb,
@@ -142,6 +144,7 @@ export function findResumeCandidateBinding(
 				isNotNull(terminalAgentBindings.endedAt),
 				eq(terminalAgentBindings.endReason, "terminal-exited"),
 				isNotNull(terminalAgentBindings.agentSessionId),
+				ne(terminalAgentBindings.lastEventType, "Attached"),
 			),
 		)
 		.get();
