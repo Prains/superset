@@ -74,6 +74,9 @@ function stripManagedEntries<Entry>(
 	for (const [eventName, value] of Object.entries(events)) {
 		if (!Array.isArray(value)) continue;
 		const kept = value.flatMap((entry) => {
+			// Foreign junk (null, strings, …) is preserved verbatim, never
+			// handed to cleanEntry — a malformed entry must not abort the merge.
+			if (entry === null || typeof entry !== "object") return [entry];
 			const cleaned = spec.cleanEntry(entry as Entry);
 			return cleaned === null ? [] : [cleaned];
 		});

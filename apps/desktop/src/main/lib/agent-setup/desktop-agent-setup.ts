@@ -129,8 +129,15 @@ const AGENT_SETUP_DEFINITIONS: Record<
 	},
 };
 
+/** One failing writer must not abort setup/teardown for the other agents. */
 function run(actions: readonly (() => void)[] | undefined): void {
-	for (const action of actions ?? []) action();
+	for (const action of actions ?? []) {
+		try {
+			action();
+		} catch (error) {
+			console.warn("[agent-setup] Action failed (continuing):", error);
+		}
+	}
 }
 
 interface SetupDesktopAgentCapabilitiesOptions {

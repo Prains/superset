@@ -272,6 +272,7 @@ export function AgentDetail({
 								</p>
 							</div>
 							<Switch
+								aria-label="Superset hooks"
 								checked={hooksEnabled}
 								onCheckedChange={(enabled) =>
 									setHooksEnabledMutation.mutate({

@@ -2079,3 +2079,55 @@ describe("managed hooks teardown", () => {
 		expect(existsSync(configPath)).toBe(false);
 	});
 });
+
+describe("managed hooks junk tolerance", () => {
+	beforeEach(() => {
+		mockedHomeDir = path.join(TEST_ROOT, "home");
+		mkdirSync(TEST_BIN_DIR, { recursive: true });
+		mkdirSync(TEST_HOOKS_DIR, { recursive: true });
+	});
+
+	afterEach(() => {
+		rmSync(TEST_ROOT, { recursive: true, force: true });
+	});
+
+	it("preserves null and primitive entries instead of aborting the merge", () => {
+		const settingsPath = path.join(mockedHomeDir, ".factory", "settings.json");
+		mkdirSync(path.dirname(settingsPath), { recursive: true });
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({
+				hooks: {
+					Stop: [
+						null,
+						"junk-string",
+						{ hooks: [{ type: "command", command: "/opt/user-hook.sh" }] },
+					],
+				},
+			}),
+		);
+
+		const content = getDroidSettingsJsonContent(
+			"/tmp/.superset/hooks/notify.sh",
+		);
+		expect(content).not.toBeNull();
+		const parsed = JSON.parse(content as string);
+		expect(parsed.hooks.Stop[0]).toBe(null);
+		expect(parsed.hooks.Stop[1]).toBe("junk-string");
+		expect(
+			parsed.hooks.Stop.some(
+				(d: { hooks?: Array<{ command: string }> }) =>
+					Array.isArray(d?.hooks) &&
+					d.hooks.some((h) => h.command === managedDroidHookCommand),
+			),
+		).toBe(true);
+
+		removeDroidManagedHooks();
+		const afterRemove = JSON.parse(readFileSync(settingsPath, "utf-8"));
+		expect(afterRemove.hooks.Stop).toEqual([
+			null,
+			"junk-string",
+			{ hooks: [{ type: "command", command: "/opt/user-hook.sh" }] },
+		]);
+	});
+});
