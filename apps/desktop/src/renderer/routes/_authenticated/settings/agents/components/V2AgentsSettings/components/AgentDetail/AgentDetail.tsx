@@ -17,8 +17,9 @@ import { Button } from "@superset/ui/button";
 import { Input } from "@superset/ui/input";
 import { toast } from "@superset/ui/sonner";
 import { Switch } from "@superset/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { useMutation } from "@tanstack/react-query";
-import { RotateCcw, Trash2 } from "lucide-react";
+import { Info, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	getAgentCommandText,
@@ -250,14 +251,20 @@ export function AgentDetail({
 				{isHooksSetupTarget ? (
 					<div className="pt-2 border-t border-border">
 						<div className="flex items-center justify-between gap-8">
-							<div className="min-w-0 flex-1">
+							<div className="flex min-w-0 flex-1 items-center gap-1.5">
 								<div className="text-sm font-medium">Superset hooks</div>
-								<p className="text-sm text-muted-foreground mt-0.5">
-									Registers lifecycle hooks in this agent's global config so
-									Superset can show status and send notifications. Turning this
-									off removes Superset's entries everywhere — status and
-									notifications stop for this agent, including inside Superset.
-								</p>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+									</TooltipTrigger>
+									<TooltipContent side="top" className="max-w-[320px]">
+										Registers lifecycle hooks in this agent's global config so
+										Superset can show status and send notifications. Turning
+										this off removes Superset's entries everywhere — status and
+										notifications stop for this agent, including inside
+										Superset.
+									</TooltipContent>
+								</Tooltip>
 							</div>
 							<Switch
 								checked={hooksEnabled}
