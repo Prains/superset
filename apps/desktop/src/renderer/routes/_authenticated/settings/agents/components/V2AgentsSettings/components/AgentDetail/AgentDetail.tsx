@@ -249,7 +249,7 @@ export function AgentDetail({
 				/>
 
 				{isHooksSetupTarget ? (
-					<div className="pt-2 border-t border-border">
+					<div className="pt-2">
 						<div className="flex items-center justify-between gap-8">
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-1.5">
@@ -259,11 +259,11 @@ export function AgentDetail({
 											<Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 										</TooltipTrigger>
 										<TooltipContent side="top" className="max-w-[320px]">
-											Registers lifecycle hooks in this agent's global config
-											so Superset can show status and send notifications.
-											Turning this off removes Superset's entries everywhere —
-											status and notifications stop for this agent, including
-											inside Superset.
+											Registers lifecycle hooks in this agent's global config so
+											Superset can show status and send notifications. Turning
+											this off removes Superset's entries everywhere — status
+											and notifications stop for this agent, including inside
+											Superset.
 										</TooltipContent>
 									</Tooltip>
 								</div>
@@ -290,7 +290,7 @@ export function AgentDetail({
 				) : null}
 
 				{hasBundledDefault ? (
-					<div className="pt-2 border-t border-border">
+					<div className="pt-2">
 						<div className="flex items-center justify-between gap-8">
 							<div className="min-w-0 flex-1">
 								<div className="text-sm font-medium">Restore default</div>
@@ -336,9 +336,7 @@ export function AgentDetail({
 					</div>
 				) : null}
 
-				<div
-					className={hasBundledDefault ? "pt-6" : "pt-2 border-t border-border"}
-				>
+				<div className={hasBundledDefault ? "pt-6" : "pt-2"}>
 					<div className="flex items-center justify-between gap-8">
 						<div className="min-w-0 flex-1">
 							<div className="text-sm font-medium">Delete agent</div>
