@@ -36,18 +36,24 @@ export async function sweepAgentBindingsAfterDaemonLoss(args: {
 
 	// Capture which agent session each binding pointed at when the daemon was
 	// lost. A terminal respawned mid-sweep can start a NEW session; its fresh
-	// binding must not be marked ended by this delayed pass.
-	const expectedSessionIds = new Map<string, string | undefined>();
+	// binding must not be marked ended by this delayed pass. Only a concrete
+	// session id makes a usable baseline — a binding without one is never a
+	// resume candidate, so there is nothing to gain by marking it.
+	const expectedSessionIds = new Map<string, string>();
 	for (const candidate of args.candidates) {
 		try {
-			expectedSessionIds.set(
+			const sessionId = getTerminalAgentBindingSessionId(
+				candidate.db,
 				candidate.terminalId,
-				getTerminalAgentBindingSessionId(candidate.db, candidate.terminalId),
 			);
-		} catch {
-			// No baseline — we can't prove a later binding is still the one that
-			// died, so this candidate is left untouched rather than risk ending
-			// a replacement binding that also has no session id yet.
+			if (sessionId !== undefined) {
+				expectedSessionIds.set(candidate.terminalId, sessionId);
+			}
+		} catch (error) {
+			console.warn(
+				`[terminal-agents] failed to snapshot binding for ${candidate.terminalId}; leaving it untouched`,
+				error,
+			);
 		}
 	}
 
@@ -72,13 +78,14 @@ export async function sweepAgentBindingsAfterDaemonLoss(args: {
 
 	for (const candidate of args.candidates) {
 		if (alive?.has(candidate.terminalId)) continue;
-		if (!expectedSessionIds.has(candidate.terminalId)) continue;
+		const expected = expectedSessionIds.get(candidate.terminalId);
+		if (expected === undefined) continue;
 		try {
 			const current = getTerminalAgentBindingSessionId(
 				candidate.db,
 				candidate.terminalId,
 			);
-			if (current !== expectedSessionIds.get(candidate.terminalId)) continue;
+			if (current !== expected) continue;
 			markTerminalAgentBindingEnded(
 				candidate.db,
 				candidate.terminalId,

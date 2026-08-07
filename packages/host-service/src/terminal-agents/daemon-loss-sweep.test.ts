@@ -109,6 +109,45 @@ describe("sweepAgentBindingsAfterDaemonLoss", () => {
 		expect(row?.endedAt).toBeNull();
 	});
 
+	it("never marks a binding that has no captured session id", async () => {
+		// Bindings without a session id are never resume candidates, so the
+		// sweep must not touch them — including a replacement binding whose
+		// session id hasn't been reported yet.
+		const db = createTestDb();
+		db.insert(terminalSessions)
+			.values({
+				id: "t-anon",
+				status: "active",
+				originWorkspaceId: "ws-1",
+				createdAt: 1,
+			})
+			.run();
+		db.insert(terminalAgentBindings)
+			.values({
+				terminalId: "t-anon",
+				workspaceId: "ws-1",
+				agentId: "vibe",
+				startedAt: 1,
+				lastEventAt: 2,
+				lastEventType: "Start",
+			})
+			.run();
+
+		await sweepAgentBindingsAfterDaemonLoss({
+			candidates: [{ terminalId: "t-anon", db }],
+			listAliveSessionIds: async () => null,
+			attempts: 1,
+			delayMs: 1,
+		});
+
+		const row = db
+			.select({ endedAt: terminalAgentBindings.endedAt })
+			.from(terminalAgentBindings)
+			.where(eq(terminalAgentBindings.terminalId, "t-anon"))
+			.get();
+		expect(row?.endedAt).toBeNull();
+	});
+
 	it("stops retrying once a daemon answers and tolerates lister errors", async () => {
 		const db = createTestDb();
 		seed(db, "t1");
