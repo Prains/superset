@@ -5,9 +5,8 @@ import { Spinner } from "@superset/ui/spinner";
 import { cn } from "@superset/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
-import { FaAws } from "react-icons/fa";
 import { HiArrowUpRight } from "react-icons/hi2";
-import { LuCheck } from "react-icons/lu";
+import { LuBookOpen, LuCheck, LuCircle } from "react-icons/lu";
 import { SiGithub, SiOpenai } from "react-icons/si";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { GhAuthDialog } from "./components/GhAuthDialog";
@@ -46,6 +45,7 @@ function OnboardingDashboardPage() {
 	const claudeConnected =
 		!!anthropicStatus?.authenticated && !anthropicStatus.issue;
 	const codexConnected = !!openAIStatus?.authenticated && !openAIStatus.issue;
+	const agentConnected = claudeConnected || codexConnected;
 
 	const openGitHubInstall = () => {
 		window.open("https://cli.github.com/", "_blank", "noopener,noreferrer");
@@ -53,57 +53,112 @@ function OnboardingDashboardPage() {
 
 	return (
 		<>
-			<div className="divide-y divide-border">
-				<OnboardingRow
-					icon={<SiGithub className="size-4.5" />}
-					chipClassName="bg-foreground text-background"
-					name="GitHub CLI"
-					description="Clone, push, and create PRs."
-					status={rowStatus(isFetchingGh, ghReady)}
-					required
-					actionLabel={ghInstalled ? "Sign in" : "Install"}
-					actionIcon={
-						ghInstalled ? undefined : <HiArrowUpRight className="size-3.5" />
-					}
-					onAction={ghInstalled ? () => setGhAuthOpen(true) : openGitHubInstall}
-					onRecheck={() => void refetchGh()}
-				/>
-				<OnboardingRow
-					icon={<ClaudeLogo className="size-4.5 text-white" />}
-					chipClassName="bg-[#D97757]"
-					name="Claude Code"
-					description="Anthropic's coding agent."
-					status={rowStatus(isFetchingAnthropic, claudeConnected)}
-					actionLabel="Sign in"
-					onAction={() => setConnectProvider("anthropic")}
-					onRecheck={() => void refetchAnthropic()}
-				/>
-				<OnboardingRow
-					icon={<SiOpenai className="size-4.5" />}
-					chipClassName="bg-foreground text-background"
-					name="Codex"
-					description="OpenAI's coding agent."
-					status={rowStatus(isFetchingOpenAI, codexConnected)}
-					actionLabel="Sign in"
-					onAction={() => setConnectProvider("openai")}
-					onRecheck={() => void refetchOpenAI()}
-				/>
-				<OnboardingRow
-					icon={<FaAws className="size-4.5" />}
-					chipClassName="bg-foreground text-background"
-					name="More providers"
-					description="Bedrock, Vertex, and more."
-					status="disconnected"
-					actionLabel="Provider docs"
-					actionIcon={<HiArrowUpRight className="size-3.5" />}
-					onAction={() =>
-						window.open(
-							"https://docs.superset.sh/providers",
-							"_blank",
-							"noopener,noreferrer",
-						)
-					}
-				/>
+			<div className="space-y-4">
+				<div
+					className={cn(
+						"flex items-start gap-3 rounded-lg border p-4",
+						agentConnected
+							? "border-emerald-500/20 bg-emerald-500/5"
+							: "border-border bg-card/40",
+					)}
+				>
+					<div
+						className={cn(
+							"mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border",
+							agentConnected
+								? "border-emerald-500/25 bg-emerald-500/10 text-emerald-500"
+								: "border-border bg-background text-muted-foreground",
+						)}
+					>
+						{agentConnected ? (
+							<LuCheck className="size-4" />
+						) : (
+							<LuCircle className="size-4" />
+						)}
+					</div>
+					<div className="min-w-0 space-y-1">
+						<p className="text-sm font-medium text-foreground">
+							{agentConnected
+								? "An agent is ready"
+								: "Connect at least one agent for the smoothest start"}
+						</p>
+						<p className="text-xs leading-5 text-muted-foreground">
+							You can also continue and add providers later from Settings.
+						</p>
+					</div>
+				</div>
+
+				<div className="overflow-hidden rounded-lg border border-border bg-card/50">
+					<OnboardingRow
+						icon={<ClaudeLogo className="size-4.5 text-white" />}
+						chipClassName="bg-[#D97757]"
+						name="Claude Code"
+						description="Run Anthropic's coding agent in Superset workspaces."
+						status={rowStatus(isFetchingAnthropic, claudeConnected)}
+						tagLabel="Agent"
+						actionLabel="Connect"
+						onAction={() => setConnectProvider("anthropic")}
+						onRecheck={() => void refetchAnthropic()}
+					/>
+					<OnboardingRow
+						icon={<SiOpenai className="size-4.5" />}
+						chipClassName="bg-foreground text-background"
+						name="Codex"
+						description="Run OpenAI's coding agent in Superset workspaces."
+						status={rowStatus(isFetchingOpenAI, codexConnected)}
+						tagLabel="Agent"
+						actionLabel="Connect"
+						onAction={() => setConnectProvider("openai")}
+						onRecheck={() => void refetchOpenAI()}
+					/>
+					<OnboardingRow
+						icon={<SiGithub className="size-4.5" />}
+						chipClassName="bg-foreground text-background"
+						name="GitHub CLI"
+						description="Clone repositories, push branches, and open pull requests."
+						status={rowStatus(isFetchingGh, ghReady)}
+						tagLabel="Recommended"
+						actionLabel={ghInstalled ? "Sign in" : "Install"}
+						actionIcon={
+							ghInstalled ? undefined : <HiArrowUpRight className="size-3.5" />
+						}
+						onAction={
+							ghInstalled ? () => setGhAuthOpen(true) : openGitHubInstall
+						}
+						onRecheck={() => void refetchGh()}
+					/>
+				</div>
+
+				<div className="flex items-center justify-between gap-4 rounded-lg border border-border/70 bg-background/40 p-4">
+					<div className="flex min-w-0 items-center gap-3">
+						<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-card text-muted-foreground">
+							<LuBookOpen className="size-4" />
+						</div>
+						<div className="min-w-0">
+							<p className="text-sm font-medium text-foreground">
+								Using another provider?
+							</p>
+							<p className="text-xs text-muted-foreground">
+								Bedrock, Vertex, and custom providers are available in docs.
+							</p>
+						</div>
+					</div>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						onClick={() =>
+							window.open(
+								"https://docs.superset.sh/providers",
+								"_blank",
+								"noopener,noreferrer",
+							)
+						}
+					>
+						Open docs
+						<HiArrowUpRight className="size-3.5" />
+					</Button>
+				</div>
 			</div>
 
 			<ProviderConnectModal
@@ -135,7 +190,7 @@ interface OnboardingRowProps {
 	name: string;
 	description: string;
 	status: RowStatus;
-	required?: boolean;
+	tagLabel?: string;
 	actionLabel: string;
 	actionIcon?: ReactNode;
 	onAction: () => void;
@@ -148,14 +203,14 @@ function OnboardingRow({
 	name,
 	description,
 	status,
-	required,
+	tagLabel,
 	actionLabel,
 	actionIcon,
 	onAction,
 	onRecheck,
 }: OnboardingRowProps) {
 	return (
-		<div className="flex items-center gap-4 py-7 first:pt-0 last:pb-0">
+		<div className="flex items-center gap-4 border-border border-b px-4 py-4 last:border-b-0">
 			<div
 				className={cn(
 					"flex size-9 shrink-0 items-center justify-center rounded-md",
@@ -164,15 +219,22 @@ function OnboardingRow({
 			>
 				{icon}
 			</div>
-			<div className="min-w-0 flex-1">
-				<p className="text-sm font-medium text-foreground">{name}</p>
-				<p className="text-xs text-muted-foreground">{description}</p>
+			<div className="min-w-0 flex-1 space-y-1">
+				<div className="flex items-center gap-2">
+					<p className="truncate text-sm font-medium text-foreground">{name}</p>
+					{tagLabel && (
+						<Badge variant="outline" className="text-[10px]">
+							{tagLabel}
+						</Badge>
+					)}
+				</div>
+				<p className="text-xs leading-5 text-muted-foreground">{description}</p>
 			</div>
 			<div className="flex shrink-0 items-center gap-2">
 				{status === "loading" ? (
-					<span className="flex items-center gap-1.5 px-3 text-sm text-muted-foreground">
+					<span className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground">
 						<Spinner className="size-3.5" />
-						Checking…
+						Checking
 					</span>
 				) : status === "connected" ? (
 					<Button
@@ -184,16 +246,13 @@ function OnboardingRow({
 						className="text-emerald-500 hover:text-emerald-500"
 					>
 						<LuCheck className="size-3.5" strokeWidth={2.5} />
-						Connected
+						Ready
 					</Button>
 				) : (
-					<>
-						{required && <Badge variant="outline">Required</Badge>}
-						<Button type="button" size="sm" onClick={onAction}>
-							{actionLabel}
-							{actionIcon}
-						</Button>
-					</>
+					<Button type="button" size="sm" onClick={onAction}>
+						{actionLabel}
+						{actionIcon}
+					</Button>
 				)}
 			</div>
 		</div>

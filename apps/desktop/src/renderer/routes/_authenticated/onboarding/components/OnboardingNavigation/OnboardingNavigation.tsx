@@ -14,6 +14,8 @@ interface OnboardingNavigationProps {
 	onSkip: (() => void) | null;
 	skipDisabled?: boolean;
 	continueLabel: string;
+	skipLabel: string;
+	stepLabels: readonly string[];
 }
 
 export function OnboardingNavigation({
@@ -24,6 +26,8 @@ export function OnboardingNavigation({
 	onSkip,
 	skipDisabled,
 	continueLabel,
+	skipLabel,
+	stepLabels,
 }: OnboardingNavigationProps) {
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 
@@ -31,7 +35,7 @@ export function OnboardingNavigation({
 		<div className="border-t border-border">
 			{/* Same max-w / px as the step content so Back and Continue line up
 			    with the column edges above them. */}
-			<div className="mx-auto flex w-full max-w-2xl items-center gap-4 px-8 py-4">
+			<div className="mx-auto flex w-full max-w-3xl items-center gap-4 px-8 py-4">
 				<div className="flex flex-1 items-center justify-start gap-1">
 					{onBack && (
 						<Button size="sm" variant="ghost" onClick={onBack}>
@@ -55,7 +59,11 @@ export function OnboardingNavigation({
 					</Tooltip>
 				</div>
 
-				<PaginationDots current={currentStep} total={totalSteps} />
+				<PaginationDots
+					current={currentStep}
+					labels={stepLabels}
+					total={totalSteps}
+				/>
 
 				<div className="flex flex-1 items-center justify-end gap-2">
 					{onSkip && (
@@ -66,7 +74,7 @@ export function OnboardingNavigation({
 							onClick={onSkip}
 							disabled={skipDisabled}
 						>
-							Skip for now
+							{skipLabel}
 						</Button>
 					)}
 					{onContinue && (

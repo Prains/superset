@@ -1,3 +1,4 @@
+import { Badge } from "@superset/ui/badge";
 import { Button } from "@superset/ui/button";
 import { Card } from "@superset/ui/card";
 import { Input } from "@superset/ui/input";
@@ -89,51 +90,65 @@ function OnboardingProjectPage() {
 	};
 
 	return (
-		<div className="flex flex-col gap-3">
-			<Card className="flex-row items-center gap-4 p-5">
-				<ProjectIcon icon={<LuFolderOpen className="size-4.5" />} />
-				<div className="min-w-0 flex-1">
-					<p className="text-sm font-medium text-foreground">Open a folder</p>
-					<p className="text-xs text-muted-foreground">
-						Choose any local directory, git repo or not.
-					</p>
-				</div>
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={handleOpenFolder}
-					disabled={!hostReady || busy}
-				>
-					{hostReady ? "Browse…" : "Connecting…"}
-				</Button>
-			</Card>
-
-			<Card className="gap-4 p-5">
-				<div className="flex items-center gap-4">
-					<ProjectIcon icon={<LuGitBranch className="size-4.5" />} />
-					<div className="min-w-0 flex-1">
-						<p className="text-sm font-medium text-foreground">Clone a repo</p>
-						<p className="text-xs text-muted-foreground">
-							Paste an HTTPS or SSH URL.
+		<div className="grid gap-3">
+			<Card className="rounded-lg border-border bg-card/50 p-0 shadow-none">
+				<div className="flex items-center gap-4 p-5">
+					<ProjectIcon icon={<LuFolderOpen className="size-4.5" />} />
+					<div className="min-w-0 flex-1 space-y-1">
+						<div className="flex items-center gap-2">
+							<p className="text-sm font-medium text-foreground">
+								Open a local folder
+							</p>
+							<Badge variant="outline" className="text-[10px]">
+								Fastest
+							</Badge>
+						</div>
+						<p className="text-xs leading-5 text-muted-foreground">
+							Use an existing checkout or any directory on this machine.
 						</p>
 					</div>
-				</div>
-				<form onSubmit={handleClone} className="flex items-center gap-2">
-					<Input
-						type="text"
-						placeholder="git@github.com:org/repo.git"
-						value={url}
-						onChange={(e) => setUrl(e.target.value)}
-						disabled={busy || !hostReady}
-						className="flex-1"
-					/>
 					<Button
-						type="submit"
-						disabled={!url.trim() || busy || !hostReady || !cloneTargetDir}
+						variant="outline"
+						size="sm"
+						onClick={handleOpenFolder}
+						disabled={!hostReady || busy}
 					>
-						{busy ? "Cloning…" : "Clone"}
+						{hostReady ? "Browse" : "Connecting"}
 					</Button>
-				</form>
+				</div>
+			</Card>
+
+			<Card className="rounded-lg border-border bg-card/50 p-0 shadow-none">
+				<div className="space-y-4 p-5">
+					<div className="flex items-center gap-4">
+						<ProjectIcon icon={<LuGitBranch className="size-4.5" />} />
+						<div className="min-w-0 flex-1 space-y-1">
+							<p className="text-sm font-medium text-foreground">
+								Clone from Git
+							</p>
+							<p className="text-xs leading-5 text-muted-foreground">
+								Paste an HTTPS or SSH URL and Superset will place it in your
+								projects folder.
+							</p>
+						</div>
+					</div>
+					<form onSubmit={handleClone} className="flex items-center gap-2">
+						<Input
+							type="text"
+							placeholder="https://github.com/org/repo.git"
+							value={url}
+							onChange={(e) => setUrl(e.target.value)}
+							disabled={busy || !hostReady}
+							className="flex-1"
+						/>
+						<Button
+							type="submit"
+							disabled={!url.trim() || busy || !hostReady || !cloneTargetDir}
+						>
+							{busy ? "Cloning" : "Clone"}
+						</Button>
+					</form>
+				</div>
 			</Card>
 		</div>
 	);

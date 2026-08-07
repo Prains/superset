@@ -27,14 +27,22 @@ const STEPS = [
 	{
 		path: "/onboarding",
 		match: (p: string) => p === "/onboarding",
-		title: "Setup Superset",
-		subtitle: "Connect your agents and tools to get started.",
+		label: "Agents",
+		title: "Connect your coding agents",
+		subtitle:
+			"Add Claude Code or Codex now so your first workspace is ready to run.",
+		continueLabel: "Continue to project",
+		skipLabel: "Set up later",
 	},
 	{
 		path: "/onboarding/project",
 		match: (p: string) => p === "/onboarding/project",
-		title: "Point Superset at some code",
-		subtitle: "Open a folder or clone a repo to finish setup.",
+		label: "Project",
+		title: "Choose your first project",
+		subtitle:
+			"Open local code or clone a repository. Superset will create the workspace from there.",
+		continueLabel: "Continue",
+		skipLabel: "Skip project setup",
 	},
 ] as const;
 
@@ -106,12 +114,15 @@ function OnboardingFlowLayout() {
 				/>
 				<div className="flex-1 overflow-auto">
 					{currentStep ? (
-						<div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-8 pt-16 pb-6">
-							<div className="space-y-2">
-								<h1 className="text-2xl font-semibold text-foreground">
+						<div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center gap-8 px-8 pt-10 pb-8">
+							<div className="space-y-3">
+								<p className="text-xs font-medium text-muted-foreground">
+									Step {currentStepIdx + 1} of {STEPS.length}
+								</p>
+								<h1 className="text-[26px] leading-tight font-semibold text-foreground">
 									{currentStep.title}
 								</h1>
-								<p className="text-sm text-muted-foreground">
+								<p className="max-w-xl text-sm leading-6 text-muted-foreground">
 									{currentStep.subtitle}
 								</p>
 							</div>
@@ -129,7 +140,9 @@ function OnboardingFlowLayout() {
 						onContinue={handleContinue}
 						onSkip={handleSkip}
 						skipDisabled={skipping}
-						continueLabel="Continue"
+						continueLabel={currentStep?.continueLabel ?? "Continue"}
+						skipLabel={currentStep?.skipLabel ?? "Skip for now"}
+						stepLabels={STEPS.map((step) => step.label)}
 					/>
 				)}
 			</div>
