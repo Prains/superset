@@ -18,11 +18,13 @@ import {
 } from "@superset/shared/terminal-title-scanner";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import type { Hono } from "hono";
+import { getSupervisor } from "../daemon/index.ts";
 import { isProcessAlive, readPtyDaemonManifest } from "../daemon/manifest.ts";
 import type { HostDb } from "../db/index.ts";
 import { projects, terminalSessions, workspaces } from "../db/schema.ts";
 import type { EventBus } from "../events/index.ts";
 import { portManager } from "../ports/port-manager.ts";
+import { sweepAgentBindingsAfterDaemonLoss } from "../terminal-agents/daemon-loss-sweep.ts";
 import { markTerminalAgentBindingEnded } from "../terminal-agents/persistence.ts";
 import {
 	DaemonClient,
@@ -335,28 +337,37 @@ const sessions = new Map<string, TerminalSession>();
 //
 // We also clear the in-memory sessions map so a stale subscription closure
 // doesn't keep firing for sessions that no longer match daemon state.
+/**
+ * Session ids a live daemon currently owns, or null when no daemon answers
+ * (still respawning, or gone for good). Read via the supervisor rather than
+ * the client singleton so a rebuilt connection isn't required.
+ */
+async function listDaemonAliveSessionIds(): Promise<Set<string> | null> {
+	const organizationId = process.env.ORGANIZATION_ID;
+	if (!organizationId) return null;
+	const list = await getSupervisor().listSessions(organizationId);
+	if (list === null) return null;
+	return new Set(list.filter((info) => info.alive).map((info) => info.id));
+}
+
 onDaemonDisconnect((err) => {
 	const sessionCount = sessions.size;
 	if (sessionCount === 0) return;
 	console.warn(
 		`[terminal] pty-daemon disconnected (${err?.message ?? "no message"}); closing ${sessionCount} terminal WS socket(s) to trigger renderer reconnect`,
 	);
+	// If the ptys died with the daemon, their agent bindings become resume
+	// candidates — but a disconnect can also be an upgrade handoff or socket
+	// blip with sessions surviving for adoption, so the sweep verifies
+	// against a live daemon before marking anything.
+	void sweepAgentBindingsAfterDaemonLoss({
+		candidates: [...sessions.values()].map((session) => ({
+			terminalId: session.terminalId,
+			db: session.db,
+		})),
+		listAliveSessionIds: listDaemonAliveSessionIds,
+	});
 	for (const session of sessions.values()) {
-		// Every pty died with the daemon. Mark agent bindings ended so they
-		// surface as resume candidates — including upgrading the "goodbye"
-		// some agents emit on SIGHUP moments before dying.
-		try {
-			markTerminalAgentBindingEnded(
-				session.db,
-				session.terminalId,
-				"terminal-exited",
-			);
-		} catch (markError) {
-			console.warn(
-				`[terminal] failed to mark agent binding ended for ${session.terminalId}`,
-				markError,
-			);
-		}
 		cancelShellReady(session);
 		for (const socket of session.sockets) {
 			try {

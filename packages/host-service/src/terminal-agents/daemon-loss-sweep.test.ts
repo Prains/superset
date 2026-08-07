@@ -1,0 +1,101 @@
+import { Database } from "bun:sqlite";
+import { describe, expect, it } from "bun:test";
+import { resolve } from "node:path";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import type { HostDb } from "../db";
+import * as schema from "../db/schema";
+import { terminalAgentBindings, terminalSessions } from "../db/schema";
+import { sweepAgentBindingsAfterDaemonLoss } from "./daemon-loss-sweep";
+import { findResumeCandidateBinding } from "./persistence";
+
+const MIGRATIONS_FOLDER = resolve(import.meta.dir, "../../drizzle");
+
+function createTestDb(): HostDb {
+	const sqlite = new Database(":memory:");
+	const db = drizzle(sqlite, { schema });
+	migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+	return db as unknown as HostDb;
+}
+
+function seed(db: HostDb, terminalId: string) {
+	db.insert(terminalSessions)
+		.values({
+			id: terminalId,
+			status: "active",
+			originWorkspaceId: "ws-1",
+			createdAt: 1,
+		})
+		.run();
+	db.insert(terminalAgentBindings)
+		.values({
+			terminalId,
+			workspaceId: "ws-1",
+			agentId: "claude",
+			agentSessionId: `sess-${terminalId}`,
+			startedAt: 1,
+			lastEventAt: 2,
+			lastEventType: "Start",
+		})
+		.run();
+}
+
+describe("sweepAgentBindingsAfterDaemonLoss", () => {
+	it("marks only sessions the recovered daemon no longer owns", async () => {
+		const db = createTestDb();
+		seed(db, "t-lost");
+		seed(db, "t-adopted");
+
+		await sweepAgentBindingsAfterDaemonLoss({
+			candidates: [
+				{ terminalId: "t-lost", db },
+				{ terminalId: "t-adopted", db },
+			],
+			listAliveSessionIds: async () => new Set(["t-adopted"]),
+			attempts: 2,
+			delayMs: 1,
+		});
+
+		expect(findResumeCandidateBinding(db, "ws-1", "t-lost")).toBeDefined();
+		expect(findResumeCandidateBinding(db, "ws-1", "t-adopted")).toBeUndefined();
+	});
+
+	it("marks everything when no daemon ever answers", async () => {
+		const db = createTestDb();
+		seed(db, "t1");
+
+		let calls = 0;
+		await sweepAgentBindingsAfterDaemonLoss({
+			candidates: [{ terminalId: "t1", db }],
+			listAliveSessionIds: async () => {
+				calls++;
+				return null;
+			},
+			attempts: 3,
+			delayMs: 1,
+		});
+
+		expect(calls).toBe(3);
+		expect(findResumeCandidateBinding(db, "ws-1", "t1")).toBeDefined();
+	});
+
+	it("stops retrying once a daemon answers and tolerates lister errors", async () => {
+		const db = createTestDb();
+		seed(db, "t1");
+
+		let calls = 0;
+		await sweepAgentBindingsAfterDaemonLoss({
+			candidates: [{ terminalId: "t1", db }],
+			listAliveSessionIds: async () => {
+				calls++;
+				if (calls === 1) throw new Error("socket down");
+				return new Set(["t1"]);
+			},
+			attempts: 5,
+			delayMs: 1,
+		});
+
+		expect(calls).toBe(2);
+		expect(findResumeCandidateBinding(db, "ws-1", "t1")).toBeUndefined();
+	});
+});

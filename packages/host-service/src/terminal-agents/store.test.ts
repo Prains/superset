@@ -435,26 +435,27 @@ describe("TerminalAgentStore", () => {
 	});
 
 	it("drops straggler events that would erase an ended row's resume state", () => {
-		const persisted = new Map<string, TerminalAgentBinding>();
-		const endState = {
-			endedAt: 100_000,
-			agentSessionId: "sess-old" as string | undefined,
+		// Each scenario gets a fresh store so the straggler guard (which only
+		// runs when no in-memory binding exists) is actually exercised.
+		const scenario = () => {
+			const persisted = new Map<string, TerminalAgentBinding>();
+			const persistence: TerminalAgentBindingPersistence = {
+				load: () => [],
+				upsert: (binding) => {
+					persisted.set(binding.terminalId, binding);
+				},
+				delete: (terminalId) => {
+					persisted.delete(terminalId);
+				},
+				markEnded: () => undefined,
+				getEnded: () => ({ endedAt: 100_000, agentSessionId: "sess-old" }),
+			};
+			return { persisted, store: new TerminalAgentStore(persistence) };
 		};
-		const persistence: TerminalAgentBindingPersistence = {
-			load: () => [],
-			upsert: (binding) => {
-				persisted.set(binding.terminalId, binding);
-			},
-			delete: (terminalId) => {
-				persisted.delete(terminalId);
-			},
-			markEnded: () => undefined,
-			getEnded: () => endState,
-		};
-		const store = new TerminalAgentStore(persistence);
 
 		// Late Stop from the dead session (same session id, within window).
-		store.recordEvent({
+		const late = scenario();
+		late.store.recordEvent({
 			terminalId: "t1",
 			workspaceId: WORKSPACE,
 			eventType: "Stop",
@@ -462,20 +463,22 @@ describe("TerminalAgentStore", () => {
 			agentSessionId: "sess-old",
 			occurredAt: 105_000,
 		});
-		expect(persisted.has("t1")).toBe(false);
+		expect(late.persisted.has("t1")).toBe(false);
 
 		// Late event without a session id is equally untrusted.
-		store.recordEvent({
+		const anonymous = scenario();
+		anonymous.store.recordEvent({
 			terminalId: "t1",
 			workspaceId: WORKSPACE,
 			eventType: "Start",
 			agentId: "codex",
 			occurredAt: 110_000,
 		});
-		expect(persisted.has("t1")).toBe(false);
+		expect(anonymous.persisted.has("t1")).toBe(false);
 
 		// An explicit new session start revives the row.
-		store.recordEvent({
+		const attached = scenario();
+		attached.store.recordEvent({
 			terminalId: "t1",
 			workspaceId: WORKSPACE,
 			eventType: "Attached",
@@ -483,11 +486,11 @@ describe("TerminalAgentStore", () => {
 			agentSessionId: "sess-new",
 			occurredAt: 111_000,
 		});
-		expect(persisted.get("t1")?.agentSessionId).toBe("sess-new");
-		persisted.delete("t1");
+		expect(attached.persisted.get("t1")?.agentSessionId).toBe("sess-new");
 
 		// A different session id is evidence of a new session even mid-window.
-		store.recordEvent({
+		const differentSession = scenario();
+		differentSession.store.recordEvent({
 			terminalId: "t1",
 			workspaceId: WORKSPACE,
 			eventType: "Stop",
@@ -495,18 +498,20 @@ describe("TerminalAgentStore", () => {
 			agentSessionId: "sess-other",
 			occurredAt: 112_000,
 		});
-		expect(persisted.get("t1")?.agentSessionId).toBe("sess-other");
-		persisted.delete("t1");
+		expect(differentSession.persisted.get("t1")?.agentSessionId).toBe(
+			"sess-other",
+		);
 
 		// Past the straggler window, events flow again (agents without
 		// SessionStart hooks, e.g. vibe, must still bind).
-		store.recordEvent({
+		const lateArrival = scenario();
+		lateArrival.store.recordEvent({
 			terminalId: "t1",
 			workspaceId: WORKSPACE,
 			eventType: "Start",
 			agentId: "vibe",
 			occurredAt: 200_000,
 		});
-		expect(persisted.has("t1")).toBe(true);
+		expect(lateArrival.persisted.has("t1")).toBe(true);
 	});
 });
