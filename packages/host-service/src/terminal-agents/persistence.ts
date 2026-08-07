@@ -6,7 +6,11 @@ import type {
 	TerminalAgentBindingListFilter,
 	TerminalAgentBindingPersistence,
 } from "./store";
-import type { TerminalAgentBinding, TerminalAgentId } from "./types";
+import type {
+	TerminalAgentBinding,
+	TerminalAgentEndReason,
+	TerminalAgentId,
+} from "./types";
 
 const bindingColumns = {
 	terminalId: terminalAgentBindings.terminalId,
@@ -17,6 +21,8 @@ const bindingColumns = {
 	startedAt: terminalAgentBindings.startedAt,
 	lastEventAt: terminalAgentBindings.lastEventAt,
 	lastEventType: terminalAgentBindings.lastEventType,
+	endedAt: terminalAgentBindings.endedAt,
+	endReason: terminalAgentBindings.endReason,
 };
 
 interface BindingRow {
@@ -28,6 +34,8 @@ interface BindingRow {
 	startedAt: number;
 	lastEventAt: number;
 	lastEventType: string;
+	endedAt: number | null;
+	endReason: string | null;
 }
 
 function rowToBinding(row: BindingRow): TerminalAgentBinding {
@@ -40,7 +48,70 @@ function rowToBinding(row: BindingRow): TerminalAgentBinding {
 		startedAt: row.startedAt,
 		lastEventAt: row.lastEventAt,
 		lastEventType: row.lastEventType,
+		...(row.endedAt !== null ? { endedAt: row.endedAt } : {}),
+		...(row.endReason !== null
+			? { endReason: row.endReason as TerminalAgentEndReason }
+			: {}),
 	};
+}
+
+/**
+ * Mark a binding's agent session as ended without deleting the row, so its
+ * `agentSessionId` survives for resume. "detached" (the agent's own goodbye)
+ * always wins; "terminal-exited" never overwrites an existing end state.
+ * Standalone so terminal internals (pty exit, cold respawn) can mark ended
+ * with just a db handle. Returns the workspaceId when a row was updated.
+ */
+export function markTerminalAgentBindingEnded(
+	db: HostDb,
+	terminalId: string,
+	reason: TerminalAgentEndReason,
+	endedAt: number = Date.now(),
+): { workspaceId: string } | undefined {
+	const row = db
+		.select({
+			workspaceId: terminalAgentBindings.workspaceId,
+			endedAt: terminalAgentBindings.endedAt,
+			endReason: terminalAgentBindings.endReason,
+		})
+		.from(terminalAgentBindings)
+		.where(eq(terminalAgentBindings.terminalId, terminalId))
+		.get();
+	if (!row) return undefined;
+	if (reason === "terminal-exited" && row.endedAt !== null) return undefined;
+	if (reason === "detached" && row.endReason === "detached") return undefined;
+
+	db.update(terminalAgentBindings)
+		.set({ endedAt: row.endedAt ?? endedAt, endReason: reason })
+		.where(eq(terminalAgentBindings.terminalId, terminalId))
+		.run();
+	return { workspaceId: row.workspaceId };
+}
+
+/**
+ * The ended binding a dead terminal can be resumed from: agent session id
+ * captured, and the terminal died under the agent rather than the agent
+ * detaching cleanly.
+ */
+export function findResumeCandidateBinding(
+	db: HostDb,
+	workspaceId: string,
+	terminalId: string,
+): TerminalAgentBinding | undefined {
+	const row = db
+		.select(bindingColumns)
+		.from(terminalAgentBindings)
+		.where(
+			and(
+				eq(terminalAgentBindings.terminalId, terminalId),
+				eq(terminalAgentBindings.workspaceId, workspaceId),
+				isNotNull(terminalAgentBindings.endedAt),
+				eq(terminalAgentBindings.endReason, "terminal-exited"),
+				isNotNull(terminalAgentBindings.agentSessionId),
+			),
+		)
+		.get();
+	return row ? rowToBinding(row) : undefined;
 }
 
 export class SqliteTerminalAgentBindingPersistence
@@ -56,7 +127,12 @@ export class SqliteTerminalAgentBindingPersistence
 				terminalSessions,
 				eq(terminalAgentBindings.terminalId, terminalSessions.id),
 			)
-			.where(ne(terminalSessions.status, "disposed"))
+			.where(
+				and(
+					ne(terminalSessions.status, "disposed"),
+					isNull(terminalAgentBindings.endedAt),
+				),
+			)
 			.all();
 
 		return rows.map(rowToBinding);
@@ -85,6 +161,7 @@ export class SqliteTerminalAgentBindingPersistence
 					eq(terminalAgentBindings.workspaceId, workspaceId),
 					eq(terminalSessions.status, "active"),
 					isNotNull(terminalSessions.originWorkspaceId),
+					isNull(terminalAgentBindings.endedAt),
 					...(filter?.agentId
 						? [eq(terminalAgentBindings.agentId, filter.agentId)]
 						: []),
@@ -110,6 +187,7 @@ export class SqliteTerminalAgentBindingPersistence
 				and(
 					eq(terminalSessions.status, "active"),
 					isNotNull(terminalSessions.originWorkspaceId),
+					isNull(terminalAgentBindings.endedAt),
 				),
 			)
 			.all();
@@ -135,6 +213,7 @@ export class SqliteTerminalAgentBindingPersistence
 					eq(terminalAgentBindings.agentId, agentId),
 					eq(terminalSessions.status, "active"),
 					isNotNull(terminalSessions.originWorkspaceId),
+					isNull(terminalAgentBindings.endedAt),
 					...(definitionId
 						? [eq(terminalAgentBindings.definitionId, definitionId)]
 						: []),
@@ -149,13 +228,16 @@ export class SqliteTerminalAgentBindingPersistence
 	}
 
 	/**
-	 * Best-effort hygiene: drop binding rows whose session is missing,
-	 * `exited`, `disposed`, or workspace-less (the reaper's orphan criteria).
-	 * Reads already hide these via the live join; this only keeps the table
-	 * small, so callers may swallow failures.
+	 * Best-effort boot hygiene. Bindings whose session row is missing or
+	 * workspace-less have nothing left to resume into — drop them. Bindings
+	 * whose terminal is `exited`/`disposed` but never got marked ended (the
+	 * host was down when the terminal died) are backfilled as
+	 * "terminal-exited" so they survive as resume candidates. Reads already
+	 * hide non-live bindings via the live join, so callers may swallow
+	 * failures.
 	 */
-	deleteDefunct(): void {
-		const rows = this.db
+	sweepDefunct(): void {
+		const doomed = this.db
 			.select({ terminalId: terminalAgentBindings.terminalId })
 			.from(terminalAgentBindings)
 			.leftJoin(
@@ -165,25 +247,61 @@ export class SqliteTerminalAgentBindingPersistence
 			.where(
 				or(
 					isNull(terminalSessions.id),
-					inArray(terminalSessions.status, ["exited", "disposed"]),
 					isNull(terminalSessions.originWorkspaceId),
 				),
 			)
 			.all();
-		if (rows.length === 0) return;
+		if (doomed.length > 0) {
+			this.db
+				.delete(terminalAgentBindings)
+				.where(
+					inArray(
+						terminalAgentBindings.terminalId,
+						doomed.map((row) => row.terminalId),
+					),
+				)
+				.run();
+		}
 
-		this.db
-			.delete(terminalAgentBindings)
+		const unmarked = this.db
+			.select({ terminalId: terminalAgentBindings.terminalId })
+			.from(terminalAgentBindings)
+			.innerJoin(
+				terminalSessions,
+				eq(terminalAgentBindings.terminalId, terminalSessions.id),
+			)
 			.where(
-				inArray(
-					terminalAgentBindings.terminalId,
-					rows.map((row) => row.terminalId),
+				and(
+					inArray(terminalSessions.status, ["exited", "disposed"]),
+					isNull(terminalAgentBindings.endedAt),
 				),
 			)
-			.run();
+			.all();
+		if (unmarked.length > 0) {
+			this.db
+				.update(terminalAgentBindings)
+				.set({ endedAt: Date.now(), endReason: "terminal-exited" })
+				.where(
+					inArray(
+						terminalAgentBindings.terminalId,
+						unmarked.map((row) => row.terminalId),
+					),
+				)
+				.run();
+		}
+	}
+
+	markEnded(
+		terminalId: string,
+		reason: TerminalAgentEndReason,
+		endedAt?: number,
+	): { workspaceId: string } | undefined {
+		return markTerminalAgentBindingEnded(this.db, terminalId, reason, endedAt);
 	}
 
 	upsert(binding: TerminalAgentBinding): void {
+		// A fresh event for the terminal revives an ended row: a new agent
+		// session started there, so the old resume candidate is superseded.
 		this.db
 			.insert(terminalAgentBindings)
 			.values({
@@ -195,6 +313,8 @@ export class SqliteTerminalAgentBindingPersistence
 				startedAt: binding.startedAt,
 				lastEventAt: binding.lastEventAt,
 				lastEventType: binding.lastEventType,
+				endedAt: null,
+				endReason: null,
 			})
 			.onConflictDoUpdate({
 				target: terminalAgentBindings.terminalId,
@@ -206,6 +326,8 @@ export class SqliteTerminalAgentBindingPersistence
 					startedAt: binding.startedAt,
 					lastEventAt: binding.lastEventAt,
 					lastEventType: binding.lastEventType,
+					endedAt: null,
+					endReason: null,
 				},
 			})
 			.run();

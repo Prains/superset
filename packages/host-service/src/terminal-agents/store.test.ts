@@ -377,4 +377,60 @@ describe("TerminalAgentStore", () => {
 		persistentStore.markTerminalExited("t1");
 		expect(persisted.has("t1")).toBe(false);
 	});
+
+	it("marks bindings ended instead of deleting when persistence supports it", () => {
+		const persisted = new Map<string, TerminalAgentBinding>();
+		const ended: Array<{ terminalId: string; reason: string }> = [];
+		const persistence: TerminalAgentBindingPersistence = {
+			load: () => [],
+			upsert: (binding) => {
+				persisted.set(binding.terminalId, binding);
+			},
+			delete: (terminalId) => {
+				persisted.delete(terminalId);
+			},
+			markEnded: (terminalId, reason) => {
+				const row = persisted.get(terminalId);
+				if (!row) return undefined;
+				ended.push({ terminalId, reason });
+				return { workspaceId: row.workspaceId };
+			},
+		};
+		const store = new TerminalAgentStore(persistence);
+
+		store.recordEvent({
+			terminalId: "t1",
+			workspaceId: WORKSPACE,
+			eventType: "Attached",
+			agentId: "claude",
+			agentSessionId: "sess-1",
+			occurredAt: 100,
+		});
+
+		// The agent's own goodbye marks a clean detach; the row is retained.
+		store.recordEvent({
+			terminalId: "t1",
+			workspaceId: WORKSPACE,
+			eventType: "Detached",
+			occurredAt: 200,
+		});
+		expect(store.get("t1")).toBeUndefined();
+		expect(persisted.has("t1")).toBe(true);
+		expect(ended).toEqual([{ terminalId: "t1", reason: "detached" }]);
+
+		// A terminal-side kill marks the binding as a resume candidate.
+		store.recordEvent({
+			terminalId: "t2",
+			workspaceId: WORKSPACE,
+			eventType: "Attached",
+			agentId: "claude",
+			occurredAt: 100,
+		});
+		store.markTerminalExited("t2");
+		expect(persisted.has("t2")).toBe(true);
+		expect(ended).toContainEqual({
+			terminalId: "t2",
+			reason: "terminal-exited",
+		});
+	});
 });

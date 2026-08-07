@@ -23,6 +23,7 @@ import type { HostDb } from "../db/index.ts";
 import { projects, terminalSessions, workspaces } from "../db/schema.ts";
 import type { EventBus } from "../events/index.ts";
 import { portManager } from "../ports/port-manager.ts";
+import { markTerminalAgentBindingEnded } from "../terminal-agents/persistence.ts";
 import {
 	DaemonClient,
 	type Signal as DaemonSignal,
@@ -1614,6 +1615,22 @@ export async function createTerminalSessionInternal({
 					.where(eq(terminalSessions.id, terminalId))
 					.run();
 
+				// The agent died with the pty; unless its SessionEnd hook already
+				// marked a clean detach, keep the binding as a resume candidate.
+				try {
+					markTerminalAgentBindingEnded(
+						db,
+						terminalId,
+						"terminal-exited",
+						occurredAt,
+					);
+				} catch (error) {
+					console.warn(
+						`[terminal] failed to mark agent binding ended for ${terminalId}`,
+						error,
+					);
+				}
+
 				broadcastMessage(session, {
 					type: "exit",
 					exitCode: session.exitCode,
@@ -1824,7 +1841,17 @@ export function registerWorkspaceTerminalRoute({
 				// Active row but daemon no longer owns the PTY (laptop sleep,
 				// daemon restart, machine reboot). Respawn rather than dead-end
 				// the pane — the renderer's xterm scrollback stays painted above.
+				// Any agent bound to the old PTY died with it without a goodbye;
+				// mark its binding ended so it surfaces as a resume candidate.
 				console.log(`[terminal] respawning lost session ${terminalId}`);
+				try {
+					markTerminalAgentBindingEnded(db, terminalId, "terminal-exited");
+				} catch (error) {
+					console.warn(
+						`[terminal] failed to mark agent binding ended for ${terminalId}`,
+						error,
+					);
+				}
 				return createTerminalSessionInternal({
 					terminalId,
 					workspaceId: record.originWorkspaceId,
