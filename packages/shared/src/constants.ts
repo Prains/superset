@@ -123,6 +123,13 @@ export const FEATURE_FLAGS = {
 	 */
 	V1_AUTO_MIGRATION: "v1-auto-migration",
 	/**
+	 * Shows the built-in "Superset CLI" preset in the v2 preset bar — a
+	 * synthetic preset that opens a terminal running `superset --help` so users
+	 * discover the bundled CLI. Percentage ramp; off, unloaded, or offline all
+	 * mean "don't show".
+	 */
+	BUILTIN_CLI_PRESET: "builtin-cli-preset",
+	/**
 	 * Shows the "We're Hiring" card in the dashboard sidebar. Targets a static
 	 * PostHog cohort of users who have created 10+ workspaces all-time, which is
 	 * the only place that history exists — workspace rows are hard-deleted, so a

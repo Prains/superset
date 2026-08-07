@@ -338,6 +338,11 @@ export const v2UserPreferencesSchema = z.object({
 	rightSidebarWidth: z.number().default(340),
 	deleteLocalBranch: z.boolean().default(false),
 	showPresetsBar: z.boolean().default(true),
+	// Built-in (synthetic, app-shipped) presets the user hid from the preset
+	// bar. Synthetic presets have no v2TerminalPresets row, so visibility can't
+	// live on the row's pinnedToBar like user presets. Bounded by the fixed set
+	// of built-in preset ids.
+	hiddenBuiltinPresetIds: z.array(z.string()).default([]),
 });
 
 export type V2UserPreferencesRow = z.infer<typeof v2UserPreferencesSchema>;
@@ -356,6 +361,7 @@ export const DEFAULT_V2_USER_PREFERENCES: V2UserPreferencesRow = {
 	rightSidebarWidth: 340,
 	deleteLocalBranch: false,
 	showPresetsBar: true,
+	hiddenBuiltinPresetIds: [],
 };
 
 /**

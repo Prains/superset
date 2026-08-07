@@ -6,10 +6,8 @@ things — point-of-use discovery, not an announcement. No agent session, no pro
 just show the command surface in a real terminal they can keep typing into.
 
 Works out of the box because the bundled CLI shim (`~/.superset/bin/superset`) is already on
-PATH inside every Superset-spawned terminal.
-
-Competitive context: Orca (stablyai) promotes its CLI in 8+ in-app surfaces; our CLI is on
-PATH in every Superset terminal but nothing in the app ever uses or mentions it.
+PATH inside every Superset-spawned terminal — yet nothing in the app ever uses or mentions it
+beyond one banner on the Automations page.
 
 ## UX
 
@@ -56,12 +54,12 @@ decide at implementation.
   `hiddenBuiltinPresetIds: string[]` (default `[]`). Bounded (known slug set), singleton —
   satisfies the localStorage policy. `pinnedToBar` can't be used: `v2TerminalPresets.update()`
   throws on a row that doesn't exist in the collection.
-- New module `renderer/lib/builtin-presets/` exporting
+- New hook `renderer/hooks/useBuiltinPresets/` exporting
   `BUILTIN_CLI_PRESET = { id: "superset-cli", name: "Superset CLI", description,
   commands: ["superset --help"] }` and `useBuiltinPresets()` (applies feature flag +
-  hidden ids).
-- Icon: new `superset-cli` light/dark SVG in `packages/ui/src/assets/icons/preset-icons/` +
-  key in `PRESET_ICONS`; `resolveV2PresetIconKey` recognizes the synthetic id.
+  hidden ids; hidden entries are still returned so manage surfaces can un-hide).
+- Icon: reuse the existing `superset` key in `PRESET_ICONS` via `getPresetIcon("superset",
+  isDark)` — no new assets needed.
 
 ## Edge cases
 
