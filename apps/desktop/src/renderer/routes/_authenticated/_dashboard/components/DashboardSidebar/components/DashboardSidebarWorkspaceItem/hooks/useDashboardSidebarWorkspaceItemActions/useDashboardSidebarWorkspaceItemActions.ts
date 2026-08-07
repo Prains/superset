@@ -2,6 +2,7 @@ import { toast } from "@superset/ui/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { getTerminalAgentBindingsQueryKey } from "renderer/hooks/host-service/useTerminalAgentBindings";
 import {
 	useMarkWorkspaceTerminalsSeen,
 	useV2WorkspaceIsUnread,
@@ -12,6 +13,7 @@ import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { showHostServiceUnavailableToast } from "renderer/lib/host-service-unavailable";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useDashboardSidebarSectionRename } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/components/DashboardSidebarSectionRenameContext";
+import { DASHBOARD_SIDEBAR_PULL_REQUEST_QUERY_KEY_PREFIX } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/hooks/useDashboardSidebarData/derivePullRequestQueryTargets";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
 import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
@@ -181,11 +183,32 @@ export function useDashboardSidebarWorkspaceItemActions({
 				workspaceHostUrl,
 			).terminalAgents.clearWorkspaceStatuses.mutate({ workspaceId });
 			await queryClient.invalidateQueries({
-				queryKey: ["terminal-agent-bindings", workspaceHostUrl, workspaceId],
+				queryKey: getTerminalAgentBindingsQueryKey(workspaceId),
 			});
 		} catch (error) {
 			toast.error(
 				`Failed to clear agent status: ${error instanceof Error ? error.message : "Unknown error"}`,
+			);
+		}
+	};
+
+	const handleRemovePullRequest = async () => {
+		if (!workspaceHostUrl) {
+			showHostServiceUnavailableToast(hostService, {
+				action: "remove the PR link",
+			});
+			return;
+		}
+		try {
+			await getHostServiceClientByUrl(
+				workspaceHostUrl,
+			).pullRequests.unlinkFromWorkspace.mutate({ workspaceId });
+			await queryClient.invalidateQueries({
+				queryKey: DASHBOARD_SIDEBAR_PULL_REQUEST_QUERY_KEY_PREFIX,
+			});
+		} catch (error) {
+			toast.error(
+				`Failed to remove PR link: ${error instanceof Error ? error.message : "Unknown error"}`,
 			);
 		}
 	};
@@ -215,6 +238,7 @@ export function useDashboardSidebarWorkspaceItemActions({
 		handleDeleted,
 		handleOpenInFinder,
 		handleRemoveFromSidebar,
+		handleRemovePullRequest,
 		handleTogglePin,
 		handleToggleUnread,
 		isActive,

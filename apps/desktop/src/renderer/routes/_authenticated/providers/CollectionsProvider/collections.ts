@@ -112,19 +112,31 @@ const createIndexedCollection = ((
 	createCollection({ ...config, ...indexDefaults })) as typeof createCollection;
 
 /**
- * Applied to every localStorage-backed collection so an exhausted store drops
- * the write instead of throwing, which is what stops the rollback/retry loop
- * that freezes the renderer.
+ * Applied to every localStorage-backed collection:
+ * - `startSync: true` + `gcTime: 0`: hydrate at construction, never GC. The
+ *   sidebar mutation helpers read `.state` non-reactively, and a write into a
+ *   not-yet-hydrated (or GC'd) collection rewrites the whole storage key from
+ *   empty memory — erasing every persisted row for the org.
+ * - `withReadHeal`: per-row tolerant reads — one malformed entry escaping to
+ *   the library's hydration catch-all would blank the entire store.
+ * - `withQuotaGuard`: an exhausted store drops the write instead of throwing,
+ *   which is what stops the rollback/retry loop that freezes the renderer.
  */
-const guardQuota = <T>(options: T): T =>
-	withQuotaGuard(options, {
-		// Oldest-first by the terminal GC's persisted-at index (24h pressure TTL)
-		// — survives relaunches, unlike registry membership.
-		reclaim: () => reclaimTerminalStateForQuota(),
-		// Not passed by reference: the guard's second argument is the error, which
-		// would land in the notice's optional `mode` slot.
-		onPersistFailed: (storageKey) => notifyQuotaExhausted(storageKey),
-	});
+const hardenLocalCollection = <T>(
+	options: T,
+	heal?: (raw: unknown) => unknown,
+): T =>
+	withQuotaGuard(
+		withReadHeal({ ...options, startSync: true, gcTime: 0 } as T, heal),
+		{
+			// Oldest-first by the terminal GC's persisted-at index (24h pressure TTL)
+			// — survives relaunches, unlike registry membership.
+			reclaim: () => reclaimTerminalStateForQuota(),
+			// Not passed by reference: the guard's second argument is the error, which
+			// would land in the notice's optional `mode` slot.
+			onPersistFailed: (storageKey) => notifyQuotaExhausted(storageKey),
+		},
+	);
 
 type ElectricSyncConfig = ReturnType<typeof electricCollectionOptions>;
 const createPersistedElectricCollection = ((config: ElectricSyncConfig) => {
@@ -764,7 +776,7 @@ function createOrgCollections(organizationId: string): OrgCollections {
 
 	const v2SidebarProjects = createIndexedCollection(
 		localStorageCollectionOptions(
-			guardQuota({
+			hardenLocalCollection({
 				id: `v2_sidebar_projects-${organizationId}`,
 				storageKey: `v2-sidebar-projects-${organizationId}`,
 				schema: dashboardSidebarProjectSchema,
@@ -782,18 +794,16 @@ function createOrgCollections(organizationId: string): OrgCollections {
 
 	const v2WorkspaceLocalState = createIndexedCollection(
 		localStorageCollectionOptions(
-			guardQuota(
-				withReadHeal(
-					{
-						id: `v2_workspace_local_state-${organizationId}`,
-						storageKey: `v2-workspace-local-state-${organizationId}`,
-						schema: workspaceLocalStateSchema,
-						// Explicit type so `withReadHeal`'s passthrough generic keeps the
-						// linkage between schema and getKey for downstream inference.
-						getKey: (item: WorkspaceLocalStateRow) => item.workspaceId,
-					},
-					healWorkspaceLocalState,
-				),
+			hardenLocalCollection(
+				{
+					id: `v2_workspace_local_state-${organizationId}`,
+					storageKey: `v2-workspace-local-state-${organizationId}`,
+					schema: workspaceLocalStateSchema,
+					// Explicit type so `withReadHeal`'s passthrough generic keeps the
+					// linkage between schema and getKey for downstream inference.
+					getKey: (item: WorkspaceLocalStateRow) => item.workspaceId,
+				},
+				healWorkspaceLocalState,
 			),
 		),
 	);
@@ -812,7 +822,7 @@ function createOrgCollections(organizationId: string): OrgCollections {
 
 	const v2SidebarSections = createIndexedCollection(
 		localStorageCollectionOptions(
-			guardQuota({
+			hardenLocalCollection({
 				id: `v2_sidebar_sections-${organizationId}`,
 				storageKey: `v2-sidebar-sections-${organizationId}`,
 				schema: dashboardSidebarSectionSchema,
@@ -831,7 +841,7 @@ function createOrgCollections(organizationId: string): OrgCollections {
 
 	const v2TerminalPresets = createIndexedCollection(
 		localStorageCollectionOptions(
-			guardQuota({
+			hardenLocalCollection({
 				id: `v2_terminal_presets-${organizationId}`,
 				storageKey: `v2-terminal-presets-${organizationId}`,
 				schema: v2TerminalPresetSchema,
@@ -842,27 +852,25 @@ function createOrgCollections(organizationId: string): OrgCollections {
 
 	const v2UserPreferences = createCollection(
 		localStorageCollectionOptions(
-			guardQuota(
-				withReadHeal(
-					{
-						id: `v2_user_preferences-${organizationId}`,
-						storageKey: `v2-user-preferences-${organizationId}`,
-						schema: v2UserPreferencesSchema,
-						// Cast widens the inferred literal "preferences" key to string so
-						// the collection slots into the shared OrgCollections.{...<TKey=string>}
-						// shape alongside the other v2 collections. Explicit `item` type so
-						// `withReadHeal`'s passthrough generic keeps schema/getKey linkage.
-						getKey: (item: V2UserPreferencesRow) => item.id as string,
-					},
-					healV2UserPreferences,
-				),
+			hardenLocalCollection(
+				{
+					id: `v2_user_preferences-${organizationId}`,
+					storageKey: `v2-user-preferences-${organizationId}`,
+					schema: v2UserPreferencesSchema,
+					// Cast widens the inferred literal "preferences" key to string so
+					// the collection slots into the shared OrgCollections.{...<TKey=string>}
+					// shape alongside the other v2 collections. Explicit `item` type so
+					// `withReadHeal`'s passthrough generic keeps schema/getKey linkage.
+					getKey: (item: V2UserPreferencesRow) => item.id as string,
+				},
+				healV2UserPreferences,
 			),
 		),
 	);
 
 	const failedWorkspaceCreates = createIndexedCollection(
 		localStorageCollectionOptions(
-			guardQuota({
+			hardenLocalCollection({
 				id: `failed_workspace_creates-${organizationId}`,
 				storageKey: `failed-workspace-creates-${organizationId}`,
 				schema: failedWorkspaceCreateSchema,
@@ -904,21 +912,26 @@ function createOrgCollections(organizationId: string): OrgCollections {
 }
 
 /**
- * Preload collections for an organization by starting Electric sync.
- * Collections are lazy — they don't fetch data until subscribed or preloaded.
- * Call this eagerly so data is ready when the user switches orgs.
+ * Start Electric sync for every collection of an organization. Collections
+ * are lazy — they don't fetch until subscribed or preloaded.
+ *
+ * Resolves once sync is STARTED, not once it completes. `preload()` on a
+ * persisted collection only settles after Electric's initial network sync,
+ * but SQLite-persisted rows hydrate into the collection immediately — the UI
+ * renders cache-first either way, and a never-synced org streams in exactly
+ * like first boot does. Waiting here only delays the switch and lets any
+ * single wedged shape hang it indefinitely.
  */
 export async function preloadCollections(
 	organizationId: string,
 ): Promise<void> {
 	const collections = getCollections(organizationId);
-	const collectionsToPreload = Object.entries(collections)
-		.filter(([name]) => name !== "organizations")
-		.map(([, collection]) => collection as Collection<object>);
-
-	await Promise.allSettled(
-		collectionsToPreload.map((c) => (c as Collection<object>).preload()),
-	);
+	for (const [name, collection] of Object.entries(collections)) {
+		if (name === "organizations") continue;
+		(collection as Collection<object>).preload().catch((error) => {
+			console.error(`[collections] Preload failed: ${name}`, error);
+		});
+	}
 }
 
 /**

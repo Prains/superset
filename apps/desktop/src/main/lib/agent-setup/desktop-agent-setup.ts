@@ -44,12 +44,19 @@ import {
 	DESKTOP_AGENT_SETUP_TARGETS,
 	type DesktopAgentSetupTargetId,
 } from "./desktop-agent-capabilities";
+import { createManagedSkills } from "./managed-skills";
 import { createNotifyScript } from "./notify-hook";
 
+type LabeledAction = readonly [label: string, action: () => void];
+
 /** Shared prerequisites: per-agent hooks reference the notify script. */
-const BOOTSTRAP_SETUP: readonly (() => void)[] = [
-	cleanupGlobalOpenCodePlugin,
-	createNotifyScript,
+const BOOTSTRAP_SETUP: readonly LabeledAction[] = [
+	["cleanup-global-opencode-plugin", cleanupGlobalOpenCodePlugin],
+	["notify-script", createNotifyScript],
+	// Async fire-and-forget: every fs mutation inside is individually
+	// try/caught and logged, so nothing can reject unhandled, and boot
+	// never blocks on skill provisioning.
+	["managed-skills", () => void createManagedSkills()],
 ];
 
 interface AgentSetupDefinition {
@@ -129,14 +136,36 @@ const AGENT_SETUP_DEFINITIONS: Record<
 	},
 };
 
-/** One failing writer must not abort setup/teardown for the other agents. */
-function run(actions: readonly (() => void)[] | undefined): void {
+/**
+ * One bad $HOME state (permissions, a config another tool corrupted) must not
+ * break app boot or block the remaining agents' setup — isolate every action.
+ */
+export function runSetupAction(label: string, action: () => void): boolean {
+	try {
+		action();
+		return true;
+	} catch (error) {
+		console.warn(`[agent-setup] ${label} failed:`, error);
+		return false;
+	}
+}
+
+function runAgentActions(
+	agentId: string,
+	actions: readonly (() => void)[] | undefined,
+	failed: string[],
+): void {
 	for (const action of actions ?? []) {
-		try {
-			action();
-		} catch (error) {
-			console.warn("[agent-setup] Action failed (continuing):", error);
-		}
+		const label = `${agentId}:${action.name || "action"}`;
+		if (!runSetupAction(label, action)) failed.push(label);
+	}
+}
+
+function warnOnFailures(failed: string[]): void {
+	if (failed.length > 0) {
+		console.warn(
+			`[agent-setup] ${failed.length} setup action(s) failed: ${failed.join(", ")}`,
+		);
 	}
 }
 
@@ -153,16 +182,21 @@ export function setupDesktopAgentCapabilities({
 	disabledAgentIds = [],
 }: SetupDesktopAgentCapabilitiesOptions = {}): void {
 	const disabled = new Set(disabledAgentIds);
-	run(BOOTSTRAP_SETUP);
+	const failed: string[] = [];
+	for (const [label, action] of BOOTSTRAP_SETUP) {
+		if (!runSetupAction(label, action)) failed.push(label);
+	}
 
 	for (const target of DESKTOP_AGENT_SETUP_TARGETS) {
 		const definition = AGENT_SETUP_DEFINITIONS[target.id];
-		if (disabled.has(target.id)) {
-			run(definition.teardown);
-		} else {
-			run(definition.setup);
-		}
+		runAgentActions(
+			target.id,
+			disabled.has(target.id) ? definition.teardown : definition.setup,
+			failed,
+		);
 	}
+
+	warnOnFailures(failed);
 }
 
 /**
@@ -174,8 +208,12 @@ export function setupSingleAgent(agentId: string): boolean {
 	const definition =
 		AGENT_SETUP_DEFINITIONS[agentId as DesktopAgentSetupTargetId];
 	if (!definition) return false;
-	run(BOOTSTRAP_SETUP);
-	run(definition.setup);
+	const failed: string[] = [];
+	for (const [label, action] of BOOTSTRAP_SETUP) {
+		if (!runSetupAction(label, action)) failed.push(label);
+	}
+	runAgentActions(agentId, definition.setup, failed);
+	warnOnFailures(failed);
 	return true;
 }
 
@@ -188,6 +226,8 @@ export function teardownSingleAgent(agentId: string): boolean {
 	const definition =
 		AGENT_SETUP_DEFINITIONS[agentId as DesktopAgentSetupTargetId];
 	if (!definition) return false;
-	run(definition.teardown);
+	const failed: string[] = [];
+	runAgentActions(agentId, definition.teardown, failed);
+	warnOnFailures(failed);
 	return true;
 }
