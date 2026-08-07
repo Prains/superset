@@ -109,6 +109,19 @@ export function markTerminalAgentBindingEnded(
 	return { workspaceId: row.workspaceId };
 }
 
+/** The agent session id a terminal's binding currently points at, if any. */
+export function getTerminalAgentBindingSessionId(
+	db: HostDb,
+	terminalId: string,
+): string | undefined {
+	const row = db
+		.select({ agentSessionId: terminalAgentBindings.agentSessionId })
+		.from(terminalAgentBindings)
+		.where(eq(terminalAgentBindings.terminalId, terminalId))
+		.get();
+	return row?.agentSessionId ?? undefined;
+}
+
 /**
  * The ended binding a dead terminal can be resumed from: agent session id
  * captured, and the terminal died under the agent rather than the agent

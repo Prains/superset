@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 import { resolve } from "node:path";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import type { HostDb } from "../db";
@@ -77,6 +78,35 @@ describe("sweepAgentBindingsAfterDaemonLoss", () => {
 
 		expect(calls).toBe(3);
 		expect(findResumeCandidateBinding(db, "ws-1", "t1")).toBeDefined();
+	});
+
+	it("skips a binding whose session changed during the sweep delay", async () => {
+		// A terminal respawned mid-sweep can start a NEW agent session; the
+		// delayed pass must not mark that fresh binding ended.
+		const db = createTestDb();
+		seed(db, "t1");
+
+		await sweepAgentBindingsAfterDaemonLoss({
+			candidates: [{ terminalId: "t1", db }],
+			listAliveSessionIds: async () => {
+				// Simulate a new agent binding landing while probes run.
+				db.update(terminalAgentBindings)
+					.set({ agentSessionId: "sess-new-agent" })
+					.where(eq(terminalAgentBindings.terminalId, "t1"))
+					.run();
+				return null;
+			},
+			attempts: 1,
+			delayMs: 1,
+		});
+
+		expect(findResumeCandidateBinding(db, "ws-1", "t1")).toBeUndefined();
+		const row = db
+			.select({ endedAt: terminalAgentBindings.endedAt })
+			.from(terminalAgentBindings)
+			.where(eq(terminalAgentBindings.terminalId, "t1"))
+			.get();
+		expect(row?.endedAt).toBeNull();
 	});
 
 	it("stops retrying once a daemon answers and tolerates lister errors", async () => {
