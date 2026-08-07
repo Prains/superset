@@ -220,20 +220,37 @@ describe("binding end marking and resume candidates", () => {
 		expect(candidate?.endReason).toBe("terminal-exited");
 	});
 
-	it("detached wins over terminal-exited and blocks resume", () => {
+	it("upgrades a death-gasp detach when the terminal dies moments later", () => {
+		// claude runs SessionEnd hooks on SIGHUP, so a daemon kill records a
+		// detach ~1s before the terminal death is noticed. That goodbye must
+		// not block resume.
 		const db = createTestDb();
 		seedWithSessionId(db, "t1");
+		markTerminalAgentBindingEnded(db, "t1", "detached", 10_000);
+		markTerminalAgentBindingEnded(db, "t1", "terminal-exited", 12_000);
+		const candidate = findResumeCandidateBinding(db, "ws-1", "t1");
+		expect(candidate?.endReason).toBe("terminal-exited");
+		expect(candidate?.endedAt).toBe(10_000);
+	});
 
-		markTerminalAgentBindingEnded(db, "t1", "terminal-exited", 10);
-		markTerminalAgentBindingEnded(db, "t1", "detached", 20);
+	it("keeps an old detach final when the terminal dies much later", () => {
+		// A real user quit: the shell outlived the agent, the terminal died
+		// long after. No resume offer.
+		const db = createTestDb();
+		seedWithSessionId(db, "t1");
+		markTerminalAgentBindingEnded(db, "t1", "detached", 10_000);
+		markTerminalAgentBindingEnded(db, "t1", "terminal-exited", 50_000);
 		expect(findResumeCandidateBinding(db, "ws-1", "t1")).toBeUndefined();
+	});
 
-		// And the reverse: a late terminal-exited never downgrades a detach.
-		const db2 = createTestDb();
-		seedWithSessionId(db2, "t2");
-		markTerminalAgentBindingEnded(db2, "t2", "detached", 10);
-		markTerminalAgentBindingEnded(db2, "t2", "terminal-exited", 20);
-		expect(findResumeCandidateBinding(db2, "ws-1", "t2")).toBeUndefined();
+	it("never downgrades terminal-exited when a late goodbye trickles in", () => {
+		const db = createTestDb();
+		seedWithSessionId(db, "t1");
+		markTerminalAgentBindingEnded(db, "t1", "terminal-exited", 10_000);
+		markTerminalAgentBindingEnded(db, "t1", "detached", 11_000);
+		expect(findResumeCandidateBinding(db, "ws-1", "t1")?.endReason).toBe(
+			"terminal-exited",
+		);
 	});
 
 	it("does not offer bindings without an agent session id", () => {

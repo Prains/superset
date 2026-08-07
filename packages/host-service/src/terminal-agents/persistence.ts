@@ -56,11 +56,21 @@ function rowToBinding(row: BindingRow): TerminalAgentBinding {
 }
 
 /**
+ * Some agents run their SessionEnd hooks on SIGHUP — a daemon kill or pty
+ * death makes claude "say goodbye" moments before dying. A detach this close
+ * to the terminal's death is that death gasp, not a user quit, so it
+ * upgrades to a resume candidate. A detach older than this is a real quit
+ * (the shell outlived the agent) and stays final.
+ */
+const DEATH_GASP_DETACH_WINDOW_MS = 30_000;
+
+/**
  * Mark a binding's agent session as ended without deleting the row, so its
- * `agentSessionId` survives for resume. "detached" (the agent's own goodbye)
- * always wins; "terminal-exited" never overwrites an existing end state.
- * Standalone so terminal internals (pty exit, cold respawn) can mark ended
- * with just a db handle. Returns the workspaceId when a row was updated.
+ * `agentSessionId` survives for resume. "terminal-exited" is sticky: a
+ * goodbye that trickles in after the terminal already died never downgrades
+ * a resume candidate. Standalone so terminal internals (pty exit, daemon
+ * disconnect, cold respawn) can mark ended with just a db handle. Returns
+ * the workspaceId when a row was updated.
  */
 export function markTerminalAgentBindingEnded(
 	db: HostDb,
@@ -78,11 +88,22 @@ export function markTerminalAgentBindingEnded(
 		.where(eq(terminalAgentBindings.terminalId, terminalId))
 		.get();
 	if (!row) return undefined;
-	if (reason === "terminal-exited" && row.endedAt !== null) return undefined;
-	if (reason === "detached" && row.endReason === "detached") return undefined;
+
+	if (row.endedAt !== null) {
+		const isDeathGaspDetach =
+			reason === "terminal-exited" &&
+			row.endReason === "detached" &&
+			endedAt - row.endedAt <= DEATH_GASP_DETACH_WINDOW_MS;
+		if (!isDeathGaspDetach) return undefined;
+		db.update(terminalAgentBindings)
+			.set({ endReason: "terminal-exited" })
+			.where(eq(terminalAgentBindings.terminalId, terminalId))
+			.run();
+		return { workspaceId: row.workspaceId };
+	}
 
 	db.update(terminalAgentBindings)
-		.set({ endedAt: row.endedAt ?? endedAt, endReason: reason })
+		.set({ endedAt, endReason: reason })
 		.where(eq(terminalAgentBindings.terminalId, terminalId))
 		.run();
 	return { workspaceId: row.workspaceId };

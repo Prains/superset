@@ -257,6 +257,8 @@ type ShellReadyState =
 interface TerminalSession {
 	terminalId: string;
 	workspaceId: string;
+	/** Handle for db writes from module-scope handlers (daemon disconnect). */
+	db: HostDb;
 	pty: DaemonPty;
 	cols: number;
 	rows: number;
@@ -340,6 +342,21 @@ onDaemonDisconnect((err) => {
 		`[terminal] pty-daemon disconnected (${err?.message ?? "no message"}); closing ${sessionCount} terminal WS socket(s) to trigger renderer reconnect`,
 	);
 	for (const session of sessions.values()) {
+		// Every pty died with the daemon. Mark agent bindings ended so they
+		// surface as resume candidates — including upgrading the "goodbye"
+		// some agents emit on SIGHUP moments before dying.
+		try {
+			markTerminalAgentBindingEnded(
+				session.db,
+				session.terminalId,
+				"terminal-exited",
+			);
+		} catch (markError) {
+			console.warn(
+				`[terminal] failed to mark agent binding ended for ${session.terminalId}`,
+				markError,
+			);
+		}
 		cancelShellReady(session);
 		for (const socket of session.sockets) {
 			try {
@@ -1512,6 +1529,7 @@ export async function createTerminalSessionInternal({
 	const session: TerminalSession = {
 		terminalId,
 		workspaceId,
+		db,
 		pty,
 		cols,
 		rows,
