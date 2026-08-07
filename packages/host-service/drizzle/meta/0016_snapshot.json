@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b8ad79d4-ef84-4579-af0f-874343d36548",
-  "prevId": "2e9d7e87-077f-4709-96d1-54947b472c73",
+  "id": "58031abf-4c38-4fce-800a-acd0ceb84397",
+  "prevId": "b8ad79d4-ef84-4579-af0f-874343d36548",
   "tables": {
     "acp_sessions": {
       "name": "acp_sessions",
@@ -304,6 +304,13 @@
         },
         "icon": {
           "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "color": {
+          "name": "color",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
