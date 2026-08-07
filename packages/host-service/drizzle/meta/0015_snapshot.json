@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "88014800-ea6a-480e-ab66-08eefb52a4ce",
+  "id": "b8ad79d4-ef84-4579-af0f-874343d36548",
   "prevId": "2e9d7e87-077f-4709-96d1-54947b472c73",
   "tables": {
     "acp_sessions": {
@@ -140,14 +140,6 @@
         },
         "prompt_args_json": {
           "name": "prompt_args_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "resume_args_json": {
-          "name": "resume_args_json",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -319,6 +311,13 @@
         },
         "sparse_checkout_paths": {
           "name": "sparse_checkout_paths",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "naming_instructions": {
+          "name": "naming_instructions",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

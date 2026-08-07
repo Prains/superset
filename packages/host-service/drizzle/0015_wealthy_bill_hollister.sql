@@ -1,1 +1,0 @@
-ALTER TABLE `host_agent_configs` ADD `resume_args_json` text DEFAULT '[]' NOT NULL;

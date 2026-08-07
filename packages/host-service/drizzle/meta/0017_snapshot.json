@@ -1,8 +1,8 @@
 {
-  "id": "1538afbc-ce22-4399-a106-064b7bf6cf1a",
-  "prevId": "5881c9be-06da-496d-a6ca-db32073caa76",
   "version": "6",
   "dialect": "sqlite",
+  "id": "6bc525e0-4ddf-49aa-aff6-31e44c4b0eb4",
+  "prevId": "58031abf-4c38-4fce-800a-acd0ceb84397",
   "tables": {
     "acp_sessions": {
       "name": "acp_sessions",
@@ -317,8 +317,22 @@
           "notNull": false,
           "autoincrement": false
         },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "sparse_checkout_paths": {
           "name": "sparse_checkout_paths",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "naming_instructions": {
+          "name": "naming_instructions",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -535,15 +549,15 @@
         "pull_requests_project_id_projects_id_fk": {
           "name": "pull_requests_project_id_projects_id_fk",
           "tableFrom": "pull_requests",
+          "tableTo": "projects",
           "columnsFrom": [
             "project_id"
           ],
-          "tableTo": "projects",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -637,15 +651,15 @@
         "terminal_agent_bindings_terminal_id_terminal_sessions_id_fk": {
           "name": "terminal_agent_bindings_terminal_id_terminal_sessions_id_fk",
           "tableFrom": "terminal_agent_bindings",
+          "tableTo": "terminal_sessions",
           "columnsFrom": [
             "terminal_id"
           ],
-          "tableTo": "terminal_sessions",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -726,15 +740,15 @@
         "terminal_sessions_origin_workspace_id_workspaces_id_fk": {
           "name": "terminal_sessions_origin_workspace_id_workspaces_id_fk",
           "tableFrom": "terminal_sessions",
+          "tableTo": "workspaces",
           "columnsFrom": [
             "origin_workspace_id"
           ],
-          "tableTo": "workspaces",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -920,49 +934,49 @@
           "columns": [
             "project_id"
           ],
-          "where": "type = 'main'",
-          "isUnique": true
+          "isUnique": true,
+          "where": "type = 'main'"
         }
       },
       "foreignKeys": {
         "workspaces_project_id_projects_id_fk": {
           "name": "workspaces_project_id_projects_id_fk",
           "tableFrom": "workspaces",
+          "tableTo": "projects",
           "columnsFrom": [
             "project_id"
           ],
-          "tableTo": "projects",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "workspaces_pull_request_id_pull_requests_id_fk": {
           "name": "workspaces_pull_request_id_pull_requests_id_fk",
           "tableFrom": "workspaces",
+          "tableTo": "pull_requests",
           "columnsFrom": [
             "pull_request_id"
           ],
-          "tableTo": "pull_requests",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "workspaces_suppressed_pull_request_id_pull_requests_id_fk": {
           "name": "workspaces_suppressed_pull_request_id_pull_requests_id_fk",
           "tableFrom": "workspaces",
+          "tableTo": "pull_requests",
           "columnsFrom": [
             "suppressed_pull_request_id"
           ],
-          "tableTo": "pull_requests",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -973,9 +987,9 @@
   "views": {},
   "enums": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
+    "tables": {},
+    "columns": {}
   },
   "internal": {
     "indexes": {}
