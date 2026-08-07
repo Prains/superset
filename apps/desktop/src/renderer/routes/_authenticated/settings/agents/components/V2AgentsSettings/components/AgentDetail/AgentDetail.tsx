@@ -251,20 +251,25 @@ export function AgentDetail({
 				{isHooksSetupTarget ? (
 					<div className="pt-2 border-t border-border">
 						<div className="flex items-center justify-between gap-8">
-							<div className="flex min-w-0 flex-1 items-center gap-1.5">
-								<div className="text-sm font-medium">Superset hooks</div>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-									</TooltipTrigger>
-									<TooltipContent side="top" className="max-w-[320px]">
-										Registers lifecycle hooks in this agent's global config so
-										Superset can show status and send notifications. Turning
-										this off removes Superset's entries everywhere — status and
-										notifications stop for this agent, including inside
-										Superset.
-									</TooltipContent>
-								</Tooltip>
+							<div className="min-w-0 flex-1">
+								<div className="flex items-center gap-1.5">
+									<div className="text-sm font-medium">Superset hooks</div>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+										</TooltipTrigger>
+										<TooltipContent side="top" className="max-w-[320px]">
+											Registers lifecycle hooks in this agent's global config
+											so Superset can show status and send notifications.
+											Turning this off removes Superset's entries everywhere —
+											status and notifications stop for this agent, including
+											inside Superset.
+										</TooltipContent>
+									</Tooltip>
+								</div>
+								<p className="text-sm text-muted-foreground mt-0.5">
+									Show status and send notifications for this agent.
+								</p>
 							</div>
 							<Switch
 								checked={hooksEnabled}
