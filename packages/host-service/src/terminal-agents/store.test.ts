@@ -433,4 +433,80 @@ describe("TerminalAgentStore", () => {
 			reason: "terminal-exited",
 		});
 	});
+
+	it("drops straggler events that would erase an ended row's resume state", () => {
+		const persisted = new Map<string, TerminalAgentBinding>();
+		const endState = {
+			endedAt: 100_000,
+			agentSessionId: "sess-old" as string | undefined,
+		};
+		const persistence: TerminalAgentBindingPersistence = {
+			load: () => [],
+			upsert: (binding) => {
+				persisted.set(binding.terminalId, binding);
+			},
+			delete: (terminalId) => {
+				persisted.delete(terminalId);
+			},
+			markEnded: () => undefined,
+			getEnded: () => endState,
+		};
+		const store = new TerminalAgentStore(persistence);
+
+		// Late Stop from the dead session (same session id, within window).
+		store.recordEvent({
+			terminalId: "t1",
+			workspaceId: WORKSPACE,
+			eventType: "Stop",
+			agentId: "codex",
+			agentSessionId: "sess-old",
+			occurredAt: 105_000,
+		});
+		expect(persisted.has("t1")).toBe(false);
+
+		// Late event without a session id is equally untrusted.
+		store.recordEvent({
+			terminalId: "t1",
+			workspaceId: WORKSPACE,
+			eventType: "Start",
+			agentId: "codex",
+			occurredAt: 110_000,
+		});
+		expect(persisted.has("t1")).toBe(false);
+
+		// An explicit new session start revives the row.
+		store.recordEvent({
+			terminalId: "t1",
+			workspaceId: WORKSPACE,
+			eventType: "Attached",
+			agentId: "codex",
+			agentSessionId: "sess-new",
+			occurredAt: 111_000,
+		});
+		expect(persisted.get("t1")?.agentSessionId).toBe("sess-new");
+		persisted.delete("t1");
+
+		// A different session id is evidence of a new session even mid-window.
+		store.recordEvent({
+			terminalId: "t1",
+			workspaceId: WORKSPACE,
+			eventType: "Stop",
+			agentId: "codex",
+			agentSessionId: "sess-other",
+			occurredAt: 112_000,
+		});
+		expect(persisted.get("t1")?.agentSessionId).toBe("sess-other");
+		persisted.delete("t1");
+
+		// Past the straggler window, events flow again (agents without
+		// SessionStart hooks, e.g. vibe, must still bind).
+		store.recordEvent({
+			terminalId: "t1",
+			workspaceId: WORKSPACE,
+			eventType: "Start",
+			agentId: "vibe",
+			occurredAt: 200_000,
+		});
+		expect(persisted.has("t1")).toBe(true);
+	});
 });

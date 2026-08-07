@@ -320,6 +320,24 @@ export class SqliteTerminalAgentBindingPersistence
 		return markTerminalAgentBindingEnded(this.db, terminalId, reason, endedAt);
 	}
 
+	getEnded(
+		terminalId: string,
+	): { endedAt: number; agentSessionId?: string } | undefined {
+		const row = this.db
+			.select({
+				endedAt: terminalAgentBindings.endedAt,
+				agentSessionId: terminalAgentBindings.agentSessionId,
+			})
+			.from(terminalAgentBindings)
+			.where(eq(terminalAgentBindings.terminalId, terminalId))
+			.get();
+		if (!row || row.endedAt === null) return undefined;
+		return {
+			endedAt: row.endedAt,
+			...(row.agentSessionId ? { agentSessionId: row.agentSessionId } : {}),
+		};
+	}
+
 	upsert(binding: TerminalAgentBinding): void {
 		// A fresh event for the terminal revives an ended row: a new agent
 		// session started there, so the old resume candidate is superseded.

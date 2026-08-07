@@ -29,6 +29,14 @@ const END_EVENT_REASONS = new Map<string, TerminalAgentEndReason>([
 	["error", "terminal-exited"],
 ]);
 
+/**
+ * Hook events can straggle in after the terminal died (async notify
+ * callbacks, in-flight curls). Within this window of the recorded end, only
+ * clear evidence of a NEW session may revive an ended row — a straggler
+ * upsert would erase `endedAt`/`endReason` and destroy the resume candidate.
+ */
+const END_STRAGGLER_WINDOW_MS = 30_000;
+
 export interface TerminalAgentBindingPersistence {
 	load(): TerminalAgentBinding[];
 	upsert(binding: TerminalAgentBinding): void;
@@ -43,6 +51,10 @@ export interface TerminalAgentBindingPersistence {
 		reason: TerminalAgentEndReason,
 		endedAt?: number,
 	): { workspaceId: string } | undefined;
+	/** End state of the terminal's row, if it exists and has ended. */
+	getEnded?(
+		terminalId: string,
+	): { endedAt: number; agentSessionId?: string } | undefined;
 	/**
 	 * Liveness-joined reads (session `active` + workspace-owned). When
 	 * provided, the store serves list/find from here so dead-terminal
@@ -100,6 +112,23 @@ export class TerminalAgentStore extends EventEmitter {
 
 		const existing = this.byTerminal.get(terminalId);
 		if (!agentId && !existing) return;
+
+		// A late event for a dead terminal must not resurrect its ended row
+		// (the upsert would clear the resume state). Revive only on a fresh
+		// session start, a different agent session id, or an event well past
+		// the end (an agent without SessionStart hooks launched later).
+		if (!existing && this.persistence?.getEnded) {
+			const ended = this.persistence.getEnded(terminalId);
+			if (
+				ended !== undefined &&
+				eventType !== "Attached" &&
+				(agentSessionId === undefined ||
+					agentSessionId === ended.agentSessionId) &&
+				occurredAt - ended.endedAt <= END_STRAGGLER_WINDOW_MS
+			) {
+				return;
+			}
+		}
 
 		const nextAgentId = agentId ?? existing?.agentId;
 		if (!nextAgentId) return;

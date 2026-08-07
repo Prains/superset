@@ -260,6 +260,21 @@ describe("binding end marking and resume candidates", () => {
 		expect(findResumeCandidateBinding(db, "ws-1", "t1")).toBeUndefined();
 	});
 
+	it("getEnded reports end state only for ended rows", () => {
+		const db = createTestDb();
+		seedWithSessionId(db, "t1");
+		const persistence = new SqliteTerminalAgentBindingPersistence(db);
+
+		expect(persistence.getEnded("t1")).toBeUndefined();
+		expect(persistence.getEnded("nope")).toBeUndefined();
+
+		markTerminalAgentBindingEnded(db, "t1", "terminal-exited", 42);
+		expect(persistence.getEnded("t1")).toEqual({
+			endedAt: 42,
+			agentSessionId: "sess-t1",
+		});
+	});
+
 	it("upsert revives an ended row for a fresh agent session", () => {
 		const db = createTestDb();
 		seedWithSessionId(db, "t1");
