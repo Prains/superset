@@ -45,7 +45,9 @@ export async function sweepAgentBindingsAfterDaemonLoss(args: {
 				getTerminalAgentBindingSessionId(candidate.db, candidate.terminalId),
 			);
 		} catch {
-			expectedSessionIds.set(candidate.terminalId, undefined);
+			// No baseline — we can't prove a later binding is still the one that
+			// died, so this candidate is left untouched rather than risk ending
+			// a replacement binding that also has no session id yet.
 		}
 	}
 
@@ -70,6 +72,7 @@ export async function sweepAgentBindingsAfterDaemonLoss(args: {
 
 	for (const candidate of args.candidates) {
 		if (alive?.has(candidate.terminalId)) continue;
+		if (!expectedSessionIds.has(candidate.terminalId)) continue;
 		try {
 			const current = getTerminalAgentBindingSessionId(
 				candidate.db,
