@@ -36,16 +36,23 @@ function CommandPaletteTrigger() {
 	const pushFrame = useFrameStackStore((s) => s.pushFrame);
 	useHotkey("OPEN_COMMAND_PALETTE", () => setOpen(true));
 
-	// CHECK_RESOURCES fires via the native "Resources" menu accelerator (see
-	// main/lib/menu.ts) rather than a renderer-side useHotkey binding, so the
-	// same Cmd+Shift+U shortcut also reaches the app when a menu accelerator
-	// would otherwise shadow a DOM keydown listener.
+	const openResources = () => {
+		setOpen(true);
+		reset();
+		pushFrame(checkResourcesCommand);
+	};
+
+	// Keeps CHECK_RESOURCES on the renderer's own hotkey binding (rather than a
+	// native menu accelerator) so it stays user-customizable/disable-able via
+	// Settings > Keyboard — see main/lib/menu.ts for why the "Resources" menu
+	// item has no accelerator.
+	useHotkey("CHECK_RESOURCES", openResources);
+
+	// The native "Resources" menu item's click still opens the same view.
 	electronTrpc.menu.subscribe.useSubscription(undefined, {
 		onData: (event) => {
 			if (event.type !== "check-resources") return;
-			setOpen(true);
-			reset();
-			pushFrame(checkResourcesCommand);
+			openResources();
 		},
 	});
 

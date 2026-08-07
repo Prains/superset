@@ -16,10 +16,6 @@ export function createApplicationMenu() {
 	const closeAccelerator = "CmdOrCtrl+Shift+Q";
 	const showHotkeysAccelerator = "CmdOrCtrl+/";
 	const openSettingsAccelerator = "CmdOrCtrl+,";
-	// Matches the CHECK_RESOURCES entry in renderer/hotkeys/registry.ts — windows/linux
-	// add Alt to avoid a common IME/OS binding on ctrl+shift+u.
-	const checkResourcesAccelerator =
-		process.platform === "darwin" ? "Cmd+Shift+U" : "Ctrl+Shift+Alt+U";
 
 	const template: Electron.MenuItemConstructorOptions[] = [
 		{
@@ -104,9 +100,13 @@ export function createApplicationMenu() {
 		{
 			label: "Resources",
 			submenu: [
+				// No accelerator here: on macOS, a menu accelerator is always live
+				// and would bypass the renderer's user-customizable CHECK_RESOURCES
+				// binding (Settings > Keyboard). The default shortcut stays
+				// discoverable via the command palette and keyboard settings, both
+				// of which reflect the user's actual current/overridden binding.
 				{
 					label: "Check Resources",
-					accelerator: checkResourcesAccelerator,
 					click: () => {
 						menuEmitter.emit("check-resources");
 					},
