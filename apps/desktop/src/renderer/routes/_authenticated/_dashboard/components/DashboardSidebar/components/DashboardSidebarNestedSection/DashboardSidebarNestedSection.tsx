@@ -10,11 +10,28 @@ import {
 import { DashboardSidebarSectionHeader } from "../DashboardSidebarSection/components/DashboardSidebarSectionHeader";
 import { DashboardSidebarWorkspaceItem } from "../DashboardSidebarWorkspaceItem";
 
+export interface NestedSectionSelection {
+	isWorkspaceSelected: (workspaceId: string) => boolean;
+	/** Returns true when the event was consumed as a selection gesture. */
+	onWorkspaceSelectionClick: (
+		event: Parameters<
+			NonNullable<
+				React.ComponentProps<
+					typeof DashboardSidebarWorkspaceItem
+				>["onSelectionClick"]
+			>
+		>[0],
+		workspaceId: string,
+	) => boolean;
+}
+
 interface DashboardSidebarNestedSectionProps {
 	section: DashboardSidebarSection;
 	/** 0 = a root group in the Sessions area; ≥1 = nested inside a group. */
 	depth: number;
 	workspaceShortcutLabels?: Map<string, string>;
+	/** Bulk-selection wiring (project scope only). */
+	selection?: NestedSectionSelection;
 	onWorkspaceHover: (workspaceId: string) => void | Promise<void>;
 }
 
@@ -28,6 +45,7 @@ export function DashboardSidebarNestedSection({
 	section,
 	depth,
 	workspaceShortcutLabels,
+	selection,
 	onWorkspaceHover,
 }: DashboardSidebarNestedSectionProps) {
 	const {
@@ -113,19 +131,38 @@ export function DashboardSidebarNestedSection({
 							section={child}
 							depth={depth + 1}
 							workspaceShortcutLabels={workspaceShortcutLabels}
+							selection={selection}
 							onWorkspaceHover={onWorkspaceHover}
 						/>
 					))}
 					<div style={{ paddingLeft: depth > 0 ? 10 : 0 }}>
-						{section.workspaces.map((workspace) => (
-							<DashboardSidebarWorkspaceItem
-								key={workspace.id}
-								workspace={workspace}
-								isInSection
-								shortcutLabel={workspaceShortcutLabels?.get(workspace.id)}
-								onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
-							/>
-						))}
+						{section.workspaces.map((workspace) => {
+							const canBulkSelect =
+								selection !== undefined &&
+								workspace.type === "worktree" &&
+								workspace.pendingTransaction?.type !== "insert";
+							return (
+								<DashboardSidebarWorkspaceItem
+									key={workspace.id}
+									workspace={workspace}
+									isInSection
+									shortcutLabel={workspaceShortcutLabels?.get(workspace.id)}
+									isSelected={
+										canBulkSelect && selection.isWorkspaceSelected(workspace.id)
+									}
+									onSelectionClick={
+										canBulkSelect
+											? (event) =>
+													selection.onWorkspaceSelectionClick(
+														event,
+														workspace.id,
+													)
+											: undefined
+									}
+									onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
+								/>
+							);
+						})}
 					</div>
 				</>
 			)}

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { basename } from "node:path";
 import { generateFriendlyBranchName } from "@superset/shared/workspace-launch";
 import { TRPCError } from "@trpc/server";
@@ -133,14 +133,33 @@ export const createSession = protectedProcedure
 			});
 		}
 
-		let row = insertLocalWorkspace(ctx, {
-			id: input.id,
-			projectId: null,
-			worktreePath: repoPath,
-			branch: "main",
-			name: typedName || folderName,
-			type: "session",
-		});
+		let row: ReturnType<typeof insertLocalWorkspace>;
+		try {
+			row = insertLocalWorkspace(ctx, {
+				id: input.id,
+				projectId: null,
+				worktreePath: repoPath,
+				branch: "main",
+				name: typedName || folderName,
+				type: "session",
+			});
+		} catch (err) {
+			// The folder was allocated this call and holds only the scaffold —
+			// remove it so a failed insert (e.g. a concurrent create winning
+			// the same optimistic id) can't leak directories.
+			rmSync(repoPath, { recursive: true, force: true });
+			if (input.id !== undefined) {
+				const winner = getLocalWorkspace(ctx.db, input.id);
+				if (winner) {
+					return {
+						workspace: toCloudShape(winner, ctx.organizationId),
+						terminals: [],
+						agents: [],
+					};
+				}
+			}
+			throw err;
+		}
 
 		const aiNames = aiNamesPromise ? await aiNamesPromise : null;
 		if (aiNames?.title) {
