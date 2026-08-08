@@ -6,26 +6,21 @@ import {
 } from "./useBuiltinPresets";
 
 describe("getBuiltinPresetEntries", () => {
-	it("returns nothing when the flag is off or not yet loaded", () => {
-		expect(getBuiltinPresetEntries(false, [])).toEqual([]);
-		expect(getBuiltinPresetEntries(undefined, [])).toEqual([]);
-	});
-
 	it("returns the CLI preset as visible when not hidden", () => {
-		const entries = getBuiltinPresetEntries(true, []);
+		const entries = getBuiltinPresetEntries([]);
 		expect(entries).toHaveLength(1);
 		expect(entries[0].preset.id).toBe(BUILTIN_CLI_PRESET_ID);
 		expect(entries[0].isVisible).toBe(true);
 	});
 
 	it("keeps hidden presets in the list but marks them not visible", () => {
-		const entries = getBuiltinPresetEntries(true, [BUILTIN_CLI_PRESET_ID]);
+		const entries = getBuiltinPresetEntries([BUILTIN_CLI_PRESET_ID]);
 		expect(entries).toHaveLength(1);
 		expect(entries[0].isVisible).toBe(false);
 	});
 
 	it("ignores unrelated hidden ids", () => {
-		const entries = getBuiltinPresetEntries(true, ["some-other-id"]);
+		const entries = getBuiltinPresetEntries(["some-other-id"]);
 		expect(entries[0].isVisible).toBe(true);
 	});
 });

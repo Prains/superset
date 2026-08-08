@@ -1,5 +1,3 @@
-import { FEATURE_FLAGS } from "@superset/shared/constants";
-import { useFeatureFlagEnabled } from "posthog-js/react";
 import { useMemo } from "react";
 import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences";
 import type { V2TerminalPresetRow } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal";
@@ -30,10 +28,8 @@ export interface BuiltinPresetEntry {
 }
 
 export function getBuiltinPresetEntries(
-	flagEnabled: boolean | undefined,
 	hiddenBuiltinPresetIds: readonly string[],
 ): BuiltinPresetEntry[] {
-	if (!flagEnabled) return [];
 	return [
 		{
 			preset: BUILTIN_CLI_PRESET,
@@ -48,11 +44,9 @@ export function getBuiltinPresetEntries(
  * surfaces should filter on isVisible.
  */
 export function useBuiltinPresets(): BuiltinPresetEntry[] {
-	const flagEnabled = useFeatureFlagEnabled(FEATURE_FLAGS.BUILTIN_CLI_PRESET);
 	const { preferences } = useV2UserPreferences();
 	return useMemo(
-		() =>
-			getBuiltinPresetEntries(flagEnabled, preferences.hiddenBuiltinPresetIds),
-		[flagEnabled, preferences.hiddenBuiltinPresetIds],
+		() => getBuiltinPresetEntries(preferences.hiddenBuiltinPresetIds),
+		[preferences.hiddenBuiltinPresetIds],
 	);
 }

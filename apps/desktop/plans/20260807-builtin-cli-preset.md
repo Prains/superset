@@ -58,8 +58,8 @@ decide at implementation.
   throws on a row that doesn't exist in the collection.
 - New hook `renderer/hooks/useBuiltinPresets/` exporting
   `BUILTIN_CLI_PRESET = { id: "superset-cli", name: "Superset CLI", description,
-  commands: ["superset --help"] }` and `useBuiltinPresets()` (applies feature flag +
-  hidden ids; hidden entries are still returned so manage surfaces can un-hide).
+  commands: ["superset --help"] }` and `useBuiltinPresets()` (applies hidden ids;
+  hidden entries are still returned so manage surfaces can un-hide).
 - Icon: reuse the existing `superset` key in `PRESET_ICONS` via `getPresetIcon("superset",
   isDark)` — no new assets needed.
 
@@ -77,9 +77,11 @@ decide at implementation.
 
 ## Rollout & telemetry
 
-- Gate on a PostHog flag `BUILTIN_CLI_PRESET` (`FEATURE_FLAGS` in
-  `packages/shared/src/constants.ts`), ramp like `V1_AUTO_MIGRATION`. Experimental-settings
-  toggle rejected: opt-in defeats the discovery purpose.
+- Always-on, no feature flag. Considered and rejected: the blast radius is a small hideable
+  chip whose dismissal persists (that IS the per-user rollback), a flag adds create/cleanup
+  overhead, and flag-unloaded-means-hidden would hide a discovery feature from offline users
+  in a local-first product. Global rollback = one-line revert. An experimental-settings
+  toggle was also rejected: opt-in defeats the discovery purpose.
 - Events: `builtin_preset_launched` (presetId), `builtin_preset_hidden` /
   `builtin_preset_unhidden`.
 
@@ -94,7 +96,7 @@ decide at implementation.
 
 ## Build order
 
-1. `hiddenBuiltinPresetIds` preference + `builtin-presets` module + feature flag plumbing.
+1. `hiddenBuiltinPresetIds` preference + `builtin-presets` module.
 2. Icon assets + `resolveV2PresetIconKey` case.
 3. `V2PresetsBar` merge + chip + badge + manage-dropdown visibility row.
 4. Telemetry events; tests (merge logic, hidden ids, no hotkey index shift, project-filter
