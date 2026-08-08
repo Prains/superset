@@ -249,10 +249,9 @@ export function DashboardSidebarWorkspaceItem({
 							onTogglePin={handleTogglePin}
 							onCreateSection={handleCreateSection}
 							showDeleteHotkey={isActive}
-							onMoveToSection={(targetSectionId) => {
-								if (projectId === null) return;
-								moveWorkspaceToSection(id, projectId, targetSectionId);
-							}}
+							onMoveToSection={(targetSectionId) =>
+								moveWorkspaceToSection(id, projectId, targetSectionId)
+							}
 							onOpenInFinder={handleOpenInFinder}
 							onCopyPath={handleCopyPath}
 							onCopyBranchName={handleCopyBranchName}
@@ -346,10 +345,9 @@ export function DashboardSidebarWorkspaceItem({
 						hasStatus={!!workspaceStatus}
 						hasPullRequest={!!pullRequest}
 						onCreateSection={handleCreateSection}
-						onMoveToSection={(targetSectionId) => {
-							if (projectId === null) return;
-							moveWorkspaceToSection(id, projectId, targetSectionId);
-						}}
+						onMoveToSection={(targetSectionId) =>
+							moveWorkspaceToSection(id, projectId, targetSectionId)
+						}
 						isLocalWorkspace={hostType === "local-device"}
 						isLocalMainWorkspace={
 							isMainWorkspace && hostType === "local-device"

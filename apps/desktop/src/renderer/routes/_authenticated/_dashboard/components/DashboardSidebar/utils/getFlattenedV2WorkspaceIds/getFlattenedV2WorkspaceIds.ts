@@ -60,30 +60,74 @@ export function getFlattenedV2WorkspaceIds(
 				result.push(item.workspaceId);
 				continue;
 			}
-			const sectionWorkspaces = projectWorkspaces
-				.filter(
-					(workspace) => workspace.sidebarState.sectionId === item.sectionId,
-				)
-				.sort(
-					(left, right) =>
-						left.sidebarState.tabOrder - right.sidebarState.tabOrder,
-				);
-			for (const workspace of sectionWorkspaces) {
-				result.push(workspace.workspaceId);
-			}
+			walkSection(item.sectionId, projectWorkspaces, allSections, result);
 		}
 	}
 
 	// Sessions (null projectId) render in the top-level Sessions section
-	// after the project groups.
-	const sessionWorkspaces = visibleWorkspaces
-		.filter((workspace) => workspace.sidebarState.projectId === null)
+	// after the project groups: loose sessions first, then group trees.
+	const sessionWorkspaces = visibleWorkspaces.filter(
+		(workspace) => workspace.sidebarState.projectId === null,
+	);
+	const looseSessions = sessionWorkspaces
+		.filter((workspace) => workspace.sidebarState.sectionId === null)
 		.sort(
 			(left, right) => left.sidebarState.tabOrder - right.sidebarState.tabOrder,
 		);
-	for (const workspace of sessionWorkspaces) {
+	for (const workspace of looseSessions) {
 		result.push(workspace.workspaceId);
+	}
+	const sessionRootSections = allSections
+		.filter(
+			(section) =>
+				section.projectId === null && section.parentSectionId === null,
+		)
+		.sort((left, right) => left.tabOrder - right.tabOrder);
+	for (const section of sessionRootSections) {
+		walkSection(section.sectionId, sessionWorkspaces, allSections, result);
 	}
 
 	return result;
+}
+
+type SectionRow = {
+	sectionId: string;
+	projectId: string | null;
+	parentSectionId: string | null;
+	tabOrder: number;
+};
+
+type WorkspaceRow = {
+	workspaceId: string;
+	sidebarState: { sectionId: string | null; tabOrder: number };
+};
+
+/**
+ * Depth-first over one group: nested groups first (folders-first, matching
+ * the render), then the group's direct workspaces. A visited set makes
+ * corrupt parent cycles terminate instead of recursing forever.
+ */
+function walkSection(
+	sectionId: string,
+	scopeWorkspaces: WorkspaceRow[],
+	allSections: SectionRow[],
+	result: string[],
+	visited: Set<string> = new Set(),
+): void {
+	if (visited.has(sectionId)) return;
+	visited.add(sectionId);
+	const childSections = allSections
+		.filter((section) => section.parentSectionId === sectionId)
+		.sort((left, right) => left.tabOrder - right.tabOrder);
+	for (const child of childSections) {
+		walkSection(child.sectionId, scopeWorkspaces, allSections, result, visited);
+	}
+	const sectionWorkspaces = scopeWorkspaces
+		.filter((workspace) => workspace.sidebarState.sectionId === sectionId)
+		.sort(
+			(left, right) => left.sidebarState.tabOrder - right.sidebarState.tabOrder,
+		);
+	for (const workspace of sectionWorkspaces) {
+		result.push(workspace.workspaceId);
+	}
 }

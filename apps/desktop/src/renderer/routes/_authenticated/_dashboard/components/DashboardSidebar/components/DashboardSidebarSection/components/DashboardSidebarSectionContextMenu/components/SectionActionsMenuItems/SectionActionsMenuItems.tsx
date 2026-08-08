@@ -12,8 +12,17 @@ import {
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
 } from "@superset/ui/dropdown-menu";
+import { useMemo } from "react";
 import { HiCheck } from "react-icons/hi2";
-import { LuPalette, LuPencil, LuTrash2 } from "react-icons/lu";
+import {
+	LuArrowRightLeft,
+	LuArrowUp,
+	LuPalette,
+	LuPencil,
+	LuTrash2,
+} from "react-icons/lu";
+import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
+import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
 import {
 	PROJECT_COLOR_DEFAULT,
 	PROJECT_COLORS,
@@ -29,12 +38,51 @@ interface SectionActionsMenuItemsProps
 }
 
 export function SectionActionsMenuItems({
+	sectionId,
 	color,
 	kind,
 	onRename,
 	onSetColor,
 	onDelete,
 }: SectionActionsMenuItemsProps) {
+	const collections = useCollections();
+	const { moveSectionToParent } = useDashboardSidebarState();
+
+	// Valid re-parent targets: same-scope groups that are not this group and
+	// not inside its own subtree (a descendant target would create a cycle).
+	const { moveTargets, isNested } = useMemo(() => {
+		const sections = Array.from(collections.v2SidebarSections.state.values());
+		const byId = new Map(sections.map((row) => [row.sectionId, row]));
+		const self = byId.get(sectionId);
+		if (!self) return { moveTargets: [], isNested: false };
+		const isInSubtree = (candidateId: string): boolean => {
+			const visited = new Set<string>();
+			let current: string | null = candidateId;
+			while (current !== null && !visited.has(current)) {
+				if (current === sectionId) return true;
+				visited.add(current);
+				current = byId.get(current)?.parentSectionId ?? null;
+			}
+			return false;
+		};
+		return {
+			isNested: self.parentSectionId !== null,
+			moveTargets: sections
+				.filter(
+					(row) =>
+						row.projectId === self.projectId &&
+						row.sectionId !== sectionId &&
+						!isInSubtree(row.sectionId),
+				)
+				.sort((left, right) => left.name.localeCompare(right.name))
+				.map((row) => ({
+					id: row.sectionId,
+					name: row.name,
+					color: row.color,
+				})),
+		};
+	}, [collections, sectionId]);
+
 	const selectedValue = color ?? PROJECT_COLOR_DEFAULT;
 	const colorOptions = [
 		{ name: "Default", value: PROJECT_COLOR_DEFAULT },
@@ -144,6 +192,50 @@ export function SectionActionsMenuItems({
 					</DropdownMenuSubContent>
 				</DropdownMenuSub>
 			)}
+			{moveTargets.length > 0 &&
+				(kind === "context" ? (
+					<ContextMenuSub>
+						<ContextMenuSubTrigger>
+							<LuArrowRightLeft className={iconClassName} />
+							Move to group
+						</ContextMenuSubTrigger>
+						<ContextMenuSubContent className="w-44 max-h-80 overflow-y-auto">
+							{moveTargets.map((target) =>
+								renderItem({
+									key: target.id,
+									onSelect: () => moveSectionToParent(sectionId, target.id),
+									children: <span className="truncate">{target.name}</span>,
+								}),
+							)}
+						</ContextMenuSubContent>
+					</ContextMenuSub>
+				) : (
+					<DropdownMenuSub>
+						<DropdownMenuSubTrigger>
+							<LuArrowRightLeft className={iconClassName} />
+							Move to group
+						</DropdownMenuSubTrigger>
+						<DropdownMenuSubContent className="w-44 max-h-80 overflow-y-auto">
+							{moveTargets.map((target) =>
+								renderItem({
+									key: target.id,
+									onSelect: () => moveSectionToParent(sectionId, target.id),
+									children: <span className="truncate">{target.name}</span>,
+								}),
+							)}
+						</DropdownMenuSubContent>
+					</DropdownMenuSub>
+				))}
+			{isNested &&
+				renderItem({
+					onSelect: () => moveSectionToParent(sectionId, null),
+					children: (
+						<>
+							<LuArrowUp className={iconClassName} />
+							Move to top level
+						</>
+					),
+				})}
 			{kind === "context" ? (
 				<ContextMenuSeparator />
 			) : (

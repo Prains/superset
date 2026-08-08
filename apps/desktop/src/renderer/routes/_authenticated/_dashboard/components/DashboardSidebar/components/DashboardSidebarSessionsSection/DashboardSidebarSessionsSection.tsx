@@ -1,36 +1,52 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { LuPlus } from "react-icons/lu";
 import { useOpenNewSessionModal } from "renderer/stores/new-workspace-modal";
-import type { DashboardSidebarWorkspace } from "../../types";
+import type { DashboardSidebarSessionsScope } from "../../hooks/useDashboardSidebarData/buildDashboardSidebarProjects";
+import { DashboardSidebarNestedSection } from "../DashboardSidebarNestedSection";
 import { DashboardSidebarWorkspaceItem } from "../DashboardSidebarWorkspaceItem";
 
 interface DashboardSidebarSessionsSectionProps {
-	sessionWorkspaces: DashboardSidebarWorkspace[];
+	sessionsScope: DashboardSidebarSessionsScope;
 	isCollapsed?: boolean;
 	onWorkspaceHover: (workspaceId: string) => void | Promise<void>;
 }
 
+function collectScopeWorkspaces(
+	scope: DashboardSidebarSessionsScope,
+): DashboardSidebarSessionsScope["looseWorkspaces"] {
+	const workspaces = [...scope.looseWorkspaces];
+	const walk = (sections: DashboardSidebarSessionsScope["rootSections"]) => {
+		for (const section of sections) {
+			workspaces.push(...section.workspaces);
+			walk(section.childSections);
+		}
+	};
+	walk(scope.rootSections);
+	return workspaces;
+}
+
 /**
  * Top-level "Sessions" section for project-less workspaces, rendered after
- * the project groups. Hidden entirely while no sessions exist — the create
- * path lives in the picker's "No project" option, so an empty section has
- * nothing to teach. Collapsed rail renders a plain icon stack, matching the
- * Pinned section.
+ * the project groups: loose sessions first, then the null-scope group tree.
+ * Hidden entirely while no sessions exist — the create path lives in the
+ * picker's "No project" option, so an empty section has nothing to teach.
+ * Collapsed rail renders a plain icon stack, matching the Pinned section.
  */
 export function DashboardSidebarSessionsSection({
-	sessionWorkspaces,
+	sessionsScope,
 	isCollapsed = false,
 	onWorkspaceHover,
 }: DashboardSidebarSessionsSectionProps) {
 	const openNewSessionModal = useOpenNewSessionModal();
+	const { looseWorkspaces, rootSections } = sessionsScope;
 
-	if (sessionWorkspaces.length === 0) return null;
+	if (looseWorkspaces.length === 0 && rootSections.length === 0) return null;
 
 	if (isCollapsed) {
 		return (
 			<div className="flex flex-col gap-0.5 py-1">
 				<div className="mx-3 mb-1 border-t border-border" />
-				{sessionWorkspaces.map((workspace) => (
+				{collectScopeWorkspaces(sessionsScope).map((workspace) => (
 					<DashboardSidebarWorkspaceItem
 						key={workspace.id}
 						workspace={workspace}
@@ -63,11 +79,19 @@ export function DashboardSidebarSessionsSection({
 					</Tooltip>
 				</div>
 			</div>
-			{sessionWorkspaces.map((workspace) => (
+			{looseWorkspaces.map((workspace) => (
 				<DashboardSidebarWorkspaceItem
 					key={workspace.id}
 					workspace={workspace}
 					onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
+				/>
+			))}
+			{rootSections.map((section) => (
+				<DashboardSidebarNestedSection
+					key={section.id}
+					section={section}
+					depth={0}
+					onWorkspaceHover={onWorkspaceHover}
 				/>
 			))}
 		</div>

@@ -77,19 +77,24 @@ Precedent: the unmerged `origin/sidebar-freeform-sessions` branch proved chat/te
 
 ### Phase C — universal grouping tree
 
-**C1: sections → groups (within projects; parallel to A/B)**
-- New `dashboardSidebarGroupSchema`: `{ groupId, parentGroupId: uuid|null, projectId: uuid|null, name, createdAt, tabOrder, isCollapsed, color }`.
-- New `v2SidebarGroups` collection (indexes: projectId, parentGroupId, tabOrder). **Register in `persisted-key-registry.test-data.ts`** with documented bounds (user-created, reconciled via orphan-splice, deleted via UI) per the localStorage policy in apps/desktop/AGENTS.md.
-- Migration: one-shot idempotent at CollectionsProvider init — copy `v2SidebarSections` rows **preserving ids** (sectionId → groupId) so `workspaceLocalState.sidebarState.sectionId` keeps resolving (keep persisted field name `sectionId`, alias as groupId in code — no heal/version bump). Legacy read-fallback one release, then move `v2-sidebar-sections-*` to `DEAD_KEYS`.
-- `DashboardSidebarProjectChild` (types.ts:71-79) → recursive union `{ type: "workspace" } | { type: "group"; children: DashboardSidebarChild[] }`.
-- Tree build in `buildDashboardSidebarProjects.ts`: index groups by parent; **cycle safety** — read: visited set + depth cap (~4), violators spliced to scope root; write: `moveGroup` refuses descendant targets. Orphans: reuse existing splice pattern (L303-319).
-- Mutations: rename section mutations to group equivalents; add `moveGroup`; `deleteGroup` reparents children to grandparent.
-- DnD: distinguish drop-into (group header) vs drop-beside (between rows); flatten respects collapse.
+**Implementation notes (as built — diverges from the original sketch in two ways):**
 
-**C2: root-level groups in Sessions (needs B + C1)**
-- Groups with `projectId: null` render in the Sessions section; sessions movable into them (validate group/workspace scope match, else orphan-splice). "New group" in Sessions header. Projects header untouched.
+1. **No new collection, no migration.** Instead of a `v2SidebarGroups` collection with an
+   id-preserving copy, the existing `dashboardSidebarSectionSchema` was extended in place:
+   `parentSectionId: uuid | null (default null)` and `projectId` widened to `uuid | null`
+   (null = Sessions scope). Both are widening-with-default, so every persisted row parses
+   untouched — zero migration risk, `sidebarState.sectionId` references keep resolving.
+2. **DnD granularity unchanged; nesting is explicit-structure + context menus.** The flat
+   DnD lane's group membership is positional and can't express depth, so root-level drag
+   behaviors are untouched. Nested groups render as an indented folders-first block under
+   their parent header (`DashboardSidebarNestedSection`, recursive) and move via context
+   menus: workspace "Move to group" (all same-scope groups), group "Move to group" /
+   "Move to top level" (`moveSectionToParent`, refuses self/descendant/cross-scope).
+   Drag-into-nested-group is a follow-up.
 
-**Tests**: migration idempotency, cycle splice, orphan splice, deep flatten, descendant-move refusal, scope mismatch. CDP: nested drag, collapse, restart persistence, delete-middle-group reparent.
+Tree safety: `buildSectionTree` splices self-cycles, missing direct parents, and
+depth > 4 to the scope root (never drops nodes); `getFlattenedV2WorkspaceIds` and the
+Sessions scope walk recursively with visited sets.
 
 ### Phase D — CLI / MCP / SDK (any time after A)
 

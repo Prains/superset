@@ -113,8 +113,6 @@ export function useDashboardSidebarWorkspaceItemActions({
 	};
 
 	const handleCreateSection = () => {
-		// Sessions get groups with the universal grouping tree (phase C2).
-		if (projectId === null) return;
 		const sectionId = createSection(projectId);
 		moveWorkspaceToSection(workspaceId, projectId, sectionId);
 		requestSectionRename(sectionId);

@@ -9,8 +9,8 @@ import {
 	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "@superset/ui/context-menu";
-import { eq } from "@tanstack/db";
 import { useLiveQuery } from "@tanstack/react-db";
+import { useMemo } from "react";
 import {
 	LuArrowRightLeft,
 	LuArrowUp,
@@ -96,24 +96,24 @@ export function DashboardSidebarWorkspaceContextMenu({
 	const deleteHotkeyText = useHotkeyDisplay("CLOSE_WORKSPACE").text;
 	const showDeleteShortcut =
 		showDeleteHotkey && deleteHotkeyText !== "Unassigned";
-	const { data: sections = [] } = useLiveQuery(
+	// TanStack DB's eq(col, null) never matches, so the sessions scope
+	// (projectId null) filters in JS. Nested groups are valid targets too.
+	const { data: allSections = [] } = useLiveQuery(
 		(q) =>
 			q
 				.from({ sidebarSections: collections.v2SidebarSections })
-				// `?? ""` and not null: TanStack DB's eq(col, null) never
-				// matches, and no section can have an empty-string projectId,
-				// so sessions resolve to an empty list without relying on the
-				// eq(null) quirk.
-				.where(({ sidebarSections }) =>
-					eq(sidebarSections.projectId, projectId ?? ""),
-				)
 				.orderBy(({ sidebarSections }) => sidebarSections.tabOrder, "asc")
 				.select(({ sidebarSections }) => ({
 					id: sidebarSections.sectionId,
+					projectId: sidebarSections.projectId,
 					name: sidebarSections.name,
 					color: sidebarSections.color,
 				})),
-		[collections, projectId],
+		[collections],
+	);
+	const sections = useMemo(
+		() => allSections.filter((section) => section.projectId === projectId),
+		[allSections, projectId],
 	);
 	const handleCloseAllPorts = () => {
 		if (isKillingPorts) return;
@@ -190,7 +190,7 @@ export function DashboardSidebarWorkspaceContextMenu({
 				)}
 				{/* Group actions mutate placement (sectionId/tabOrder), which a pinned
 				    row doesn't display — the change would only surface on unpin. */}
-				{!isPinned && !isLocalMainWorkspace && projectId !== null && (
+				{!isPinned && !isLocalMainWorkspace && (
 					<>
 						<ContextMenuSeparator />
 						<ContextMenuItem onSelect={onCreateSection}>

@@ -67,8 +67,60 @@ function getProjectTopLevelItems(
 			.filter(
 				(item) =>
 					item.projectId === projectId &&
+					item.parentSectionId === null &&
 					item.sectionId !== options.excludeSectionId,
 			)
+			.map((item) => ({
+				type: "section" as const,
+				id: item.sectionId,
+				tabOrder: item.tabOrder,
+			})),
+	].sort(compareProjectTopLevelItems);
+}
+
+/**
+ * Walks up `parentSectionId` links. Returns true when `candidateAncestorId`
+ * appears in `sectionId`'s ancestor chain — used to refuse cycle-creating
+ * moves. A visited set bounds the walk on already-corrupt data.
+ */
+function isSectionDescendantOf(
+	collections: Pick<AppCollections, "v2SidebarSections">,
+	sectionId: string,
+	candidateAncestorId: string,
+): boolean {
+	const visited = new Set<string>();
+	let current: string | null = sectionId;
+	while (current !== null && !visited.has(current)) {
+		if (current === candidateAncestorId) return true;
+		visited.add(current);
+		current =
+			collections.v2SidebarSections.get(current)?.parentSectionId ?? null;
+	}
+	return false;
+}
+
+/**
+ * Ordered children of one group: workspaces whose sectionId points at it plus
+ * groups whose parentSectionId points at it.
+ */
+function getSectionChildItems(
+	collections: ProjectTopLevelCollections,
+	sectionId: string,
+): ProjectTopLevelItem[] {
+	return [
+		...Array.from(collections.v2WorkspaceLocalState.state.values())
+			.filter(
+				(item) =>
+					isSidebarWorkspaceVisible(item) &&
+					item.sidebarState.sectionId === sectionId,
+			)
+			.map((item) => ({
+				type: "workspace" as const,
+				id: item.workspaceId,
+				tabOrder: item.sidebarState.tabOrder,
+			})),
+		...Array.from(collections.v2SidebarSections.state.values())
+			.filter((item) => item.parentSectionId === sectionId)
 			.map((item) => ({
 				type: "section" as const,
 				id: item.sectionId,
@@ -88,7 +140,7 @@ function getFirstSectionIndex(items: ProjectTopLevelItem[]): number {
  */
 function writeProjectTopLevelOrder(
 	collections: ProjectTopLevelCollections,
-	projectId: string,
+	projectId: string | null,
 	items: ProjectTopLevelItem[],
 ): void {
 	items.forEach((item, index) => {
@@ -252,7 +304,7 @@ export function useDashboardSidebarState() {
 
 	const reorderProjectChildren = useCallback(
 		(
-			projectId: string,
+			projectId: string | null,
 			orderedItems: Array<{ type: "workspace" | "section"; id: string }>,
 		) => {
 			orderedItems.forEach((item, index) => {
@@ -279,7 +331,7 @@ export function useDashboardSidebarState() {
 	const moveWorkspaceToSectionAtIndex = useCallback(
 		(
 			workspaceId: string,
-			projectId: string,
+			projectId: string | null,
 			sectionId: string,
 			index: number,
 		) => {
@@ -311,9 +363,14 @@ export function useDashboardSidebarState() {
 	);
 
 	const createSection = useCallback(
-		(projectId: string, options: { name?: string } = {}) => {
-			const { name = "New group" } = options;
-			ensureSidebarProjectRecord(collections, projectId);
+		(
+			projectId: string | null,
+			options: { name?: string; parentSectionId?: string | null } = {},
+		) => {
+			const { name = "New group", parentSectionId = null } = options;
+			if (projectId !== null) {
+				ensureSidebarProjectRecord(collections, projectId);
+			}
 
 			const sectionId = crypto.randomUUID();
 			const randomColor =
@@ -321,13 +378,15 @@ export function useDashboardSidebarState() {
 					Math.floor(Math.random() * PROJECT_CUSTOM_COLORS.length)
 				].value;
 
-			const tabOrder = getNextTabOrder(
-				getProjectTopLevelItems(collections, projectId),
-			);
+			const tabOrder =
+				parentSectionId === null
+					? getNextTabOrder(getProjectTopLevelItems(collections, projectId))
+					: getNextTabOrder(getSectionChildItems(collections, parentSectionId));
 
 			collections.v2SidebarSections.insert({
 				sectionId,
 				projectId,
+				parentSectionId,
 				name,
 				createdAt: new Date(),
 				tabOrder,
@@ -336,6 +395,37 @@ export function useDashboardSidebarState() {
 			});
 
 			return sectionId;
+		},
+		[collections],
+	);
+
+	/**
+	 * Re-parents a group. `parentSectionId: null` moves it to its scope's top
+	 * level. Refuses self/descendant targets (would orphan the subtree in a
+	 * cycle) and cross-scope targets (a group's workspaces stay in its scope).
+	 */
+	const moveSectionToParent = useCallback(
+		(sectionId: string, parentSectionId: string | null) => {
+			const section = collections.v2SidebarSections.get(sectionId);
+			if (!section) return;
+			if (parentSectionId !== null) {
+				const parent = collections.v2SidebarSections.get(parentSectionId);
+				if (!parent) return;
+				if (parent.projectId !== section.projectId) return;
+				if (isSectionDescendantOf(collections, parentSectionId, sectionId)) {
+					return;
+				}
+			}
+			const tabOrder =
+				parentSectionId === null
+					? getNextTabOrder(
+							getProjectTopLevelItems(collections, section.projectId),
+						)
+					: getNextTabOrder(getSectionChildItems(collections, parentSectionId));
+			collections.v2SidebarSections.update(sectionId, (draft) => {
+				draft.parentSectionId = parentSectionId;
+				draft.tabOrder = tabOrder;
+			});
 		},
 		[collections],
 	);
@@ -371,7 +461,11 @@ export function useDashboardSidebarState() {
 	);
 
 	const moveWorkspaceToSection = useCallback(
-		(workspaceId: string, projectId: string, sectionId: string | null) => {
+		(
+			workspaceId: string,
+			projectId: string | null,
+			sectionId: string | null,
+		) => {
 			const existing = collections.v2WorkspaceLocalState.get(workspaceId);
 			if (!existing) return;
 
@@ -415,6 +509,35 @@ export function useDashboardSidebarState() {
 		(sectionId: string) => {
 			const section = collections.v2SidebarSections.get(sectionId);
 			if (!section) return;
+
+			// Child groups climb to the deleted group's parent so their
+			// contents survive; workspaces splice into the parent scope below.
+			for (const child of collections.v2SidebarSections.state.values()) {
+				if (child.parentSectionId !== sectionId) continue;
+				collections.v2SidebarSections.update(child.sectionId, (draft) => {
+					draft.parentSectionId = section.parentSectionId;
+				});
+			}
+			if (section.parentSectionId !== null) {
+				const parentId = section.parentSectionId;
+				const sectionWorkspaces = Array.from(
+					collections.v2WorkspaceLocalState.state.values(),
+				).filter(
+					(item) =>
+						isSidebarWorkspaceVisible(item) &&
+						item.sidebarState.sectionId === sectionId,
+				);
+				for (const workspace of sectionWorkspaces) {
+					collections.v2WorkspaceLocalState.update(
+						workspace.workspaceId,
+						(draft) => {
+							draft.sidebarState.sectionId = parentId;
+						},
+					);
+				}
+				collections.v2SidebarSections.delete(sectionId);
+				return;
+			}
 
 			const topLevelItems = getProjectTopLevelItems(
 				collections,
@@ -524,6 +647,7 @@ export function useDashboardSidebarState() {
 	return {
 		createSection,
 		deleteSection,
+		moveSectionToParent,
 		ensureProjectInSidebar,
 		ensureWorkspaceInSidebar,
 		hideWorkspaceInSidebar,
