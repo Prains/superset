@@ -309,7 +309,7 @@ export function PromptGroup({
 	// fall into a toast.
 	const { otherHosts } = useWorkspaceHostOptions();
 	const submitBlocker = useMemo<string | null>(() => {
-		if (!projectId) return "Select a project";
+		if (!projectId && !draft.isSession) return "Select a project";
 		const selectedHostId = draft.hostId ?? machineId;
 		if (!selectedHostId) return "No active host";
 		if (selectedHostId !== machineId) {
@@ -319,7 +319,14 @@ export function PromptGroup({
 			return "Host service is not running";
 		}
 		return null;
-	}, [projectId, draft.hostId, machineId, activeHostUrl, otherHosts]);
+	}, [
+		projectId,
+		draft.isSession,
+		draft.hostId,
+		machineId,
+		activeHostUrl,
+		otherHosts,
+	]);
 
 	// ── Linked-context prefetch ──────────────────────────────────────
 	const promptContext = useNewWorkspacePromptContext({
@@ -681,7 +688,9 @@ export function PromptGroup({
 								exit={{ opacity: 0, x: 8, filter: "blur(4px)" }}
 								transition={{ duration: 0.2, ease: "easeOut" }}
 							>
-								<CompareBaseBranchPicker {...pickerProps} />
+								{!draft.isSession && (
+									<CompareBaseBranchPicker {...pickerProps} />
+								)}
 							</motion.div>
 						)}
 					</AnimatePresence>

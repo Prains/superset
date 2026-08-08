@@ -214,6 +214,9 @@ export function NewWorkspaceScreen({
 			}
 			return;
 		}
+		// An explicit "No project" (session) choice must survive project-list
+		// updates — never auto-select over it.
+		if (draft.isSession) return;
 		if (isValid(draft.selectedProjectId)) return;
 		const { lastProjectId } = useV2WorkspaceCreateDefaultsStore.getState();
 		updateDraft({
@@ -226,6 +229,7 @@ export function NewWorkspaceScreen({
 		areProjectsReady,
 		preSelectedProjectId,
 		draft.selectedProjectId,
+		draft.isSession,
 		projects,
 		updateDraft,
 	]);
@@ -400,7 +404,7 @@ export function NewWorkspaceScreen({
 
 	const { otherHosts } = useWorkspaceHostOptions();
 	const submitBlocker = useMemo<string | null>(() => {
-		if (!projectId) return "Select a project";
+		if (!projectId && !draft.isSession) return "Select a project";
 		const selectedHostId = draft.hostId ?? machineId;
 		if (!selectedHostId) return "No active host";
 		if (selectedHostId !== machineId) {
@@ -410,7 +414,14 @@ export function NewWorkspaceScreen({
 			return "Host service is not running";
 		}
 		return null;
-	}, [projectId, draft.hostId, machineId, activeHostUrl, otherHosts]);
+	}, [
+		projectId,
+		draft.isSession,
+		draft.hostId,
+		machineId,
+		activeHostUrl,
+		otherHosts,
+	]);
 
 	const handleGoToSetup = useCallback(() => {
 		if (!selectedProject?.id) return;
@@ -749,9 +760,14 @@ export function NewWorkspaceScreen({
 						<ProjectPickerPill
 							selectedProject={selectedProject}
 							projects={projects}
+							isSessionSelected={draft.isSession}
 							onSelectProject={(selectedProjectId) => {
+								if (selectedProjectId === null) {
+									updateDraft({ selectedProjectId: null, isSession: true });
+									return;
+								}
 								setLastProjectId(selectedProjectId);
-								updateDraft({ selectedProjectId });
+								updateDraft({ selectedProjectId, isSession: false });
 							}}
 						/>
 						{draft.linkedPR ? (
@@ -759,7 +775,7 @@ export function NewWorkspaceScreen({
 								<LuGitPullRequest className="size-3 shrink-0" />
 								based off PR #{draft.linkedPR.prNumber}
 							</span>
-						) : (
+						) : draft.isSession ? null : (
 							<CompareBaseBranchPicker {...pickerProps} />
 						)}
 					</div>
