@@ -308,9 +308,6 @@ export function V2PresetsBar({
 								)}
 								<span className="min-w-0 flex-1 truncate">{preset.name}</span>
 								<div className="ml-auto flex items-center gap-2">
-									<span className="text-[10px] text-muted-foreground/70">
-										Built-in
-									</span>
 									{isVisible ? (
 										<Eye className="size-3.5 text-foreground" />
 									) : (
@@ -358,9 +355,6 @@ export function V2PresetsBar({
 				);
 			})}
 			{/* Built-ins render after user presets, outside the hotkey index. */}
-			{visibleBuiltinPresets.length > 0 && visiblePresets.length > 0 ? (
-				<div className="h-4 w-px shrink-0 bg-border" />
-			) : null}
 			{visibleBuiltinPresets.map(({ preset }) => (
 				<BuiltinPresetBarItem
 					key={preset.id}

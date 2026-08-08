@@ -19,8 +19,8 @@ interface BuiltinPresetBarItemProps {
 }
 
 // Built-in presets have no v2TerminalPresets row, so unlike V2PresetBarItem
-// they are not draggable (nothing to persist), not editable, and hide via
-// user preferences instead of the row's pinnedToBar.
+// they are not draggable (nothing to persist), not editable, and "Remove"
+// persists to user preferences instead of the row's pinnedToBar.
 export function BuiltinPresetBarItem({
 	preset,
 	isDark,
@@ -38,7 +38,7 @@ export function BuiltinPresetBarItem({
 							<Button
 								variant="ghost"
 								size="sm"
-								className="h-6 max-w-44 min-w-0 shrink-0 gap-1.5 rounded-md px-1.5 text-xs font-normal text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+								className="h-6 max-w-32 min-w-0 shrink-0 gap-1.5 rounded-md px-1.5 text-xs font-normal text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
 								onClick={() => onExecutePreset(preset)}
 							>
 								{icon ? (
@@ -51,9 +51,6 @@ export function BuiltinPresetBarItem({
 									<HiMiniCommandLine className="size-3.5 shrink-0" />
 								)}
 								<span className="min-w-0 truncate">{preset.name}</span>
-								<span className="shrink-0 rounded border border-border px-1 text-[9px] leading-3.5 text-muted-foreground/70">
-									Built-in
-								</span>
 							</Button>
 						</TooltipTrigger>
 						{preset.description ? (
@@ -70,7 +67,7 @@ export function BuiltinPresetBarItem({
 				</ContextMenuItem>
 				<ContextMenuSeparator />
 				<ContextMenuItem onSelect={() => onHide(preset.id)}>
-					Hide from bar
+					Remove preset
 				</ContextMenuItem>
 			</ContextMenuContent>
 		</ContextMenu>

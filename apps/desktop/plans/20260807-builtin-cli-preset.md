@@ -14,16 +14,18 @@ beyond one banner on the Automations page.
 Preset bar (`V2PresetsBar`), after the user's own presets:
 
 ```
-[ ⌘1 claude ] [ ⌘2 codex ] [ ⌘3 run ] │ [ >_ Superset CLI · Built-in ]
+[ ⌘1 claude ] [ ⌘2 codex ] [ ⌘3 run ] [ >_ Superset CLI ]
 ```
 
-- Chip shows a new `superset-cli` icon (terminal glyph) + "Built-in" micro-badge. No numbered
-  hotkey (built-ins sit outside the `OPEN_PRESET_1..9` index).
+- Chip looks like any other preset (superset icon + name) — deliberately no "Built-in" badge
+  or divider; it's just a little thing users can remove. No numbered hotkey (built-ins sit
+  outside the `OPEN_PRESET_1..9` index).
 - Tooltip: "Script workspaces, agents, and automations from any terminal — agents can use it
   too."
 - Click → new terminal tab running `superset --help`. The user lands in a live shell with the
   full command tree printed, cursor ready.
-- Manage dropdown (existing Eye/EyeOff rows): built-in row gets the same visibility toggle,
+- Context menu: "Run preset" / "Remove preset" — remove persists to user preferences. The
+  manage dropdown (existing Eye/EyeOff rows) shows the same toggle and can restore it,
   backed by user preferences instead of the preset row (see Data).
 
 Command choice: `superset --help` for v1. Alternatives considered — bare `superset` (same
