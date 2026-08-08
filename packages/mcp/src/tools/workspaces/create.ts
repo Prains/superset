@@ -24,7 +24,7 @@ export function register(server: McpServer): void {
 		name: "workspaces_create",
 		annotations: { destructiveHint: false },
 		description:
-			"Create a workspace on a host. A workspace is a branch-scoped working copy of a project. The host service materializes the git worktree on disk before returning. Provide exactly one of `branch` or `pr`. Omit `projectId` to create a project-less session instead — a managed scratch folder (its own git repo, no branch/PR semantics). Optionally pass `agents` to spawn one or more agents in the workspace as soon as it is ready (each entry runs the equivalent of `agents_create` against the new workspace), and/or pass `command` to run a one-off shell command in the worktree. Use projects_list and hosts_list first to get the projectId and hostId.",
+			"Create a workspace on a host. A workspace is a branch-scoped working copy of a project. The host service materializes the git worktree on disk before returning. When `projectId` is set, provide exactly one of `branch` or `pr`. Omit `projectId` (and `branch`/`pr`/`baseBranch`) to create a project-less session instead — a managed scratch folder (its own git repo, no branch/PR semantics). Optionally pass `agents` to spawn one or more agents in the workspace as soon as it is ready (each entry runs the equivalent of `agents_create` against the new workspace), and/or pass `command` to run a one-off shell command in the worktree. Use projects_list and hosts_list first to get the projectId and hostId.",
 		inputSchema: {
 			projectId: z
 				.string()

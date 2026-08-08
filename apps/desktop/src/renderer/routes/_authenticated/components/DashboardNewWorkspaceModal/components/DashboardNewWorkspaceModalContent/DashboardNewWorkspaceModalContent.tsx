@@ -77,9 +77,9 @@ export function DashboardNewWorkspaceModalContent({
 			updateDraft({ selectedProjectId: null, isSession: true });
 			return;
 		}
-		// An explicit "No project" choice must survive project-list updates.
-		if (draft.isSession) return;
 
+		// An explicit project preselection (e.g. a project's "+" button)
+		// overrides a session mode left behind by an earlier dismissal.
 		if (
 			preSelectedProjectId &&
 			preSelectedProjectId !== appliedPreSelectionRef.current
@@ -91,12 +91,21 @@ export function DashboardNewWorkspaceModalContent({
 			if (hasPreSelectedProject) {
 				appliedPreSelectionRef.current = preSelectedProjectId;
 				hasInitializedSelectionRef.current = true;
-				if (preSelectedProjectId !== draft.selectedProjectId) {
-					updateDraft({ selectedProjectId: preSelectedProjectId });
+				if (
+					preSelectedProjectId !== draft.selectedProjectId ||
+					draft.isSession
+				) {
+					updateDraft({
+						selectedProjectId: preSelectedProjectId,
+						isSession: false,
+					});
 				}
 				return;
 			}
 		}
+
+		// An explicit "No project" choice must survive project-list updates.
+		if (draft.isSession) return;
 
 		if (!areProjectsReady) return;
 
@@ -144,7 +153,15 @@ export function DashboardNewWorkspaceModalContent({
 				isSessionSelected={draft.isSession}
 				onSelectProject={(selectedProjectId) => {
 					if (selectedProjectId === null) {
-						updateDraft({ selectedProjectId: null, isSession: true });
+						// Sessions can't check out a PR or fork a branch — clear
+						// the repo-scoped inputs instead of failing at submit.
+						updateDraft({
+							selectedProjectId: null,
+							isSession: true,
+							linkedPR: null,
+							baseBranch: null,
+							baseBranchSource: null,
+						});
 						return;
 					}
 					setLastProjectId(selectedProjectId);

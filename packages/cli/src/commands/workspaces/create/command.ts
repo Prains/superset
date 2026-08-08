@@ -99,6 +99,10 @@ export default command({
 			userJwt: ctx.bearer,
 		});
 
+		if (!isSession && !options.name) {
+			throw new CLIError("--name is required when --project is set");
+		}
+
 		const attachmentIds = options.attachment
 			? await uploadAttachments(target.client, options.attachment)
 			: [];

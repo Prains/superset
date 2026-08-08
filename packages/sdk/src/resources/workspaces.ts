@@ -294,6 +294,8 @@ export declare namespace Workspaces {
 		WorkspaceAgentLaunch,
 		WorkspaceCreateAgentResult,
 		WorkspaceCreateResult,
+		WorkspaceCreateSessionParams,
+		WorkspaceCreateSessionResult,
 		WorkspaceUpdateParams,
 		WorkspaceUpdateResult,
 		WorkspaceDeleteResult,

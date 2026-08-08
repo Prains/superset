@@ -288,7 +288,7 @@ export function V2WorkspacesList({
 				{columnHeader}
 				{projectGroups.map((project) => (
 					<ProjectSection
-						key={project.projectId}
+						key={project.projectId ?? "__sessions__"}
 						project={project}
 						currentWorkspaceId={currentWorkspaceId}
 					/>

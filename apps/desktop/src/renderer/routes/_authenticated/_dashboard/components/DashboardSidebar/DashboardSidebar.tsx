@@ -155,7 +155,24 @@ export function DashboardSidebar({
 			.filter((g): g is DashboardSidebarProject => g != null);
 	}, [groups, projectOrder]);
 
-	const workspaceShortcutLabels = useDashboardSidebarShortcuts(orderedGroups);
+	const sessionShortcutWorkspaces = useMemo(
+		() => [
+			...sessionsScope.looseWorkspaces,
+			...sessionsScope.rootSections.flatMap(
+				function collect(section): typeof sessionsScope.looseWorkspaces {
+					return [
+						...section.childSections.flatMap(collect),
+						...section.workspaces,
+					];
+				},
+			),
+		],
+		[sessionsScope],
+	);
+	const workspaceShortcutLabels = useDashboardSidebarShortcuts(
+		orderedGroups,
+		sessionShortcutWorkspaces,
+	);
 	const selectableWorkspaceIds = useMemo(
 		() =>
 			new Set(

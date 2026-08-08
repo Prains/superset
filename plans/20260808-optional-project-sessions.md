@@ -11,7 +11,7 @@ Precedent: the unmerged `origin/sidebar-freeform-sessions` branch proved chat/te
 1. Session = workspace with `projectId: null`, `type: 'session'`, folder `~/.superset/sessions/<name>`, git init + initial commit by default.
 2. Host.db `workspaces.projectId` becomes nullable. Cloud v2 tables are frozen (local-first) — **no cloud schema change; sessions never dual-write to cloud**.
 3. Dedicated creation procedure `workspaces.createSession` — NOT threaded through the 675-line `workspaces.create`.
-4. Nesting = organizational grouping only. Sections → **groups** (`parentGroupId`, nullable `projectId`), renderer localStorage, universal tree. Projects stay top-level rows (not nestable).
+4. Nesting = organizational grouping only: the existing sections become a universal tree (`parentSectionId`, nullable `projectId` — see Phase C notes), renderer localStorage. Projects stay top-level rows (not nestable).
 5. Sidebar gets a **Sessions** root section alongside Pinned and Projects.
 6. Out of scope: v1 desktop UI, cloud schema, automations targeting sessions (cloud `automations.v2ProjectId` NOT NULL — follow-up), tasks.
 
@@ -111,7 +111,6 @@ Sessions scope walk recursively with visited sets.
 | Sessions dual-written to frozen cloud tables | Gate every cloud call site on type; test asserts zero cloud calls |
 | PR runtime NPE on null projectId | `isNotNull` filters + early return + integration test |
 | Group cycles freeze tree builder | Visited set + depth cap on read; descendant check on write |
-| Sections→groups migration double-runs | Idempotent (skip if groups non-empty); id-preserving copy is re-copy-safe |
 
 ## Verification (end-to-end)
 

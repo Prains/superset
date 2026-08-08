@@ -57,11 +57,20 @@ export function DashboardNewWorkspaceModal() {
 		closeModal();
 		void navigate({
 			to: "/new-workspace",
-			search: preSelectedProjectId
-				? { projectId: preSelectedProjectId }
-				: undefined,
+			search: preSelectedSession
+				? { session: true }
+				: preSelectedProjectId
+					? { projectId: preSelectedProjectId }
+					: undefined,
 		});
-	}, [isScreen, isOpen, closeModal, navigate, preSelectedProjectId]);
+	}, [
+		isScreen,
+		isOpen,
+		closeModal,
+		navigate,
+		preSelectedProjectId,
+		preSelectedSession,
+	]);
 
 	if (isOpen && variant === null) return null;
 	if (isScreen) return null;

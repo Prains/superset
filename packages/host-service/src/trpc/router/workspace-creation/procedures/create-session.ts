@@ -7,6 +7,7 @@ import { z } from "zod";
 import { workspaces } from "../../../../db/schema";
 import type { HostServiceContext } from "../../../../types";
 import {
+	getLocalWorkspace,
 	insertLocalWorkspace,
 	toCloudShape,
 	updateLocalWorkspace,
@@ -65,6 +66,20 @@ export const createSession = protectedProcedure
 	.mutation(async ({ ctx, input }) => {
 		for (const launch of input.agents ?? []) {
 			validateAgentLaunchEffort(ctx.db, launch);
+		}
+
+		// Idempotency: a retry carrying the same optimistic id must return the
+		// existing row instead of allocating a second folder and then dying on
+		// the primary key (which would leak the freshly-created directory).
+		if (input.id !== undefined) {
+			const existing = getLocalWorkspace(ctx.db, input.id);
+			if (existing) {
+				return {
+					workspace: toCloudShape(existing, ctx.organizationId),
+					terminals: [],
+					agents: [],
+				};
+			}
 		}
 
 		// AI title, same contract as `workspaces.create`: only when the

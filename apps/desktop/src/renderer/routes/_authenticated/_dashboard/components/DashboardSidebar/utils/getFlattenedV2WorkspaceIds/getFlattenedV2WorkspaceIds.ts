@@ -26,8 +26,12 @@ export function getFlattenedV2WorkspaceIds(
 		const projectWorkspaces = visibleWorkspaces.filter(
 			(workspace) => workspace.sidebarState.projectId === project.projectId,
 		);
+		// Root sections only — nested ones are reached through walkSection,
+		// and including them here would emit their workspaces twice.
 		const projectSections = allSections.filter(
-			(section) => section.projectId === project.projectId,
+			(section) =>
+				section.projectId === project.projectId &&
+				section.parentSectionId === null,
 		);
 
 		const topLevelItems: TopLevelItem[] = [];

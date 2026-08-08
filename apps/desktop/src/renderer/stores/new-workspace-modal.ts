@@ -11,6 +11,8 @@ interface PendingWorkspace {
 /** Snapshot of the draft stashed before modal close, restored on failure. */
 export interface StashedDraft {
 	selectedProjectId: string | null;
+	/** True when the stashed draft had "No project" (session) selected. */
+	isSession: boolean;
 	prompt: string;
 	workspaceName: string;
 	workspaceNameEdited: boolean;
@@ -112,6 +114,7 @@ export const useNewWorkspaceModalStore = create<NewWorkspaceModalState>()(
 						stashedDraft: null,
 						isOpen: true,
 						preSelectedProjectId: stashed.selectedProjectId,
+						preSelectedSession: stashed.isSession,
 					});
 				}
 				return stashed;

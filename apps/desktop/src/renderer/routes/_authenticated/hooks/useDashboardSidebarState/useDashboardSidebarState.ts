@@ -99,6 +99,73 @@ function isSectionDescendantOf(
 	return false;
 }
 
+/** Mirrors the tree builder's cap: nesting past this splices to root. */
+export const MAX_SECTION_DEPTH = 4;
+
+/** 0 = root. Bounded by a visited set on corrupt data. */
+function getSectionDepth(
+	collections: Pick<AppCollections, "v2SidebarSections">,
+	sectionId: string,
+): number {
+	const visited = new Set<string>();
+	let depth = 0;
+	let current: string | null =
+		collections.v2SidebarSections.get(sectionId)?.parentSectionId ?? null;
+	while (current !== null && !visited.has(current)) {
+		visited.add(current);
+		depth += 1;
+		current =
+			collections.v2SidebarSections.get(current)?.parentSectionId ?? null;
+	}
+	return depth;
+}
+
+/** Longest descendant chain under `sectionId` (0 = leaf). */
+function getSectionSubtreeHeight(
+	collections: Pick<AppCollections, "v2SidebarSections">,
+	sectionId: string,
+	visited: Set<string> = new Set(),
+): number {
+	if (visited.has(sectionId)) return 0;
+	visited.add(sectionId);
+	let height = 0;
+	for (const row of collections.v2SidebarSections.state.values()) {
+		if (row.parentSectionId !== sectionId) continue;
+		height = Math.max(
+			height,
+			1 + getSectionSubtreeHeight(collections, row.sectionId, visited),
+		);
+	}
+	return height;
+}
+
+/**
+ * True when re-parenting `sectionId` under `parentSectionId` keeps the tree
+ * valid: same scope, no cycle, and the moved subtree stays within
+ * MAX_SECTION_DEPTH. Shared by the move mutation and the menu's target list
+ * so users are never offered a move the mutation would refuse.
+ */
+export function canMoveSectionToParent(
+	collections: Pick<AppCollections, "v2SidebarSections">,
+	sectionId: string,
+	parentSectionId: string | null,
+): boolean {
+	const section = collections.v2SidebarSections.get(sectionId);
+	if (!section) return false;
+	if (parentSectionId === null) return true;
+	const parent = collections.v2SidebarSections.get(parentSectionId);
+	if (!parent) return false;
+	if (parent.projectId !== section.projectId) return false;
+	if (isSectionDescendantOf(collections, parentSectionId, sectionId)) {
+		return false;
+	}
+	const depthAfterMove =
+		getSectionDepth(collections, parentSectionId) +
+		1 +
+		getSectionSubtreeHeight(collections, sectionId);
+	return depthAfterMove < MAX_SECTION_DEPTH;
+}
+
 /**
  * Ordered children of one group: workspaces whose sectionId points at it plus
  * groups whose parentSectionId points at it.
@@ -408,13 +475,8 @@ export function useDashboardSidebarState() {
 		(sectionId: string, parentSectionId: string | null) => {
 			const section = collections.v2SidebarSections.get(sectionId);
 			if (!section) return;
-			if (parentSectionId !== null) {
-				const parent = collections.v2SidebarSections.get(parentSectionId);
-				if (!parent) return;
-				if (parent.projectId !== section.projectId) return;
-				if (isSectionDescendantOf(collections, parentSectionId, sectionId)) {
-					return;
-				}
+			if (!canMoveSectionToParent(collections, sectionId, parentSectionId)) {
+				return;
 			}
 			const tabOrder =
 				parentSectionId === null

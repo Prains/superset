@@ -320,5 +320,9 @@ describe("workspaceLocalStateSchema projectId nullability", () => {
 		expect(workspaceLocalStateSchema.safeParse(row(undefined)).success).toBe(
 			false,
 		);
+		expect(
+			workspaceLocalStateSchema.safeParse({ ...row(null), sidebarState: {} })
+				.success,
+		).toBe(false);
 	});
 });

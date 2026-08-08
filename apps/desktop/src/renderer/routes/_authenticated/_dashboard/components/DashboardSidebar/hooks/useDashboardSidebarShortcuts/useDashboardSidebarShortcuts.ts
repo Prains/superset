@@ -4,7 +4,10 @@ import { useHotkey } from "renderer/hotkeys";
 import { navigateToV2Workspace } from "renderer/routes/_authenticated/_dashboard/utils/workspace-navigation";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
 import { useDeletingWorkspaces } from "renderer/routes/_authenticated/providers/DeletingWorkspacesProvider";
-import type { DashboardSidebarProject } from "../../types";
+import type {
+	DashboardSidebarProject,
+	DashboardSidebarWorkspace,
+} from "../../types";
 import { getProjectChildrenWorkspaces } from "../../utils/projectChildren";
 
 interface WorkspaceLocation {
@@ -50,6 +53,7 @@ function useStableWorkspaceShortcutLabels(
 
 export function useDashboardSidebarShortcuts(
 	groups: DashboardSidebarProject[],
+	sessionWorkspaces: DashboardSidebarWorkspace[] = [],
 ) {
 	const navigate = useNavigate();
 	const { toggleProjectCollapsed, toggleSectionCollapsed } =
@@ -57,10 +61,14 @@ export function useDashboardSidebarShortcuts(
 	const { isDeleting } = useDeletingWorkspaces();
 	const flattenedWorkspaces = useMemo(
 		() =>
-			groups
-				.flatMap((project) => getProjectChildrenWorkspaces(project.children))
-				.filter((workspace) => !isDeleting(workspace.id)),
-		[groups, isDeleting],
+			[
+				...groups.flatMap((project) =>
+					getProjectChildrenWorkspaces(project.children),
+				),
+				// Sessions render after the project groups.
+				...sessionWorkspaces,
+			].filter((workspace) => !isDeleting(workspace.id)),
+		[groups, sessionWorkspaces, isDeleting],
 	);
 	const workspaceShortcutLabels =
 		useStableWorkspaceShortcutLabels(flattenedWorkspaces);
@@ -78,14 +86,25 @@ export function useDashboardSidebarShortcuts(
 					});
 					continue;
 				}
-				for (const workspace of child.section.workspaces) {
-					map.set(workspace.id, {
-						projectId: project.id,
-						projectIsCollapsed: project.isCollapsed,
-						sectionId: child.section.id,
-						sectionIsCollapsed: child.section.isCollapsed,
-					});
-				}
+				// Nested groups: a workspace is hidden when any ancestor group
+				// in its chain is collapsed; reveal toggles its direct group.
+				const visitSection = (
+					section: (typeof child)["section"],
+					ancestorCollapsed: boolean,
+				) => {
+					for (const workspace of section.workspaces) {
+						map.set(workspace.id, {
+							projectId: project.id,
+							projectIsCollapsed: project.isCollapsed,
+							sectionId: section.id,
+							sectionIsCollapsed: ancestorCollapsed || section.isCollapsed,
+						});
+					}
+					for (const nested of section.childSections) {
+						visitSection(nested, ancestorCollapsed || section.isCollapsed);
+					}
+				};
+				visitSection(child.section, false);
 			}
 		}
 		return map;

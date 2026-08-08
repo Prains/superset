@@ -11,18 +11,27 @@ interface DashboardSidebarSessionsSectionProps {
 	onWorkspaceHover: (workspaceId: string) => void | Promise<void>;
 }
 
-function collectScopeWorkspaces(
-	scope: DashboardSidebarSessionsScope,
-): DashboardSidebarSessionsScope["looseWorkspaces"] {
-	const workspaces = [...scope.looseWorkspaces];
+function collectScopeWorkspaces(scope: DashboardSidebarSessionsScope): Array<{
+	workspace: DashboardSidebarSessionsScope["looseWorkspaces"][number];
+	isInSection: boolean;
+}> {
+	const rows = scope.looseWorkspaces.map((workspace) => ({
+		workspace,
+		isInSection: false,
+	}));
 	const walk = (sections: DashboardSidebarSessionsScope["rootSections"]) => {
 		for (const section of sections) {
-			workspaces.push(...section.workspaces);
+			rows.push(
+				...section.workspaces.map((workspace) => ({
+					workspace,
+					isInSection: true,
+				})),
+			);
 			walk(section.childSections);
 		}
 	};
 	walk(scope.rootSections);
-	return workspaces;
+	return rows;
 }
 
 /**
@@ -46,14 +55,17 @@ export function DashboardSidebarSessionsSection({
 		return (
 			<div className="flex flex-col gap-0.5 py-1">
 				<div className="mx-3 mb-1 border-t border-border" />
-				{collectScopeWorkspaces(sessionsScope).map((workspace) => (
-					<DashboardSidebarWorkspaceItem
-						key={workspace.id}
-						workspace={workspace}
-						isCollapsed
-						onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
-					/>
-				))}
+				{collectScopeWorkspaces(sessionsScope).map(
+					({ workspace, isInSection }) => (
+						<DashboardSidebarWorkspaceItem
+							key={workspace.id}
+							workspace={workspace}
+							isCollapsed
+							isInSection={isInSection}
+							onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
+						/>
+					),
+				)}
 			</div>
 		);
 	}
@@ -63,7 +75,7 @@ export function DashboardSidebarSessionsSection({
 			{/* Micro-label styled to match the PROJECTS/Pinned headers. */}
 			<div className="group/sessions-header flex min-h-8 items-center py-1.5 pl-4 pr-2 text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">
 				<span className="min-w-0 truncate">Sessions</span>
-				<div className="ml-auto flex items-center opacity-0 transition-opacity group-hover/sessions-header:opacity-100">
+				<div className="ml-auto flex items-center opacity-0 transition-opacity group-hover/sessions-header:opacity-100 focus-within:opacity-100">
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<button

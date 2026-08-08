@@ -36,7 +36,7 @@ export async function resolveAutomationTarget(args: {
 		if (workspace.projectId === null) {
 			throw new CLIError(
 				"Session workspaces (no project) cannot be automation targets",
-				"Pick a project workspace or pass --project",
+				"Target a project workspace, or drop --workspace and pass --project for new-workspace-per-run mode",
 			);
 		}
 		if (args.projectId && args.projectId !== workspace.projectId) {

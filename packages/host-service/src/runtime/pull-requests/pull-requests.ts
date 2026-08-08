@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Octokit } from "@octokit/rest";
 import { parseGitHubRemote } from "@superset/shared/github-remote";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { HostDb } from "../../db";
 import { projects, pullRequests, workspaces } from "../../db/schema";
 import type { EventBus } from "../../events/event-bus";
@@ -408,11 +408,13 @@ export class PullRequestRuntimeManager {
 		// coalesces — if a sync is already running for a workspace, this just
 		// flips its rerunPending flag.
 		// Session workspaces (null projectId) have no remote and no PRs.
+		// Filtered in JS: the unit-test fakes stub select().from().all()
+		// without a where() builder.
 		const ids = this.db
-			.select({ id: workspaces.id })
+			.select({ id: workspaces.id, projectId: workspaces.projectId })
 			.from(workspaces)
-			.where(isNotNull(workspaces.projectId))
-			.all();
+			.all()
+			.filter((row) => row.projectId !== null);
 
 		// Sequential to keep git subprocess concurrency bounded; matches the
 		// original sweep's behavior. refreshProject inside each sync still

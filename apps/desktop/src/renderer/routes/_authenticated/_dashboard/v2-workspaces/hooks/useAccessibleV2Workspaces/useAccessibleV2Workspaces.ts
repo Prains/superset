@@ -117,7 +117,7 @@ function workspaceMatchesSearch(
 	const query = searchQuery.trim().toLowerCase();
 	return (
 		workspace.name.toLowerCase().includes(query) ||
-		(workspace.projectName ?? "session").toLowerCase().includes(query) ||
+		(workspace.projectName ?? "Sessions").toLowerCase().includes(query) ||
 		workspace.branch.toLowerCase().includes(query) ||
 		workspace.hostName.toLowerCase().includes(query) ||
 		(workspace.createdByName ?? "").toLowerCase().includes(query) ||

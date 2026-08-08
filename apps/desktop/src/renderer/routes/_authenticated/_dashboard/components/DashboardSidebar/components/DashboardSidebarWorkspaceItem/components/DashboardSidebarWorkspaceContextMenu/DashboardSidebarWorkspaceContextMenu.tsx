@@ -9,6 +9,7 @@ import {
 	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "@superset/ui/context-menu";
+import { eq } from "@tanstack/db";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useMemo } from "react";
 import {
@@ -96,24 +97,36 @@ export function DashboardSidebarWorkspaceContextMenu({
 	const deleteHotkeyText = useHotkeyDisplay("CLOSE_WORKSPACE").text;
 	const showDeleteShortcut =
 		showDeleteHotkey && deleteHotkeyText !== "Unassigned";
-	// TanStack DB's eq(col, null) never matches, so the sessions scope
-	// (projectId null) filters in JS. Nested groups are valid targets too.
-	const { data: allSections = [] } = useLiveQuery(
-		(q) =>
-			q
-				.from({ sidebarSections: collections.v2SidebarSections })
+	// Project rows keep the index-backed eq() scope. The sessions scope
+	// (projectId null) must scan + filter in JS: TanStack DB's eq(col, null)
+	// never matches. This menu mounts per workspace row, so the common
+	// project case shouldn't pay for the full-collection scan.
+	const { data: scopedSections = [] } = useLiveQuery(
+		(q) => {
+			const base = q.from({ sidebarSections: collections.v2SidebarSections });
+			return (
+				projectId === null
+					? base
+					: base.where(({ sidebarSections }) =>
+							eq(sidebarSections.projectId, projectId),
+						)
+			)
 				.orderBy(({ sidebarSections }) => sidebarSections.tabOrder, "asc")
 				.select(({ sidebarSections }) => ({
 					id: sidebarSections.sectionId,
 					projectId: sidebarSections.projectId,
 					name: sidebarSections.name,
 					color: sidebarSections.color,
-				})),
-		[collections],
+				}));
+		},
+		[collections, projectId],
 	);
 	const sections = useMemo(
-		() => allSections.filter((section) => section.projectId === projectId),
-		[allSections, projectId],
+		() =>
+			projectId === null
+				? scopedSections.filter((section) => section.projectId === null)
+				: scopedSections,
+		[scopedSections, projectId],
 	);
 	const handleCloseAllPorts = () => {
 		if (isKillingPorts) return;

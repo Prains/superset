@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { execSync } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { eq } from "drizzle-orm";
 import { workspaces } from "../../src/db/schema";
@@ -191,21 +192,17 @@ describe("workspaces.createSession + delete integration", () => {
 	test("corrupt worktreePath outside the sessions root is never rm'd", async () => {
 		if (!host) host = await createTestHost();
 		const result = await createSession({ name: "hijack" });
-		const row = host.db
-			.select()
-			.from(workspaces)
-			.where(eq(workspaces.id, result.workspace.id))
-			.get();
-		const realPath = row?.worktreePath ?? "";
 
-		// Simulate a corrupt row pointing at data outside the managed root.
-		const outsidePath = realPath ? dirname(dirname(realPath)) : "";
+		// Simulate a corrupt row pointing at user data outside the managed
+		// root — in an isolated temp dir, never the real home directory.
+		const outsideDir = mkdtempSync(join(tmpdir(), "session-guard-"));
+		const outsidePath = join(outsideDir, "not-a-session");
+		writeFileSync(outsidePath, "user data");
 		host.db
 			.update(workspaces)
-			.set({ worktreePath: join(outsidePath, "not-a-session") })
+			.set({ worktreePath: outsidePath })
 			.where(eq(workspaces.id, result.workspace.id))
 			.run();
-		writeFileSync(join(outsidePath, "not-a-session"), "user data");
 		try {
 			const destroyed = await host.trpc.workspaceCleanup.destroy.mutate({
 				workspaceId: result.workspace.id,
@@ -219,9 +216,9 @@ describe("workspaces.createSession + delete integration", () => {
 					warning.includes("not inside the managed sessions root"),
 				),
 			).toBe(true);
-			expect(existsSync(join(outsidePath, "not-a-session"))).toBe(true);
+			expect(existsSync(outsidePath)).toBe(true);
 		} finally {
-			rmSync(join(outsidePath, "not-a-session"), { force: true });
+			rmSync(outsideDir, { recursive: true, force: true });
 		}
 	});
 });

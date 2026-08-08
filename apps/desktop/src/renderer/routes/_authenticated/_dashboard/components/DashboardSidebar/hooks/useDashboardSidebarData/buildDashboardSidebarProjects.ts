@@ -106,6 +106,8 @@ export function buildSectionTree(sections: SidebarSectionInput[]): {
 			if (depth + 1 >= MAX_GROUP_DEPTH) {
 				child.parentSectionId = null;
 				rootSections.push(child);
+				// The re-rooted subtree may itself exceed the cap.
+				enforceDepth(child, 0);
 			} else {
 				keep.push(child);
 				enforceDepth(child, depth + 1);

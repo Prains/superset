@@ -21,7 +21,10 @@ import {
 	LuPencil,
 	LuTrash2,
 } from "react-icons/lu";
-import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
+import {
+	canMoveSectionToParent,
+	useDashboardSidebarState,
+} from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
 import {
 	PROJECT_COLOR_DEFAULT,
@@ -48,31 +51,20 @@ export function SectionActionsMenuItems({
 	const collections = useCollections();
 	const { moveSectionToParent } = useDashboardSidebarState();
 
-	// Valid re-parent targets: same-scope groups that are not this group and
-	// not inside its own subtree (a descendant target would create a cycle).
+	// Valid re-parent targets come from the same predicate the mutation
+	// enforces (scope, cycles, depth cap), so the menu never offers a move
+	// the mutation would refuse.
 	const { moveTargets, isNested } = useMemo(() => {
 		const sections = Array.from(collections.v2SidebarSections.state.values());
-		const byId = new Map(sections.map((row) => [row.sectionId, row]));
-		const self = byId.get(sectionId);
+		const self = sections.find((row) => row.sectionId === sectionId);
 		if (!self) return { moveTargets: [], isNested: false };
-		const isInSubtree = (candidateId: string): boolean => {
-			const visited = new Set<string>();
-			let current: string | null = candidateId;
-			while (current !== null && !visited.has(current)) {
-				if (current === sectionId) return true;
-				visited.add(current);
-				current = byId.get(current)?.parentSectionId ?? null;
-			}
-			return false;
-		};
 		return {
 			isNested: self.parentSectionId !== null,
 			moveTargets: sections
 				.filter(
 					(row) =>
-						row.projectId === self.projectId &&
 						row.sectionId !== sectionId &&
-						!isInSubtree(row.sectionId),
+						canMoveSectionToParent(collections, sectionId, row.sectionId),
 				)
 				.sort((left, right) => left.name.localeCompare(right.name))
 				.map((row) => ({
