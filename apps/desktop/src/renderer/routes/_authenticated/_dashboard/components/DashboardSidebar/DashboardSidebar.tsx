@@ -40,6 +40,7 @@ import { DashboardSidebarPinnedSection } from "./components/DashboardSidebarPinn
 import { DashboardSidebarPortsList } from "./components/DashboardSidebarPortsList";
 import { DashboardSidebarProjectSection } from "./components/DashboardSidebarProjectSection";
 import { DashboardSidebarSectionRenameProvider } from "./components/DashboardSidebarSectionRenameContext";
+import { DashboardSidebarSessionsSection } from "./components/DashboardSidebarSessionsSection";
 import { DashboardSidebarWorkspacesHeader } from "./components/DashboardSidebarWorkspacesHeader";
 import { V2SetupScriptCard } from "./components/V2SetupScriptCard";
 import { useDashboardSidebarData } from "./hooks/useDashboardSidebarData";
@@ -109,6 +110,7 @@ export function DashboardSidebar({
 	const {
 		groups,
 		pinnedWorkspaces,
+		sessionWorkspaces,
 		refreshWorkspacePullRequest,
 		toggleProjectCollapsed,
 	} = useDashboardSidebarData();
@@ -297,6 +299,13 @@ export function DashboardSidebar({
 												document.body,
 											)}
 										</DndContext>
+									)}
+									{(isCollapsed || !workspacesListCollapsed) && (
+										<DashboardSidebarSessionsSection
+											sessionWorkspaces={sessionWorkspaces}
+											isCollapsed={isCollapsed}
+											onWorkspaceHover={refreshWorkspacePullRequest}
+										/>
 									)}
 								</OverflowFadeContainer>
 								{!isCollapsed && !inlineWorkspacePortsEnabled && (

@@ -9,6 +9,8 @@ import { useSelectedHostProjectIds } from "./hooks/useSelectedHostProjectIds";
 interface DashboardNewWorkspaceModalContentProps {
 	isOpen: boolean;
 	preSelectedProjectId: string | null;
+	/** Open with "No project" (session) preselected. */
+	preSelectedSession?: boolean;
 }
 
 /**
@@ -21,6 +23,7 @@ interface DashboardNewWorkspaceModalContentProps {
 export function DashboardNewWorkspaceModalContent({
 	isOpen,
 	preSelectedProjectId,
+	preSelectedSession = false,
 }: DashboardNewWorkspaceModalContentProps) {
 	const { draft, updateDraft } = useDashboardNewWorkspaceDraft();
 	const setLastProjectId = useV2WorkspaceCreateDefaultsStore(
@@ -69,6 +72,14 @@ export function DashboardNewWorkspaceModalContent({
 	useEffect(() => {
 		if (!isOpen) return;
 
+		if (preSelectedSession && !hasInitializedSelectionRef.current) {
+			hasInitializedSelectionRef.current = true;
+			updateDraft({ selectedProjectId: null, isSession: true });
+			return;
+		}
+		// An explicit "No project" choice must survive project-list updates.
+		if (draft.isSession) return;
+
 		if (
 			preSelectedProjectId &&
 			preSelectedProjectId !== appliedPreSelectionRef.current
@@ -111,9 +122,11 @@ export function DashboardNewWorkspaceModalContent({
 		hasInitializedSelectionRef.current = true;
 	}, [
 		draft.selectedProjectId,
+		draft.isSession,
 		areProjectsReady,
 		isOpen,
 		preSelectedProjectId,
+		preSelectedSession,
 		recentProjects,
 		updateDraft,
 	]);
@@ -128,9 +141,14 @@ export function DashboardNewWorkspaceModalContent({
 				projectId={draft.selectedProjectId}
 				selectedProject={selectedProject}
 				recentProjects={recentProjects.filter((project) => Boolean(project.id))}
+				isSessionSelected={draft.isSession}
 				onSelectProject={(selectedProjectId) => {
+					if (selectedProjectId === null) {
+						updateDraft({ selectedProjectId: null, isSession: true });
+						return;
+					}
 					setLastProjectId(selectedProjectId);
-					updateDraft({ selectedProjectId });
+					updateDraft({ selectedProjectId, isSession: false });
 				}}
 			/>
 		</div>

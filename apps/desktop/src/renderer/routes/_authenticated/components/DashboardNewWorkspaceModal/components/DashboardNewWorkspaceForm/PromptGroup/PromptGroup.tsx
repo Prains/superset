@@ -74,13 +74,17 @@ interface PromptGroupProps {
 	projectId: string | null;
 	selectedProject: ProjectOption | undefined;
 	recentProjects: ProjectOption[];
-	onSelectProject: (projectId: string) => void;
+	/** True when "No project" (session) is the explicit selection. */
+	isSessionSelected?: boolean;
+	/** Null selects "No project" (session). */
+	onSelectProject: (projectId: string | null) => void;
 }
 
 export function PromptGroup({
 	projectId,
 	selectedProject,
 	recentProjects,
+	isSessionSelected = false,
 	onSelectProject,
 }: PromptGroupProps) {
 	const modKey = PLATFORM === "mac" ? "⌘" : "Ctrl";
@@ -652,6 +656,7 @@ export function PromptGroup({
 					<ProjectPickerPill
 						selectedProject={selectedProject}
 						projects={recentProjects}
+						isSessionSelected={isSessionSelected}
 						onSelectProject={onSelectProject}
 					/>
 					<AnimatePresence mode="wait" initial={false}>

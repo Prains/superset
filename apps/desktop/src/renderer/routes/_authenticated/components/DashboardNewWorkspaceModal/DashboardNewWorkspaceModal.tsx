@@ -15,6 +15,7 @@ import {
 	useCloseNewWorkspaceModal,
 	useNewWorkspaceModalOpen,
 	usePreSelectedProjectId,
+	usePreSelectedSession,
 } from "renderer/stores/new-workspace-modal";
 import { DashboardNewWorkspaceModalContent } from "./components/DashboardNewWorkspaceModalContent";
 import {
@@ -44,6 +45,7 @@ export function DashboardNewWorkspaceModal() {
 	const isOpen = useNewWorkspaceModalOpen();
 	const closeModal = useCloseNewWorkspaceModal();
 	const preSelectedProjectId = usePreSelectedProjectId();
+	const preSelectedSession = usePreSelectedSession();
 	const navigate = useNavigate();
 	const variant = useNewWorkspaceScreenVariant(isOpen);
 	const isScreen = variant === "test";
@@ -85,6 +87,7 @@ export function DashboardNewWorkspaceModal() {
 						<DashboardNewWorkspaceModalContent
 							isOpen={isOpen}
 							preSelectedProjectId={preSelectedProjectId}
+							preSelectedSession={preSelectedSession}
 						/>
 					</DialogContent>
 				</Dialog>

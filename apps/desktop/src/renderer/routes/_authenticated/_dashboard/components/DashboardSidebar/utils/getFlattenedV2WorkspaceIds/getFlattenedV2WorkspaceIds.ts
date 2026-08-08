@@ -74,5 +74,16 @@ export function getFlattenedV2WorkspaceIds(
 		}
 	}
 
+	// Sessions (null projectId) render in the top-level Sessions section
+	// after the project groups.
+	const sessionWorkspaces = visibleWorkspaces
+		.filter((workspace) => workspace.sidebarState.projectId === null)
+		.sort(
+			(left, right) => left.sidebarState.tabOrder - right.sidebarState.tabOrder,
+		);
+	for (const workspace of sessionWorkspaces) {
+		result.push(workspace.workspaceId);
+	}
+
 	return result;
 }

@@ -37,7 +37,8 @@ interface DashboardSidebarWorkspaceItemProps {
 	 * Set when the row renders inside the top-level Pinned section: shows the
 	 * owning project's avatar for cross-project context.
 	 */
-	pinnedContext?: { projectName: string; projectIconUrl: string | null };
+	/** projectName is null for pinned project-less "session" workspaces. */
+	pinnedContext?: { projectName: string | null; projectIconUrl: string | null };
 }
 
 export function DashboardSidebarWorkspaceItem({
@@ -248,9 +249,10 @@ export function DashboardSidebarWorkspaceItem({
 							onTogglePin={handleTogglePin}
 							onCreateSection={handleCreateSection}
 							showDeleteHotkey={isActive}
-							onMoveToSection={(targetSectionId) =>
-								moveWorkspaceToSection(id, projectId, targetSectionId)
-							}
+							onMoveToSection={(targetSectionId) => {
+								if (projectId === null) return;
+								moveWorkspaceToSection(id, projectId, targetSectionId);
+							}}
 							onOpenInFinder={handleOpenInFinder}
 							onCopyPath={handleCopyPath}
 							onCopyBranchName={handleCopyBranchName}
@@ -344,9 +346,10 @@ export function DashboardSidebarWorkspaceItem({
 						hasStatus={!!workspaceStatus}
 						hasPullRequest={!!pullRequest}
 						onCreateSection={handleCreateSection}
-						onMoveToSection={(targetSectionId) =>
-							moveWorkspaceToSection(id, projectId, targetSectionId)
-						}
+						onMoveToSection={(targetSectionId) => {
+							if (projectId === null) return;
+							moveWorkspaceToSection(id, projectId, targetSectionId);
+						}}
 						isLocalWorkspace={hostType === "local-device"}
 						isLocalMainWorkspace={
 							isMainWorkspace && hostType === "local-device"
