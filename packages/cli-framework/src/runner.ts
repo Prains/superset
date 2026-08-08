@@ -226,6 +226,7 @@ async function execute(
 			root,
 			globals: globalConfigs,
 			branding: opts.help,
+			signal,
 			populateLeaf: (path, node) => {
 				const cmd = commandMap.get(path.join("/"));
 				if (cmd) populateNodeForHelp(node, cmd);
@@ -283,7 +284,9 @@ async function execute(
 	}
 
 	if (commandPath.length === 0) {
-		console.log(generateRootHelp(name, version, root, globalConfigs));
+		console.log(
+			generateRootHelp(name, version, root, globalConfigs, opts.help),
+		);
 		return;
 	}
 

@@ -48,7 +48,7 @@ export default defineConfig({
 		],
 		examples: [
 			{
-				cmd: 'superset ws create --project <id> --name fix-tests --agent claude --prompt "fix the flaky tests"',
+				cmd: 'superset ws create --project <id> --name fix-tests --branch fix-tests --agent claude --prompt "fix the flaky tests"',
 				desc: "Spin up an isolated workspace and put an agent to work",
 			},
 			{
@@ -56,7 +56,7 @@ export default defineConfig({
 				desc: "Peek at what an agent is doing right now",
 			},
 			{
-				cmd: 'superset automations create --name nightly-audit --rrule "FREQ=DAILY" --prompt "audit deps"',
+				cmd: 'superset automations create --name nightly-audit --project <id> --rrule "FREQ=DAILY" --prompt "audit deps"',
 				desc: "Schedule a recurring agent run",
 			},
 		],

@@ -72,6 +72,21 @@ describe("collectRequiredFields", () => {
 		expect(collectRequiredFields(node)).toEqual([]);
 	});
 
+	it("preserves enum values on required positionals", () => {
+		const fields = collectRequiredFields(
+			leaf({
+				args: [
+					option({
+						name: "level",
+						isRequired: true,
+						enumVals: ["low", "high"],
+					}),
+				],
+			}),
+		);
+		expect(fields[0]?.enumVals).toEqual(["low", "high"]);
+	});
+
 	it("puts required positionals before flags", () => {
 		const node = leaf({
 			args: [option({ name: "id", isRequired: true })],
@@ -97,15 +112,51 @@ describe("buildRunArgs", () => {
 		).toEqual(["tasks", "update", "t-1", "--name", "New title"]);
 	});
 
-	it("emits boolean flags only when true", () => {
+	it("emits --flag for true and --no-flag for false booleans", () => {
 		const fields = [
 			{ kind: "flag", name: "force", type: "boolean" } as const,
 			{ kind: "flag", name: "dry-run", type: "boolean" } as const,
 		];
+		// A required boolean must appear either way; the parser supports
+		// --no-<flag> negation.
 		expect(buildRunArgs(["ws", "rm"], [...fields], [true, false])).toEqual([
 			"ws",
 			"rm",
 			"--force",
+			"--no-dry-run",
+		]);
+	});
+
+	it("expands a variadic positional from one space-separated line", () => {
+		const fields = collectRequiredFields(
+			leaf({
+				args: [option({ name: "ids", isRequired: true, isVariadic: true })],
+			}),
+		);
+		expect(fields[0]?.variadic).toBe(true);
+		expect(buildRunArgs(["tasks", "delete"], fields, ["a-1  b-2 c-3"])).toEqual(
+			["tasks", "delete", "a-1", "b-2", "c-3"],
+		);
+	});
+
+	it("repeats a variadic flag once per value", () => {
+		const fields = [
+			{
+				kind: "flag",
+				name: "attachment",
+				type: "string",
+				variadic: true,
+			} as const,
+		];
+		expect(
+			buildRunArgs(["agents", "create"], [...fields], ["a.png b.png"]),
+		).toEqual([
+			"agents",
+			"create",
+			"--attachment",
+			"a.png",
+			"--attachment",
+			"b.png",
 		]);
 	});
 });

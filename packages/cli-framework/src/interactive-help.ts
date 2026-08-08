@@ -62,6 +62,7 @@ export function collectRequiredFields(node: CommandNode): FormField[] {
 			name: arg.name ?? "arg",
 			description: arg.description,
 			type: arg.type === "number" ? "number" : "string",
+			enumVals: arg.enumVals,
 			variadic: arg.isVariadic,
 		});
 	}
@@ -79,9 +80,15 @@ export function collectRequiredFields(node: CommandNode): FormField[] {
 						? "boolean"
 						: "string",
 			enumVals: config.enumVals,
+			variadic: config.isVariadic,
 		});
 	}
 	return fields;
+}
+
+/** Variadic fields accept one space-separated line and expand to many argv. */
+function splitVariadic(value: string): string[] {
+	return value.trim().split(/\s+/).filter(Boolean);
 }
 
 /** Assemble argv for execute(): path, then positionals, then --flag value. */
@@ -94,15 +101,27 @@ export function buildRunArgs(
 	for (const [i, field] of fields.entries()) {
 		const value = values[i];
 		if (field.kind === "positional") {
-			if (typeof value === "string" && value !== "") args.push(value);
+			if (typeof value === "string" && value !== "") {
+				if (field.variadic) args.push(...splitVariadic(value));
+				else args.push(value);
+			}
 			continue;
 		}
 		if (field.type === "boolean") {
+			// A required boolean must appear either way; the parser supports
+			// --no-<flag> negation.
 			if (value === true) args.push(`--${field.name}`);
+			else if (value === false) args.push(`--no-${field.name}`);
 			continue;
 		}
 		if (typeof value === "string" && value !== "") {
-			args.push(`--${field.name}`, value);
+			if (field.variadic) {
+				for (const part of splitVariadic(value)) {
+					args.push(`--${field.name}`, part);
+				}
+			} else {
+				args.push(`--${field.name}`, value);
+			}
 		}
 	}
 	return args;
@@ -263,7 +282,13 @@ function renderForm(name: string, path: string[], form: FormState): string {
 		out.push("");
 		out.push(paint.dim(`${paint.bold("esc")} cancel`));
 	} else {
-		out.push(`  ${paint.bold("›")} ${form.buffer}${paint.invert(" ")}`);
+		const inputHints = [
+			field.type === "number" ? "number" : undefined,
+			field.variadic ? "space-separated for multiple" : undefined,
+		].filter(Boolean);
+		out.push(
+			`  ${paint.bold("›")} ${form.buffer}${paint.invert(" ")}${inputHints.length > 0 ? `  ${paint.dim(`(${inputHints.join(", ")})`)}` : ""}`,
+		);
 		out.push("");
 		out.push(
 			paint.dim(
@@ -281,8 +306,9 @@ export async function runInteractiveHelp(opts: {
 	globals?: Record<string, ProcessedBuilderConfig>;
 	branding?: HelpBranding;
 	populateLeaf: (path: string[], node: CommandNode) => void;
+	signal?: AbortSignal;
 }): Promise<InteractiveResult> {
-	const { name, version, root, globals, branding, populateLeaf } = opts;
+	const { name, version, root, globals, branding, populateLeaf, signal } = opts;
 	const stdin = process.stdin;
 	const stdout = process.stdout;
 
@@ -316,18 +342,41 @@ export async function runInteractiveHelp(opts: {
 	stdin.resume();
 	stdout.write(hide);
 
+	// The terminal must be restored on EVERY exit path — normal finish, an
+	// exception inside the key handler, SIGINT/SIGTERM (via the runner's
+	// abort signal), or process exit — or the user's shell is left in raw
+	// mode with a hidden cursor.
+	let cleaned = false;
 	const cleanup = () => {
+		if (cleaned) return;
+		cleaned = true;
 		stdin.setRawMode?.(false);
 		stdin.pause();
 		stdout.write(show);
 	};
+	process.on("exit", cleanup);
 
-	return new Promise<InteractiveResult>((resolvePromise) => {
-		const finish = (result: InteractiveResult) => {
+	return new Promise<InteractiveResult>((resolvePromise, rejectPromise) => {
+		const teardown = () => {
 			cleanup();
 			stdin.off("data", onData);
+			process.off("exit", cleanup);
+			signal?.removeEventListener("abort", onAbort);
+		};
+		const finish = (result: InteractiveResult) => {
+			teardown();
 			resolvePromise(result);
 		};
+		const fail = (error: unknown) => {
+			teardown();
+			rejectPromise(error);
+		};
+		const onAbort = () => finish({});
+		signal?.addEventListener("abort", onAbort, { once: true });
+		if (signal?.aborted) {
+			finish({});
+			return;
+		}
 
 		const closeLeaf = () => {
 			leaf = null;
@@ -385,7 +434,13 @@ export async function runInteractiveHelp(opts: {
 			}
 			// Text input
 			if (key === "\r") {
-				if (form.buffer.trim() !== "") commitFormValue(form.buffer.trim());
+				const trimmed = form.buffer.trim();
+				if (trimmed === "") return undefined;
+				// Numbers fail fast here instead of after the browser closes.
+				if (field.type === "number" && Number.isNaN(Number(trimmed))) {
+					return undefined;
+				}
+				commitFormValue(trimmed);
 				return undefined;
 			}
 			if (key === "\x7f") {
@@ -398,8 +453,14 @@ export async function runInteractiveHelp(opts: {
 		};
 
 		const onData = (data: Buffer) => {
-			const key = data.toString();
+			try {
+				handleKey(data.toString());
+			} catch (error) {
+				fail(error);
+			}
+		};
 
+		const handleKey = (key: string) => {
 			if (form) {
 				const result = handleFormKey(key);
 				if (result) return finish(result);
@@ -412,9 +473,10 @@ export async function runInteractiveHelp(opts: {
 
 			if (key === "\x03" || key === "q") return finish({});
 			if (key === `${ESC}[A` || key === "k") {
-				if (!leaf) selected = (selected - 1 + list.length) % list.length;
+				if (!leaf && list.length > 0)
+					selected = (selected - 1 + list.length) % list.length;
 			} else if (key === `${ESC}[B` || key === "j") {
-				if (!leaf) selected = (selected + 1) % list.length;
+				if (!leaf && list.length > 0) selected = (selected + 1) % list.length;
 			} else if (key === `${ESC}[D` || key === "\x7f" || key === ESC) {
 				if (leaf) {
 					closeLeaf();

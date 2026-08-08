@@ -121,7 +121,7 @@ export function generateRootHelp(
 		}
 	}
 
-	if (globals) {
+	if (globals && Object.keys(globals).length > 0) {
 		lines.push(paint.heading("Global options"));
 		lines.push(...formatOptions(globals));
 		lines.push("");
