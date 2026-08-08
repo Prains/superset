@@ -1,4 +1,11 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	describe,
+	expect,
+	test,
+} from "bun:test";
 import { execSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,6 +23,31 @@ import { createTestHost, type TestHost } from "../helpers/createTestHost";
 describe("workspaces.createSession + delete integration", () => {
 	let host: TestHost | undefined;
 	const createdPaths: string[] = [];
+
+	// createSession makes an initial commit; CI runners have no global git
+	// identity, so provide one via env for this process's git spawns (same
+	// pattern as the project-setup empty-mode test).
+	const savedEnv: Record<string, string | undefined> = {};
+	beforeAll(() => {
+		for (const key of [
+			"GIT_AUTHOR_NAME",
+			"GIT_AUTHOR_EMAIL",
+			"GIT_COMMITTER_NAME",
+			"GIT_COMMITTER_EMAIL",
+		]) {
+			savedEnv[key] = process.env[key];
+		}
+		process.env.GIT_AUTHOR_NAME = "Test Runner";
+		process.env.GIT_AUTHOR_EMAIL = "test@superset.sh";
+		process.env.GIT_COMMITTER_NAME = "Test Runner";
+		process.env.GIT_COMMITTER_EMAIL = "test@superset.sh";
+	});
+	afterAll(() => {
+		for (const [key, value] of Object.entries(savedEnv)) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+	});
 
 	afterEach(async () => {
 		if (host) {

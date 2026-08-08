@@ -6,12 +6,15 @@ import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/u
 import { useDeletingWorkspaces } from "renderer/routes/_authenticated/providers/DeletingWorkspacesProvider";
 import type {
 	DashboardSidebarProject,
+	DashboardSidebarSection,
 	DashboardSidebarWorkspace,
 } from "../../types";
 import { getProjectChildrenWorkspaces } from "../../utils/projectChildren";
+import type { DashboardSidebarSessionsScope } from "../useDashboardSidebarData/buildDashboardSidebarProjects";
 
 interface WorkspaceLocation {
-	projectId: string;
+	/** Null for the Sessions scope — no project row to expand. */
+	projectId: string | null;
 	projectIsCollapsed: boolean;
 	/** Collapsed ancestor groups, outermost first — every one must expand. */
 	collapsedSectionIds: string[];
@@ -53,22 +56,53 @@ function useStableWorkspaceShortcutLabels(
 
 export function useDashboardSidebarShortcuts(
 	groups: DashboardSidebarProject[],
-	sessionWorkspaces: DashboardSidebarWorkspace[] = [],
+	sessionsScope: DashboardSidebarSessionsScope = {
+		looseWorkspaces: [],
+		rootSections: [],
+	},
 ) {
 	const navigate = useNavigate();
 	const { toggleProjectCollapsed, toggleSectionCollapsed } =
 		useDashboardSidebarState();
 	const { isDeleting } = useDeletingWorkspaces();
+	// Sessions render after the project groups, folders-first inside groups.
+	// Each entry keeps its collapsed-ancestor chain so reveal can expand it.
+	const sessionEntries = useMemo(() => {
+		const entries: Array<{
+			workspace: DashboardSidebarWorkspace;
+			collapsedSectionIds: string[];
+		}> = sessionsScope.looseWorkspaces.map((workspace) => ({
+			workspace,
+			collapsedSectionIds: [],
+		}));
+		const visit = (
+			section: DashboardSidebarSection,
+			collapsedAncestors: string[],
+		) => {
+			const collapsedChain = section.isCollapsed
+				? [...collapsedAncestors, section.id]
+				: collapsedAncestors;
+			for (const nested of section.childSections) {
+				visit(nested, collapsedChain);
+			}
+			for (const workspace of section.workspaces) {
+				entries.push({ workspace, collapsedSectionIds: collapsedChain });
+			}
+		};
+		for (const section of sessionsScope.rootSections) {
+			visit(section, []);
+		}
+		return entries;
+	}, [sessionsScope]);
 	const flattenedWorkspaces = useMemo(
 		() =>
 			[
 				...groups.flatMap((project) =>
 					getProjectChildrenWorkspaces(project.children),
 				),
-				// Sessions render after the project groups.
-				...sessionWorkspaces,
+				...sessionEntries.map((entry) => entry.workspace),
 			].filter((workspace) => !isDeleting(workspace.id)),
-		[groups, sessionWorkspaces, isDeleting],
+		[groups, sessionEntries, isDeleting],
 	);
 	const workspaceShortcutLabels =
 		useStableWorkspaceShortcutLabels(flattenedWorkspaces);
@@ -108,14 +142,21 @@ export function useDashboardSidebarShortcuts(
 				visitSection(child.section, []);
 			}
 		}
+		for (const entry of sessionEntries) {
+			map.set(entry.workspace.id, {
+				projectId: null,
+				projectIsCollapsed: false,
+				collapsedSectionIds: entry.collapsedSectionIds,
+			});
+		}
 		return map;
-	}, [groups]);
+	}, [groups, sessionEntries]);
 
 	const revealWorkspace = useCallback(
 		(workspaceId: string) => {
 			const location = workspaceLocations.get(workspaceId);
 			if (!location) return;
-			if (location.projectIsCollapsed) {
+			if (location.projectId !== null && location.projectIsCollapsed) {
 				toggleProjectCollapsed(location.projectId);
 			}
 			for (const sectionId of location.collapsedSectionIds) {

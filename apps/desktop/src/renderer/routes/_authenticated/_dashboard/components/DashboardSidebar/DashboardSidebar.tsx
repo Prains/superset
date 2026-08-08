@@ -155,23 +155,9 @@ export function DashboardSidebar({
 			.filter((g): g is DashboardSidebarProject => g != null);
 	}, [groups, projectOrder]);
 
-	const sessionShortcutWorkspaces = useMemo(
-		() => [
-			...sessionsScope.looseWorkspaces,
-			...sessionsScope.rootSections.flatMap(
-				function collect(section): typeof sessionsScope.looseWorkspaces {
-					return [
-						...section.childSections.flatMap(collect),
-						...section.workspaces,
-					];
-				},
-			),
-		],
-		[sessionsScope],
-	);
 	const workspaceShortcutLabels = useDashboardSidebarShortcuts(
 		orderedGroups,
-		sessionShortcutWorkspaces,
+		sessionsScope,
 	);
 	const selectableWorkspaceIds = useMemo(
 		() =>

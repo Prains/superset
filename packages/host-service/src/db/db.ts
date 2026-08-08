@@ -34,7 +34,7 @@ export function createDb(dbPath: string, migrationsFolder: string) {
 	const violations = sqlite.pragma("foreign_key_check") as unknown[];
 	if (violations.length > 0) {
 		throw new Error(
-			`[host-service:db] Migration left ${violations.length} foreign key violation(s): ${JSON.stringify(violations.slice(0, 5))}`,
+			`[host-service:db] Migration at ${dbPath} left ${violations.length} foreign key violation(s): ${JSON.stringify(violations.slice(0, 5))}`,
 		);
 	}
 	sqlite.pragma("foreign_keys = ON");
