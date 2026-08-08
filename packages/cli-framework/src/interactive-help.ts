@@ -452,13 +452,15 @@ export async function runInteractiveHelp(opts: {
 			return undefined;
 		};
 
-		const onData = (data: Buffer) => {
+		// Hoisted: teardown() references onData, and the already-aborted branch
+		// above runs teardown before this point in the source.
+		function onData(data: Buffer) {
 			try {
 				handleKey(data.toString());
 			} catch (error) {
 				fail(error);
 			}
-		};
+		}
 
 		const handleKey = (key: string) => {
 			if (form) {

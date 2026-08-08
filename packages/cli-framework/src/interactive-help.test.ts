@@ -4,6 +4,7 @@ import {
 	buildRunArgs,
 	collectRequiredFields,
 	formatAssembledCommand,
+	runInteractiveHelp,
 } from "./interactive-help";
 import type { ProcessedBuilderConfig } from "./option";
 
@@ -158,6 +159,21 @@ describe("buildRunArgs", () => {
 			"--attachment",
 			"b.png",
 		]);
+	});
+});
+
+describe("runInteractiveHelp", () => {
+	it("resolves immediately when the signal is already aborted", async () => {
+		const ac = new AbortController();
+		ac.abort();
+		const result = await runInteractiveHelp({
+			name: "test",
+			version: "0.0.0",
+			root: { name: "test", children: new Map(), hasCommand: false },
+			populateLeaf: () => {},
+			signal: ac.signal,
+		});
+		expect(result).toEqual({});
 	});
 });
 
