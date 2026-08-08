@@ -35,11 +35,12 @@ function collectScopeWorkspaces(scope: DashboardSidebarSessionsScope): Array<{
 }
 
 /**
- * Top-level "Sessions" section for project-less workspaces, rendered after
- * the project groups: loose sessions first, then the null-scope group tree.
- * Hidden entirely while no sessions exist — the create path lives in the
- * picker's "No project" option, so an empty section has nothing to teach.
- * Collapsed rail renders a plain icon stack, matching the Pinned section.
+ * Top-level "Sessions" section, rendered above the Projects header: loose
+ * sessions first, then the null-scope group tree. The header (and its "+",
+ * which opens the create surface with "No project" preselected) always
+ * renders in expanded mode — like the Projects header — so sessions stay
+ * discoverable at zero. Collapsed rail renders a plain icon stack with a
+ * trailing divider, matching the Pinned section.
  */
 export function DashboardSidebarSessionsSection({
 	sessionsScope,
@@ -49,47 +50,44 @@ export function DashboardSidebarSessionsSection({
 	const openNewSessionModal = useOpenNewSessionModal();
 	const { looseWorkspaces, rootSections } = sessionsScope;
 
-	if (looseWorkspaces.length === 0 && rootSections.length === 0) return null;
-
 	if (isCollapsed) {
+		const rows = collectScopeWorkspaces(sessionsScope);
+		if (rows.length === 0) return null;
 		return (
 			<div className="flex flex-col gap-0.5 py-1">
-				<div className="mx-3 mb-1 border-t border-border" />
-				{collectScopeWorkspaces(sessionsScope).map(
-					({ workspace, isInSection }) => (
-						<DashboardSidebarWorkspaceItem
-							key={workspace.id}
-							workspace={workspace}
-							isCollapsed
-							isInSection={isInSection}
-							onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
-						/>
-					),
-				)}
+				{rows.map(({ workspace, isInSection }) => (
+					<DashboardSidebarWorkspaceItem
+						key={workspace.id}
+						workspace={workspace}
+						isCollapsed
+						isInSection={isInSection}
+						onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
+					/>
+				))}
+				<div className="mx-3 mt-1 border-b border-border" />
 			</div>
 		);
 	}
 
 	return (
-		<div className="mt-1 pb-3 first:mt-0">
-			{/* Micro-label styled to match the PROJECTS/Pinned headers. */}
-			<div className="group/sessions-header flex min-h-8 items-center py-1.5 pl-4 pr-2 text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">
-				<span className="min-w-0 truncate">Sessions</span>
-				<div className="ml-auto flex items-center opacity-0 transition-opacity group-hover/sessions-header:opacity-100 focus-within:opacity-100">
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<button
-								type="button"
-								aria-label="New session"
-								className="flex size-5 items-center justify-center rounded hover:bg-accent hover:text-accent-foreground"
-								onClick={openNewSessionModal}
-							>
-								<LuPlus className="size-3.5" />
-							</button>
-						</TooltipTrigger>
-						<TooltipContent side="right">New session</TooltipContent>
-					</Tooltip>
-				</div>
+		<div className="pb-1">
+			{/* Header styled to match the Projects header below it. */}
+			<div className="flex min-h-8 w-full shrink-0 items-center gap-1.5 py-1.5 pl-4 pr-2 text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">
+				<span className="min-w-0 truncate text-left">Sessions</span>
+				<div className="min-w-0 flex-1" />
+				<Tooltip delayDuration={700}>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							aria-label="New session"
+							onClick={openNewSessionModal}
+							className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-fill-hover hover:text-foreground"
+						>
+							<LuPlus className="size-3.5" />
+						</button>
+					</TooltipTrigger>
+					<TooltipContent side="bottom">New session</TooltipContent>
+				</Tooltip>
 			</div>
 			{looseWorkspaces.map((workspace) => (
 				<DashboardSidebarWorkspaceItem

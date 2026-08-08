@@ -22,6 +22,29 @@ export function getFlattenedV2WorkspaceIds(
 
 	const result: string[] = [];
 
+	// Sessions (null projectId) render in the top-level Sessions section
+	// ABOVE the project groups: loose sessions first, then group trees.
+	const sessionWorkspaces = visibleWorkspaces.filter(
+		(workspace) => workspace.sidebarState.projectId === null,
+	);
+	const looseSessions = sessionWorkspaces
+		.filter((workspace) => workspace.sidebarState.sectionId === null)
+		.sort(
+			(left, right) => left.sidebarState.tabOrder - right.sidebarState.tabOrder,
+		);
+	for (const workspace of looseSessions) {
+		result.push(workspace.workspaceId);
+	}
+	const sessionRootSections = allSections
+		.filter(
+			(section) =>
+				section.projectId === null && section.parentSectionId === null,
+		)
+		.sort((left, right) => left.tabOrder - right.tabOrder);
+	for (const section of sessionRootSections) {
+		walkSection(section.sectionId, sessionWorkspaces, allSections, result);
+	}
+
 	for (const project of projects) {
 		const projectWorkspaces = visibleWorkspaces.filter(
 			(workspace) => workspace.sidebarState.projectId === project.projectId,
@@ -66,29 +89,6 @@ export function getFlattenedV2WorkspaceIds(
 			}
 			walkSection(item.sectionId, projectWorkspaces, allSections, result);
 		}
-	}
-
-	// Sessions (null projectId) render in the top-level Sessions section
-	// after the project groups: loose sessions first, then group trees.
-	const sessionWorkspaces = visibleWorkspaces.filter(
-		(workspace) => workspace.sidebarState.projectId === null,
-	);
-	const looseSessions = sessionWorkspaces
-		.filter((workspace) => workspace.sidebarState.sectionId === null)
-		.sort(
-			(left, right) => left.sidebarState.tabOrder - right.sidebarState.tabOrder,
-		);
-	for (const workspace of looseSessions) {
-		result.push(workspace.workspaceId);
-	}
-	const sessionRootSections = allSections
-		.filter(
-			(section) =>
-				section.projectId === null && section.parentSectionId === null,
-		)
-		.sort((left, right) => left.tabOrder - right.tabOrder);
-	for (const section of sessionRootSections) {
-		walkSection(section.sectionId, sessionWorkspaces, allSections, result);
 	}
 
 	return result;

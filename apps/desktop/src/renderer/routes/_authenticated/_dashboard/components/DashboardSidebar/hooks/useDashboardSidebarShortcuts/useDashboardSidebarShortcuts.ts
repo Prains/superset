@@ -65,7 +65,7 @@ export function useDashboardSidebarShortcuts(
 	const { toggleProjectCollapsed, toggleSectionCollapsed } =
 		useDashboardSidebarState();
 	const { isDeleting } = useDeletingWorkspaces();
-	// Sessions render after the project groups, folders-first inside groups.
+	// Sessions render above the project groups, folders-first inside groups.
 	// Each entry keeps its collapsed-ancestor chain so reveal can expand it.
 	const sessionEntries = useMemo(() => {
 		const entries: Array<{
@@ -97,10 +97,11 @@ export function useDashboardSidebarShortcuts(
 	const flattenedWorkspaces = useMemo(
 		() =>
 			[
+				// Sessions render above the project groups.
+				...sessionEntries.map((entry) => entry.workspace),
 				...groups.flatMap((project) =>
 					getProjectChildrenWorkspaces(project.children),
 				),
-				...sessionEntries.map((entry) => entry.workspace),
 			].filter((workspace) => !isDeleting(workspace.id)),
 		[groups, sessionEntries, isDeleting],
 	);
