@@ -8,6 +8,8 @@ import { DashboardSidebarWorkspaceItem } from "../DashboardSidebarWorkspaceItem"
 interface DashboardSidebarSessionsSectionProps {
 	sessionsScope: DashboardSidebarSessionsScope;
 	isCollapsed?: boolean;
+	/** The workspaces-list collapse toggle hides rows; the header stays. */
+	rowsHidden?: boolean;
 	onWorkspaceHover: (workspaceId: string) => void | Promise<void>;
 }
 
@@ -45,6 +47,7 @@ function collectScopeWorkspaces(scope: DashboardSidebarSessionsScope): Array<{
 export function DashboardSidebarSessionsSection({
 	sessionsScope,
 	isCollapsed = false,
+	rowsHidden = false,
 	onWorkspaceHover,
 }: DashboardSidebarSessionsSectionProps) {
 	const openNewSessionModal = useOpenNewSessionModal();
@@ -89,21 +92,23 @@ export function DashboardSidebarSessionsSection({
 					<TooltipContent side="bottom">New session</TooltipContent>
 				</Tooltip>
 			</div>
-			{looseWorkspaces.map((workspace) => (
-				<DashboardSidebarWorkspaceItem
-					key={workspace.id}
-					workspace={workspace}
-					onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
-				/>
-			))}
-			{rootSections.map((section) => (
-				<DashboardSidebarNestedSection
-					key={section.id}
-					section={section}
-					depth={0}
-					onWorkspaceHover={onWorkspaceHover}
-				/>
-			))}
+			{!rowsHidden &&
+				looseWorkspaces.map((workspace) => (
+					<DashboardSidebarWorkspaceItem
+						key={workspace.id}
+						workspace={workspace}
+						onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
+					/>
+				))}
+			{!rowsHidden &&
+				rootSections.map((section) => (
+					<DashboardSidebarNestedSection
+						key={section.id}
+						section={section}
+						depth={0}
+						onWorkspaceHover={onWorkspaceHover}
+					/>
+				))}
 		</div>
 	);
 }
