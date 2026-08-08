@@ -1,8 +1,13 @@
 import { useMemo } from "react";
 import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences";
 import type { V2TerminalPresetRow } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal";
+import type { KNOWN_BUILTIN_PRESET_IDS } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal/schema";
 
-export const BUILTIN_CLI_PRESET_ID = "superset-cli";
+// Membership in KNOWN_BUILTIN_PRESET_IDS is compile-checked: the preference
+// heal prunes hidden ids against that list, so an id missing from it would
+// have its hidden state silently dropped.
+export const BUILTIN_CLI_PRESET_ID =
+	"superset-cli" satisfies (typeof KNOWN_BUILTIN_PRESET_IDS)[number];
 
 // Synthetic app-shipped preset merged into the preset bar at read time — never
 // inserted into the v2TerminalPresets collection, so it can't trip the

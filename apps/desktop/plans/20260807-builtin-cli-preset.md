@@ -96,8 +96,9 @@ decide at implementation.
 
 ## Build order
 
-1. `hiddenBuiltinPresetIds` preference + `builtin-presets` module.
-2. Icon assets + `resolveV2PresetIconKey` case.
-3. `V2PresetsBar` merge + chip + badge + manage-dropdown visibility row.
-4. Telemetry events; tests (merge logic, hidden ids, no hotkey index shift, project-filter
-   non-interference).
+1. `hiddenBuiltinPresetIds` preference (heal-time pruning against
+   `KNOWN_BUILTIN_PRESET_IDS`) + `builtin-presets` module.
+2. `V2PresetsBar` merge + chip (existing `superset` icon via `getPresetIcon`) +
+   manage-dropdown visibility row.
+3. Telemetry events; tests (merge logic, hidden ids, heal pruning, no hotkey index shift,
+   project-filter non-interference).

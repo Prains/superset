@@ -340,10 +340,15 @@ export const v2UserPreferencesSchema = z.object({
 	showPresetsBar: z.boolean().default(true),
 	// Built-in (synthetic, app-shipped) presets the user hid from the preset
 	// bar. Synthetic presets have no v2TerminalPresets row, so visibility can't
-	// live on the row's pinnedToBar like user presets. Bounded by the fixed set
-	// of built-in preset ids.
+	// live on the row's pinnedToBar like user presets. Pruned against
+	// KNOWN_BUILTIN_PRESET_IDS at heal time so retired ids can't persist.
 	hiddenBuiltinPresetIds: z.array(z.string()).default([]),
 });
+
+// The fixed set of built-in preset ids. Consumers derive their id constants
+// from this list (compile-checked via `satisfies`) so the heal-time pruning
+// below can never drop an id that is still in use.
+export const KNOWN_BUILTIN_PRESET_IDS = ["superset-cli"] as const;
 
 export type V2UserPreferencesRow = z.infer<typeof v2UserPreferencesSchema>;
 
@@ -430,6 +435,13 @@ export function healV2UserPreferences(raw: unknown): V2UserPreferencesRow {
 		sidebarFileLinks: shouldMigrateLegacySidebarFileLinks
 			? DEFAULT_V2_USER_PREFERENCES.sidebarFileLinks
 			: sidebarFileLinks,
+		// Prune retired/stray built-in ids so the array stays bounded.
+		hiddenBuiltinPresetIds: (Array.isArray(r.hiddenBuiltinPresetIds)
+			? r.hiddenBuiltinPresetIds
+			: []
+		).filter((id) =>
+			(KNOWN_BUILTIN_PRESET_IDS as readonly string[]).includes(id),
+		),
 	};
 }
 

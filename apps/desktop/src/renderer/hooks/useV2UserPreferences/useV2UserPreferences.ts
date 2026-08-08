@@ -213,7 +213,9 @@ export function useV2UserPreferences(): V2UserPreferencesApi {
 				? prev.includes(presetId)
 					? prev
 					: [...prev, presetId]
-				: prev.filter((id) => id !== presetId);
+				: prev.includes(presetId)
+					? prev.filter((id) => id !== presetId)
+					: prev;
 			if (next === prev) return;
 			if (!existing) {
 				collections.v2UserPreferences.insert({
