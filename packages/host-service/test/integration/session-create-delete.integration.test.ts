@@ -213,7 +213,12 @@ describe("workspaces.createSession + delete integration", () => {
 		expect(fresh?.hasUnpushedCommits).toBe(false);
 
 		writeFileSync(join(row?.worktreePath ?? "", "work.txt"), "real work");
-		execSync("git add . && git commit -m 'work'", { cwd: row?.worktreePath });
+		// Identity inline via -c: Bun's execSync does not reliably see the
+		// beforeAll process.env mutations that the in-process host spawns do.
+		execSync(
+			'git add . && git -c user.name="Test Runner" -c user.email="test@superset.sh" commit -m work',
+			{ cwd: row?.worktreePath },
+		);
 
 		const withWork = await host?.trpc.workspaceCleanup.inspect.query({
 			workspaceId: result.workspace.id,
