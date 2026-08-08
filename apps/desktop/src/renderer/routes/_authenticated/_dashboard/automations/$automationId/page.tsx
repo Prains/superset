@@ -180,7 +180,9 @@ function AutomationDetailPage() {
 				automationId={automation.id}
 				automationName={automation.name}
 				currentPrompt={automation.prompt}
-				open={historyOpen}
+				// Versions are owner-gated server-side too; the header action is
+				// hidden, but the ?history=true search param could still open it.
+				open={!readOnly && historyOpen}
 				onOpenChange={setHistoryOpen}
 			/>
 		</div>

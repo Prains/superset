@@ -25,9 +25,9 @@ interface AgentPickerProps {
 	onChange: (next: string) => void;
 	className?: string;
 	/**
-	 * Must be set on the Radix trigger, not just an enclosing fieldset —
-	 * Chrome still fires pointerdown on disabled buttons, which is what
-	 * opens a DropdownMenu.
+	 * Disables opening via the Radix trigger itself. A button disabled only
+	 * through an enclosing <fieldset> still receives pointerdown in Chrome —
+	 * the event that opens a DropdownMenu.
 	 */
 	disabled?: boolean;
 }

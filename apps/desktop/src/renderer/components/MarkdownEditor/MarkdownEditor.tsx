@@ -442,7 +442,7 @@ export function MarkdownEditor({
 
 	return (
 		<div className={cn("w-full", className)}>
-			{showBubbleMenu && editor && (
+			{showBubbleMenu && editable && editor && (
 				<BubbleMenu
 					editor={editor}
 					options={{
