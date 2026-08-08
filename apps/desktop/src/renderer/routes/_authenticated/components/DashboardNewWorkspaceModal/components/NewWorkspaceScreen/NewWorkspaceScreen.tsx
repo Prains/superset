@@ -203,11 +203,24 @@ export function NewWorkspaceScreen({
 	// and make switching projects impossible.
 	const appliedPreSelectionRef = useRef<string | null>(null);
 	const appliedSessionPreselectionRef = useRef(false);
+	// Re-arm per intent so a second session-open cycle on a reused screen
+	// instance applies again.
+	useEffect(() => {
+		if (!preSelectedSession) appliedSessionPreselectionRef.current = false;
+	}, [preSelectedSession]);
 	useEffect(() => {
 		if (!isOpen || !areProjectsReady) return;
 		if (preSelectedSession && !appliedSessionPreselectionRef.current) {
 			appliedSessionPreselectionRef.current = true;
-			updateDraft({ selectedProjectId: null, isSession: true });
+			// Same clears as the manual "No project" path — a leftover
+			// project draft's PR/base-branch would fail at submit.
+			updateDraft({
+				selectedProjectId: null,
+				isSession: true,
+				linkedPR: null,
+				baseBranch: null,
+				baseBranchSource: null,
+			});
 			return;
 		}
 		const isValid = (id: string | null | undefined) =>

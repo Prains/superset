@@ -13,8 +13,8 @@ import { getProjectChildrenWorkspaces } from "../../utils/projectChildren";
 interface WorkspaceLocation {
 	projectId: string;
 	projectIsCollapsed: boolean;
-	sectionId: string | null;
-	sectionIsCollapsed: boolean;
+	/** Collapsed ancestor groups, outermost first — every one must expand. */
+	collapsedSectionIds: string[];
 }
 
 const MAX_SHORTCUT_COUNT = 9;
@@ -81,30 +81,31 @@ export function useDashboardSidebarShortcuts(
 					map.set(child.workspace.id, {
 						projectId: project.id,
 						projectIsCollapsed: project.isCollapsed,
-						sectionId: null,
-						sectionIsCollapsed: false,
+						collapsedSectionIds: [],
 					});
 					continue;
 				}
-				// Nested groups: a workspace is hidden when any ancestor group
-				// in its chain is collapsed; reveal toggles its direct group.
+				// Nested groups: a workspace is hidden while ANY ancestor group
+				// is collapsed, so reveal must expand the whole collapsed chain.
 				const visitSection = (
 					section: (typeof child)["section"],
-					ancestorCollapsed: boolean,
+					collapsedAncestors: string[],
 				) => {
+					const collapsedChain = section.isCollapsed
+						? [...collapsedAncestors, section.id]
+						: collapsedAncestors;
 					for (const workspace of section.workspaces) {
 						map.set(workspace.id, {
 							projectId: project.id,
 							projectIsCollapsed: project.isCollapsed,
-							sectionId: section.id,
-							sectionIsCollapsed: ancestorCollapsed || section.isCollapsed,
+							collapsedSectionIds: collapsedChain,
 						});
 					}
 					for (const nested of section.childSections) {
-						visitSection(nested, ancestorCollapsed || section.isCollapsed);
+						visitSection(nested, collapsedChain);
 					}
 				};
-				visitSection(child.section, false);
+				visitSection(child.section, []);
 			}
 		}
 		return map;
@@ -117,8 +118,8 @@ export function useDashboardSidebarShortcuts(
 			if (location.projectIsCollapsed) {
 				toggleProjectCollapsed(location.projectId);
 			}
-			if (location.sectionId && location.sectionIsCollapsed) {
-				toggleSectionCollapsed(location.sectionId);
+			for (const sectionId of location.collapsedSectionIds) {
+				toggleSectionCollapsed(sectionId);
 			}
 		},
 		[workspaceLocations, toggleProjectCollapsed, toggleSectionCollapsed],

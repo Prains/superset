@@ -74,7 +74,15 @@ export function DashboardNewWorkspaceModalContent({
 
 		if (preSelectedSession && !hasInitializedSelectionRef.current) {
 			hasInitializedSelectionRef.current = true;
-			updateDraft({ selectedProjectId: null, isSession: true });
+			// Same clears as the manual "No project" path — a leftover
+			// project draft's PR/base-branch would fail at submit.
+			updateDraft({
+				selectedProjectId: null,
+				isSession: true,
+				linkedPR: null,
+				baseBranch: null,
+				baseBranchSource: null,
+			});
 			return;
 		}
 
