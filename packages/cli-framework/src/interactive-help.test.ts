@@ -1,0 +1,124 @@
+import { describe, expect, it } from "bun:test";
+import type { CommandNode } from "./help";
+import {
+	buildRunArgs,
+	collectRequiredFields,
+	formatAssembledCommand,
+} from "./interactive-help";
+import type { ProcessedBuilderConfig } from "./option";
+
+function option(
+	partial: Partial<ProcessedBuilderConfig> & { name: string },
+): ProcessedBuilderConfig {
+	return {
+		type: "string",
+		aliases: [],
+		isRequired: false,
+		isHidden: false,
+		isVariadic: false,
+		...partial,
+	} as ProcessedBuilderConfig;
+}
+
+function leaf(config: {
+	options?: Record<string, ProcessedBuilderConfig>;
+	args?: ProcessedBuilderConfig[];
+}): CommandNode {
+	return {
+		name: "cmd",
+		children: new Map(),
+		hasCommand: true,
+		options: config.options,
+		args: config.args,
+	};
+}
+
+describe("collectRequiredFields", () => {
+	it("returns nothing for a command with no required inputs", () => {
+		const node = leaf({
+			options: { limit: option({ name: "limit", type: "number" }) },
+		});
+		expect(collectRequiredFields(node)).toEqual([]);
+	});
+
+	it("picks required flags and keeps enum values", () => {
+		const node = leaf({
+			options: {
+				type: option({
+					name: "type",
+					isRequired: true,
+					enumVals: ["bug", "feature", "general"],
+				}),
+				title: option({ name: "title", isRequired: true }),
+				body: option({ name: "body" }),
+			},
+		});
+		const fields = collectRequiredFields(node);
+		expect(fields.map((f) => f.name)).toEqual(["type", "title"]);
+		expect(fields[0]?.enumVals).toEqual(["bug", "feature", "general"]);
+	});
+
+	it("treats required-with-default as not required", () => {
+		const node = leaf({
+			options: {
+				port: option({
+					name: "port",
+					type: "number",
+					isRequired: true,
+					default: 8080,
+				}),
+			},
+		});
+		expect(collectRequiredFields(node)).toEqual([]);
+	});
+
+	it("puts required positionals before flags", () => {
+		const node = leaf({
+			args: [option({ name: "id", isRequired: true })],
+			options: { force: option({ name: "force", isRequired: true }) },
+		});
+		expect(collectRequiredFields(node).map((f) => f.kind)).toEqual([
+			"positional",
+			"flag",
+		]);
+	});
+});
+
+describe("buildRunArgs", () => {
+	it("assembles path, positionals, then flag pairs", () => {
+		const fields = collectRequiredFields(
+			leaf({
+				args: [option({ name: "id", isRequired: true })],
+				options: { name: option({ name: "name", isRequired: true }) },
+			}),
+		);
+		expect(
+			buildRunArgs(["tasks", "update"], fields, ["t-1", "New title"]),
+		).toEqual(["tasks", "update", "t-1", "--name", "New title"]);
+	});
+
+	it("emits boolean flags only when true", () => {
+		const fields = [
+			{ kind: "flag", name: "force", type: "boolean" } as const,
+			{ kind: "flag", name: "dry-run", type: "boolean" } as const,
+		];
+		expect(buildRunArgs(["ws", "rm"], [...fields], [true, false])).toEqual([
+			"ws",
+			"rm",
+			"--force",
+		]);
+	});
+});
+
+describe("formatAssembledCommand", () => {
+	it("quotes values with spaces for display", () => {
+		const fields = collectRequiredFields(
+			leaf({ options: { title: option({ name: "title", isRequired: true }) } }),
+		);
+		expect(
+			formatAssembledCommand("superset", ["tasks", "create"], fields, [
+				"fix flaky tests",
+			]),
+		).toBe('superset tasks create --title "fix flaky tests"');
+	});
+});
