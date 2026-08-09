@@ -3,8 +3,10 @@ import type {
 	SelectAutomationRun,
 	SelectUser,
 } from "@superset/db/schema";
-import { describeSchedule } from "@superset/shared/rrule";
-import { Badge } from "@superset/ui/badge";
+import {
+	describeSchedule,
+	formatDateTimeInTimezone,
+} from "@superset/shared/rrule";
 import { Button } from "@superset/ui/button";
 import {
 	ContextMenu,
@@ -20,17 +22,9 @@ import { TableCell, TableRow } from "@superset/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { HiOutlineComputerDesktop } from "react-icons/hi2";
-import {
-	LuEllipsis,
-	LuGitBranch,
-	LuRotateCw,
-	LuSparkles,
-} from "react-icons/lu";
+import { LuEllipsis, LuRotateCw } from "react-icons/lu";
 import type { ProjectOption } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal/components/DashboardNewWorkspaceForm/PromptGroup/types";
 import { ProjectThumbnail } from "renderer/routes/_authenticated/components/ProjectThumbnail";
-import { AgentCell } from "../AgentCell";
-import { CellWithIcon } from "../CellWithIcon";
 import { AutomationActionsMenuItems } from "./components/AutomationActionsMenuItems";
 
 interface AutomationRowProps {
@@ -38,38 +32,61 @@ interface AutomationRowProps {
 	owner: Pick<SelectUser, "id" | "name" | "email"> | undefined;
 	showOwner: boolean;
 	project: ProjectOption | undefined;
-	workspaceLabel: string;
-	hostLabel: string;
 	/** The automation's most recent run status; null when it has no runs. */
 	lastRunStatus: SelectAutomationRun["status"] | null;
+	/** createdAt (epoch ms) of the most recent run; null when it has no runs. */
+	lastRunAt: number | null;
+	/** Shared ticking clock so relative times stay fresh without per-row timers. */
+	now: Date;
 	isOwner: boolean;
 	/** True while a run/retry dispatch for this automation is in flight. */
 	isRetrying: boolean;
 	onRunNow: (automation: SelectAutomation) => void;
+	onToggleEnabled: (automation: SelectAutomation) => void;
 	onDelete: (automation: SelectAutomation) => void;
 }
 
+// A run's terminal success state is workspace creation — say so.
 const LAST_RUN_META: Record<
 	SelectAutomationRun["status"],
 	{ dot: string; label: string; failed?: boolean }
 > = {
-	dispatched: { dot: "bg-emerald-500", label: "ran" },
-	dispatching: { dot: "bg-amber-500", label: "running" },
+	dispatched: { dot: "bg-emerald-500", label: "created" },
+	dispatching: { dot: "bg-amber-500", label: "creating" },
 	skipped_offline: { dot: "bg-red-500", label: "failed", failed: true },
 	dispatch_failed: { dot: "bg-red-500", label: "failed", failed: true },
 };
+
+function compactUntil(at: number, now: Date): string {
+	const minutes = Math.floor((at - now.getTime()) / 60_000);
+	if (minutes < 1) return "soon";
+	if (minutes < 60) return `in ${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `in ${hours}h`;
+	return `in ${Math.floor(hours / 24)}d`;
+}
+
+function compactAgo(at: number, now: Date): string {
+	const minutes = Math.floor((now.getTime() - at) / 60_000);
+	if (minutes < 1) return "just now";
+	if (minutes < 60) return `${minutes}m ago`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h ago`;
+	return `${Math.floor(hours / 24)}d ago`;
+}
 
 export function AutomationRow({
 	automation,
 	owner,
 	showOwner,
 	project,
-	workspaceLabel,
-	hostLabel,
 	lastRunStatus,
+	lastRunAt,
+	now,
 	isOwner,
 	isRetrying,
 	onRunNow,
+	onToggleEnabled,
 	onDelete,
 }: AutomationRowProps) {
 	const navigate = useNavigate();
@@ -91,8 +108,10 @@ export function AutomationRow({
 		<AutomationActionsMenuItems
 			kind={kind}
 			isOwner={isOwner}
+			enabled={automation.enabled}
 			onEdit={openDetail}
 			onRunNow={() => onRunNow(automation)}
+			onToggleEnabled={() => onToggleEnabled(automation)}
 			onHistory={openHistory}
 			onDelete={() => onDelete(automation)}
 		/>
@@ -117,14 +136,6 @@ export function AutomationRow({
 						<span className="flex min-w-0 items-center gap-2">
 							<span
 								className={cn(
-									"inline-block size-2 shrink-0 rounded-full",
-									automation.enabled
-										? "bg-emerald-500"
-										: "border border-muted-foreground/60",
-								)}
-							/>
-							<span
-								className={cn(
 									"min-w-0 truncate font-medium",
 									!automation.enabled && "text-muted-foreground",
 								)}
@@ -132,10 +143,15 @@ export function AutomationRow({
 							>
 								{automation.name}
 							</span>
-							{!automation.enabled && (
-								<Badge variant="secondary" className="shrink-0 text-[10px]">
-									paused
-								</Badge>
+							{project && (
+								<span className="ml-1 flex min-w-0 shrink items-center gap-1.5 text-xs text-muted-foreground">
+									<ProjectThumbnail
+										projectName={project.name}
+										iconUrl={project.iconUrl}
+										className="!size-3.5 shrink-0"
+									/>
+									<span className="truncate">{project.name}</span>
+								</span>
 							)}
 						</span>
 					</TableCell>
@@ -149,51 +165,40 @@ export function AutomationRow({
 						</TableCell>
 					)}
 
-					<TableCell className="text-xs text-muted-foreground">
-						<span className="flex min-w-0 items-center gap-1.5">
-							{project ? (
-								<ProjectThumbnail
-									projectName={project.name}
-									iconUrl={project.iconUrl}
-									className="!size-3.5 shrink-0"
-								/>
-							) : null}
-							<span className="min-w-0 truncate">{project?.name ?? "—"}</span>
-						</span>
-					</TableCell>
-
-					<TableCell className="text-xs text-muted-foreground">
-						<CellWithIcon
-							icon={
-								automation.v2WorkspaceId ? (
-									<LuGitBranch className="size-3 shrink-0" />
-								) : (
-									<LuSparkles className="size-3 shrink-0" />
-								)
-							}
-							label={workspaceLabel}
-						/>
-					</TableCell>
-
-					<TableCell className="text-xs text-muted-foreground">
-						<CellWithIcon
-							icon={<HiOutlineComputerDesktop className="size-3 shrink-0" />}
-							label={hostLabel}
-						/>
-					</TableCell>
-
-					<TableCell className="text-xs text-muted-foreground">
-						<AgentCell
-							agentId={automation.agent}
-							hostId={automation.targetHostId ?? null}
-						/>
-					</TableCell>
-
 					<TableCell
 						className="truncate text-xs text-muted-foreground"
 						title={scheduleLabel}
 					>
 						{scheduleLabel}
+					</TableCell>
+
+					<TableCell
+						className="text-xs text-muted-foreground"
+						title={
+							automation.enabled && automation.nextRunAt
+								? `Next run ${formatDateTimeInTimezone(
+										new Date(automation.nextRunAt),
+										automation.timezone,
+									)}`
+								: undefined
+						}
+					>
+						{automation.enabled ? (
+							<span className="truncate">
+								Active
+								{automation.nextRunAt && (
+									<span className="text-muted-foreground/60">
+										{" · "}
+										{compactUntil(
+											new Date(automation.nextRunAt).getTime(),
+											now,
+										)}
+									</span>
+								)}
+							</span>
+						) : (
+							"Paused"
+						)}
 					</TableCell>
 
 					<TableCell className="text-xs text-muted-foreground">
@@ -214,6 +219,14 @@ export function AutomationRow({
 											)}
 										/>
 										{meta.label}
+										{lastRunAt != null && (
+											<span
+												className="truncate text-muted-foreground/70"
+												title={new Date(lastRunAt).toLocaleString()}
+											>
+												{compactAgo(lastRunAt, now)}
+											</span>
+										)}
 									</span>
 								);
 								return (
