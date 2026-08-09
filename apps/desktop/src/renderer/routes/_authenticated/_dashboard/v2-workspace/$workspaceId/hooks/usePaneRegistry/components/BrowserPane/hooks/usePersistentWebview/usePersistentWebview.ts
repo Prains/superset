@@ -51,7 +51,13 @@ export function usePersistentWebview({
 	ctxRef.current = ctx;
 
 	const paneData = ctx.pane.data as BrowserPaneData;
-	const initialUrlRef = useRef(paneData.url || DEFAULT_BROWSER_URL);
+	// Read through a ref so attach keys on paneId alone: navigation echoes
+	// updating pane data must not re-attach, but a replacePane (new paneId on
+	// the same component instance — e.g. opening a link into an existing
+	// browser pane) must attach with the new pane's URL, not the URL captured
+	// at first mount.
+	const attachUrlRef = useRef(paneData.url || DEFAULT_BROWSER_URL);
+	attachUrlRef.current = paneData.url || DEFAULT_BROWSER_URL;
 
 	useEffect(() => {
 		const placeholder = placeholderRef.current;
@@ -60,7 +66,7 @@ export function usePersistentWebview({
 		browserRuntimeRegistry.attach(
 			paneId,
 			placeholder,
-			initialUrlRef.current,
+			attachUrlRef.current,
 			({ url, pageTitle, faviconUrl }) => {
 				const current = ctxRef.current.pane.data as BrowserPaneData;
 				if (
