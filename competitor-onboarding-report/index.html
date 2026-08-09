@@ -61,19 +61,19 @@
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     background: var(--page);
     color: var(--ink);
-    line-height: 1.55;
+    line-height: 1.5;
     font-size: 15px;
   }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 0 28px 96px; }
   header.masthead {
-    padding: 56px 0 28px;
+    padding: 48px 0 24px;
     border-bottom: 1px solid var(--grid);
-    margin-bottom: 40px;
+    margin-bottom: 32px;
   }
   .kicker { color: var(--accent); font-weight: 600; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
-  h1 { font-size: 34px; line-height: 1.15; margin: 8px 0 10px; letter-spacing: -0.02em; }
+  h1 { font-size: 32px; line-height: 1.15; margin: 8px 0 8px; letter-spacing: -0.02em; }
   .sub { color: var(--ink-2); max-width: 72ch; margin: 0; }
-  .meta { color: var(--muted); font-size: 13px; margin-top: 14px; }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 12px; }
   nav.toc {
     position: sticky; top: 0; z-index: 40;
     background: color-mix(in srgb, var(--page) 88%, transparent);
@@ -92,15 +92,15 @@
     border: 1px solid var(--border); background: var(--surface); color: var(--ink-2);
     border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
   }
-  h2 { font-size: 24px; margin: 64px 0 6px; letter-spacing: -0.01em; scroll-margin-top: 64px; }
-  h3 { font-size: 16px; margin: 28px 0 8px; }
-  .lede { color: var(--ink-2); margin: 0 0 20px; max-width: 78ch; }
+  h2 { font-size: 22px; margin: 52px 0 6px; letter-spacing: -0.01em; scroll-margin-top: 64px; }
+  h3 { font-size: 15px; margin: 24px 0 6px; }
+  .lede { color: var(--ink-2); margin: 0 0 16px; max-width: 78ch; }
   p { max-width: 78ch; }
 
   /* cards & tables */
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
   table.compare { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; font-size: 13.5px; }
-  table.compare th, table.compare td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--grid); }
+  table.compare th, table.compare td { padding: 9px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--grid); }
   table.compare th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; background: color-mix(in srgb, var(--surface) 60%, var(--page)); }
   table.compare tr:last-child td { border-bottom: none; }
   table.compare td:first-child { font-weight: 600; white-space: nowrap; }
@@ -122,25 +122,29 @@
   .chart-title { font-weight: 600; margin: 0; }
   .chart-note { color: var(--muted); font-size: 12.5px; margin-top: 12px; }
 
+  /* summary bullets */
+  ul.tldr { margin: 0 0 20px; padding-left: 20px; }
+  ul.tldr li { margin: 6px 0; max-width: 80ch; }
+
   /* flow steps (superset) */
-  .flow { display: grid; gap: 12px; margin: 20px 0; }
-  .step { display: grid; grid-template-columns: 40px 1fr; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
-  .step .n { width: 28px; height: 28px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
-  .step h4 { margin: 0 0 4px; font-size: 15px; }
+  .flow { display: grid; gap: 10px; margin: 18px 0; }
+  .step { display: grid; grid-template-columns: 40px 1fr; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; }
+  .step .n { width: 26px; height: 26px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .step h4 { margin: 0 0 2px; font-size: 14.5px; }
   .step p { margin: 0; color: var(--ink-2); font-size: 13.5px; max-width: none; }
 
   /* app sections */
   .app-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .app-head .tagline { color: var(--muted); font-size: 13.5px; }
-  .stats { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 6px; }
-  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; }
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 4px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 7px 13px; }
   .stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
-  .stat .v { font-size: 15px; font-weight: 650; }
-  ul.patterns { margin: 10px 0 20px; padding-left: 20px; color: var(--ink-2); }
-  ul.patterns li { margin: 5px 0; max-width: 82ch; }
+  .stat .v { font-size: 14.5px; font-weight: 650; }
+  ul.patterns { margin: 8px 0 16px; padding-left: 20px; color: var(--ink-2); }
+  ul.patterns li { margin: 4px 0; max-width: 82ch; }
   ul.patterns li strong { color: var(--ink); }
 
-  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin: 18px 0 8px; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin: 16px 0 8px; }
   .gallery figure { margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: zoom-in; transition: transform .12s ease; }
   .gallery figure:hover { transform: translateY(-2px); }
   .gallery img { width: 100%; aspect-ratio: 3/2; object-fit: cover; object-position: top; display: block; background: var(--grid); }
@@ -154,14 +158,14 @@
   dialog.lightbox button { border: 1px solid var(--border); background: transparent; color: var(--ink-2); border-radius: 6px; padding: 2px 10px; cursor: pointer; }
 
   /* recommendations */
-  .rec { border-left: 3px solid var(--accent); padding: 4px 0 4px 18px; margin: 18px 0; }
-  .rec h4 { margin: 0 0 4px; font-size: 15.5px; }
-  .rec p { margin: 0; color: var(--ink-2); font-size: 14px; }
-  .rec .src { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  .rec { border-left: 3px solid var(--accent); padding: 2px 0 2px 16px; margin: 14px 0; }
+  .rec h4 { margin: 0 0 2px; font-size: 15px; }
+  .rec p { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+  .rec .src { color: var(--muted); font-size: 12px; margin-top: 2px; }
   .avoid { border-left-color: #d03b3b; }
   .keep { border-left-color: var(--good); }
   code { background: color-mix(in srgb, var(--grid) 50%, var(--surface)); border-radius: 4px; padding: 1px 5px; font-size: 12.5px; }
-  footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--grid); color: var(--muted); font-size: 12.5px; }
+  footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--grid); color: var(--muted); font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -170,8 +174,8 @@
 <header class="masthead">
   <div class="kicker">Competitive Research</div>
   <h1>Onboarding: Superset vs. the best in dev tools</h1>
-  <p class="sub">Six competitor onboarding flows captured from Mobbin (79 screens), analyzed screen-by-screen and compared against Superset's current desktop onboarding as implemented in code. Mobbin has no captures for Conductor, Terragon, Devin, Warp, or Windsurf — the set below is Cursor plus the strongest adjacent dev-tool flows.</p>
-  <div class="meta">August 9, 2026 · Sources: Mobbin web-app flow captures · Superset flow mapped from <code>apps/desktop/src/renderer/routes/_authenticated/onboarding</code></div>
+  <p class="sub">79 Mobbin screens across six competitor flows, compared against Superset's desktop onboarding as implemented in code. No Mobbin captures exist for Conductor, Terragon, Devin, Warp, or Windsurf.</p>
+  <div class="meta">August 9, 2026 · Superset flow mapped from <code>apps/desktop/…/onboarding</code> · Click any screenshot to zoom</div>
 </header>
 
 <nav class="toc">
@@ -191,204 +195,203 @@
 </nav>
 
 <!-- ============================ SUMMARY ============================ -->
-<h2 id="summary">Executive summary</h2>
-<p class="lede">Superset's onboarding is already one of the leanest in the set — two steps, one required decision, zero survey questions — and its live-detecting dependency checklist and embedded <code>gh</code> auth terminal are better than anything in the captures. The gaps are elsewhere: our sign-in screen is dead air while every winner demos the product during auth; our "aha" (an agent actually working) is never shown during onboarding; our GitHub ask has no trust copy; and steps a user skips vanish forever because onboarding is a one-way gate.</p>
+<h2 id="summary">TL;DR</h2>
+<ul class="tldr">
+  <li><strong>We're already lean.</strong> 2 steps, 1 required decision, 0 questions — matches the field's best.</li>
+  <li><strong>Two things we do better than anyone:</strong> the live-detecting dependency checklist and the embedded <code>gh</code> auth terminal.</li>
+  <li><strong>Biggest gap: sign-in is dead air.</strong> Every winner demos the product during auth; our OAuth round-trip shows a logo and two buttons.</li>
+  <li><strong>The aha is never shown.</strong> No agent runs during onboarding; Claude and Linear both perform their value in-flow.</li>
+  <li><strong>Smaller gaps:</strong> no trust copy on the GitHub ask, skipped steps never resurface (one-way gate), no completion beat.</li>
+</ul>
 
 <div class="card">
-  <p class="chart-title">Screens between the primary CTA and a usable product surface <span style="color:var(--muted);font-weight:400">(OAuth happy path, approximated from captures)</span></p>
+  <p class="chart-title">Screens from primary CTA to a usable product surface <span style="color:var(--muted);font-weight:400">(OAuth path, approximate)</span></p>
   <div class="barlist" id="stepsChart"></div>
-  <p class="chart-note">Lower is faster, but not automatically better — Linear spends its extra screens on habit formation (⌘K, shortcuts, GitHub) rather than data collection. Cursor's flow ends at a desktop-download wall rather than the product itself.</p>
+  <p class="chart-note">Lower ≠ better by itself — Linear spends its extra screens on habit formation (⌘K, GitHub), not data collection. Cursor's flow ends at a download wall, not the product.</p>
 </div>
 
 <!-- ============================ SCORECARD ============================ -->
 <h2 id="scorecard">Scorecard</h2>
-<p class="lede">All seven flows on one grid. "Aha in flow" means the product's core value is demonstrated or performed <em>during</em> onboarding, not merely promised.</p>
+<p class="lede">"Aha in flow" = core value demonstrated <em>during</em> onboarding, not just promised.</p>
 
 <table class="compare">
   <thead>
-    <tr><th>Product</th><th>Steps to first value</th><th>Questions asked</th><th>Progress UI</th><th>Paywall in flow</th><th>Aha in flow</th><th>The "aha"</th></tr>
+    <tr><th>Product</th><th>Steps to first value</th><th>Questions</th><th>Progress UI</th><th>Paywall</th><th>Aha in flow</th><th>The "aha"</th></tr>
   </thead>
   <tbody>
-    <tr class="us"><td>Superset</td><td>2 steps, 1 required decision</td><td><span class="pill zero">0</span></td><td>2 dots</td><td><span class="pill none">No</span></td><td><span class="pill none">No</span></td><td>"What should we build next?" composer pre-opened on the new project, agent auto-selected, 3 sample prompts</td></tr>
-    <tr><td>Cursor</td><td>~4 clicks (OAuth)</td><td><span class="pill zero">0</span></td><td>None</td><td><span class="pill some">Yes, skippable, pre-product</span></td><td><span class="pill none">No</span></td><td>Outsourced to the landing-page demo; flow ends in a desktop-download handoff</td></tr>
-    <tr><td>Claude</td><td>Auth + 1 click</td><td><span class="pill zero">0</span></td><td>None</td><td><span class="pill none">No</span></td><td><span class="pill zero">Yes</span></td><td>"See it work" button runs a real canned conversation that builds an interactive widget</td></tr>
-    <tr><td>Linear</td><td>~8 decisions, most skippable</td><td><span class="pill zero">0</span></td><td>7 dots</td><td><span class="pill none">No</span></td><td><span class="pill zero">Yes</span></td><td>Interactive ⌘K lesson mid-wizard; lands on "Ask Linear" with 3 example prompts</td></tr>
-    <tr><td>Replit</td><td>~7 steps</td><td><span class="pill some">1</span></td><td>None</td><td><span class="pill some">Free-first, end of flow</span></td><td><span class="pill none">No</span></td><td>Landing composer and post-onboarding home are the same screen, now personalized ("Hi Sam…")</td></tr>
-    <tr><td>Lovable</td><td>~9 steps</td><td><span class="pill some">4</span></td><td>3 dots</td><td><span class="pill none">No</span></td><td><span class="pill none">No</span></td><td>"Time to ship, {name}" over the same prompt box the landing page opened with</td></tr>
-    <tr><td>Railway</td><td>~6 actions</td><td><span class="pill zero">0</span></td><td>Only on ToS (1/2)</td><td><span class="pill none">No (trial budget pill)</span></td><td><span class="pill none">No</span></td><td>Landing hero embeds the real first-run screen before signup; empty state routes intent</td></tr>
+    <tr class="us"><td>Superset</td><td>2 steps, 1 decision</td><td><span class="pill zero">0</span></td><td>2 dots</td><td><span class="pill none">No</span></td><td><span class="pill none">No</span></td><td>Composer pre-opened on new project, agent auto-selected, 3 sample prompts</td></tr>
+    <tr><td>Cursor</td><td>~4 clicks (OAuth)</td><td><span class="pill zero">0</span></td><td>None</td><td><span class="pill some">Skippable, pre-product</span></td><td><span class="pill none">No</span></td><td>Outsourced to landing demo; ends in desktop download</td></tr>
+    <tr><td>Claude</td><td>Auth + 1 click</td><td><span class="pill zero">0</span></td><td>None</td><td><span class="pill none">No</span></td><td><span class="pill zero">Yes</span></td><td>"See it work" runs a real canned conversation</td></tr>
+    <tr><td>Linear</td><td>~8 decisions, skippable</td><td><span class="pill zero">0</span></td><td>7 dots</td><td><span class="pill none">No</span></td><td><span class="pill zero">Yes</span></td><td>⌘K performed mid-wizard; lands on "Ask Linear" + 3 prompts</td></tr>
+    <tr><td>Replit</td><td>~7 steps</td><td><span class="pill some">1</span></td><td>None</td><td><span class="pill some">Free-first, end</span></td><td><span class="pill none">No</span></td><td>Landing composer = post-onboarding home, personalized</td></tr>
+    <tr><td>Lovable</td><td>~9 steps</td><td><span class="pill some">4</span></td><td>3 dots</td><td><span class="pill none">No</span></td><td><span class="pill none">No</span></td><td>"Time to ship, {name}" over the landing prompt box</td></tr>
+    <tr><td>Railway</td><td>~6 actions</td><td><span class="pill zero">0</span></td><td>ToS only (1/2)</td><td><span class="pill none">No (trial pill)</span></td><td><span class="pill none">No</span></td><td>Landing hero embeds the real first-run screen</td></tr>
   </tbody>
 </table>
 
 <!-- ============================ SUPERSET ============================ -->
 <h2 id="superset">Superset — our current flow</h2>
-<p class="lede">Mapped from code (no Mobbin capture exists for us). Brand-new-user path: splash → browser OAuth → auto-created personal org → a two-step full-screen wizard → workspaces dashboard with the composer pre-opened.</p>
+<p class="lede">Mapped from code. Splash → browser OAuth → auto-created org → two-step wizard → composer.</p>
 
 <div class="flow">
   <div class="step"><div class="n">1</div><div>
     <h4>Sign-in</h4>
-    <p>Full-screen: logo, "Welcome to Superset", <strong>Continue with GitHub / Continue with Google</strong>, "Last used" badge on the previous method, ToS footer. Auth is a browser round-trip: the default browser opens, the web success page mints a desktop session, and a <code>superset://</code> deep link returns the token. During that round-trip the app shows nothing but the sign-in screen.</p>
+    <p>Logo + GitHub/Google buttons + "Last used" badge. Browser OAuth round-trip; the app shows nothing while it happens.</p>
   </div></div>
   <div class="step"><div class="n">2</div><div>
     <h4>Org creation (invisible)</h4>
-    <p>A personal org ("&lt;Name&gt;'s Team") is auto-provisioned server-side, or the user is auto-enrolled by email domain. The "Create Organization" screen exists only as a fallback.</p>
+    <p>Personal org auto-provisioned server-side; the Create Organization screen is a fallback only.</p>
   </div></div>
   <div class="step"><div class="n">3</div><div>
-    <h4>Step 1 of 2 — "Setup Superset"</h4>
-    <p>A live-detecting checklist polling every 4s: <strong>GitHub CLI</strong> (badge "Required", but not enforced), <strong>Claude Code</strong>, <strong>Codex</strong>. The gh row opens a modal with a real embedded PTY that runs <code>gh auth login</code>, scrapes the one-time code, auto-copies it, and auto-opens the browser. Agent rows open OAuth-or-API-key dialogs. Everything is skippable; Continue is never disabled.</p>
+    <h4>1/2 — "Setup Superset"</h4>
+    <p>Live-detecting checklist (4s poll): GitHub CLI, Claude Code, Codex. Embedded PTY runs <code>gh auth login</code>, auto-copies the code, auto-opens the browser. All skippable.</p>
   </div></div>
   <div class="step"><div class="n">4</div><div>
-    <h4>Step 2 of 2 — "Create or add a project"</h4>
-    <p>Four cards: <strong>Create new</strong> / <strong>Open a folder</strong> (with git-init prompt) / <strong>Clone a repo</strong> (inline, with actionable auth errors that open the gh dialog) / <strong>Start from a template</strong> (gstack, Next.js, T3, Expo…). Not skippable — adding a project is the completion event. This is the flow's single required decision.</p>
+    <h4>2/2 — "Create or add a project"</h4>
+    <p>Four cards: new / open folder / clone / template. Not skippable — the flow's single required decision, and its completion event.</p>
   </div></div>
   <div class="step"><div class="n">5</div><div>
     <h4>Completion → composer</h4>
-    <p><code>onboarded_at</code> is set (one-way — no UI re-entry ever), then the user lands on the workspaces dashboard with the <strong>"What should we build next?"</strong> composer pre-opened on the new project, an agent auto-selected, and three sample prompts ("Set up this project for Superset", "Explain how this repository works", "Find a small bug and fix it"). No completion moment, no tour, no checklist.</p>
+    <p><code>onboarded_at</code> set (one-way, no re-entry). Lands on "What should we build next?" with agent auto-selected + 3 sample prompts. No tour, no recap, no completion beat.</p>
   </div></div>
 </div>
 
-<h3>Already best-in-class</h3>
+<h3>Best-in-class</h3>
 <ul class="patterns">
-  <li><strong>Live-detecting dependency checklist</strong> — statuses flip to Connected as the user installs or signs in from anywhere, even an external terminal. Nobody in the capture set does environment setup this gracefully.</li>
-  <li><strong>Embedded gh auth terminal</strong> — code scraped, auto-copied, browser auto-opened. Strictly better than every "go run this command" pattern.</li>
-  <li><strong>Zero survey questions and a two-dot wizard</strong> — matches the choice made by Cursor, Claude, Linear, and Railway.</li>
-  <li><strong>Actionable clone errors</strong> — SSH/private-repo failures render an inline "Sign in to GitHub CLI" fix, not a toast.</li>
+  <li><strong>Live-detecting checklist</strong> — statuses flip to Connected even from an external terminal.</li>
+  <li><strong>Embedded gh terminal</strong> — code scraped, copied, browser opened automatically.</li>
+  <li><strong>Zero questions, two dots</strong> — same call as Cursor, Claude, Linear, Railway.</li>
+  <li><strong>Actionable clone errors</strong> — auth failures render an inline fix button, not a toast.</li>
 </ul>
 
-<h3>Gaps vs. the field</h3>
+<h3>Gaps</h3>
 <ul class="patterns">
-  <li><strong>Sign-in is dead air.</strong> The browser OAuth round-trip is our slowest moment and the screen shows a logo and two buttons. Every winner uses this exact moment to demo the product.</li>
-  <li><strong>The aha is never shown.</strong> No agent runs during onboarding; sample prompts appear only after, as passive chips.</li>
-  <li><strong>No trust copy on the GitHub ask.</strong> "Clone, push, and create PRs" + a "Required" badge, with no statement of what we don't touch.</li>
-  <li><strong>One-way gate.</strong> Skipped agent connections never resurface; there is no re-entry into onboarding and no post-onboarding recap.</li>
-  <li><strong>No completion beat.</strong> Jump-cut from project step to composer with no "you're good to go" or shortcut teaching.</li>
+  <li><strong>Sign-in is dead air</strong> during our slowest moment (the OAuth round-trip).</li>
+  <li><strong>Aha never shown</strong> — no agent runs in-flow; sample prompts are passive chips, after.</li>
+  <li><strong>No trust copy</strong> on the GitHub CLI ask.</li>
+  <li><strong>One-way gate</strong> — skipped agent connections never resurface.</li>
+  <li><strong>No completion beat</strong> — jump-cut into the app.</li>
 </ul>
 
 <!-- ============================ CURSOR ============================ -->
 <h2 id="cursor">Cursor</h2>
-<div class="app-head"><span class="tagline">The closest direct competitor on Mobbin. Web flow's only jobs: auth, monetization, consent, integrations, desktop handoff — in that order. Zero product in the flow.</span></div>
+<div class="app-head"><span class="tagline">Web flow = auth → monetization → consent → integrations → desktop handoff. Zero product in the flow.</span></div>
 <div class="stats">
   <div class="stat"><div class="k">Screens</div><div class="v">13</div></div>
   <div class="stat"><div class="k">Questions</div><div class="v">0</div></div>
-  <div class="stat"><div class="k">Progress UI</div><div class="v">None</div></div>
   <div class="stat"><div class="k">Paywall</div><div class="v">Pre-product, skippable, price hidden</div></div>
   <div class="stat"><div class="k">Ends in</div><div class="v">Desktop download</div></div>
 </div>
 <ul class="patterns">
-  <li><strong>One decision per screen, no chrome.</strong> Every screen is a centered column with one headline and one choice; 7+ screens read as ~4 taps.</li>
-  <li><strong>Skippable early paywall with asymmetric weight.</strong> "Start your Pro plan to continue" before any product use — but "Skip for now" is always there in gray, and no price is shown until the dashboard anchors $20 as "entry-level".</li>
-  <li><strong>Integrations sold by feature, offered twice.</strong> "Connect a Linear workspace to delegate issues to Cloud Agents" — value framing, all optional, and the identical block reappears on the dashboard so skipping isn't final.</li>
-  <li><strong>Empty usage heatmap as a retention hook.</strong> A gray "AI Line Edits" contribution graph greets the new user — an immediate "fill this in" mechanic tied to the core value metric.</li>
+  <li><strong>One decision per screen, no chrome</strong> — 7+ screens read as ~4 taps.</li>
+  <li><strong>Skippable early paywall</strong> — gray "Skip for now", price deferred to the dashboard.</li>
+  <li><strong>Integrations sold by feature, offered twice</strong> — same block reappears on the dashboard.</li>
+  <li><strong>Empty usage heatmap</strong> as a day-one retention hook.</li>
 </ul>
 <div class="gallery" data-app="cursor"></div>
 
 <!-- ============================ CLAUDE ============================ -->
 <h2 id="claude">Claude</h2>
-<div class="app-head"><span class="tagline">The most compressed flow in the set: auth is the landing page, onboarding is one button, and the aha is a real conversation.</span></div>
+<div class="app-head"><span class="tagline">Most compressed flow in the set: auth is the landing page, onboarding is one button.</span></div>
 <div class="stats">
   <div class="stat"><div class="k">Screens</div><div class="v">6</div></div>
   <div class="stat"><div class="k">Questions</div><div class="v">0</div></div>
-  <div class="stat"><div class="k">Progress UI</div><div class="v">None</div></div>
   <div class="stat"><div class="k">Paywall</div><div class="v">None</div></div>
   <div class="stat"><div class="k">Aha</div><div class="v">1 click after auth</div></div>
 </div>
 <ul class="patterns">
-  <li><strong>The signup page demos the product while you type.</strong> The right pane auto-plays a multi-stage agent simulation — folder pick → six-step progress checklist → all checked → integrations panel — advancing as the user fills the form. Dead form time becomes product education.</li>
-  <li><strong>One feature, one button.</strong> The only "onboarding" is a spotlight ("Ask Claude to show you" → <em>See it work</em>) that runs a canned session ending in a live interactive widget.</li>
-  <li><strong>Pre-filled, personality-rich composer prompt</strong> models <em>how</em> to talk to the product, not just that you can.</li>
-  <li><strong>Permission at the moment of need.</strong> "Want to be notified when Claude responds?" appears only once a response is actually pending.</li>
+  <li><strong>Signup page demos the product while you type</strong> — an auto-playing agent simulation advances beside the form.</li>
+  <li><strong>One feature, one button</strong> — "See it work" runs a canned session ending in a live widget.</li>
+  <li><strong>Pre-filled, personality-rich composer prompt</strong> models how to talk to the product.</li>
+  <li><strong>Permissions at the moment of need</strong> — notification ask appears only when a response is pending.</li>
 </ul>
 <div class="gallery" data-app="claude"></div>
 
 <!-- ============================ LINEAR ============================ -->
 <h2 id="linear">Linear</h2>
-<div class="app-head"><span class="tagline">The longest flow — and the most deliberate. Spends its screen budget on habit formation and network effects instead of data collection.</span></div>
+<div class="app-head"><span class="tagline">Longest flow, most deliberate: screens spent on habit formation and network effects, not data collection.</span></div>
 <div class="stats">
   <div class="stat"><div class="k">Screens</div><div class="v">18</div></div>
   <div class="stat"><div class="k">Questions</div><div class="v">0</div></div>
-  <div class="stat"><div class="k">Progress UI</div><div class="v">7 dots</div></div>
-  <div class="stat"><div class="k">Paywall</div><div class="v">None</div></div>
+  <div class="stat"><div class="k">Progress</div><div class="v">7 dots</div></div>
   <div class="stat"><div class="k">Aha</div><div class="v">⌘K performed mid-wizard</div></div>
 </div>
 <ul class="patterns">
-  <li><strong>Teach the power shortcut by making the user perform it.</strong> Giant ⌘K keycaps; "Continue" demoted to a gray text link so pressing the shortcut is the path of least resistance.</li>
-  <li><strong>Objection handling on the integration ask.</strong> The GitHub step lists what it does and disarms the fear: "Linear <em>will not</em> ask for code read permissions."</li>
-  <li><strong>Skippable-but-nudged steps.</strong> "I'll do this later" always exists; the primary button lights up only after engagement (subscribe toggles turn Continue from text link into primary button).</li>
-  <li><strong>Name once, derive everything.</strong> Workspace name auto-fills the URL slug; magic-link verification doubles as account creation — no password ever exists.</li>
-  <li><strong>Ends on a guided first action.</strong> Final screen recaps deferred steps as cards, then the app opens into "Ask Linear" with three concrete example prompts — never an empty state.</li>
+  <li><strong>Teach the shortcut by making the user perform it</strong> — giant ⌘K keycaps, "Continue" demoted to a text link.</li>
+  <li><strong>Objection handling on the GitHub ask</strong> — "will not ask for code read permissions."</li>
+  <li><strong>Skippable-but-nudged</strong> — "I'll do this later" everywhere; primary button lights up only after engagement.</li>
+  <li><strong>Name once, derive everything</strong> — slug auto-filled; verification doubles as account creation.</li>
+  <li><strong>Ends on a guided action</strong> — recap cards for skipped steps, then "Ask Linear" + 3 prompts. Never an empty state.</li>
 </ul>
 <div class="gallery" data-app="linear"></div>
 
 <!-- ============================ REPLIT ============================ -->
 <h2 id="replit">Replit</h2>
-<div class="app-head"><span class="tagline">Prompt-first landing: the logged-out home IS the composer, and onboarding is a loop that returns you to it, personalized.</span></div>
+<div class="app-head"><span class="tagline">Prompt-first landing; onboarding loops you back to the same composer, personalized.</span></div>
 <div class="stats">
   <div class="stat"><div class="k">Screens</div><div class="v">16</div></div>
   <div class="stat"><div class="k">Questions</div><div class="v">1 (4 cards)</div></div>
-  <div class="stat"><div class="k">Progress UI</div><div class="v">None</div></div>
-  <div class="stat"><div class="k">Paywall</div><div class="v">End of flow, free-first, no card</div></div>
-  <div class="stat"><div class="k">Aha</div><div class="v">Same composer, now personalized</div></div>
+  <div class="stat"><div class="k">Paywall</div><div class="v">End, free-first, no card</div></div>
+  <div class="stat"><div class="k">Aha</div><div class="v">Same composer, personalized</div></div>
 </div>
 <ul class="patterns">
-  <li><strong>Onboarding modals float over the live, dimmed workspace.</strong> From profile setup onward the real app (sidebar, credit meters, greeting) is visible behind the wizard — the user feels already "in".</li>
-  <li><strong>Instant personalization feedback.</strong> Username pre-derived from email; the moment "Sam Lee" is submitted the background greeting flips to "Hi Sam, what do you want to make?"</li>
-  <li><strong>One segmentation question, big tappable cards, zero typing.</strong> "What brings you to Replit?" — four options, done.</li>
-  <li><strong>Free-first plan screen with a nudged default and honest fine print</strong> — Core pre-highlighted, but "Continue with Starter" is one click and the AI disclaimer ("its behavior is probabilistic… may occasionally make mistakes") builds trust.</li>
-  <li><strong>Anti-pattern to avoid:</strong> the email-verification hard wall costs three screens and an app-switch before any value.</li>
+  <li><strong>Wizard floats over the live, dimmed workspace</strong> — the user feels already "in".</li>
+  <li><strong>Instant personalization feedback</strong> — greeting flips to "Hi Sam…" the moment the name is submitted.</li>
+  <li><strong>One question, four cards, zero typing.</strong></li>
+  <li><strong>Free-first plan screen</strong> — paid tier nudged, honest AI disclaimer builds trust.</li>
+  <li><strong>Anti-pattern:</strong> the email-verification wall costs 3 screens before any value.</li>
 </ul>
 <div class="gallery" data-app="replit"></div>
 
 <!-- ============================ LOVABLE ============================ -->
 <h2 id="lovable">Lovable</h2>
-<div class="app-head"><span class="tagline">Product-as-landing-page with auth as an interrupt at peak motivation — but the heaviest question load in the set.</span></div>
+<div class="app-head"><span class="tagline">Product-as-landing-page, auth as interrupt — but the heaviest question load in the set.</span></div>
 <div class="stats">
   <div class="stat"><div class="k">Screens</div><div class="v">14</div></div>
-  <div class="stat"><div class="k">Questions</div><div class="v">4 (name, theme, role, size)</div></div>
-  <div class="stat"><div class="k">Progress UI</div><div class="v">3 dots</div></div>
-  <div class="stat"><div class="k">Paywall</div><div class="v">None (sidebar upsell only)</div></div>
-  <div class="stat"><div class="k">Aha</div><div class="v">"Time to ship, Samlee"</div></div>
+  <div class="stat"><div class="k">Questions</div><div class="v">4</div></div>
+  <div class="stat"><div class="k">Progress</div><div class="v">3 dots</div></div>
+  <div class="stat"><div class="k">Aha</div><div class="v">"Time to ship, {name}"</div></div>
 </div>
 <ul class="patterns">
-  <li><strong>Auth gates execution, not exploration.</strong> The landing prompt box invites input while anonymous; the sign-up modal appears only when the user tries to run — the pending idea becomes the reason to finish sign-up.</li>
-  <li><strong>Rotating use-case whisper during sign-up.</strong> The side panel cycles "Ask Lovable to build your saas startup / portfolio / web apps" while the user fills the boring form.</li>
-  <li><strong>Provider-aware "Open Gmail" deep link</strong> on the verification screen kills the highest-drop-off step's friction.</li>
-  <li><strong>Single-tap segmentation with catch-all outs</strong> ("Other / Student", "Just me / No company") makes an unskippable quiz feel skippable.</li>
-  <li><strong>Anti-pattern to avoid:</strong> four questions is the most in the set; every other dev tool here asks 0–1.</li>
+  <li><strong>Auth gates execution, not exploration</strong> — the pending idea is the reason to finish sign-up.</li>
+  <li><strong>Rotating use-case whisper</strong> beside the sign-up form.</li>
+  <li><strong>"Open Gmail" deep link</strong> on the verification screen.</li>
+  <li><strong>Single-tap segmentation with catch-all outs</strong> ("Other / Student") — feels skippable without a skip.</li>
+  <li><strong>Anti-pattern:</strong> 4 questions; every other dev tool here asks 0–1.</li>
 </ul>
 <div class="gallery" data-app="lovable"></div>
 
 <!-- ============================ RAILWAY ============================ -->
 <h2 id="railway">Railway</h2>
-<div class="app-head"><span class="tagline">Fastest to a usable account (~60–90s). Legal compliance turned into the most memorable moment of the flow.</span></div>
+<div class="app-head"><span class="tagline">Fastest to a usable account (~60–90s). Legal turned into the most memorable moment.</span></div>
 <div class="stats">
   <div class="stat"><div class="k">Screens</div><div class="v">12</div></div>
   <div class="stat"><div class="k">Questions</div><div class="v">0</div></div>
-  <div class="stat"><div class="k">Progress UI</div><div class="v">"(1/2)" on ToS only</div></div>
-  <div class="stat"><div class="k">Paywall</div><div class="v">Never — "30 days or $5.00" trial pill</div></div>
+  <div class="stat"><div class="k">Paywall</div><div class="v">Never — "30 days or $5.00" pill</div></div>
   <div class="stat"><div class="k">Aha</div><div class="v">Shown pre-signup on landing</div></div>
 </div>
 <ul class="patterns">
-  <li><strong>Show the product before asking for anything.</strong> The landing hero embeds the real first-run screen ("What are we going to deploy today?"), and the auth modal dims over a fully deployed multi-service canvas — users sign up already knowing what they'll land on.</li>
-  <li><strong>Humanized two-step ToS</strong> — plain-language icon bullets ("Railway will email you") and an accept button in the user's own voice: <em>"I will not deploy any of that."</em> Shown inside the app, after auth, so it never taxes the signup funnel.</li>
-  <li><strong>Trial as a consumable budget, not a countdown to a card wall.</strong> "30 days or $5.00 left" is always visible, never blocking.</li>
-  <li><strong>Passwordless auto-advancing OTP</strong> — six boxes auto-submit into a check mark; no password, no submit button.</li>
-  <li><strong>Confirmation toast hands off to the next action:</strong> "You may now proceed with your deployment!"</li>
+  <li><strong>Show the product before asking for anything</strong> — landing hero embeds the real first-run screen; auth dims over a deployed canvas.</li>
+  <li><strong>Humanized two-step ToS</strong> — plain-language bullets, accept button in the user's voice: "I will not deploy any of that."</li>
+  <li><strong>Trial as a budget, not a card wall</strong> — always visible, never blocking.</li>
+  <li><strong>Auto-advancing OTP</strong> — no password, no submit button.</li>
+  <li><strong>Handoff toast</strong> — "You may now proceed with your deployment!"</li>
 </ul>
 <div class="gallery" data-app="railway"></div>
 
 <!-- ============================ PATTERNS ============================ -->
 <h2 id="patterns">Cross-cutting patterns</h2>
-<p class="lede">What the field converged on, independently.</p>
 <table class="compare">
-  <thead><tr><th>Pattern</th><th>Who does it</th><th>Superset today</th></tr></thead>
+  <thead><tr><th>Pattern</th><th>Who</th><th>Superset today</th></tr></thead>
   <tbody>
-    <tr><td>Product demos itself during auth</td><td>Claude (live agent sim), Railway (deployed canvas backdrop), Lovable (rotating use cases), Cursor (landing hero)</td><td>Static logo + two buttons; browser round-trip is dead air</td></tr>
-    <tr><td>Zero or one segmentation question</td><td>Cursor 0 · Claude 0 · Linear 0 · Railway 0 · Replit 1 · (Lovable 4 is the outlier)</td><td>✅ 0 — keep it that way</td></tr>
-    <tr><td>Passwordless-first auth</td><td>All six (magic link / OTP / OAuth privileged)</td><td>✅ OAuth-only, "Last used" badge</td></tr>
-    <tr><td>Value-framed, objection-handled integration asks</td><td>Linear ("will not ask for code read permissions"), Cursor (feature framing)</td><td>"Required" badge, no trust copy</td></tr>
-    <tr><td>Skipped steps resurface later</td><td>Cursor (dashboard re-offer), Linear (recap cards)</td><td>One-way gate; skipped connections vanish</td></tr>
-    <tr><td>Guided first action instead of empty state</td><td>Linear ("Ask Linear" + 3 prompts), Claude ("See it work"), Replit/Lovable (personalized composer)</td><td>Partial — composer pre-opens with sample prompt chips, but nothing is celebrated or guided</td></tr>
-    <tr><td>Completion beat / handoff moment</td><td>Linear ("You're good to go" + shortcut), Railway (toast), Cursor ("You're all set!")</td><td>None — jump-cut into the app</td></tr>
-    <tr><td>Onboarding over the live, dimmed app</td><td>Replit, Railway (ToS)</td><td>Full-screen wizard, app invisible until done</td></tr>
+    <tr><td>Product demos itself during auth</td><td>Claude, Railway, Lovable, Cursor</td><td>❌ Dead air during OAuth round-trip</td></tr>
+    <tr><td>0–1 segmentation questions</td><td>All except Lovable (4)</td><td>✅ 0</td></tr>
+    <tr><td>Passwordless-first auth</td><td>All six</td><td>✅ OAuth-only + "Last used" badge</td></tr>
+    <tr><td>Trust copy on integration asks</td><td>Linear, Cursor</td><td>❌ "Required" badge, no reassurance</td></tr>
+    <tr><td>Skipped steps resurface</td><td>Cursor, Linear</td><td>❌ One-way gate</td></tr>
+    <tr><td>Guided first action, not empty state</td><td>Linear, Claude, Replit, Lovable</td><td>⚠️ Sample prompt chips, but nothing guided</td></tr>
+    <tr><td>Completion beat</td><td>Linear, Railway, Cursor</td><td>❌ Jump-cut into the app</td></tr>
+    <tr><td>Onboarding over the live, dimmed app</td><td>Replit, Railway</td><td>❌ Full-screen wizard</td></tr>
   </tbody>
 </table>
 
@@ -397,41 +400,41 @@
 <p class="lede">Ranked by leverage. The first three touch every new user.</p>
 
 <div class="rec">
-  <h4>1. Animate the sign-in / OAuth wait with a product simulation</h4>
-  <p>Our slowest moment — the browser round-trip — is exactly where Claude runs its agent demo and Railway shows its deployed canvas. Show agents fanning out across parallel worktrees, statuses ticking, and PRs landing while the user authenticates.</p>
-  <div class="src">Pattern source: Claude 01–03, Railway 02–05, Lovable 03–06</div>
+  <h4>1. Animate the OAuth wait with a product simulation</h4>
+  <p>Agents fanning out across worktrees, PRs landing — while the user authenticates.</p>
+  <div class="src">Claude 01–03 · Railway 02–05 · Lovable 03–06</div>
 </div>
 <div class="rec">
-  <h4>2. Add a guided "see it work" first task at completion</h4>
-  <p>Make the existing "Explain how this repository works" sample prompt the celebrated default action right at onboarding completion — one button that actually launches an agent — instead of one of three quiet chips the user may never notice.</p>
-  <div class="src">Pattern source: Claude 05–06 ("See it work"), Linear 12 (⌘K performed live), Linear 18</div>
+  <h4>2. Guided "see it work" first task at completion</h4>
+  <p>Make "Explain how this repository works" the celebrated one-button default, not one of three quiet chips.</p>
+  <div class="src">Claude 05–06 · Linear 12, 18</div>
 </div>
 <div class="rec">
-  <h4>3. Add trust copy to the GitHub CLI step</h4>
-  <p>State plainly what we never do (e.g. "everything runs locally — your code never goes through our servers", phrased to match reality). Linear's "will not ask for code read permissions" line is the model. Cheap copy change, real conversion impact on the scariest ask.</p>
-  <div class="src">Pattern source: Linear 13</div>
+  <h4>3. Trust copy on the GitHub CLI step</h4>
+  <p>State what we never do (e.g. "everything runs locally"). Cheap copy, real conversion.</p>
+  <div class="src">Linear 13</div>
 </div>
 <div class="rec">
   <h4>4. Resurface skipped setup after onboarding</h4>
-  <p><code>onboarded_at</code> is a one-way gate today. Add a dashboard "finish setup" affordance (or a Linear-style recap) so a user who skipped Claude Code / Codex connection isn't left to find Settings alone.</p>
-  <div class="src">Pattern source: Cursor 13 (dashboard re-offer), Linear 17 (recap cards)</div>
+  <p>A dashboard "finish setup" affordance for skipped agent connections.</p>
+  <div class="src">Cursor 13 · Linear 17</div>
 </div>
 <div class="rec">
   <h4>5. Add a completion beat</h4>
-  <p>A single "You're good to go" moment that names what just happened and teaches one shortcut, before the composer appears. Railway's handoff toast ("You may now proceed with your deployment!") is the minimal version.</p>
-  <div class="src">Pattern source: Linear 17, Railway 11</div>
+  <p>One "you're good to go" moment naming what happened + one shortcut.</p>
+  <div class="src">Linear 17 · Railway 11</div>
 </div>
 <div class="rec keep">
-  <h4>Keep: the live checklist, the embedded gh terminal, zero questions, two steps</h4>
-  <p>These already match or beat the field. Don't add segmentation questions, don't add a paywall, don't lengthen the wizard.</p>
+  <h4>Keep</h4>
+  <p>Live checklist, embedded gh terminal, zero questions, two steps. Don't lengthen the wizard.</p>
 </div>
 <div class="rec avoid">
-  <h4>Avoid: Lovable's 4-question quiz and Cursor's pre-product paywall</h4>
-  <p>Every other dev tool in the set asks 0–1 questions. And a paywall before first value only works with Cursor's brand recognition.</p>
+  <h4>Avoid</h4>
+  <p>Lovable's 4-question quiz; Cursor's pre-product paywall.</p>
 </div>
 
 <footer>
-  Captures © their respective products, via Mobbin. Superset flow derived from source at branch <code>competitor-onboarding-res</code>. Screens stored in <code>./shots/&lt;app&gt;/</code>. Click any screenshot to zoom.
+  Captures © their respective products, via Mobbin. Screens in <code>./shots/&lt;app&gt;/</code>. Click any screenshot to zoom.
 </footer>
 </div>
 
@@ -443,95 +446,95 @@
 <script>
 const CAPTIONS = {
   cursor: [
-    "Marketing landing — a working product screenshot is the hero",
+    "Landing — working product screenshot as hero",
     "Sign-in — Google / GitHub / Apple / email",
-    "Sign-up — three fields total, no company or role",
-    "Sign-up filled — confirms nothing else is required",
-    "Password step — 'Continue with email code' listed first; password optional",
+    "Sign-up — three fields, no company or role",
+    "Sign-up filled — nothing else required",
+    "Password step — email code listed first; password optional",
     "Password filled",
-    "OTP entry — resend on a visible 27s countdown",
-    "OTP filled — auto-advances on the sixth digit",
-    "Paywall — 'Start your Pro plan to continue' + gray 'Skip for now'; no price shown",
-    "Data sharing consent — dedicated screen, toggle defaulted ON",
-    "Review Settings — GitHub/GitLab/Slack/Linear, each sold by feature",
-    "'You're all set!' — web→desktop download handoff",
-    "Web dashboard — pricing tiers + empty 'AI Line Edits' heatmap as retention hook"
+    "OTP entry — resend on 27s countdown",
+    "OTP filled — auto-advances",
+    "Paywall — gray 'Skip for now'; no price shown",
+    "Data sharing consent — toggle defaulted ON",
+    "Review Settings — integrations sold by feature",
+    "'You're all set!' — desktop download handoff",
+    "Dashboard — pricing tiers + empty usage heatmap"
   ],
   claude: [
-    "Landing + auth combined — live product demo runs in the right pane",
-    "Email entry inline — demo advances to a 6-step agent progress checklist",
-    "Email filled — demo completes; Context panel shows integrations",
-    "Magic link sent — code fallback + resend inline",
-    "First in-app screen — spotlight modal with one button: 'See it work'",
-    "The aha — a real conversation builds an interactive widget; notification permission asked in context"
+    "Landing + auth — live product demo in right pane",
+    "Email entry — demo advances to agent progress checklist",
+    "Email filled — demo completes; integrations panel",
+    "Magic link sent — code fallback inline",
+    "First in-app — spotlight with one button: 'See it work'",
+    "The aha — real conversation builds a live widget"
   ],
   linear: [
-    "Marketing landing — agents-as-assignees is the hero demo",
-    "'Create your workspace' — workspace-framed auth chooser",
-    "Email entry — one field, one decision",
-    "Email filled — no password field exists anywhere",
-    "'Check your email' — magic link with manual-code fallback",
+    "Landing — agents-as-assignees hero",
+    "'Create your workspace' — workspace-framed auth",
+    "Email entry — one field",
+    "Email filled — no password anywhere",
+    "'Check your email' — magic link + code fallback",
     "Manual code entry",
-    "Code filled — verification doubles as account creation",
-    "Create workspace — name, URL, data-residency dropdown",
-    "Workspace filled — slug auto-derived from name",
-    "Wizard 1/7 — Welcome; the 7-dot progress indicator appears",
-    "2/7 — Choose your style; themes previewed as real product screenshots",
-    "3/7 — Meet the command menu; ⌘K keycaps, Continue demoted to a text link",
-    "4/7 — GitHub integration; 'will not ask for code read permissions'",
-    "5/7 — Invite co-workers; fully skippable",
-    "6/7 — Subscribe toggles off; Continue is a plain text link",
-    "6/7 — Toggles on; Continue becomes the primary button",
-    "7/7 — 'You're good to go' + recap cards for everything skipped",
-    "In-app — 'Ask Linear' AI home with three example prompts, never an empty state"
+    "Code filled — verification = account creation",
+    "Create workspace — name, URL, data residency",
+    "Workspace filled — slug auto-derived",
+    "Wizard 1/7 — Welcome; 7-dot progress appears",
+    "2/7 — theme picker with real product previews",
+    "3/7 — ⌘K keycaps; Continue demoted to text link",
+    "4/7 — GitHub: 'will not ask for code read permissions'",
+    "5/7 — invite co-workers; skippable",
+    "6/7 — subscribe toggles off; Continue is a text link",
+    "6/7 — toggles on; Continue becomes primary",
+    "7/7 — 'You're good to go' + recap cards",
+    "In-app — 'Ask Linear' + 3 example prompts"
   ],
   replit: [
-    "'What will you build?' — the logged-out home IS the composer",
-    "Auth modal over the dimmed landing page",
+    "'What will you build?' — logged-out home IS the composer",
+    "Auth modal over dimmed landing",
     "Email signup — two fields",
-    "Inline validation — green check on email, warning on short password",
+    "Inline validation — check / warning glyphs",
     "Password reveal toggle",
-    "Requirement disclosed as a tooltip only when needed",
-    "Both fields valid — CTA saturates",
-    "'Verify your email to start building' — the hard wall",
-    "Verification spinner (new tab)",
+    "Requirement disclosed as tooltip on demand",
+    "Both valid — CTA saturates",
+    "'Verify your email to start building' — hard wall",
+    "Verification spinner",
     "Success — dead-end tab auto-closes",
-    "Profile setup floating over the live, dimmed workspace",
+    "Profile setup over live, dimmed workspace",
     "Name filled",
-    "'What brings you to Replit?' — one question, four cards",
-    "Selected — background greeting re-personalizes instantly to 'Hi Sam…'",
-    "Plan chooser — free first-class, Core pre-highlighted, honest AI disclaimer",
-    "Personalized home — same composer as screen 1, now able to execute"
+    "'What brings you to Replit?' — one question, 4 cards",
+    "Selected — greeting re-personalizes instantly",
+    "Plan chooser — free first-class, Core nudged",
+    "Personalized home — same composer as screen 1"
   ],
   lovable: [
-    "Landing — 'Build something Lovable', the prompt box is the hero",
-    "Sign-up modal 'Start Building.' — auth interrupts at peak motivation",
-    "Dedicated sign-up page — email path",
-    "Email entered — side panel rotates use cases while you type",
-    "Password step — live requirements checklist",
-    "Password valid — 'Last used' badge on the CTA",
+    "Landing — prompt box is the hero",
+    "'Start Building.' — auth interrupts at peak motivation",
+    "Sign-up page — email path",
+    "Email entered — side panel rotates use cases",
+    "Password — live requirements checklist",
+    "Password valid — 'Last used' badge",
     "Verification interstitial",
-    "'Check your inbox' — provider-aware 'Open Gmail' deep link",
+    "'Check your inbox' — 'Open Gmail' deep link",
     "Email verified — auto-redirect + toast",
-    "Personalize 1/3 — name + visual theme picker",
-    "Name filled — disabled→enabled Next affordance",
-    "2/3 — 'Which role fits you best?' eight icon cards",
-    "3/3 — company size, four cards, single tap",
-    "'Time to ship, Samlee' — personalized home mirrors the landing page"
+    "Personalize 1/3 — name + theme picker",
+    "Name filled — Next enables",
+    "2/3 — role, eight icon cards",
+    "3/3 — company size, four cards",
+    "'Time to ship, Samlee' — mirrors the landing page"
   ],
   railway: [
-    "Landing 'Ship software peacefully' — hero embeds the real first-run screen",
-    "Auth modal — GitHub privileged; deployed multi-service canvas behind the dim",
+    "Landing — hero embeds the real first-run screen",
+    "Auth modal — GitHub privileged; deployed canvas behind",
     "Email path — Google / email / SSO",
     "Email entered",
-    "Verification pending — observability charts as backdrop",
-    "OTP modal (Magic) — six boxes",
-    "OTP partially entered — auto-advancing",
-    "OTP success — check mark, no submit button anywhere",
-    "ToS 1/2 — plain-language icon bullets, shown inside the app after auth",
-    "Fair Use 2/2 — accept button: 'I will not deploy any of that'",
-    "Empty dashboard + handoff toast; '30 days or $5.00' trial pill",
-    "Resting empty state — 'Create a New Project' routes intent instead of a survey"
+    "Verification pending — observability charts backdrop",
+    "OTP modal — six boxes",
+    "OTP entering — auto-advancing",
+    "OTP success — check mark, no submit button",
+    "ToS 1/2 — plain-language icon bullets, post-auth",
+    "Fair Use 2/2 — 'I will not deploy any of that'",
+    "Empty dashboard + handoff toast; trial pill",
+    "Resting empty state routes intent"
   ]
 };
 const COUNTS = { cursor: 13, claude: 6, linear: 18, replit: 16, lovable: 14, railway: 12 };
@@ -563,7 +566,7 @@ const STEPS = [
   { name: "Lovable", v: 5 },
   { name: "Linear", v: 10 }
 ];
-const maxV = Math.max(...STEPS.map(s => s.v));
+const maxV = Math.max(...STEPS.map((s) => s.v));
 const chart = document.getElementById("stepsChart");
 for (const s of STEPS) {
   const row = document.createElement("div");
