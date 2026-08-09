@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { basename } from "node:path";
 import { generateFriendlyBranchName } from "@superset/shared/workspace-launch";
 import { TRPCError } from "@trpc/server";
@@ -150,7 +151,7 @@ export const createSession = protectedProcedure
 			// cleanup failure must not mask the insert error or the
 			// winner-return path below.
 			try {
-				rmSync(repoPath, { recursive: true, force: true });
+				await rm(repoPath, { recursive: true, force: true });
 			} catch (cleanupErr) {
 				console.warn(
 					"[workspaces.createSession] failed to clean up session folder after insert failure:",
