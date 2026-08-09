@@ -57,27 +57,45 @@ export function canonicalizeChord(chord: string): string {
 	return [...mods, ...keys].join("+");
 }
 
+interface ChordModifiers {
+	meta: boolean;
+	ctrl: boolean;
+	alt: boolean;
+	shift: boolean;
+}
+
+/**
+ * Key code + already-resolved modifiers → canonical chord, or null when the key
+ * can't form one on its own (modifier / lock key). The sole place modifier
+ * ordering lives, so every code→chord path canonicalizes identically — callers
+ * differ only in how they detect the code and resolve modifiers.
+ */
+function assembleChord(code: string, mods: ChordModifiers): string | null {
+	const key = normalizeToken(code);
+	if (isIgnorableKey(key)) return null;
+	const parts: string[] = [];
+	if (mods.meta) parts.push("meta");
+	if (mods.ctrl) parts.push("ctrl");
+	if (mods.alt) parts.push("alt");
+	if (mods.shift) parts.push("shift");
+	parts.sort();
+	return [...parts, key].join("+");
+}
+
 /** KeyboardEvent → canonical chord (comparable to {@link canonicalizeChord} output), or null for pure modifier / synthetic presses. */
 export function eventToChord(event: KeyboardEvent): string | null {
 	if (event.code === undefined) return null;
-	// IME composition: keydown during CJK / dead-key composition must not
-	// trigger hotkeys. Safari reports keyCode 229 instead of isComposing.
+	// Ignore CJK / dead-key composition. Safari reports keyCode 229 here.
 	if (event.isComposing || event.keyCode === 229) return null;
-	const key = normalizeToken(event.code);
-	if (isIgnorableKey(key)) return null;
-	// AltGr is reported by Chromium as ctrlKey+altKey on Windows/Linux.
-	// Treating that combination as Ctrl+Alt would let printable keystrokes on
-	// non-US layouts (e.g. AltGr+E = € on German) accidentally trigger
-	// ctrl+alt+e bindings. Suppress both when AltGr is held; no binding opts
-	// into AltGr explicitly.
+	// AltGr surfaces as ctrlKey+altKey in Chromium; drop both so printable
+	// non-US keystrokes (AltGr+E = € on German) don't trigger ctrl+alt+e.
 	const altGraph = event.getModifierState?.("AltGraph") === true;
-	const mods: string[] = [];
-	if (event.metaKey) mods.push("meta");
-	if (event.ctrlKey && !altGraph) mods.push("ctrl");
-	if (event.altKey && !altGraph) mods.push("alt");
-	if (event.shiftKey) mods.push("shift");
-	mods.sort();
-	return [...mods, key].join("+");
+	return assembleChord(event.code, {
+		meta: event.metaKey,
+		ctrl: event.ctrlKey && !altGraph,
+		alt: event.altKey && !altGraph,
+		shift: event.shiftKey,
+	});
 }
 
 /** True if `event` produces `chord` (tolerating modifier order / aliases). */
@@ -97,19 +115,17 @@ export interface KeyChordInput {
 }
 
 /**
- * Electron key input → canonical chord, matching {@link eventToChord} so the
- * main process can compare guest keystrokes against the renderer-registered
- * forwardable chords. Returns null for pure modifier presses.
+ * Electron key input → canonical chord for the main process. Shares
+ * {@link assembleChord} with {@link eventToChord}, so a given key produces the
+ * same chord in both processes. The DOM-only AltGr/IME guards are absent here
+ * because Electron's `Input` doesn't surface them.
  */
 export function chordFromInput(input: KeyChordInput): string | null {
 	if (!input.code) return null;
-	const key = normalizeToken(input.code);
-	if (isIgnorableKey(key)) return null;
-	const mods: string[] = [];
-	if (input.meta) mods.push("meta");
-	if (input.control) mods.push("ctrl");
-	if (input.alt) mods.push("alt");
-	if (input.shift) mods.push("shift");
-	mods.sort();
-	return [...mods, key].join("+");
+	return assembleChord(input.code, {
+		meta: input.meta,
+		ctrl: input.control,
+		alt: input.alt,
+		shift: input.shift,
+	});
 }

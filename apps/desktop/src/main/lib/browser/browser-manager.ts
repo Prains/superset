@@ -39,8 +39,8 @@ class BrowserManager extends EventEmitter {
 	private consoleListeners = new Map<string, () => void>();
 	private contextMenuListeners = new Map<string, () => void>();
 	private beforeInputListeners = new Map<string, () => void>();
-	// Canonical chords the renderer wants replayed into its hotkey system when
-	// the guest webview has focus. Kept override/layout-aware by the renderer.
+	// Canonical chords to suppress in the focused guest and forward for the
+	// renderer to replay. Kept override/layout-aware by the renderer.
 	private forwardableChords = new Set<string>();
 
 	setForwardableChords(chords: string[]): void {
@@ -257,15 +257,9 @@ class BrowserManager extends EventEmitter {
 	// When a webview has focus, keystrokes route to the guest renderer — host
 	// `react-hotkeys-hook` listeners never see them and the menu's CmdOrCtrl+W
 	// accelerator closes the whole window. `before-input-event` fires in the
-	// main process before both, and `preventDefault()` suppresses both.
-	//
-	// CmdOrCtrl+W/R are intercepted here (menu accelerators fire even when the
-	// guest holds focus). Chords the renderer registered as forwardable (tab
-	// switching, …) are preventDefault'd and forwarded so the host can replay
-	// them; suppressing the guest event stops the page from also acting on the
-	// same keystroke. Every other key falls through untouched, so in-page
-	// shortcuts (copy/paste/find/…) keep working. keyDown guard prevents a
-	// second fire on keyUp.
+	// main process before both, so we intercept CmdOrCtrl+W/R and any
+	// renderer-registered forwardable chord here. Everything else falls through
+	// untouched, keeping in-page shortcuts (copy/paste/find/…) working.
 	private setupBeforeInput(paneId: string, wc: Electron.WebContents): void {
 		const handler = (event: Electron.Event, input: Electron.Input): void => {
 			if (input.type !== "keyDown") return;

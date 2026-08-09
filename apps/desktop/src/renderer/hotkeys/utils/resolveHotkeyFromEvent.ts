@@ -9,9 +9,8 @@ import {
 import type { ShortcutBinding } from "../types";
 import { bindingToDispatchChord } from "./binding";
 
-// Pure chord helpers live in `shared/hotkey-chord` (main + renderer). Re-export
-// the ones consumed elsewhere in the hotkey module so their import paths are
-// unchanged.
+// Re-export the chord helpers (now in `shared/hotkey-chord`) so existing
+// hotkey-module import paths stay unchanged.
 export {
 	canonicalizeChord,
 	eventToChord,

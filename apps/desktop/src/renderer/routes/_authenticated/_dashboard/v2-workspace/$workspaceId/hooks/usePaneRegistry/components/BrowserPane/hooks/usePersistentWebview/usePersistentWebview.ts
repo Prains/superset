@@ -17,11 +17,10 @@ import { canonicalizeChord } from "shared/hotkey-chord";
 import { browserRuntimeRegistry } from "../../browserRuntimeRegistry";
 import { DEFAULT_BROWSER_URL } from "../../constants";
 
-// Hotkeys the browser pane replays onto the host document when the guest
-// webview forwards a keystroke. Scoped to tab switching: these have no menu
-// accelerator (so replaying can't double-fire) and aren't page shortcuts. The
-// main process is told these chords (override/layout-aware) so it suppresses +
-// forwards only them — see the forwardable-chord sync below.
+// Hotkeys the pane replays onto the host document when the guest forwards a
+// keystroke. Scoped to tab switching: no menu accelerator (so replaying can't
+// double-fire) and not page shortcuts. The main process is synced these chords
+// so it suppresses + forwards only them — see the forwardable-chord sync below.
 const FORWARDABLE_HOTKEYS = new Set<HotkeyId>([
 	"PREV_TAB",
 	"NEXT_TAB",
@@ -128,9 +127,8 @@ export function usePersistentWebview({
 				},
 			},
 		);
-		// The guest webview swallows keystrokes, so host hotkeys never fire while
-		// the browser is focused. Replay forwarded chords onto the host document
-		// so react-hotkeys-hook picks them up — gated to tab-switch hotkeys.
+		// Replay forwarded chords onto the host document so react-hotkeys-hook
+		// picks them up. Re-gated to tab-switch hotkeys in case the main set lags.
 		const keyForwardSub = electronTrpcClient.browser.onKeyForward.subscribe(
 			{ paneId },
 			{
@@ -148,8 +146,8 @@ export function usePersistentWebview({
 					const id = resolveHotkeyFromEvent(new KeyboardEvent("keydown", init));
 					if (!id || !FORWARDABLE_HOTKEYS.has(id)) return;
 					document.dispatchEvent(new KeyboardEvent("keydown", init));
-					// Balance react-hotkeys-hook's global pressed-key set — a keydown
-					// without a keyup would leave the key stuck as "pressed".
+					// keyup balances react-hotkeys-hook's pressed-key set; without it
+					// the key stays stuck as "pressed".
 					document.dispatchEvent(new KeyboardEvent("keyup", init));
 				},
 			},
@@ -163,10 +161,9 @@ export function usePersistentWebview({
 		};
 	}, [paneId]);
 
-	// Keep the main process's forwardable-chord set in sync with the current
-	// (override/layout-aware) bindings so it suppresses + forwards exactly the
-	// tab-switch chords the renderer will replay. Recomputes on remap / layout
-	// change — the same triggers `resolveHotkeyFromEvent`'s index rebuilds on.
+	// Sync the main process's forwardable-chord set with the current bindings,
+	// recomputing on the same remap / layout / preference changes that rebuild
+	// `resolveHotkeyFromEvent`'s index.
 	useEffect(() => {
 		const push = () => {
 			const chords = [...FORWARDABLE_HOTKEYS]
