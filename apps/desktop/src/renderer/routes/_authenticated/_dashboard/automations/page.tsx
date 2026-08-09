@@ -688,7 +688,7 @@ function AutomationsPage() {
 												<span className="normal-case">Last run</span>
 											</TableHead>
 											<TableHead
-												className={cn(DATA_TABLE_HEAD_CELL, "w-12 pr-4")}
+												className={cn(DATA_TABLE_HEAD_CELL, "w-20 pr-4")}
 											/>
 										</TableRow>
 									</TableHeader>
