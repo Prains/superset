@@ -31,6 +31,8 @@ export interface DraftAttachment {
 
 export interface NewWorkspaceDraft {
 	selectedProjectId: string | null;
+	/** Explicit "No project" (session) choice — distinct from not-yet-selected. */
+	isSession: boolean;
 	hostId: string | null;
 	prompt: string;
 	baseBranch: string | null;
@@ -63,6 +65,7 @@ interface NewWorkspaceDraftState extends NewWorkspaceDraft {
 function buildInitialDraft(): NewWorkspaceDraft {
 	return {
 		selectedProjectId: null,
+		isSession: false,
 		hostId: null,
 		prompt: "",
 		baseBranch: null,
