@@ -425,8 +425,10 @@ export const taskRouter = {
 	 * "In Progress") when work begins on it — a workspace is created from it
 	 * or an agent starts working. No-op unless the task is currently in a
 	 * "backlog"/"unstarted" status, so it never regresses tasks that are
-	 * already in progress or done. The status change is pushed to the
-	 * external provider (Linear) via the regular sync path.
+	 * already in progress or done. An unassigned task is assigned to the
+	 * acting user; an existing assignee (internal or external snapshot) is
+	 * never overwritten. Changes are pushed to the external provider
+	 * (Linear) via the regular sync path.
 	 */
 	start: protectedProcedure
 		.input(z.object({ id: z.string().uuid() }))
@@ -442,6 +444,8 @@ export const taskRouter = {
 					.select({
 						statusType: taskStatuses.type,
 						statusProvider: taskStatuses.externalProvider,
+						assigneeId: tasks.assigneeId,
+						assigneeExternalId: tasks.assigneeExternalId,
 					})
 					.from(tasks)
 					.innerJoin(taskStatuses, eq(tasks.statusId, taskStatuses.id))
@@ -478,9 +482,15 @@ export const taskRouter = {
 					return { task: null, txid: null };
 				}
 
+				const unassigned =
+					current.assigneeId === null && current.assigneeExternalId === null;
+
 				const [task] = await tx
 					.update(tasks)
-					.set({ statusId: startedStatus.id })
+					.set({
+						statusId: startedStatus.id,
+						...(unassigned ? { assigneeId: ctx.session.user.id } : {}),
+					})
 					.where(and(eq(tasks.id, input.id), isNull(tasks.deletedAt)))
 					.returning();
 

@@ -1,6 +1,9 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { generateFriendlyBranchName } from "@superset/shared/workspace-launch";
+import {
+	generateFriendlyBranchName,
+	sanitizeUserBranchName,
+} from "@superset/shared/workspace-launch";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -442,6 +445,28 @@ async function recordBaseBranchConfig(args: {
 }
 
 /**
+ * Best-effort cloud lookup of the linked task's provider branch name
+ * (Linear's branchName, synced into tasks.branch). Bounded so an offline
+ * host never stalls workspace creation.
+ */
+async function fetchLinkedTaskBranch(
+	ctx: HostServiceContext,
+	taskId: string,
+): Promise<string | undefined> {
+	try {
+		const task = await Promise.race([
+			ctx.api.task.byId.query(taskId),
+			new Promise<null>((resolve) => setTimeout(() => resolve(null), 2_000)),
+		]);
+		const branch = task?.branch?.trim();
+		return branch ? sanitizeUserBranchName(branch) || undefined : undefined;
+	} catch (err) {
+		console.warn("[workspaces.create] linked task branch lookup failed:", err);
+		return undefined;
+	}
+}
+
+/**
  * Fully local registration: the host mints the id and commits the local
  * row — the authoritative and only record; workspaces have no cloud mirror.
  */
@@ -825,7 +850,16 @@ export const workspacesRouter = router({
 					"[workspaces.create]",
 				);
 			} else {
-				const typedBranch = input.branch?.trim();
+				// A linked task can supply the branch when the caller didn't
+				// pick one (CLI/MCP/automation creates from a task — desktop
+				// surfaces resolve it client-side). Provider branch names are
+				// used exactly, like an explicit skipBranchPrefix create.
+				const taskBranch =
+					!input.branch && input.taskId
+						? await fetchLinkedTaskBranch(ctx, input.taskId)
+						: undefined;
+				const skipBranchPrefix = input.skipBranchPrefix || !!taskBranch;
+				const typedBranch = input.branch?.trim() || taskBranch;
 				let plan: BranchSourcePlan;
 
 				if (typedBranch) {
@@ -848,7 +882,7 @@ export const workspacesRouter = router({
 					// prefix. A typed branch that resolves to an existing ref is
 					// checked out as-is and never re-prefixed. Provider-supplied
 					// branches (skipBranchPrefix) keep their exact format.
-					if (!plan.usedExistingBranch && !input.skipBranchPrefix) {
+					if (!plan.usedExistingBranch && !skipBranchPrefix) {
 						const prefix = await resolveProjectBranchPrefix({
 							ctx,
 							project: localProject,
