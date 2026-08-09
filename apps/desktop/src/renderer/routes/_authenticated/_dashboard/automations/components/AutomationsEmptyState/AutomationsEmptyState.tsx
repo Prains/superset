@@ -1,11 +1,22 @@
 import { COMPANY } from "@superset/shared/constants";
 import { Button } from "@superset/ui/button";
-import { LuPlus } from "react-icons/lu";
+import { useEffect, useState } from "react";
+import { LuPlus, LuSparkles } from "react-icons/lu";
 import {
-	AUTOMATION_TEMPLATE_CATEGORIES,
 	type AutomationTemplate,
+	ONBOARDING_SUGGESTIONS,
 } from "../../templates";
 import { TemplateCard } from "../TemplateCard";
+
+// Concrete, typeable examples (Cursor's rotating-placeholder pattern).
+// See plans/automations-onboarding.md.
+const PLACEHOLDERS = [
+	"Every weekday at 9am, triage new GitHub issues and draft replies for my review",
+	"Summarize failed CI runs on main every morning before standup",
+	"Every Friday at 4pm, draft release notes from this week's merged PRs",
+	"Nightly at 2am, find one small bug, fix it, and open a PR",
+];
+const PLACEHOLDER_INTERVAL_MS = 5000;
 
 interface AutomationsEmptyStateProps {
 	onSelectTemplate: (template: AutomationTemplate) => void;
@@ -16,47 +27,39 @@ export function AutomationsEmptyState({
 	onSelectTemplate,
 	onCreate,
 }: AutomationsEmptyStateProps) {
-	// One suggestion per category keeps the first-run screen scannable; the
-	// full gallery stays available inside the create dialog.
-	const suggestions = AUTOMATION_TEMPLATE_CATEGORIES.flatMap((category) =>
-		category.templates.slice(0, 1),
-	);
+	const [placeholderIndex, setPlaceholderIndex] = useState(0);
+	useEffect(() => {
+		const id = setInterval(
+			() => setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS.length),
+			PLACEHOLDER_INTERVAL_MS,
+		);
+		return () => clearInterval(id);
+	}, []);
 
 	return (
 		<div className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center gap-10 pb-10">
-			<div className="flex flex-col items-center gap-2 text-center">
+			<div className="flex w-full flex-col items-center gap-3 text-center">
 				<h2 className="text-lg font-semibold tracking-tight">
-					No automations yet
+					What should run on a schedule?
 				</h2>
-				<p className="max-w-sm text-sm text-muted-foreground">
-					Run agents on a schedule. Each run creates a workspace with the
-					results ready to review.
+				{/* Interim affordance: looks like the future NL input, opens the
+				    create form today. Swaps to the real chat input in Phase 2. */}
+				<button
+					type="button"
+					onClick={onCreate}
+					className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3.5 text-left transition-colors hover:border-border/80 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+				>
+					<LuSparkles className="size-4 shrink-0 text-muted-foreground" />
+					<span
+						key={placeholderIndex}
+						className="min-w-0 truncate text-sm text-muted-foreground animate-in fade-in duration-300"
+					>
+						{PLACEHOLDERS[placeholderIndex]}
+					</span>
+				</button>
+				<p className="text-xs text-muted-foreground">
+					Runs land in a workspace — review the diff, merge what's good.
 				</p>
-				<div className="mt-3 flex items-center gap-2">
-					<Button
-						type="button"
-						size="sm"
-						className="h-8 gap-1.5 px-3"
-						onClick={onCreate}
-					>
-						<LuPlus className="size-4" />
-						Create automation
-					</Button>
-					<Button
-						asChild
-						variant="ghost"
-						size="sm"
-						className="h-8 text-muted-foreground"
-					>
-						<a
-							href={`${COMPANY.DOCS_URL}/automations`}
-							target="_blank"
-							rel="noreferrer"
-						>
-							Learn more
-						</a>
-					</Button>
-				</div>
 			</div>
 
 			<div className="flex w-full flex-col gap-3">
@@ -64,7 +67,7 @@ export function AutomationsEmptyState({
 					Suggested
 				</h3>
 				<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-					{suggestions.map((template) => (
+					{ONBOARDING_SUGGESTIONS.map((template) => (
 						<TemplateCard
 							key={template.id}
 							template={template}
@@ -72,6 +75,32 @@ export function AutomationsEmptyState({
 						/>
 					))}
 				</div>
+			</div>
+
+			<div className="flex items-center gap-2">
+				<Button
+					type="button"
+					size="sm"
+					className="h-8 gap-1.5 px-3"
+					onClick={onCreate}
+				>
+					<LuPlus className="size-4" />
+					Create automation
+				</Button>
+				<Button
+					asChild
+					variant="ghost"
+					size="sm"
+					className="h-8 text-muted-foreground"
+				>
+					<a
+						href={`${COMPANY.DOCS_URL}/automations`}
+						target="_blank"
+						rel="noreferrer"
+					>
+						Learn more
+					</a>
+				</Button>
 			</div>
 		</div>
 	);
