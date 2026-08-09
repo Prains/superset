@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { workspaces } from "../db/schema";
 import { destroyWorkspace } from "../trpc/router/workspace-cleanup";
 import type { HostServiceContext } from "../types";
@@ -35,6 +35,19 @@ export async function runArchivedWorkspaceReconcile(
 	const stranded = selectStranded(archived, livePaths, existsSync);
 
 	for (const row of stranded) {
+		// Re-check ownership at destroy time: a workspace re-created on the
+		// same branch can claim this path between the snapshot above and now.
+		const liveOwner = ctx.db
+			.select({ id: workspaces.id })
+			.from(workspaces)
+			.where(
+				and(
+					isNull(workspaces.archivedAt),
+					eq(workspaces.worktreePath, row.worktreePath),
+				),
+			)
+			.get();
+		if (liveOwner) continue;
 		try {
 			await destroyWorkspace(ctx, {
 				workspaceId: row.id,

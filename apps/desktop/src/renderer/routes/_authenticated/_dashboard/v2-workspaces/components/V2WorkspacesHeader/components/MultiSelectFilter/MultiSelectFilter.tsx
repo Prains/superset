@@ -86,7 +86,11 @@ export function MultiSelectFilter({
 								return (
 									<CommandItem
 										key={option.value}
-										value={option.label}
+										// Unique id as the cmdk value — duplicate labels (fork +
+										// upstream of the same repo) must not collide; the label
+										// stays searchable via keywords.
+										value={option.value}
+										keywords={[option.label]}
 										onSelect={() => toggle(option.value)}
 									>
 										<span className="flex w-full min-w-0 items-center gap-2">

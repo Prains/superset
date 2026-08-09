@@ -13,6 +13,7 @@ import type { HostServiceContext } from "../../../types";
 import type { GitTaskEnv } from "../../../workers/tasks/git";
 import {
 	archiveLocalWorkspace,
+	trackWorkspaceDeleted,
 	unarchiveLocalWorkspace,
 } from "../../../workspaces/local-workspace-store";
 import type {
@@ -318,7 +319,15 @@ async function runDestroy(
 	}
 
 	try {
-		return await runDestroyPhases(ctx, input, { local, project, warnings });
+		const result = await runDestroyPhases(ctx, input, {
+			local,
+			project,
+			warnings,
+		});
+		// Telemetry at the true commit: a failed destroy un-archives below and
+		// must not count, and a retried destroy must count exactly once.
+		if (marked && local) trackWorkspaceDeleted(ctx, local);
+		return result;
 	} catch (err) {
 		if (marked) unarchiveLocalWorkspace(ctx, input.workspaceId);
 		throw err;
@@ -339,8 +348,13 @@ function archiveReasonFor(
 		return coercePullRequestState(pr?.state ?? null) === "merged"
 			? "merged"
 			: "deleted";
-	} catch {
-		// A reason lookup failure must never block the delete.
+	} catch (err) {
+		// A reason lookup failure must never block the delete — but a merged
+		// workspace misfiled under Deleted deserves a trace.
+		console.warn("[workspace-cleanup] archive reason lookup failed", {
+			pullRequestId: local.pullRequestId,
+			err,
+		});
 		return "deleted";
 	}
 }

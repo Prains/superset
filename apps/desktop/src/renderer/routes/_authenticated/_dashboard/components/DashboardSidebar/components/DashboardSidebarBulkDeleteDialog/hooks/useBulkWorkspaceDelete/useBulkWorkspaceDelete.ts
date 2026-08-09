@@ -9,6 +9,7 @@ import {
 import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences/useV2UserPreferences";
 import { useNavigateAwayFromWorkspace } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/hooks/useNavigateAwayFromWorkspace";
 import type { DashboardSidebarWorkspace } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/types";
+import { useDeletingWorkspacesStore } from "renderer/routes/_authenticated/_dashboard/stores/deletingWorkspacesStore";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 import {
@@ -137,6 +138,9 @@ export function useBulkWorkspaceDelete({
 			let selectionReconciled = false;
 			try {
 				for (const workspace of targets) {
+					useDeletingWorkspacesStore.getState().markDeleting(workspace.id);
+				}
+				for (const workspace of targets) {
 					navigateAwayFromWorkspace(workspace.id, targetIds);
 				}
 
@@ -232,6 +236,9 @@ export function useBulkWorkspaceDelete({
 					},
 				);
 			} finally {
+				for (const workspace of targets) {
+					useDeletingWorkspacesStore.getState().clearDeleting(workspace.id);
+				}
 				setIsDeleting(false);
 				inFlight.current = false;
 			}

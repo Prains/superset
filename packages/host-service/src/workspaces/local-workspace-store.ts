@@ -248,9 +248,18 @@ export function archiveLocalWorkspace(
 		workspace: null,
 		occurredAt: Date.now(),
 	});
-	if (existing.archivedAt == null) {
-		trackWorkspaceEvent(ctx, "workspace_deleted", existing);
-	}
+	// Telemetry deliberately NOT emitted here: the destroy can still fail
+	// and un-archive. The pipeline calls trackWorkspaceDeleted once the
+	// physical cleanup actually commits.
+}
+
+/** Emit the deletion telemetry event — called by the destroy pipeline
+ * after physical cleanup succeeds, so failed/retried destroys count once. */
+export function trackWorkspaceDeleted(
+	ctx: WorkspaceStoreContext,
+	row: HostWorkspaceRow,
+): void {
+	trackWorkspaceEvent(ctx, "workspace_deleted", row);
 }
 
 /**

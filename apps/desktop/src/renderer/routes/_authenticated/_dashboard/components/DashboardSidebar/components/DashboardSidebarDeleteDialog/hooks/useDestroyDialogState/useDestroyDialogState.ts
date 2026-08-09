@@ -10,6 +10,7 @@ import {
 } from "renderer/hooks/host-service/useDestroyWorkspace";
 import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences/useV2UserPreferences";
 import { useNavigateAwayFromWorkspace } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/hooks/useNavigateAwayFromWorkspace";
+import { useDeletingWorkspacesStore } from "renderer/routes/_authenticated/_dashboard/stores/deletingWorkspacesStore";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 
 interface UseDestroyDialogStateOptions {
@@ -100,6 +101,9 @@ export function useDestroyDialogState({
 
 			setError(null);
 			onOpenChange(false);
+			// The row stays listed until the archive commit (post-teardown);
+			// mark it so navigation/shortcuts skip it in the meantime.
+			useDeletingWorkspacesStore.getState().markDeleting(workspaceId);
 			// Navigate up-front: no-ops if the deleted workspace isn't the
 			// active route, so a later user navigation won't be hijacked.
 			navigateAwayFromWorkspace(workspaceId);
@@ -148,6 +152,7 @@ export function useDestroyDialogState({
 					);
 				}
 			} finally {
+				useDeletingWorkspacesStore.getState().clearDeleting(workspaceId);
 				inFlight.current = false;
 			}
 		},

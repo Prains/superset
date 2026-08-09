@@ -92,31 +92,45 @@ function V2WorkspacesPage() {
 		(state) => state.archivedWindow,
 	);
 
-	// URL → store, once per mount: the URL is the shareable source of truth
-	// for the view a link opens on. After hydration, the store drives and the
-	// URL follows (replace, so filter tweaks don't pollute history).
+	// URL → store, once per mount, and only for params the URL actually
+	// carries: a deep link reproduces its view exactly, while a bare
+	// sidebar navigation must NOT reset the user's board/filter state back
+	// to defaults. After hydration the store drives and the URL follows
+	// (replace, so filter tweaks don't pollute history). The search text is
+	// the exception — like the old page, it resets on every visit unless
+	// the link pins it.
 	const hydratedRef = useRef(false);
 	if (!hydratedRef.current) {
 		hydratedRef.current = true;
 		useV2WorkspacesFilterStore.setState({
 			searchQuery: search.q ?? "",
-			deviceFilter: search.device ?? DEVICE_FILTER_THIS_DEVICE,
-			projectFilters: parseList(search.projects),
-			prStateFilters: parseList<V2WorkspacesPrStateFilter>(
-				search.pr,
-				V2_WORKSPACES_PR_STATE_FILTERS,
-			),
-			agentStatusFilters: parseList<V2WorkspacesAgentStatusFilter>(
-				search.agent,
-				V2_WORKSPACES_AGENT_STATUS_FILTERS,
-			),
-			viewMode: (search.view ?? "list") as V2WorkspacesViewMode,
-			archivedWindow: search.archived ?? "week",
+			...(search.device !== undefined && { deviceFilter: search.device }),
+			...(search.projects !== undefined && {
+				projectFilters: parseList(search.projects),
+			}),
+			...(search.pr !== undefined && {
+				prStateFilters: parseList<V2WorkspacesPrStateFilter>(
+					search.pr,
+					V2_WORKSPACES_PR_STATE_FILTERS,
+				),
+			}),
+			...(search.agent !== undefined && {
+				agentStatusFilters: parseList<V2WorkspacesAgentStatusFilter>(
+					search.agent,
+					V2_WORKSPACES_AGENT_STATUS_FILTERS,
+				),
+			}),
+			...(search.view !== undefined && {
+				viewMode: "board" as V2WorkspacesViewMode,
+			}),
+			...(search.archived !== undefined && {
+				archivedWindow: search.archived,
+			}),
 		});
 	}
 
 	useEffect(() => {
-		void navigate({
+		const syncUrl = navigate({
 			search: {
 				q: searchQuery || undefined,
 				device:
@@ -130,6 +144,9 @@ function V2WorkspacesPage() {
 				archived: archivedWindow !== "week" ? archivedWindow : undefined,
 			},
 			replace: true,
+		});
+		void Promise.resolve(syncUrl).catch((error) => {
+			console.error("[v2-workspaces] filter URL sync failed", error);
 		});
 	}, [
 		navigate,
@@ -150,8 +167,8 @@ function V2WorkspacesPage() {
 			prStateFilters,
 			agentStatusFilters,
 			// Tombstones ride along so the board's Merged/Deleted columns work;
-			// the list layout renders live rows only.
-			includeArchived: true,
+			// the list layout renders live rows only, so it skips the fetch.
+			includeArchived: viewMode === "board",
 		});
 
 	const liveWorkspaces = useMemo(
@@ -166,7 +183,7 @@ function V2WorkspacesPage() {
 	// Evaluating the flag here is the exposure moment.
 	const isEmptyDashboard =
 		isReady &&
-		all.length === 0 &&
+		liveWorkspaces.length === 0 &&
 		!searchQuery.trim() &&
 		projectFilters.length === 0 &&
 		prStateFilters.length === 0 &&

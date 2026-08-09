@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Octokit } from "@octokit/rest";
 import { parseGitHubRemote } from "@superset/shared/github-remote";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { HostDb } from "../../db";
 import { projects, pullRequests, workspaces } from "../../db/schema";
 import type { EventBus } from "../../events/event-bus";
@@ -533,7 +533,11 @@ export class PullRequestRuntimeManager {
 						? { updatedAt: Date.now(), cloudSyncedAt: null }
 						: {}),
 				})
-				.where(eq(workspaces.id, workspace.id))
+				// Guard: the workspace can archive during the awaited ref read;
+				// a tombstone's branch/PR link is frozen.
+				.where(
+					and(eq(workspaces.id, workspace.id), isNull(workspaces.archivedAt)),
+				)
 				.run();
 
 			return workspace.projectId;
@@ -655,7 +659,12 @@ export class PullRequestRuntimeManager {
 					this.db
 						.update(workspaces)
 						.set({ pullRequestId: null })
-						.where(eq(workspaces.id, workspace.id))
+						.where(
+							and(
+								eq(workspaces.id, workspace.id),
+								isNull(workspaces.archivedAt),
+							),
+						)
 						.run();
 				}
 				continue;
@@ -670,7 +679,9 @@ export class PullRequestRuntimeManager {
 				this.db
 					.update(workspaces)
 					.set({ pullRequestId: match.id })
-					.where(eq(workspaces.id, workspace.id))
+					.where(
+						and(eq(workspaces.id, workspace.id), isNull(workspaces.archivedAt)),
+					)
 					.run();
 				continue;
 			}
@@ -681,7 +692,9 @@ export class PullRequestRuntimeManager {
 				this.db
 					.update(workspaces)
 					.set({ pullRequestId: null })
-					.where(eq(workspaces.id, workspace.id))
+					.where(
+						and(eq(workspaces.id, workspace.id), isNull(workspaces.archivedAt)),
+					)
 					.run();
 			}
 		}

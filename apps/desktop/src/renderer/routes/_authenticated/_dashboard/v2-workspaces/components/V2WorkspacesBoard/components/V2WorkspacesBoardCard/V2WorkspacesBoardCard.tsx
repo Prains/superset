@@ -1,18 +1,9 @@
 import { Badge } from "@superset/ui/badge";
 import { cn } from "@superset/ui/utils";
-import {
-	LuCircleCheck,
-	LuCircleDashed,
-	LuCircleX,
-	LuGitBranch,
-	LuLaptop,
-	LuMonitor,
-} from "react-icons/lu";
+import { LuGitBranch, LuLaptop, LuMonitor } from "react-icons/lu";
 import { V2WorkspaceContextMenu } from "renderer/routes/_authenticated/_dashboard/v2-workspaces/components/V2WorkspaceContextMenu";
-import type {
-	AccessibleV2Workspace,
-	V2WorkspacePrSummary,
-} from "renderer/routes/_authenticated/_dashboard/v2-workspaces/hooks/useAccessibleV2Workspaces";
+import { WorkspaceChecksDot } from "renderer/routes/_authenticated/_dashboard/v2-workspaces/components/WorkspaceChecksDot";
+import type { AccessibleV2Workspace } from "renderer/routes/_authenticated/_dashboard/v2-workspaces/hooks/useAccessibleV2Workspaces";
 import { PRIcon } from "renderer/screens/main/components/PRIcon/PRIcon";
 import { getRelativeTime } from "renderer/screens/main/components/WorkspacesListView/utils";
 import { V2WorkspaceProjectIcon } from "../../../V2WorkspaceProjectIcon";
@@ -101,7 +92,7 @@ function BoardCardBody({
 					<span className="flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">
 						<PRIcon state={workspace.pr.state} className="size-3" />#
 						{workspace.pr.prNumber}
-						<ChecksDot status={workspace.pr.checksStatus} />
+						<WorkspaceChecksDot status={workspace.pr.checksStatus} />
 					</span>
 				) : null}
 				{isArchived ? (
@@ -118,19 +109,4 @@ function BoardCardBody({
 			</div>
 		</button>
 	);
-}
-
-function ChecksDot({
-	status,
-}: {
-	status: V2WorkspacePrSummary["checksStatus"];
-}) {
-	if (status === "none") return null;
-	if (status === "pending") {
-		return <LuCircleDashed className="size-3 text-amber-500" />;
-	}
-	if (status === "success") {
-		return <LuCircleCheck className="size-3 text-emerald-500" />;
-	}
-	return <LuCircleX className="size-3 text-red-500" />;
 }

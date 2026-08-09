@@ -43,9 +43,7 @@ interface ContextSpec {
 	resolveGitEnvThrows?: boolean;
 	removeWorktree?: () => Promise<{ stillRegistered: boolean }>;
 	deleteBranch?: () => Promise<{ deleted: boolean }>;
-	dbDeleteThrows?: boolean | "once";
-	// Simulates sqlite failure at the archive UPDATE — the mark-first
-	// commit point for non-session workspaces.
+	// Simulates sqlite failure at the archive UPDATE — the commit point.
 	dbUpdateThrows?: boolean | "once";
 	noApi?: boolean;
 }
@@ -96,18 +94,7 @@ function makeCtx(spec: ContextSpec): HostServiceContext & {
 
 	const cloudDelete = mock(spec.cloudDelete ?? (async () => undefined));
 
-	// The delete mock is shared across tables; per destroy, call #1 is the
-	// terminal-sessions sweep and call #2 is the workspace row — the one the
-	// throw specs target.
-	let deleteCalls = 0;
-	let deleteThrown = false;
-	const dbDeleteRun = mock(() => {
-		deleteCalls += 1;
-		if (deleteCalls !== 2 || !spec.dbDeleteThrows) return;
-		if (spec.dbDeleteThrows === "once" && deleteThrown) return;
-		deleteThrown = true;
-		throw new Error("sqlite delete boom");
-	});
+	const dbDeleteRun = mock(() => {});
 	const dbDeleteWhere = mock(() => ({ run: dbDeleteRun }));
 	const dbInsertRun = mock(() => {});
 	let updateThrown = false;

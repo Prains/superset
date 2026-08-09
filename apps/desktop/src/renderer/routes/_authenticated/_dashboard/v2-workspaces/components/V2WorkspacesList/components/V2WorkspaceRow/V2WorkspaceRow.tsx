@@ -8,18 +8,11 @@ import { TableCell, TableRow } from "@superset/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
 import { CgLaptop } from "react-icons/cg";
-import {
-	LuCircleCheck,
-	LuCircleDashed,
-	LuCircleX,
-	LuGitBranch,
-	LuLaptop,
-	LuMonitor,
-	LuTrash2,
-} from "react-icons/lu";
+import { LuGitBranch, LuLaptop, LuMonitor, LuTrash2 } from "react-icons/lu";
 import { RiPushpinFill, RiPushpinLine } from "react-icons/ri";
 import { V2WorkspaceContextMenu } from "renderer/routes/_authenticated/_dashboard/v2-workspaces/components/V2WorkspaceContextMenu";
 import { V2WorkspacePrHoverCardContent } from "renderer/routes/_authenticated/_dashboard/v2-workspaces/components/V2WorkspacePrHoverCardContent";
+import { WorkspaceChecksDot } from "renderer/routes/_authenticated/_dashboard/v2-workspaces/components/WorkspaceChecksDot";
 import type {
 	AccessibleV2Workspace,
 	V2WorkspaceHostType,
@@ -250,7 +243,7 @@ function WorkspacePrPill({ pr, branch }: WorkspacePrPillProps) {
 				>
 					<PRIcon state={pr.state} className="size-3" />
 					<span className="tabular-nums">#{pr.prNumber}</span>
-					<ChecksDot status={pr.checksStatus} />
+					<WorkspaceChecksDot status={pr.checksStatus} />
 				</a>
 			</HoverCardTrigger>
 			<HoverCardContent
@@ -263,19 +256,4 @@ function WorkspacePrPill({ pr, branch }: WorkspacePrPillProps) {
 			</HoverCardContent>
 		</HoverCard>
 	);
-}
-
-interface ChecksDotProps {
-	status: V2WorkspacePrSummary["checksStatus"];
-}
-
-function ChecksDot({ status }: ChecksDotProps) {
-	if (status === "none") return null;
-	if (status === "pending") {
-		return <LuCircleDashed className="size-3 text-amber-500" />;
-	}
-	if (status === "success") {
-		return <LuCircleCheck className="size-3 text-emerald-500" />;
-	}
-	return <LuCircleX className="size-3 text-red-500" />;
 }

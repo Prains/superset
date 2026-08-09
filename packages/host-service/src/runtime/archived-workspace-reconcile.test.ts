@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { selectStranded } from "../src/runtime/archived-workspace-reconcile";
+import { selectStranded } from "./archived-workspace-reconcile";
 
 describe("selectStranded", () => {
 	const rows = [

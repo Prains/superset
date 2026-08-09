@@ -1,6 +1,7 @@
 import { useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef } from "react";
 import { useHotkey } from "renderer/hotkeys";
+import { useDeletingWorkspacesStore } from "renderer/routes/_authenticated/_dashboard/stores/deletingWorkspacesStore";
 import { navigateToV2Workspace } from "renderer/routes/_authenticated/_dashboard/utils/workspace-navigation";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
 import type {
@@ -58,15 +59,19 @@ export function useDashboardSidebarShortcuts(
 	const navigate = useNavigate();
 	const { toggleProjectCollapsed, toggleSectionCollapsed } =
 		useDashboardSidebarState();
+	const deletingIds = useDeletingWorkspacesStore((state) => state.deletingIds);
 	const flattenedWorkspaces = useMemo(
-		() => [
-			// Sessions render above the project groups.
-			...sessionWorkspaces,
-			...groups.flatMap((project) =>
-				getProjectChildrenWorkspaces(project.children),
-			),
-		],
-		[groups, sessionWorkspaces],
+		() =>
+			[
+				// Sessions render above the project groups.
+				...sessionWorkspaces,
+				...groups.flatMap((project) =>
+					getProjectChildrenWorkspaces(project.children),
+				),
+				// A destroy in flight keeps its row until the archive commit —
+				// don't hand shortcuts a workspace that is about to vanish.
+			].filter((workspace) => !deletingIds.has(workspace.id)),
+		[groups, sessionWorkspaces, deletingIds],
 	);
 	const workspaceShortcutLabels =
 		useStableWorkspaceShortcutLabels(flattenedWorkspaces);

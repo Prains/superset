@@ -11,7 +11,7 @@ Today, deleting a Superset workspace erases every trace of it: the row in the ho
 
 After this plan:
 
-1. Deleting a workspace archives its database row instead of erasing it (`archivedAt` + `archiveReason`), so merged and deleted workspaces remain visible as history. Sessions (project-less workspaces) are exempt and keep today's hard delete.
+1. Deleting a workspace archives its database row instead of erasing it (`archivedAt` + `archiveReason`), so merged and deleted workspaces remain visible as history. (Sessions were originally exempt; that exemption was reversed during review — see the Decision Log. Milestone/validation text below predates the reversal.)
 2. The workspaces page gains a board ↔ list toggle. The board is a Linear-style kanban grouped by derived status (Idle, Working, Needs attention, Needs review, Merged, Deleted), read-only (no drag in v1), with a "Show archived: none / past week / past month / all" display option defaulting to past week.
 3. Filters become URL-synced multi-select dropdowns (search, project, device, PR state, agent status) shared by both layouts.
 
@@ -135,7 +135,7 @@ In `local-workspace-store.ts`, add:
     export function archiveLocalWorkspace(ctx, id, reason: "merged" | "deleted"): void
     export function unarchiveLocalWorkspace(ctx, id): void
 
-`archiveLocalWorkspace` sets `archivedAt: Date.now()`, `archiveReason: reason`, `updatedAt`, broadcasts the existing `eventType: "deleted"` shape (workspace: null) so current consumers drop the row exactly as before, and emits the `workspace_deleted` telemetry event (add a property distinguishing archive from hard delete). `unarchiveLocalWorkspace` nulls both columns and broadcasts `"updated"` with the row snapshot (see Assumptions for the upsert caveat). Both are idempotent.
+`archiveLocalWorkspace` sets `archivedAt: Date.now()`, `archiveReason: reason`, `updatedAt`, broadcasts the existing `eventType: "deleted"` shape (workspace: null) so current consumers drop the row exactly as before, and emits the `workspace_deleted` telemetry event (add a property distinguishing archive from hard delete). `unarchiveLocalWorkspace` nulls both columns and broadcasts `"created"` with the row snapshot so list patchers re-add the row. Both are idempotent.
 
 Make list reads exclude archived rows by default: find every read of the `workspaces` table in host-service (grep `from(workspaces)` and `select().from` in `packages/host-service/src`) and add `isNull(workspaces.archivedAt)` to each, *except* where a call site explicitly opts in. Extend the `workspace.list` tRPC input with `includeArchived: z.boolean().default(false)`; when true, archived rows are included and the response row must carry `archivedAt` and `archiveReason` so the renderer can window and column them.
 

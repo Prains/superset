@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { basename, resolve as resolvePath } from "node:path";
 import {
 	type ParsedGitHubRemote,
@@ -5,7 +6,7 @@ import {
 } from "@superset/shared/github-remote";
 import { BRANCH_PREFIX_MODES } from "@superset/shared/workspace-launch";
 import { TRPCError } from "@trpc/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { projects, workspaces } from "../../../db/schema";
 import {
@@ -839,19 +840,17 @@ export const projectRouter = router({
 				.sync();
 			if (!localProject) return { success: true, repoPath: null };
 
-			// Archived rows have no worktree to remove. Note the project-row
-			// delete below still cascades them away — removing a project
-			// intentionally drops its workspace history too.
+			// The project-row delete below cascades tombstones away — removing a
+			// project intentionally drops its workspace history. Sweep worktrees
+			// for live rows AND stranded tombstones (crash-interrupted deletes
+			// whose worktree survives): once the cascade runs, the startup
+			// reconciler can no longer see them.
 			const localWorkspaces = ctx.db
 				.select()
 				.from(workspaces)
-				.where(
-					and(
-						eq(workspaces.projectId, input.projectId),
-						isNull(workspaces.archivedAt),
-					),
-				)
-				.all();
+				.where(eq(workspaces.projectId, input.projectId))
+				.all()
+				.filter((ws) => ws.archivedAt == null || existsSync(ws.worktreePath));
 
 			for (const ws of localWorkspaces) {
 				if (ws.worktreePath === localProject.repoPath) continue;

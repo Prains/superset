@@ -273,12 +273,15 @@ export function useHostWorkspacesSource(
 		// mid-unarchive can't render twice.
 		const liveIds = new Set(merged.map((row) => row.id));
 		const archived: HostWorkspaceItem[] = targets.flatMap((_target, index) => {
-			const rows = archivedQueries[index]?.data ?? [];
+			const query = archivedQueries[index];
+			const rows = query?.data ?? [];
 			return rows
 				.filter((row) => !liveIds.has(row.id))
 				.map((row) => ({
 					...row,
-					hostReachable: true,
+					// react-query retains prior data across a failed refetch —
+					// don't report a host as answering when it did not.
+					hostReachable: !query?.isError,
 					source: "host" as const,
 				}));
 		});
@@ -314,7 +317,14 @@ export function useHostWorkspacesSource(
 				query.isError ||
 				targets[index]?.hostUrl === null ||
 				snapshots.has(targets[index]?.machineId ?? ""),
-		);
+		) &&
+		// Tombstones count toward settlement too: an archived-only host must
+		// not read as a settled empty view while its archived query loads.
+		(!includeArchived ||
+			archivedQueries.every(
+				(query, index) =>
+					query.isSuccess || query.isError || targets[index]?.hostUrl === null,
+			));
 
 	const cache = useMemo<HostWorkspacesCacheOps>(() => {
 		const targetFor = (hostId: string) =>
