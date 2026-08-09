@@ -1,4 +1,6 @@
 import { useCallback } from "react";
+import { deriveBranchName } from "renderer/routes/_authenticated/utils/deriveBranchName";
+import { useNewWorkspaceDraftStore } from "renderer/stores/new-workspace-draft";
 import type {
 	DashboardNewWorkspaceDraft,
 	LinkedIssue,
@@ -19,14 +21,33 @@ export function useLinkedContext(
 	updateDraft: (patch: Partial<DashboardNewWorkspaceDraft>) => void,
 ) {
 	const addLinkedIssue = useCallback(
-		(slug: string, title: string, taskId: string | undefined, url?: string) => {
+		(
+			slug: string,
+			title: string,
+			taskId: string | undefined,
+			url?: string,
+			branch?: string,
+		) => {
 			if (linkedIssues.some((issue) => issue.slug === slug)) return;
-			updateDraft({
+			const patch: Partial<DashboardNewWorkspaceDraft> = {
 				linkedIssues: [
 					...linkedIssues,
-					{ slug, title, source: "internal", taskId, url },
+					{ slug, title, source: "internal", taskId, url, branch },
 				],
-			});
+			};
+			// Seed the workspace/branch fields from the issue so the branch
+			// matches the provider's format (Linear autolinks it back to the
+			// issue). Never overwrite something the user already typed.
+			const draft = useNewWorkspaceDraftStore.getState();
+			if (!draft.branchNameEdited && !draft.branchName.trim()) {
+				patch.branchName = deriveBranchName({ slug, title, branch });
+				patch.branchNameEdited = true;
+			}
+			if (!draft.workspaceNameEdited && !draft.workspaceName.trim()) {
+				patch.workspaceName = title;
+				patch.workspaceNameEdited = true;
+			}
+			updateDraft(patch);
 		},
 		[linkedIssues, updateDraft],
 	);
@@ -53,9 +74,29 @@ export function useLinkedContext(
 
 	const removeLinkedIssue = useCallback(
 		(slug: string) => {
-			updateDraft({
+			const removed = linkedIssues.find((i) => i.slug === slug);
+			const patch: Partial<DashboardNewWorkspaceDraft> = {
 				linkedIssues: linkedIssues.filter((i) => i.slug !== slug),
-			});
+			};
+			// Clear the seeded names, but only when they still match what the
+			// issue seeded — a user edit sticks.
+			if (removed?.source === "internal") {
+				const draft = useNewWorkspaceDraftStore.getState();
+				const seededBranch = deriveBranchName({
+					slug: removed.slug,
+					title: removed.title,
+					branch: removed.branch,
+				});
+				if (draft.branchName === seededBranch) {
+					patch.branchName = "";
+					patch.branchNameEdited = false;
+				}
+				if (draft.workspaceName === removed.title) {
+					patch.workspaceName = "";
+					patch.workspaceNameEdited = false;
+				}
+			}
+			updateDraft(patch);
 		},
 		[linkedIssues, updateDraft],
 	);

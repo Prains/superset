@@ -13,7 +13,10 @@ import {
 	users,
 	webhookEvents,
 } from "@superset/db/schema";
-import { mapPriorityFromLinear } from "@superset/trpc/integrations/linear";
+import {
+	getLinearClient,
+	mapPriorityFromLinear,
+} from "@superset/trpc/integrations/linear";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { env } from "@/env";
 import { stripNullChars } from "@/lib/strip-null-chars";
@@ -152,6 +155,32 @@ async function processForConnection(
 	}
 }
 
+// `branchName` is derived by Linear from the identifier + title and is not
+// part of the webhook payload, so it needs its own fetch. Failures return
+// null and the upsert leaves the stored branch untouched.
+async function fetchIssueBranchName(
+	organizationId: string,
+	issueId: string,
+): Promise<string | null> {
+	try {
+		const client = await getLinearClient(organizationId);
+		if (!client) return null;
+		const response = await client.client.request<
+			{ issue: { branchName: string } | null },
+			{ id: string }
+		>(`query IssueBranchName($id: String!) { issue(id: $id) { branchName } }`, {
+			id: issueId,
+		});
+		return response.issue?.branchName || null;
+	} catch (error) {
+		console.warn(
+			`[linear/webhook] failed to fetch branchName for issue ${issueId}:`,
+			error,
+		);
+		return null;
+	}
+}
+
 async function processIssueEvent(
 	payload: EntityWebhookPayloadWithIssueData,
 	connection: SelectIntegrationConnection,
@@ -204,6 +233,11 @@ async function processIssueEvent(
 			assigneeAvatarUrl = issue.assignee.avatarUrl ?? null;
 		}
 
+		const branchName = await fetchIssueBranchName(
+			connection.organizationId,
+			issue.id,
+		);
+
 		const taskData = {
 			slug: issue.identifier,
 			title: issue.title,
@@ -217,6 +251,7 @@ async function processIssueEvent(
 			estimate: issue.estimate ?? null,
 			dueDate: issue.dueDate ? new Date(issue.dueDate) : null,
 			labels: issue.labels.map((l) => l.name),
+			...(branchName ? { branch: branchName } : {}),
 			startedAt: issue.startedAt ? new Date(issue.startedAt) : null,
 			completedAt: issue.completedAt ? new Date(issue.completedAt) : null,
 			externalProvider: "linear" as const,

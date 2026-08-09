@@ -1168,6 +1168,18 @@ export const workspacesRouter = router({
 				});
 			}
 
+			// Work is starting on the linked task — move it to In Progress.
+			// Best-effort cloud call; creation never blocks on it.
+			if (input.taskId) {
+				const taskId = input.taskId;
+				void ctx.api.task.start.mutate({ id: taskId }).catch((err) => {
+					console.warn(
+						`[workspaces.create] failed to mark task ${taskId} as started:`,
+						err,
+					);
+				});
+			}
+
 			return {
 				workspace: workspaceRow,
 				terminals: terminalsResult,

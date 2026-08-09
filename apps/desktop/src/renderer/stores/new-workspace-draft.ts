@@ -6,6 +6,8 @@ export type LinkedIssue = {
 	source?: "github" | "internal";
 	url?: string;
 	taskId?: string;
+	/** Provider branch name (e.g. Linear's), synced into `tasks.branch`. */
+	branch?: string;
 	number?: number;
 	state?: "open" | "closed";
 };

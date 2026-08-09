@@ -13,7 +13,7 @@ import {
 	generateUniqueTaskSlug,
 } from "@superset/shared/task-slug";
 import { TRPCError, type TRPCRouterRecord } from "@trpc/server";
-import { and, desc, eq, ilike, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { syncTask } from "../../lib/integrations/sync";
@@ -419,6 +419,82 @@ export const taskRouter = {
 	create: protectedProcedure
 		.input(createTaskSchema)
 		.mutation(({ ctx, input }) => createTask(ctx, input)),
+
+	/**
+	 * Moves a task to the organization's first "started"-type status (e.g.
+	 * "In Progress") when work begins on it — a workspace is created from it
+	 * or an agent starts working. No-op unless the task is currently in a
+	 * "backlog"/"unstarted" status, so it never regresses tasks that are
+	 * already in progress or done. The status change is pushed to the
+	 * external provider (Linear) via the regular sync path.
+	 */
+	start: protectedProcedure
+		.input(z.object({ id: z.string().uuid() }))
+		.mutation(async ({ ctx, input }) => {
+			const result = await dbWs.transaction(async (tx) => {
+				const taskAccess = await getTaskAccess(
+					tx,
+					ctx.session.user.id,
+					input.id,
+				);
+
+				const [current] = await tx
+					.select({
+						statusType: taskStatuses.type,
+						statusProvider: taskStatuses.externalProvider,
+					})
+					.from(tasks)
+					.innerJoin(taskStatuses, eq(tasks.statusId, taskStatuses.id))
+					.where(and(eq(tasks.id, input.id), isNull(tasks.deletedAt)))
+					.limit(1);
+
+				if (
+					!current ||
+					(current.statusType !== "backlog" &&
+						current.statusType !== "unstarted")
+				) {
+					return { task: null, txid: null };
+				}
+
+				// Stay within the status set the task already lives in (Linear
+				// statuses vs local defaults) so the transition is meaningful
+				// to the provider that owns the task's workflow.
+				const [startedStatus] = await tx
+					.select({ id: taskStatuses.id })
+					.from(taskStatuses)
+					.where(
+						and(
+							eq(taskStatuses.organizationId, taskAccess.organizationId),
+							eq(taskStatuses.type, "started"),
+							current.statusProvider
+								? eq(taskStatuses.externalProvider, current.statusProvider)
+								: isNull(taskStatuses.externalProvider),
+						),
+					)
+					.orderBy(asc(taskStatuses.position))
+					.limit(1);
+
+				if (!startedStatus) {
+					return { task: null, txid: null };
+				}
+
+				const [task] = await tx
+					.update(tasks)
+					.set({ statusId: startedStatus.id })
+					.where(and(eq(tasks.id, input.id), isNull(tasks.deletedAt)))
+					.returning();
+
+				const txid = await getCurrentTxid(tx);
+
+				return { task, txid };
+			});
+
+			if (result.task) {
+				syncTask(result.task.id);
+			}
+
+			return result;
+		}),
 
 	update: protectedProcedure
 		.input(updateTaskSchema)
