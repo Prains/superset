@@ -425,10 +425,11 @@ function AutomationsPage() {
 	const statusWidth = scope === "team" ? "w-[12%]" : "w-[13%]";
 	const columnCount = scope === "team" ? 6 : 5;
 	const showAutomationLoading = !automationsReady && tabVisible.length === 0;
-	const showMineEmptyState =
-		automationsReady && tabVisible.length === 0 && scope === "mine";
-	const showTeamEmptyState =
-		automationsReady && tabVisible.length === 0 && scope === "team";
+	// True first run: nothing in the org — stats/tabs/search are noise.
+	const orgEmpty = automationsReady && automations.length === 0;
+	const tabEmpty = automationsReady && tabVisible.length === 0;
+	const showMineEmptyState = tabEmpty && scope === "mine";
+	const showTeamEmptyState = tabEmpty && scope === "team";
 
 	const renderAutomationRow = (automation: SelectAutomation) => (
 		<AutomationRow
@@ -484,7 +485,7 @@ function AutomationsPage() {
 			<div className="drag h-10 shrink-0" />
 
 			<div className="min-h-0 flex-1 overflow-y-auto">
-				<div className="mx-auto w-full max-w-5xl px-8 pb-12">
+				<div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 pb-12">
 					<div className="flex items-center justify-between">
 						<h1 className="text-xl font-semibold tracking-tight">
 							Automations
@@ -522,91 +523,99 @@ function AutomationsPage() {
 						</div>
 					</div>
 
-					<div className="mt-5">
-						{showAutomationLoading ? (
-							<div className="grid grid-cols-3 gap-2">
-								{["a", "b", "c"].map((key) => (
-									<Skeleton key={key} className="h-[70px] w-full" />
-								))}
-							</div>
-						) : (
-							<AutomationStatCards
-								active={runStats.active}
-								created7d={runStats.created7d}
-								failed7d={runStats.failed7d}
-								failedFilter={failedOnly}
-								canFilterFailed={failedInTab.length > 0}
-								onToggleFailedFilter={() => setFailedOnly((v) => !v)}
-							/>
-						)}
-					</div>
-
-					<div className="mt-6 flex items-center justify-between gap-2">
-						<Tabs value={scope} onValueChange={handleScopeChange}>
-							<TabsList className="h-8 bg-transparent p-0 gap-1">
-								<TabsTrigger
-									value="mine"
-									className="h-8 rounded-md px-3 data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground"
-								>
-									<span className="text-sm">Mine</span>
-									<span className="ml-1 tabular-nums text-xs text-muted-foreground">
-										{mineCount}
-									</span>
-								</TabsTrigger>
-								<TabsTrigger
-									value="team"
-									className="h-8 rounded-md px-3 data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground"
-								>
-									<span className="text-sm">Team</span>
-									<span className="ml-1 tabular-nums text-xs text-muted-foreground">
-										{teamCount}
-									</span>
-								</TabsTrigger>
-							</TabsList>
-						</Tabs>
-						<div className="flex items-center gap-2">
-							{scope === "mine" && failedMine.length > 0 && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											className="h-8 gap-1.5 px-3"
-											disabled={retryAllMutation.isPending}
-											onClick={() => retryAllMutation.mutate(failedMine)}
-										>
-											<LuRotateCw
-												className={cn(
-													"size-4",
-													retryAllMutation.isPending && "animate-spin",
-												)}
-											/>
-											<span>Retry all</span>
-											<span className="tabular-nums text-xs text-muted-foreground">
-												{failedMine.length}
-											</span>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>
-										Retry every automation whose last run failed
-									</TooltipContent>
-								</Tooltip>
-							)}
-							<div className="relative">
-								<LuSearch className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-								<Input
-									value={search}
-									onChange={(e) => setSearch(e.target.value)}
-									placeholder="Search"
-									aria-label="Search automations"
-									className="h-8 w-44 pl-8"
+					{/* Zero-count stats and search are noise while a tab is empty;
+					    with nothing in the org at all the tabs go too. */}
+					{!tabEmpty && (
+						<div className="mt-5">
+							{showAutomationLoading ? (
+								<div className="grid grid-cols-3 gap-2">
+									{["a", "b", "c"].map((key) => (
+										<Skeleton key={key} className="h-[70px] w-full" />
+									))}
+								</div>
+							) : (
+								<AutomationStatCards
+									active={runStats.active}
+									created7d={runStats.created7d}
+									failed7d={runStats.failed7d}
+									failedFilter={failedOnly}
+									canFilterFailed={failedInTab.length > 0}
+									onToggleFailedFilter={() => setFailedOnly((v) => !v)}
 								/>
-							</div>
+							)}
 						</div>
-					</div>
+					)}
 
-					<div className="mt-3">
+					{!orgEmpty && (
+						<div className="mt-6 flex items-center justify-between gap-2">
+							<Tabs value={scope} onValueChange={handleScopeChange}>
+								<TabsList className="h-8 bg-transparent p-0 gap-1">
+									<TabsTrigger
+										value="mine"
+										className="h-8 rounded-md px-3 data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground"
+									>
+										<span className="text-sm">Mine</span>
+										<span className="ml-1 tabular-nums text-xs text-muted-foreground">
+											{mineCount}
+										</span>
+									</TabsTrigger>
+									<TabsTrigger
+										value="team"
+										className="h-8 rounded-md px-3 data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground"
+									>
+										<span className="text-sm">Team</span>
+										<span className="ml-1 tabular-nums text-xs text-muted-foreground">
+											{teamCount}
+										</span>
+									</TabsTrigger>
+								</TabsList>
+							</Tabs>
+							{!tabEmpty && (
+								<div className="flex items-center gap-2">
+									{scope === "mine" && failedMine.length > 0 && (
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													type="button"
+													variant="outline"
+													size="sm"
+													className="h-8 gap-1.5 px-3"
+													disabled={retryAllMutation.isPending}
+													onClick={() => retryAllMutation.mutate(failedMine)}
+												>
+													<LuRotateCw
+														className={cn(
+															"size-4",
+															retryAllMutation.isPending && "animate-spin",
+														)}
+													/>
+													<span>Retry all</span>
+													<span className="tabular-nums text-xs text-muted-foreground">
+														{failedMine.length}
+													</span>
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>
+												Retry every automation whose last run failed
+											</TooltipContent>
+										</Tooltip>
+									)}
+									<div className="relative">
+										<LuSearch className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+										<Input
+											value={search}
+											onChange={(e) => setSearch(e.target.value)}
+											placeholder="Search"
+											aria-label="Search automations"
+											className="h-8 w-44 pl-8"
+										/>
+									</div>
+								</div>
+							)}
+						</div>
+					)}
+
+					<div className={cn("mt-3", tabEmpty && "flex flex-1 flex-col")}>
 						{showAutomationLoading ? (
 							<div className="space-y-2">
 								{["a", "b", "c", "d", "e", "f"].map((key) => (
@@ -614,7 +623,7 @@ function AutomationsPage() {
 								))}
 							</div>
 						) : showMineEmptyState ? (
-							<div className="py-10">
+							<div className="flex-1 py-6">
 								<AutomationsEmptyState
 									onSelectTemplate={handleSelectTemplate}
 									onCreate={() => setCreateOpen(true)}
@@ -727,7 +736,7 @@ function AutomationsPage() {
 						)}
 					</div>
 
-					{!cliHintDismissed && !showAutomationLoading && (
+					{!cliHintDismissed && !showAutomationLoading && !tabEmpty && (
 						<div className="relative mt-4 flex items-center gap-2.5 rounded-lg border border-border/60 px-3 py-2 pr-9">
 							<LuTerminal className="size-3.5 shrink-0 text-muted-foreground" />
 							<p className="min-w-0 truncate text-xs text-muted-foreground">

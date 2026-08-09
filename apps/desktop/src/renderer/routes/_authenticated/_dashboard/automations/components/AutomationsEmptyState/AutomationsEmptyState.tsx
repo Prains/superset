@@ -1,7 +1,5 @@
-import { COMPANY } from "@superset/shared/constants";
-import { Button } from "@superset/ui/button";
 import { useEffect, useState } from "react";
-import { LuPlus, LuSparkles } from "react-icons/lu";
+import { LuSparkles } from "react-icons/lu";
 import {
 	type AutomationTemplate,
 	ONBOARDING_SUGGESTIONS,
@@ -75,32 +73,6 @@ export function AutomationsEmptyState({
 						/>
 					))}
 				</div>
-			</div>
-
-			<div className="flex items-center gap-2">
-				<Button
-					type="button"
-					size="sm"
-					className="h-8 gap-1.5 px-3"
-					onClick={onCreate}
-				>
-					<LuPlus className="size-4" />
-					Create automation
-				</Button>
-				<Button
-					asChild
-					variant="ghost"
-					size="sm"
-					className="h-8 text-muted-foreground"
-				>
-					<a
-						href={`${COMPANY.DOCS_URL}/automations`}
-						target="_blank"
-						rel="noreferrer"
-					>
-						Learn more
-					</a>
-				</Button>
 			</div>
 		</div>
 	);
