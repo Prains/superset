@@ -679,7 +679,7 @@ function AutomationsPage() {
 								))}
 							</div>
 						) : showMineEmptyState ? (
-							<div className="flex-1 py-6">
+							<div className="flex flex-1 flex-col py-6">
 								<AutomationsEmptyState
 									onSelectTemplate={handleSelectTemplate}
 									onCreateWithAgent={handleCreateWithAgent}

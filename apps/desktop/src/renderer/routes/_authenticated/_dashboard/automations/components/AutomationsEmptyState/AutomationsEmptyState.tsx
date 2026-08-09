@@ -36,7 +36,7 @@ export function AutomationsEmptyState({
 	}, []);
 
 	return (
-		<div className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center gap-10 pb-10">
+		<div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-10 pb-10">
 			<div className="flex w-full flex-col items-center gap-3 text-center">
 				<h2 className="text-lg font-semibold tracking-tight">
 					What should run on a schedule?
