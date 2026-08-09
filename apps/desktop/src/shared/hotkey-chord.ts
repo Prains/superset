@@ -29,8 +29,18 @@ export const MODIFIERS = new Set(["meta", "ctrl", "control", "alt", "shift"]);
 // Lock keys must never commit a binding on their own.
 const LOCK_KEYS = new Set(["capslock", "numlock", "scrolllock"]);
 
+const CODE_ALIASES_LOWER: Record<string, string> = Object.fromEntries(
+	Object.entries(CODE_ALIASES).map(([key, value]) => [
+		key.toLowerCase(),
+		value,
+	]),
+);
+
 export function normalizeToken(token: string): string {
-	const aliased = CODE_ALIASES[token.trim()] ?? token.trim();
+	const trimmed = token.trim();
+	// Case-insensitive alias lookup: chord strings arrive both as raw
+	// event.code (`MetaLeft`) and as pre-lowercased tokens (`metaleft`).
+	const aliased = CODE_ALIASES_LOWER[trimmed.toLowerCase()] ?? trimmed;
 	return aliased.toLowerCase().replace(/key|digit|numpad/, "");
 }
 
@@ -43,7 +53,9 @@ export function isIgnorableKey(normalized: string): boolean {
  * aliases: `meta+alt+up` ≡ `alt+meta+arrowup` ≡ `control+alt+arrowup`.
  */
 export function canonicalizeChord(chord: string): string {
-	const parts = chord.toLowerCase().split("+").map(normalizeToken);
+	// normalizeToken lowercases after its alias lookup; lowercasing here first
+	// would break case-sensitive physical-code aliases like `MetaLeft` → meta.
+	const parts = chord.split("+").map(normalizeToken);
 	const mods: string[] = [];
 	const keys: string[] = [];
 	for (const part of parts) {

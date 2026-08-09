@@ -43,6 +43,18 @@ function input(
 	};
 }
 
+describe("canonicalizeChord", () => {
+	it("resolves physical modifier codes regardless of case", () => {
+		expect(canonicalizeChord("MetaLeft+KeyK")).toBe("meta+k");
+		expect(canonicalizeChord("metaleft+k")).toBe("meta+k");
+	});
+
+	it("resolves word aliases regardless of case", () => {
+		expect(canonicalizeChord("ctrl+Return")).toBe("ctrl+enter");
+		expect(canonicalizeChord("CTRL+ESC")).toBe("ctrl+escape");
+	});
+});
+
 describe("chordFromInput", () => {
 	it("canonicalizes modifiers regardless of press order", () => {
 		expect(chordFromInput(input({ code: "BracketLeft", control: true }))).toBe(

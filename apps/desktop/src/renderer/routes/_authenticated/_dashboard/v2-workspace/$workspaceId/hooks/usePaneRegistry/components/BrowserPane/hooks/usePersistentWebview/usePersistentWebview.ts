@@ -178,7 +178,11 @@ export function usePersistentWebview({
 				.map(canonicalizeChord);
 			electronTrpcClient.browser.setForwardableChords
 				.mutate({ chords })
-				.catch(() => {});
+				.catch((error) => {
+					// Stale main-process suppression means webview tab-switch hotkeys
+					// silently stop working — leave a trace.
+					console.warn("[browser] failed to sync forwardable chords", error);
+				});
 		};
 		push();
 		const unsubs = [

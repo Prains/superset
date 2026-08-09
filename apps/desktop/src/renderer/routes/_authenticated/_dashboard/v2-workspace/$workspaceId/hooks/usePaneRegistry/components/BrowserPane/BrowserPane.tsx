@@ -1,7 +1,7 @@
 import type { RendererContext, Tab } from "@superset/panes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { GlobeIcon } from "lucide-react";
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { TbDeviceDesktop } from "react-icons/tb";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import type { BrowserPaneData, PaneViewerData } from "../../../../types";
@@ -9,6 +9,7 @@ import type { BrowserPaneData, PaneViewerData } from "../../../../types";
 import { browserRuntimeRegistry } from "./browserRuntimeRegistry";
 import { BrowserErrorOverlay } from "./components/BrowserErrorOverlay";
 import { BrowserOverflowMenu } from "./components/BrowserOverflowMenu";
+import { BrowserTabFavicon } from "./components/BrowserTabFavicon";
 import { BrowserToolbar } from "./components/BrowserToolbar";
 import { usePersistentWebview } from "./hooks/usePersistentWebview";
 
@@ -22,29 +23,18 @@ function getSingleBrowserPane(
 	return { id: pane.id, data: pane.data as BrowserPaneData };
 }
 
-function BrowserTabFavicon({ src }: { src: string | null }) {
-	const [failed, setFailed] = useState(false);
-	// Chromium guesses /favicon.ico for pages that declare none, so the URL can
-	// 404 — fall back to a globe instead of a broken image.
-	if (!src || failed) {
-		return <GlobeIcon className="size-3.5 shrink-0 text-muted-foreground" />;
-	}
-	return (
-		<img
-			src={src}
-			alt=""
-			className="size-3.5 shrink-0"
-			onError={() => setFailed(true)}
-		/>
-	);
-}
-
 export function renderBrowserTabIcon(tab: Tab<PaneViewerData>) {
 	const browser = getSingleBrowserPane(tab);
 	if (!browser) return null;
 	const faviconUrl = browser.data.faviconUrl ?? null;
-	// Keyed by URL so a failed favicon retries when the pane navigates.
-	return <BrowserTabFavicon key={faviconUrl ?? "none"} src={faviconUrl} />;
+	// Keyed by page + favicon URL so a failed favicon retries on navigation
+	// even when the favicon URL itself is unchanged.
+	return (
+		<BrowserTabFavicon
+			key={`${browser.data.url}|${faviconUrl ?? "none"}`}
+			src={faviconUrl}
+		/>
+	);
 }
 
 interface BrowserPaneProps {
