@@ -57,6 +57,10 @@ type HeadlessInternals = {
 	};
 };
 
+// Scrollback retained by the emulator and emitted by grid resyncs. Bounds the
+// per-attach resync payload; history beyond it is renderer-local only.
+const TRACKER_SCROLLBACK_LINES = 1000;
+
 export function createModeTracker(cols: number, rows: number): ModeTracker {
 	const term = new HeadlessTerminal({
 		cols,
@@ -64,7 +68,7 @@ export function createModeTracker(cols: number, rows: number): ModeTracker {
 		// Retains recent scrollback so `snapshot()` can serve line-mode history,
 		// not just the visible screen. Irrelevant to alt-screen TUIs (no
 		// scrollback), but cheap insurance for plain shell output.
-		scrollback: 1000,
+		scrollback: TRACKER_SCROLLBACK_LINES,
 		allowProposedApi: true,
 	});
 	const serializeAddon = new SerializeAddon();
@@ -166,7 +170,7 @@ export function createModeTracker(cols: number, rows: number): ModeTracker {
 		},
 		snapshot,
 		serialize() {
-			return serializeAddon.serialize({ scrollback: 1000 });
+			return serializeAddon.serialize({ scrollback: TRACKER_SCROLLBACK_LINES });
 		},
 		dispose() {
 			term.dispose();

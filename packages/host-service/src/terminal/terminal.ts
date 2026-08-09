@@ -1391,12 +1391,13 @@ export async function createTerminalSessionInternal({
 	}
 
 	const cwd = resolveTerminalCwd(cwdOverride, workspace.worktreePath);
-	const cols = normalizeTerminalDimension(
+	// Adoption overrides these with the live PTY's dimensions below.
+	let cols = normalizeTerminalDimension(
 		requestedCols,
 		MIN_TERMINAL_COLS,
 		DEFAULT_TERMINAL_COLS,
 	);
-	const rows = normalizeTerminalDimension(
+	let rows = normalizeTerminalDimension(
 		requestedRows,
 		MIN_TERMINAL_ROWS,
 		DEFAULT_TERMINAL_ROWS,
@@ -1443,6 +1444,10 @@ export async function createTerminalSessionInternal({
 			}
 			openResult = { pid: found.pid };
 			isAdopted = true;
+			// The ring replay must be parsed at the width the app drew at, so
+			// the tracker takes the live PTY's dimensions, not caller defaults.
+			cols = normalizeTerminalDimension(found.cols, MIN_TERMINAL_COLS, cols);
+			rows = normalizeTerminalDimension(found.rows, MIN_TERMINAL_ROWS, rows);
 			console.log(
 				`[terminal] adopted existing daemon session ${terminalId} pid=${found.pid}`,
 			);
@@ -1469,6 +1474,16 @@ export async function createTerminalSessionInternal({
 					if (!found) throw err;
 					openResult = { pid: found.pid };
 					isAdopted = true;
+					cols = normalizeTerminalDimension(
+						found.cols,
+						MIN_TERMINAL_COLS,
+						cols,
+					);
+					rows = normalizeTerminalDimension(
+						found.rows,
+						MIN_TERMINAL_ROWS,
+						rows,
+					);
 					console.log(
 						`[terminal] adopted existing daemon session ${terminalId} pid=${found.pid}`,
 					);
@@ -1856,8 +1871,13 @@ export function registerWorkspaceTerminalRoute({
 					eventBus,
 					adoptOnly: true,
 				});
-				if (!("error" in adopted))
+				if (!("error" in adopted)) {
+					// The ring replay streams in asynchronously and rebuilds the
+					// fresh tracker. Let it quiesce so the attach resync carries the
+					// prior content instead of a reset + near-empty grid.
+					await waitForAdoptionReplay(adopted);
 					return { session: adopted, respawned: false };
+				}
 
 				// Active row but daemon no longer owns the PTY (laptop sleep,
 				// daemon restart, machine reboot). Respawn rather than dead-end
@@ -1873,6 +1893,10 @@ export function registerWorkspaceTerminalRoute({
 						error,
 					);
 				}
+				// A concurrent attach may have created the session while we awaited
+				// the adopt attempt — only the attach that actually creates the
+				// respawn may skip the reset.
+				const createdByThisAttach = !sessions.has(terminalId);
 				const respawned = await createTerminalSessionInternal({
 					terminalId,
 					workspaceId: record.originWorkspaceId,
@@ -1882,7 +1906,7 @@ export function registerWorkspaceTerminalRoute({
 					restoredNotice: true,
 				});
 				if ("error" in respawned) return respawned;
-				return { session: respawned, respawned: true };
+				return { session: respawned, respawned: createdByThisAttach };
 			};
 
 			return {
