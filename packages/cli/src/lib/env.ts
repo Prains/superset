@@ -10,3 +10,8 @@ export const env = {
 	SUPERSET_WEB_URL: process.env.SUPERSET_WEB_URL || "https://app.superset.sh",
 	VERSION: process.env.SUPERSET_VERSION || "0.0.0-dev",
 };
+
+/** True when this executable is shipped inside the Desktop application. */
+export function isDesktopBundled(): boolean {
+	return process.env.SUPERSET_CLI_CHANNEL === "desktop-bundled";
+}

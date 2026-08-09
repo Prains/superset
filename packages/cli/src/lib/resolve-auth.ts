@@ -18,6 +18,13 @@ export async function resolveAuth(
 	apiKeyOption: string | undefined,
 ): Promise<ResolvedAuth> {
 	let config = readConfig();
+	const organizationId =
+		process.env.SUPERSET_ORGANIZATION_ID?.trim() || config.organizationId;
+	if (organizationId !== config.organizationId) {
+		// Desktop-managed terminals provide workspace-scoped routing context.
+		// Apply it only to this invocation; never rewrite the CLI's global org.
+		config = { ...config, organizationId };
+	}
 
 	// An explicit --api-key wins; otherwise SUPERSET_API_KEY env acts as an
 	// override for this invocation (headless/CI). Both beat stored config/OAuth.

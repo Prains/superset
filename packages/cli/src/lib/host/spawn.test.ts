@@ -7,6 +7,7 @@ import type { ApiClient } from "../api-client";
 const originalFetch = globalThis.fetch;
 const originalSupersetHomeDir = process.env.SUPERSET_HOME_DIR;
 const originalHostBin = process.env.SUPERSET_HOST_BIN;
+const originalCliChannel = process.env.SUPERSET_CLI_CHANNEL;
 const tempHome = mkdtempSync(join(tmpdir(), "superset-cli-spawn-"));
 const hostBin = join(tempHome, "superset-host");
 
@@ -58,6 +59,7 @@ afterEach(() => {
 	spawnCalls.length = 0;
 	spawnMock.mockClear();
 	globalThis.fetch = originalFetch;
+	delete process.env.SUPERSET_CLI_CHANNEL;
 });
 
 afterAll(() => {
@@ -72,9 +74,32 @@ afterAll(() => {
 	} else {
 		process.env.SUPERSET_HOST_BIN = originalHostBin;
 	}
+	if (originalCliChannel === undefined) {
+		delete process.env.SUPERSET_CLI_CHANNEL;
+	} else {
+		process.env.SUPERSET_CLI_CHANNEL = originalCliChannel;
+	}
 });
 
 describe("spawnHostService", () => {
+	test("explains that the desktop-bundled CLI cannot spawn a host", async () => {
+		process.env.SUPERSET_HOST_BIN = join(tempHome, "missing-host");
+		process.env.SUPERSET_CLI_CHANNEL = "desktop-bundled";
+		try {
+			await expect(
+				spawnHostService({
+					organizationId: "00000000-0000-0000-0000-000000000001",
+					sessionToken: "session-token",
+					api: createApi(),
+					port: 54879,
+					daemon: true,
+				}),
+			).rejects.toThrow(/bundled with Superset Desktop/);
+		} finally {
+			process.env.SUPERSET_HOST_BIN = hostBin;
+		}
+	});
+
 	test("passes SUPERSET_AUTH_CONFIG_PATH when provided", async () => {
 		globalThis.fetch = mock(
 			async () => new Response("ok", { status: 200 }),

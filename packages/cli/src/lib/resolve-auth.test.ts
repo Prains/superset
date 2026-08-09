@@ -10,7 +10,7 @@ const tempHome = fs.mkdtempSync(
 process.env.SUPERSET_HOME_DIR = tempHome;
 
 const { resolveAuth } = await import("./resolve-auth");
-const { writeConfig } = await import("./config");
+const { readConfig, writeConfig } = await import("./config");
 
 function clearConfig(): void {
 	writeConfig({});
@@ -19,11 +19,14 @@ function clearConfig(): void {
 // Clean baseline: the real dev/CI shell may export SUPERSET_API_KEY, which
 // would leak into every test. Clear it for the suite, restore in afterAll.
 const originalEnvKey = process.env.SUPERSET_API_KEY;
+const originalOrganizationId = process.env.SUPERSET_ORGANIZATION_ID;
 delete process.env.SUPERSET_API_KEY;
+delete process.env.SUPERSET_ORGANIZATION_ID;
 
 afterEach(() => {
 	clearConfig();
 	delete process.env.SUPERSET_API_KEY;
+	delete process.env.SUPERSET_ORGANIZATION_ID;
 });
 
 afterAll(() => {
@@ -35,6 +38,11 @@ afterAll(() => {
 	}
 	if (originalEnvKey === undefined) delete process.env.SUPERSET_API_KEY;
 	else process.env.SUPERSET_API_KEY = originalEnvKey;
+	if (originalOrganizationId === undefined) {
+		delete process.env.SUPERSET_ORGANIZATION_ID;
+	} else {
+		process.env.SUPERSET_ORGANIZATION_ID = originalOrganizationId;
+	}
 });
 
 describe("resolveAuth", () => {
@@ -54,6 +62,16 @@ describe("resolveAuth", () => {
 		expect(result.bearer).toBe("sk_live_stored");
 		expect(result.authSource).toBe("config");
 		expect(result.config.organizationId).toBe("org_1");
+	});
+
+	it("prefers terminal organization context without changing stored config", async () => {
+		writeConfig({ apiKey: "sk_live_stored", organizationId: "org-global" });
+		process.env.SUPERSET_ORGANIZATION_ID = "org-workspace";
+
+		const result = await resolveAuth(undefined);
+
+		expect(result.config.organizationId).toBe("org-workspace");
+		expect(readConfig().organizationId).toBe("org-global");
 	});
 
 	it("uses a stored OAuth session when present and unexpired", async () => {
