@@ -146,8 +146,17 @@ export const createSession = protectedProcedure
 		} catch (err) {
 			// The folder was allocated this call and holds only the scaffold —
 			// remove it so a failed insert (e.g. a concurrent create winning
-			// the same optimistic id) can't leak directories.
-			rmSync(repoPath, { recursive: true, force: true });
+			// the same optimistic id) can't leak directories. Best-effort: a
+			// cleanup failure must not mask the insert error or the
+			// winner-return path below.
+			try {
+				rmSync(repoPath, { recursive: true, force: true });
+			} catch (cleanupErr) {
+				console.warn(
+					"[workspaces.createSession] failed to clean up session folder after insert failure:",
+					cleanupErr,
+				);
+			}
 			if (input.id !== undefined) {
 				const winner = getLocalWorkspace(ctx.db, input.id);
 				if (winner) {
