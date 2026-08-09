@@ -18,6 +18,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { Terminal: HeadlessTerminal } =
 	require("@xterm/headless") as typeof import("@xterm/headless");
+const { SerializeAddon } =
+	require("@xterm/addon-serialize") as typeof import("@xterm/addon-serialize");
 
 export interface ModeTracker {
 	feed(bytes: Uint8Array): void;
@@ -25,6 +27,12 @@ export interface ModeTracker {
 	buildPreamble(): Uint8Array | null;
 	isBracketedPasteActive(): boolean;
 	snapshot(maxLines?: number): TerminalSnapshot;
+	/**
+	 * Full-fidelity VT dump of the emulator buffer (content, colors, cursor,
+	 * alt-screen switch) for grid resync on attach. Escape-sequence string,
+	 * not plain text — write it into a freshly reset xterm.
+	 */
+	serialize(): string;
 	dispose(): void;
 }
 
@@ -59,6 +67,8 @@ export function createModeTracker(cols: number, rows: number): ModeTracker {
 		scrollback: 1000,
 		allowProposedApi: true,
 	});
+	const serializeAddon = new SerializeAddon();
+	term.loadAddon(serializeAddon);
 	const internals = term as unknown as HeadlessInternals;
 
 	// Validate the private surface up front so a future @xterm/headless
@@ -155,6 +165,9 @@ export function createModeTracker(cols: number, rows: number): ModeTracker {
 			return term.modes.bracketedPasteMode;
 		},
 		snapshot,
+		serialize() {
+			return serializeAddon.serialize({ scrollback: 1000 });
+		},
 		dispose() {
 			term.dispose();
 		},
