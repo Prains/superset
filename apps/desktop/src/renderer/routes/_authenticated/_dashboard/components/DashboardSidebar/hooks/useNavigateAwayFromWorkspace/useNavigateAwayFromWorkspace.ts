@@ -2,7 +2,6 @@ import { useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import { navigateToV2Workspace } from "renderer/routes/_authenticated/_dashboard/utils/workspace-navigation";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
-import { useDeletingWorkspaces } from "renderer/routes/_authenticated/providers/DeletingWorkspacesProvider";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 import { getFlattenedV2WorkspaceIds } from "../../utils/getFlattenedV2WorkspaceIds";
 import { resolveWorkspaceRemovalNavigationTarget } from "./navigationTarget";
@@ -26,7 +25,6 @@ export function useNavigateAwayFromWorkspace() {
 		() => new Set(workspaces.map((workspace) => workspace.id)),
 		[workspaces],
 	);
-	const { isDeleting } = useDeletingWorkspaces();
 
 	const navigateAwayFromWorkspace = useCallback(
 		(
@@ -47,8 +45,10 @@ export function useNavigateAwayFromWorkspace() {
 				// "unknown", not "gone" — prefer navigating to it over home; the
 				// workspace route's own not-found handling covers a true miss.
 				isWorkspaceValid: (id) => !isReady || workspaceIds.has(id),
+				// Rows mid-destroy vanish from the list at the archive commit
+				// point; only the caller's own in-flight batch needs excluding.
 				isWorkspaceDeleting: (id) =>
-					additionalDeletingWorkspaceIds?.has(id) === true || isDeleting(id),
+					additionalDeletingWorkspaceIds?.has(id) === true,
 			});
 
 			if (!target) return;
@@ -62,7 +62,7 @@ export function useNavigateAwayFromWorkspace() {
 				reportRemovalNavigationError,
 			);
 		},
-		[collections, workspaceIds, isDeleting, matchRoute, navigate, isReady],
+		[collections, workspaceIds, matchRoute, navigate, isReady],
 	);
 
 	return { navigateAwayFromWorkspace };

@@ -10,7 +10,6 @@ import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences/useV2U
 import { useNavigateAwayFromWorkspace } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/hooks/useNavigateAwayFromWorkspace";
 import type { DashboardSidebarWorkspace } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/types";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
-import { useDeletingWorkspaces } from "renderer/routes/_authenticated/providers/DeletingWorkspacesProvider";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 import {
 	type BulkWorkspaceInspectionState,
@@ -51,7 +50,6 @@ export function useBulkWorkspaceDelete({
 	onDeleted,
 }: UseBulkWorkspaceDeleteOptions) {
 	const { cache: hostWorkspacesCache } = useHostWorkspaces();
-	const { markDeleting, clearDeleting } = useDeletingWorkspaces();
 	const { navigateAwayFromWorkspace } = useNavigateAwayFromWorkspace();
 	const { removeWorkspaceFromSidebar } = useDashboardSidebarState();
 	const { preferences, setDeleteLocalBranch } = useV2UserPreferences();
@@ -138,7 +136,6 @@ export function useBulkWorkspaceDelete({
 			let deletedIds: string[] = [];
 			let selectionReconciled = false;
 			try {
-				for (const workspace of targets) markDeleting(workspace.id);
 				for (const workspace of targets) {
 					navigateAwayFromWorkspace(workspace.id, targetIds);
 				}
@@ -235,16 +232,13 @@ export function useBulkWorkspaceDelete({
 					},
 				);
 			} finally {
-				for (const workspace of targets) clearDeleting(workspace.id);
 				setIsDeleting(false);
 				inFlight.current = false;
 			}
 		},
 		[
-			clearDeleting,
 			hostWorkspacesCache,
 			inspections,
-			markDeleting,
 			navigateAwayFromWorkspace,
 			onDeleted,
 			onOpenChange,

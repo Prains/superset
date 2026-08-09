@@ -10,7 +10,6 @@ import {
 } from "renderer/hooks/host-service/useDestroyWorkspace";
 import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences/useV2UserPreferences";
 import { useNavigateAwayFromWorkspace } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/hooks/useNavigateAwayFromWorkspace";
-import { useDeletingWorkspaces } from "renderer/routes/_authenticated/providers/DeletingWorkspacesProvider";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 
 interface UseDestroyDialogStateOptions {
@@ -37,7 +36,6 @@ export function useDestroyDialogState({
 	const { destroy, inspect, hostTarget } = useDestroyWorkspace(workspaceId);
 	const { workspaces: hostWorkspaces, cache: hostWorkspacesCache } =
 		useHostWorkspaces();
-	const { markDeleting, clearDeleting } = useDeletingWorkspaces();
 	const { navigateAwayFromWorkspace } = useNavigateAwayFromWorkspace();
 
 	const { preferences, setDeleteLocalBranch: setDeleteBranch } =
@@ -102,7 +100,6 @@ export function useDestroyDialogState({
 
 			setError(null);
 			onOpenChange(false);
-			markDeleting(workspaceId);
 			// Navigate up-front: no-ops if the deleted workspace isn't the
 			// active route, so a later user navigation won't be hijacked.
 			navigateAwayFromWorkspace(workspaceId);
@@ -151,7 +148,6 @@ export function useDestroyDialogState({
 					);
 				}
 			} finally {
-				clearDeleting(workspaceId);
 				inFlight.current = false;
 			}
 		},
@@ -162,8 +158,6 @@ export function useDestroyDialogState({
 			workspaceId,
 			onOpenChange,
 			onDeleted,
-			markDeleting,
-			clearDeleting,
 			navigateAwayFromWorkspace,
 			hostWorkspaces,
 			hostWorkspacesCache,
