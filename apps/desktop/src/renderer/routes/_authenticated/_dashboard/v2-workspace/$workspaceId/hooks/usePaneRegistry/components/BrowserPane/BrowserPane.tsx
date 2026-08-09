@@ -1,7 +1,7 @@
 import type { RendererContext, Tab } from "@superset/panes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { GlobeIcon } from "lucide-react";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { TbDeviceDesktop } from "react-icons/tb";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import type { BrowserPaneData, PaneViewerData } from "../../../../types";
@@ -22,12 +22,29 @@ function getSingleBrowserPane(
 	return { id: pane.id, data: pane.data as BrowserPaneData };
 }
 
+function BrowserTabFavicon({ src }: { src: string | null }) {
+	const [failed, setFailed] = useState(false);
+	// Chromium guesses /favicon.ico for pages that declare none, so the URL can
+	// 404 — fall back to a globe instead of a broken image.
+	if (!src || failed) {
+		return <GlobeIcon className="size-3.5 shrink-0 text-muted-foreground" />;
+	}
+	return (
+		<img
+			src={src}
+			alt=""
+			className="size-3.5 shrink-0"
+			onError={() => setFailed(true)}
+		/>
+	);
+}
+
 export function renderBrowserTabIcon(tab: Tab<PaneViewerData>) {
 	const browser = getSingleBrowserPane(tab);
-	if (!browser?.data.faviconUrl) return null;
-	return (
-		<img src={browser.data.faviconUrl} alt="" className="size-3.5 shrink-0" />
-	);
+	if (!browser) return null;
+	const faviconUrl = browser.data.faviconUrl ?? null;
+	// Keyed by URL so a failed favicon retries when the pane navigates.
+	return <BrowserTabFavicon key={faviconUrl ?? "none"} src={faviconUrl} />;
 }
 
 interface BrowserPaneProps {
