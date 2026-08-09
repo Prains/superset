@@ -83,7 +83,7 @@ async function runFresh(): Promise<void> {
 	// Probe AFTER binding so a slow `security` can't delay the socket coming up
 	// (the supervisor has a socket-ready timeout). The value lands before the
 	// supervisor's adoption hello, which happens well after bind.
-	server.setTrustdHealthy(probeTrustdHealthy());
+	server.setTrustdHealthy(await probeTrustdHealthy());
 	process.stderr.write(
 		`[pty-daemon] listening on ${args.socket} (v${daemonVersion}, host=${os.hostname()})\n`,
 	);
@@ -187,9 +187,9 @@ async function runHandoffReceiver(): Promise<void> {
 	log(`predecessor disconnected, binding socket`);
 
 	await server.listenWithRetry();
-	// Probe only now: it's a blocking spawnSync, and running it earlier would
-	// delay the upgrade-ack the predecessor is waiting on (and the socket bind).
-	server.setTrustdHealthy(probeTrustdHealthy());
+	// Probe only now: running it earlier would delay the upgrade-ack the
+	// predecessor is waiting on (and the socket bind).
+	server.setTrustdHealthy(await probeTrustdHealthy());
 	log(`bound and listening`);
 	process.stderr.write(
 		`[pty-daemon] (handoff successor) listening on ${socketPath} (v${daemonVersion}, host=${os.hostname()}, sessions=${snapshot.sessions.length})\n`,

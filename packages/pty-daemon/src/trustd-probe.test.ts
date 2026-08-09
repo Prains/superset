@@ -4,9 +4,9 @@ import { probeTrustdHealthy } from "./trustd-probe.ts";
 const FAKE_BUNDLE = `-----BEGIN CERTIFICATE-----\nMIIFakeCertBytes\n-----END CERTIFICATE-----\n`;
 
 describe("probeTrustdHealthy", () => {
-	it("returns true on non-darwin without running anything", () => {
+	it("returns true on non-darwin without running anything", async () => {
 		let ran = false;
-		const healthy = probeTrustdHealthy({
+		const healthy = await probeTrustdHealthy({
 			platform: "linux",
 			run: () => {
 				ran = true;
@@ -17,9 +17,9 @@ describe("probeTrustdHealthy", () => {
 		expect(ran).toBe(false);
 	});
 
-	it("returns true when verify-cert exits 0 (trustd reachable)", () => {
+	it("returns true when verify-cert exits 0 (trustd reachable)", async () => {
 		expect(
-			probeTrustdHealthy({
+			await probeTrustdHealthy({
 				platform: "darwin",
 				readBundle: () => FAKE_BUNDLE,
 				run: () => ({ status: 0 }),
@@ -27,9 +27,9 @@ describe("probeTrustdHealthy", () => {
 		).toBe(true);
 	});
 
-	it("returns false when verify-cert exits non-zero (trustd unreachable)", () => {
+	it("returns false when verify-cert exits non-zero (trustd unreachable)", async () => {
 		expect(
-			probeTrustdHealthy({
+			await probeTrustdHealthy({
 				platform: "darwin",
 				readBundle: () => FAKE_BUNDLE,
 				run: () => ({ status: 1 }),
@@ -37,10 +37,10 @@ describe("probeTrustdHealthy", () => {
 		).toBe(false);
 	});
 
-	it("verifies the extracted cert (passes -c <file> to security verify-cert)", () => {
+	it("verifies the extracted cert (passes -c <file> to security verify-cert)", async () => {
 		let cmd = "";
 		let args: string[] = [];
-		probeTrustdHealthy({
+		await probeTrustdHealthy({
 			platform: "darwin",
 			readBundle: () => FAKE_BUNDLE,
 			run: (c, a) => {
@@ -55,14 +55,14 @@ describe("probeTrustdHealthy", () => {
 		expect(args[2]).toMatch(/superset-trustd-[^/]+\/probe\.pem$/);
 	});
 
-	it("finds the END marker after BEGIN when an earlier PEM type precedes it", () => {
+	it("finds the END marker after BEGIN when an earlier PEM type precedes it", async () => {
 		// A "TRUSTED CERTIFICATE" block's END sits before the first plain
 		// "BEGIN CERTIFICATE"; indexOf(END, begin) must skip it.
 		const mixed =
 			"-----BEGIN TRUSTED CERTIFICATE-----\nAAA\n-----END TRUSTED CERTIFICATE-----\n" +
 			"-----BEGIN CERTIFICATE-----\nBBB\n-----END CERTIFICATE-----\n";
 		let seenArgs: string[] = [];
-		probeTrustdHealthy({
+		await probeTrustdHealthy({
 			platform: "darwin",
 			readBundle: () => mixed,
 			run: (_c, a) => {
@@ -74,9 +74,9 @@ describe("probeTrustdHealthy", () => {
 		expect(seenArgs[0]).toBe("verify-cert");
 	});
 
-	it("assumes healthy when the CA bundle has no cert (can't determine)", () => {
+	it("assumes healthy when the CA bundle has no cert (can't determine)", async () => {
 		let ran = false;
-		const healthy = probeTrustdHealthy({
+		const healthy = await probeTrustdHealthy({
 			platform: "darwin",
 			readBundle: () => "no certs here",
 			run: () => {
@@ -88,9 +88,9 @@ describe("probeTrustdHealthy", () => {
 		expect(ran).toBe(false);
 	});
 
-	it("assumes healthy when the probe throws (bundle unreadable)", () => {
+	it("assumes healthy when the probe throws (bundle unreadable)", async () => {
 		expect(
-			probeTrustdHealthy({
+			await probeTrustdHealthy({
 				platform: "darwin",
 				readBundle: () => {
 					throw new Error("ENOENT");
@@ -100,9 +100,19 @@ describe("probeTrustdHealthy", () => {
 		).toBe(true);
 	});
 
-	it("assumes healthy when the probe times out / errors (inconclusive)", () => {
+	it("assumes healthy when the run promise rejects (inconclusive)", async () => {
 		expect(
-			probeTrustdHealthy({
+			await probeTrustdHealthy({
+				platform: "darwin",
+				readBundle: () => FAKE_BUNDLE,
+				run: () => Promise.reject(new Error("spawn failed")),
+			}),
+		).toBe(true);
+	});
+
+	it("assumes healthy when the probe times out / errors (inconclusive)", async () => {
+		expect(
+			await probeTrustdHealthy({
 				platform: "darwin",
 				readBundle: () => FAKE_BUNDLE,
 				run: () => ({ status: null, error: new Error("ETIMEDOUT") }),
@@ -110,9 +120,9 @@ describe("probeTrustdHealthy", () => {
 		).toBe(true);
 	});
 
-	it("assumes healthy when the probe is killed by a signal (status null)", () => {
+	it("assumes healthy when the probe is killed by a signal (status null)", async () => {
 		expect(
-			probeTrustdHealthy({
+			await probeTrustdHealthy({
 				platform: "darwin",
 				readBundle: () => FAKE_BUNDLE,
 				run: () => ({ status: null }),

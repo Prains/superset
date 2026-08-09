@@ -223,7 +223,7 @@ export class DaemonSupervisor {
 		Promise<{ ok: true; successorPid: number } | { ok: false; reason: string }>
 	>();
 	/** Whether host-service itself can reach trustd; probed once, cached. */
-	private hostTrustdHealthyCache: boolean | null = null;
+	private hostTrustdHealthyCache: Promise<boolean> | null = null;
 
 	constructor(opts: DaemonSupervisorOptions) {
 		this.opts = opts;
@@ -234,10 +234,8 @@ export class DaemonSupervisor {
 	 * to gate healing a trustd-degraded daemon: only worth respawning from here
 	 * if we're healthy. Cached — a process's bootstrap doesn't change under it.
 	 */
-	private hostTrustdHealthy(): boolean {
-		if (this.hostTrustdHealthyCache === null) {
-			this.hostTrustdHealthyCache = probeTrustdHealthy();
-		}
+	private hostTrustdHealthy(): Promise<boolean> {
+		this.hostTrustdHealthyCache ??= probeTrustdHealthy();
 		return this.hostTrustdHealthyCache;
 	}
 
@@ -842,7 +840,7 @@ export class DaemonSupervisor {
 		if (
 			adopted &&
 			adopted.trustdHealthy === false &&
-			this.hostTrustdHealthy()
+			(await this.hostTrustdHealthy())
 		) {
 			logEvent("pty_daemon_trustd_degraded_respawn", {
 				organizationId,
@@ -1220,7 +1218,7 @@ export class DaemonSupervisor {
 			unreachableSince: null,
 			// A freshly spawned daemon inherits host-service's bootstrap, so its
 			// trustd reachability matches ours.
-			trustdHealthy: this.hostTrustdHealthy(),
+			trustdHealthy: await this.hostTrustdHealthy(),
 		};
 		this.instances.set(organizationId, instance);
 		// Reachability only — `child.on("exit")` above owns death + respawn.

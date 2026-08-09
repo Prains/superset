@@ -10,8 +10,8 @@
 // verify-cert` DOES exercise the platform verifier — exit 0 when trustd is
 // reachable, non-zero when it isn't — so it's the reliable probe.
 
-import { spawnSync } from "node:child_process";
-import * as fs from "node:fs";
+import { execFile } from "node:child_process";
+import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -26,17 +26,39 @@ export interface TrustdProbeResult {
 
 export interface TrustdProbeDeps {
 	platform?: NodeJS.Platform;
-	/** Runs a command; mirrors spawnSync's status/error. */
-	run?: (cmd: string, args: string[]) => TrustdProbeResult;
+	/** Runs a command; status = exit code, null when it never exited cleanly. */
+	run?: (
+		cmd: string,
+		args: string[],
+	) => TrustdProbeResult | Promise<TrustdProbeResult>;
 	/** Reads the system CA bundle (source of a known-good cert to verify). */
-	readBundle?: () => string;
+	readBundle?: () => string | Promise<string>;
 	tmpDir?: string;
 }
 
-// Bounded so a wedged `security` can't stall daemon startup (the probe runs
-// before the socket binds). Comfortably under the supervisor's socket-ready
-// timeout; a real probe takes tens of milliseconds.
+// Bounded so a wedged `security` can't leave the hello-ack reporting
+// "unknown" forever; a real probe takes tens of milliseconds.
 const PROBE_TIMEOUT_MS = 3_000;
+
+/** Async execFile mirrored into spawnSync-style {status, error}. */
+function runCommand(cmd: string, args: string[]): Promise<TrustdProbeResult> {
+	return new Promise((resolve) => {
+		execFile(cmd, args, { timeout: PROBE_TIMEOUT_MS }, (error) => {
+			if (!error) {
+				resolve({ status: 0 });
+				return;
+			}
+			// Clean non-zero exit carries a numeric code; a spawn failure carries
+			// a string code (e.g. ENOENT) and a timeout/signal death sets killed.
+			const { code } = error as { code?: number | string };
+			if (typeof code === "number" && !error.killed) {
+				resolve({ status: code });
+				return;
+			}
+			resolve({ status: null, error });
+		});
+	});
+}
 
 /**
  * True when the platform verifier (trustd) is reachable. macOS only — other
@@ -45,20 +67,19 @@ const PROBE_TIMEOUT_MS = 3_000;
  * error, timeout, or signal death is inconclusive and reported healthy, so a
  * flaky probe never triggers an unwarranted (session-destroying) respawn.
  */
-export function probeTrustdHealthy(deps: TrustdProbeDeps = {}): boolean {
+export async function probeTrustdHealthy(
+	deps: TrustdProbeDeps = {},
+): Promise<boolean> {
 	const platform = deps.platform ?? process.platform;
 	if (platform !== "darwin") return true;
 
-	const run =
-		deps.run ??
-		((cmd: string, args: string[]) =>
-			spawnSync(cmd, args, { timeout: PROBE_TIMEOUT_MS }));
+	const run = deps.run ?? runCommand;
 
 	let certDir: string | undefined;
 	try {
 		const bundle = deps.readBundle
-			? deps.readBundle()
-			: fs.readFileSync(SYSTEM_CERT_BUNDLE, "utf8");
+			? await deps.readBundle()
+			: await fs.readFile(SYSTEM_CERT_BUNDLE, "utf8");
 		const begin = bundle.indexOf(BEGIN);
 		// Search for END only from BEGIN onward so a different earlier PEM type
 		// (e.g. "BEGIN TRUSTED CERTIFICATE") whose END sits before the first
@@ -70,12 +91,12 @@ export function probeTrustdHealthy(deps: TrustdProbeDeps = {}): boolean {
 		const cert = `${bundle.slice(begin, end + END.length)}\n`;
 		// mkdtemp gives a fresh 0700 dir, so the cert path is unpredictable and
 		// can't be pre-seeded as a symlink (TOCTOU) or collide across runs.
-		certDir = fs.mkdtempSync(
+		certDir = await fs.mkdtemp(
 			path.join(deps.tmpDir ?? os.tmpdir(), "superset-trustd-"),
 		);
 		const certPath = path.join(certDir, "probe.pem");
-		fs.writeFileSync(certPath, cert, { mode: 0o600 });
-		const result = run("security", ["verify-cert", "-c", certPath]);
+		await fs.writeFile(certPath, cert, { mode: 0o600 });
+		const result = await run("security", ["verify-cert", "-c", certPath]);
 		if (result.error) return true; // spawn failed / timed out → inconclusive
 		if (typeof result.status !== "number") return true; // killed by signal
 		return result.status === 0;
@@ -83,11 +104,8 @@ export function probeTrustdHealthy(deps: TrustdProbeDeps = {}): boolean {
 		return true;
 	} finally {
 		if (certDir) {
-			try {
-				fs.rmSync(certDir, { recursive: true, force: true });
-			} catch {
-				// best-effort
-			}
+			// best-effort
+			await fs.rm(certDir, { recursive: true, force: true }).catch(() => {});
 		}
 	}
 }

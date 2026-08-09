@@ -72,9 +72,9 @@ export class Server {
 	private readonly opts: ServerOptions;
 	/**
 	 * macOS trustd reachability, surfaced in the hello-ack. Mutable so the
-	 * (blocking) probe can run AFTER the socket binds / handoff-ack is sent
-	 * rather than delaying either — see main.ts. Until set, hello-ack omits it
-	 * and the supervisor treats that as "unknown" (no respawn).
+	 * probe can run AFTER the socket binds / handoff-ack is sent rather than
+	 * delaying either — see main.ts. Until set, hello-ack omits it and the
+	 * supervisor treats that as "unknown" (no respawn).
 	 */
 	private trustdHealthy: boolean | undefined;
 
