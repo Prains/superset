@@ -44,6 +44,16 @@ Cursor deep-dive confirmations (`cursor2-dashboard-nl-prompt-typed.png`, `cursor
 - NL box placeholder cycles concrete examples ("Fix CI failures automatically") — do this instead of a generic prompt.
 - Template modal shows the **full prompt preview** before "Start Building" — our template cards should too.
 
+## Phase 2.5 — Onboarding (research done; ship with Phase 2's NL box)
+
+Ref: `onboard-*.png` in the screenshot corpus (Cursor empty dashboard, Zapier idea cards, ChatGPT example objects, Mistral opt-in announcement).
+
+Finding: nobody tours an empty automations page — the empty state IS the onboarding. Cursor launched Automations with zero tour: permanent sidebar entry + empty state + templates + changelog.
+
+1. **First visit:** NL chat input as the empty-state hero with rotating concrete placeholders; below it, 3-4 Zapier-style full-sentence example-prompt cards that click-to-fill (personalize from repo signals — CI present → "summarize failed CI runs each morning"). One line of run-model education in the empty state: "Each run gets its own isolated workspace — review the diff, merge what's good." That's our only novel teaching burden.
+2. **Returning, never created:** rotate example cards per visit; optionally a dismissible 3-item checklist (create via template one-click / review a run's workspace / turn on notifications). Stronger alternative: a pre-seeded read-only example automation with realistic run history (ChatGPT example-chats pattern).
+3. **Existing users at feature/redesign launch:** "New" dot on the sidebar entry + a single Mistral-style opt-in card ("Not now / Try it" → lands with NL box focused, suggestion pre-filled). No multi-step tours — across all 38 captures, tours only appear for spatially complex surfaces, never list+create pages.
+
 ## Phase 3 — Run history as a review queue
 
 Ref: `cursor2-run-history-daily-code-cleanup.png`, `cursor2-run-detail-transcript-summary.png`, `cursor2-run-detail-diff-mark-as-ready.png`, `codex-automations-list-up-next.png`.
