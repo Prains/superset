@@ -16,7 +16,7 @@ import { TableCell, TableRow } from "@superset/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { CgLaptop } from "react-icons/cg";
 import {
 	LuArrowUpRight,
@@ -40,7 +40,6 @@ import type {
 	V2WorkspacePrSummary,
 } from "renderer/routes/_authenticated/_dashboard/v2-workspaces/hooks/useAccessibleV2Workspaces";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
-import { useDeletingWorkspaces } from "renderer/routes/_authenticated/providers/DeletingWorkspacesProvider";
 import { PRIcon } from "renderer/screens/main/components/PRIcon/PRIcon";
 import { getRelativeTime } from "renderer/screens/main/components/WorkspacesListView/utils";
 
@@ -67,8 +66,9 @@ export function V2WorkspaceRow({
 	const { copyToClipboard } = useCopyToClipboard();
 	const isMainWorkspace = workspace.type === "main";
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-	const { isDeleting } = useDeletingWorkspaces();
-	const deleting = isDeleting(workspace.id);
+	// Latched on first open so the dialog stays mounted through the destroy —
+	// a teardown failure re-opens it to offer force-delete.
+	const [deleteDialogMounted, setDeleteDialogMounted] = useState(false);
 
 	const HostIcon = hostIconFor(workspace.hostType);
 
@@ -130,12 +130,21 @@ export function V2WorkspaceRow({
 		}
 	}, [copyToClipboard, workspace.branch]);
 
-	const handleDeleteClick = useCallback((event: React.MouseEvent) => {
-		event.stopPropagation();
+	const openDeleteDialog = useCallback(() => {
+		setDeleteDialogMounted(true);
 		setIsDeleteDialogOpen(true);
 	}, []);
 
+	const handleDeleteClick = useCallback(
+		(event: React.MouseEvent) => {
+			event.stopPropagation();
+			openDeleteDialog();
+		},
+		[openDeleteDialog],
+	);
+
 	const handleDeleted = useCallback(() => {
+		setDeleteDialogMounted(false);
 		removeWorkspaceFromSidebar(workspace.id);
 	}, [removeWorkspaceFromSidebar, workspace.id]);
 
@@ -183,8 +192,7 @@ export function V2WorkspaceRow({
 				<ContextMenuTrigger asChild>
 					<TableRow
 						aria-current={isCurrentRoute ? "page" : undefined}
-						aria-busy={deleting}
-						tabIndex={deleting ? -1 : 0}
+						tabIndex={0}
 						onClick={handleOpen}
 						onKeyDown={handleRowKeyDown}
 						className={cn(
@@ -194,7 +202,6 @@ export function V2WorkspaceRow({
 							isCurrentRoute
 								? "bg-muted hover:bg-muted focus-visible:bg-muted"
 								: "hover:bg-accent/50 focus-visible:bg-accent/50",
-							deleting && "pointer-events-none opacity-50",
 						)}
 					>
 						<TableCell className="py-1.5 pl-6">
@@ -309,9 +316,7 @@ export function V2WorkspaceRow({
 
 						<TableCell className="py-1.5 pr-6">
 							<div className="flex items-center justify-center">
-								{deleting ? (
-									<AsciiSpinner />
-								) : !isMainWorkspace ? (
+								{!isMainWorkspace ? (
 									<Button
 										size="icon"
 										variant="ghost"
@@ -356,7 +361,7 @@ export function V2WorkspaceRow({
 						<>
 							<ContextMenuSeparator />
 							<ContextMenuItem
-								onSelect={() => setIsDeleteDialogOpen(true)}
+								onSelect={openDeleteDialog}
 								className="text-destructive focus:text-destructive"
 							>
 								<LuTrash2 className="size-4 text-destructive" />
@@ -366,11 +371,11 @@ export function V2WorkspaceRow({
 					) : null}
 				</ContextMenuContent>
 			</ContextMenu>
-			{/* Mount the dialog (and its per-workspace live-query subscription) only
-			    while it's open or a delete is in flight — not idle for every row.
-			    `|| deleting` keeps it mounted through the destroy so a
-			    teardown-failure can re-open it to offer force-delete. */}
-			{!isMainWorkspace && (isDeleteDialogOpen || deleting) ? (
+			{/* Mount the dialog (and its per-workspace live-query subscription)
+			    only once the user opened it — not idle for every row. The latch
+			    keeps it mounted through the destroy so a teardown-failure can
+			    re-open it to offer force-delete. */}
+			{!isMainWorkspace && deleteDialogMounted ? (
 				<DashboardSidebarDeleteDialog
 					workspaceId={workspace.id}
 					workspaceName={workspace.name || workspace.branch}
@@ -429,27 +434,4 @@ function ChecksDot({ status }: ChecksDotProps) {
 		return <LuCircleCheck className="size-3 text-emerald-500" />;
 	}
 	return <LuCircleX className="size-3 text-red-500" />;
-}
-
-const ASCII_SPINNER_FRAMES = ["◰", "◳", "◲", "◱"];
-const ASCII_SPINNER_INTERVAL_MS = 120;
-
-function AsciiSpinner() {
-	const [frame, setFrame] = useState(0);
-
-	useEffect(() => {
-		const id = setInterval(() => {
-			setFrame((prev) => (prev + 1) % ASCII_SPINNER_FRAMES.length);
-		}, ASCII_SPINNER_INTERVAL_MS);
-		return () => clearInterval(id);
-	}, []);
-
-	return (
-		<output
-			aria-label="Deleting workspace"
-			className="select-none font-mono text-base leading-none tabular-nums text-muted-foreground"
-		>
-			{ASCII_SPINNER_FRAMES[frame]}
-		</output>
-	);
 }
