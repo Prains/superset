@@ -1,7 +1,5 @@
 import { Badge } from "@superset/ui/badge";
 import { cn } from "@superset/ui/utils";
-import { useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
 import {
 	LuCircleCheck,
 	LuCircleDashed,
@@ -10,8 +8,7 @@ import {
 	LuLaptop,
 	LuMonitor,
 } from "react-icons/lu";
-import { GATED_FEATURES, usePaywall } from "renderer/components/Paywall";
-import { navigateToV2Workspace } from "renderer/routes/_authenticated/_dashboard/utils/workspace-navigation";
+import { V2WorkspaceContextMenu } from "renderer/routes/_authenticated/_dashboard/v2-workspaces/components/V2WorkspaceContextMenu";
 import type {
 	AccessibleV2Workspace,
 	V2WorkspacePrSummary,
@@ -27,21 +24,31 @@ interface V2WorkspacesBoardCardProps {
 export function V2WorkspacesBoardCard({
 	workspace,
 }: V2WorkspacesBoardCardProps) {
-	const navigate = useNavigate();
-	const { gateFeature } = usePaywall();
+	// Archived tombstones have no worktree or terminals left — no navigation
+	// and no context-menu actions apply.
+	if (workspace.archivedAt != null) {
+		return <BoardCardBody workspace={workspace} />;
+	}
+	return (
+		<V2WorkspaceContextMenu workspace={workspace}>
+			{(actions) => (
+				<BoardCardBody workspace={workspace} onOpen={actions.open} />
+			)}
+		</V2WorkspaceContextMenu>
+	);
+}
+
+function BoardCardBody({
+	workspace,
+	onOpen,
+	...triggerProps
+}: {
+	workspace: AccessibleV2Workspace;
+	onOpen?: () => void;
+	// ContextMenuTrigger asChild merges its handlers/ref in here; they must
+	// reach the real <button> or right-click never opens the menu.
+} & React.ComponentPropsWithRef<"button">) {
 	const isArchived = workspace.archivedAt != null;
-
-	const handleOpen = useCallback(() => {
-		// Archived tombstones have no worktree or terminals left to open.
-		if (isArchived) return;
-		const open = () => navigateToV2Workspace(workspace.id, navigate);
-		if (workspace.hostType === "local-device") {
-			open();
-			return;
-		}
-		gateFeature(GATED_FEATURES.REMOTE_WORKSPACES, open);
-	}, [gateFeature, isArchived, navigate, workspace.hostType, workspace.id]);
-
 	const HostIcon = workspace.hostType === "local-device" ? LuLaptop : LuMonitor;
 	const timeLabel = getRelativeTime(
 		workspace.archivedAt ?? workspace.createdAt.getTime(),
@@ -50,8 +57,9 @@ export function V2WorkspacesBoardCard({
 
 	return (
 		<button
+			{...triggerProps}
 			type="button"
-			onClick={handleOpen}
+			onClick={onOpen}
 			disabled={isArchived}
 			className={cn(
 				"w-full rounded-md border border-border/60 bg-card px-3 py-2.5 text-left transition-colors",
