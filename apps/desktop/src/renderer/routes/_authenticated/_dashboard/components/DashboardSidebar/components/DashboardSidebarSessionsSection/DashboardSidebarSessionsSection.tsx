@@ -9,6 +9,7 @@ interface DashboardSidebarSessionsSectionProps {
 	isCollapsed?: boolean;
 	/** The workspaces-list collapse toggle hides rows; the header stays. */
 	rowsHidden?: boolean;
+	workspaceShortcutLabels?: Map<string, string>;
 	onWorkspaceHover: (workspaceId: string) => void | Promise<void>;
 }
 
@@ -23,6 +24,7 @@ export function DashboardSidebarSessionsSection({
 	sessionWorkspaces,
 	isCollapsed = false,
 	rowsHidden = false,
+	workspaceShortcutLabels,
 	onWorkspaceHover,
 }: DashboardSidebarSessionsSectionProps) {
 	const openNewSessionModal = useOpenNewSessionModal();
@@ -70,6 +72,7 @@ export function DashboardSidebarSessionsSection({
 					<DashboardSidebarWorkspaceItem
 						key={workspace.id}
 						workspace={workspace}
+						shortcutLabel={workspaceShortcutLabels?.get(workspace.id)}
 						onHoverCardOpen={() => onWorkspaceHover(workspace.id)}
 					/>
 				))}
