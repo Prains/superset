@@ -15,6 +15,7 @@ import {
 } from "@superset/db/schema";
 import {
 	getLinearClient,
+	isLinearAuthError,
 	mapPriorityFromLinear,
 } from "@superset/trpc/integrations/linear";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
@@ -156,15 +157,17 @@ async function processForConnection(
 }
 
 // `branchName` is derived by Linear from the identifier + title and is not
-// part of the webhook payload, so it needs its own fetch. Failures return
-// null and the upsert leaves the stored branch untouched.
+// part of the webhook payload, so it needs its own fetch. Returns null when
+// there is no usable connection or value; transient request failures are
+// rethrown so the webhook-event retry path re-runs the sync instead of
+// recording a processed event with a stale branch.
 async function fetchIssueBranchName(
 	organizationId: string,
 	issueId: string,
 ): Promise<string | null> {
+	const client = await getLinearClient(organizationId);
+	if (!client) return null;
 	try {
-		const client = await getLinearClient(organizationId);
-		if (!client) return null;
 		const response = await client.client.request<
 			{ issue: { branchName: string } | null },
 			{ id: string }
@@ -173,11 +176,16 @@ async function fetchIssueBranchName(
 		});
 		return response.issue?.branchName || null;
 	} catch (error) {
-		console.warn(
-			`[linear/webhook] failed to fetch branchName for issue ${issueId}:`,
-			error,
-		);
-		return null;
+		// A broken connection won't heal on retry — sync the rest of the
+		// event without the branch rather than failing it forever.
+		if (isLinearAuthError(error)) {
+			console.warn(
+				`[linear/webhook] auth error fetching branchName for issue ${issueId}, skipping branch:`,
+				error,
+			);
+			return null;
+		}
+		throw error;
 	}
 }
 

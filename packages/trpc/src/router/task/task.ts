@@ -442,6 +442,7 @@ export const taskRouter = {
 
 				const [current] = await tx
 					.select({
+						statusId: tasks.statusId,
 						statusType: taskStatuses.type,
 						statusProvider: taskStatuses.externalProvider,
 						assigneeId: tasks.assigneeId,
@@ -485,14 +486,27 @@ export const taskRouter = {
 				const unassigned =
 					current.assigneeId === null && current.assigneeExternalId === null;
 
+				// Compare-and-set on the observed status so a concurrent move to
+				// completed/canceled between the read and this write is never
+				// dragged back to started. No row updated = no-op.
 				const [task] = await tx
 					.update(tasks)
 					.set({
 						statusId: startedStatus.id,
 						...(unassigned ? { assigneeId: ctx.session.user.id } : {}),
 					})
-					.where(and(eq(tasks.id, input.id), isNull(tasks.deletedAt)))
+					.where(
+						and(
+							eq(tasks.id, input.id),
+							eq(tasks.statusId, current.statusId),
+							isNull(tasks.deletedAt),
+						),
+					)
 					.returning();
+
+				if (!task) {
+					return { task: null, txid: null };
+				}
 
 				const txid = await getCurrentTxid(tx);
 
@@ -500,7 +514,13 @@ export const taskRouter = {
 			});
 
 			if (result.task) {
-				syncTask(result.task.id);
+				const startedTaskId = result.task.id;
+				void syncTask(startedTaskId).catch((err) => {
+					console.warn(
+						`[task.start] failed to queue provider sync for task ${startedTaskId}:`,
+						err,
+					);
+				});
 			}
 
 			return result;

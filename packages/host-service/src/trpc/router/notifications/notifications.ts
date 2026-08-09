@@ -63,6 +63,9 @@ function markLinkedTaskStarted(
 	if (!taskId || startedTaskIds.has(taskId)) return;
 	startedTaskIds.add(taskId);
 	void ctx.api.task.start.mutate({ id: taskId }).catch((err) => {
+		// Let a later Start event retry — calls are event-driven (one per
+		// agent turn/tool use at most), so a cloud outage can't tight-loop.
+		startedTaskIds.delete(taskId);
 		console.warn(
 			`[notifications.hook] failed to mark task ${taskId} as started:`,
 			err,

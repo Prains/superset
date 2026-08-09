@@ -76,26 +76,44 @@ export function useLinkedContext(
 	const removeLinkedIssue = useCallback(
 		(slug: string) => {
 			const removed = linkedIssues.find((i) => i.slug === slug);
+			const remaining = linkedIssues.filter((i) => i.slug !== slug);
 			const patch: Partial<DashboardNewWorkspaceDraft> = {
-				linkedIssues: linkedIssues.filter((i) => i.slug !== slug),
+				linkedIssues: remaining,
 			};
 			// Clear the seeded names, but only when they still match what the
-			// issue seeded — a user edit sticks.
+			// issue seeded — a user edit sticks. When another internal issue is
+			// still linked, hand the seed to it instead of going blank.
 			if (removed?.source === "internal") {
 				const draft = useNewWorkspaceDraftStore.getState();
+				const next = remaining.find((i) => i.source === "internal");
 				const seededBranch = deriveBranchName({
 					slug: removed.slug,
 					title: removed.title,
 					branch: removed.branch,
 				});
 				if (draft.branchName === seededBranch) {
-					patch.branchName = "";
-					patch.branchNameEdited = false;
-					patch.branchNameFromProvider = false;
+					if (next) {
+						patch.branchName = deriveBranchName({
+							slug: next.slug,
+							title: next.title,
+							branch: next.branch,
+						});
+						patch.branchNameEdited = true;
+						patch.branchNameFromProvider = !!next.branch?.trim();
+					} else {
+						patch.branchName = "";
+						patch.branchNameEdited = false;
+						patch.branchNameFromProvider = false;
+					}
 				}
 				if (draft.workspaceName === removed.title) {
-					patch.workspaceName = "";
-					patch.workspaceNameEdited = false;
+					if (next) {
+						patch.workspaceName = next.title;
+						patch.workspaceNameEdited = true;
+					} else {
+						patch.workspaceName = "";
+						patch.workspaceNameEdited = false;
+					}
 				}
 			}
 			updateDraft(patch);

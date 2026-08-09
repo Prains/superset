@@ -84,10 +84,11 @@ const createInputSchema = z
 		// start. With no prompt, the friendly-random fallback is final.
 		name: z.string().min(1).optional(),
 		branch: z.string().min(1).optional(),
-		// Use the typed branch verbatim (still deduplicated) instead of
-		// namespacing it under the project branch prefix. Set when the
-		// branch comes from an external provider (Linear's branchName),
-		// whose exact format the provider autolinks.
+		// Use the typed branch verbatim instead of namespacing it under the
+		// project branch prefix; a name collision reuses the existing branch
+		// (and its workspace), as with any typed branch. Set when the branch
+		// comes from an external provider (Linear's branchName), whose exact
+		// format the provider autolinks.
 		skipBranchPrefix: z.boolean().optional(),
 		pr: z.number().int().positive().optional(),
 		baseBranch: z.string().min(1).optional(),
@@ -1167,8 +1168,13 @@ export const workspacesRouter = router({
 			}
 
 			// Work is starting on the linked task — move it to In Progress.
-			// Best-effort cloud call; creation never blocks on it.
-			if (input.taskId) {
+			// Best-effort cloud call; creation never blocks on it. A reused
+			// workspace keeps its own task link, so only nudge when this call
+			// actually linked the requested task.
+			if (
+				input.taskId &&
+				(!alreadyExists || workspaceRow.taskId === input.taskId)
+			) {
 				const taskId = input.taskId;
 				void ctx.api.task.start.mutate({ id: taskId }).catch((err) => {
 					console.warn(
