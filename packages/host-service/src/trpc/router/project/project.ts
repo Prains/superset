@@ -5,7 +5,7 @@ import {
 } from "@superset/shared/github-remote";
 import { BRANCH_PREFIX_MODES } from "@superset/shared/workspace-launch";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { projects, workspaces } from "../../../db/schema";
 import {
@@ -839,10 +839,18 @@ export const projectRouter = router({
 				.sync();
 			if (!localProject) return { success: true, repoPath: null };
 
+			// Archived rows have no worktree to remove. Note the project-row
+			// delete below still cascades them away — removing a project
+			// intentionally drops its workspace history too.
 			const localWorkspaces = ctx.db
 				.select()
 				.from(workspaces)
-				.where(eq(workspaces.projectId, input.projectId))
+				.where(
+					and(
+						eq(workspaces.projectId, input.projectId),
+						isNull(workspaces.archivedAt),
+					),
+				)
 				.all();
 
 			for (const ws of localWorkspaces) {

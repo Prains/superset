@@ -19,10 +19,12 @@ import { WorkerTaskError } from "../src/workers/WorkerTaskRunner";
 
 type WorkspaceRow = {
 	id: string;
-	projectId: string;
+	projectId: string | null;
 	worktreePath: string;
 	branch: string;
-	type?: "main" | "worktree";
+	type?: "main" | "worktree" | "session";
+	pullRequestId?: string | null;
+	archivedAt?: number | null;
 };
 type ProjectRow = { id: string; repoPath: string };
 
@@ -42,6 +44,9 @@ interface ContextSpec {
 	removeWorktree?: () => Promise<{ stillRegistered: boolean }>;
 	deleteBranch?: () => Promise<{ deleted: boolean }>;
 	dbDeleteThrows?: boolean | "once";
+	// Simulates sqlite failure at the archive UPDATE — the mark-first
+	// commit point for non-session workspaces.
+	dbUpdateThrows?: boolean | "once";
 	noApi?: boolean;
 }
 
@@ -105,6 +110,13 @@ function makeCtx(spec: ContextSpec): HostServiceContext & {
 	});
 	const dbDeleteWhere = mock(() => ({ run: dbDeleteRun }));
 	const dbInsertRun = mock(() => {});
+	let updateThrown = false;
+	const dbUpdateRun = mock(() => {
+		if (!spec.dbUpdateThrows) return;
+		if (spec.dbUpdateThrows === "once" && updateThrown) return;
+		updateThrown = true;
+		throw new Error("sqlite update boom");
+	});
 	const terminalSelectAll = mock(() => []);
 	const broadcastWorkspaceChanged = mock(() => {});
 
@@ -126,11 +138,15 @@ function makeCtx(spec: ContextSpec): HostServiceContext & {
 			query: {
 				workspaces: { findFirst: workspaceFindFirst },
 				projects: { findFirst: projectFindFirst },
+				pullRequests: { findFirst: () => ({ sync: () => undefined }) },
 			},
 			select: () => ({
 				from: () => ({
 					where: () => ({ all: terminalSelectAll }),
 				}),
+			}),
+			update: () => ({
+				set: () => ({ where: () => ({ run: dbUpdateRun }) }),
 			}),
 			delete: () => ({ where: dbDeleteWhere }),
 			insert: () => ({
@@ -386,7 +402,7 @@ describe("workspaceCleanup.destroy in-flight guard", () => {
 				branch: "feature",
 			},
 			project: { id: "p-1", repoPath: "/repo" },
-			dbDeleteThrows: "once",
+			dbUpdateThrows: "once",
 		});
 		const caller = workspaceCleanupRouter.createCaller(ctx);
 
@@ -442,7 +458,12 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 				}),
 			).rejects.toThrow(/Failed to remove worktree/i);
 			expect(cloudCallCount).toBe(0);
-			expect(ctx.__mocks.broadcastWorkspaceChanged).not.toHaveBeenCalled();
+			// Mark-first: the row archives at the commit point, then the
+			// failure un-archives it — a deleted/created broadcast pair.
+			const events = ctx.__mocks.broadcastWorkspaceChanged.mock.calls.map(
+				(call) => (call[0] as { eventType: string }).eventType,
+			);
+			expect(events).toEqual(["deleted", "created"]);
 		} finally {
 			rmSync(tmp, { recursive: true, force: true });
 		}
@@ -662,7 +683,7 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 		expect(result.success).toBe(true);
 	});
 
-	test("sqlite row-delete failure fails the destroy (local delete is the commit point)", async () => {
+	test("sqlite archive failure fails the destroy (the archive is the commit point)", async () => {
 		const ctx = makeCtx({
 			workspace: {
 				id: "ws-1",
@@ -671,7 +692,7 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 				branch: "feature",
 			},
 			project: { id: "p-1", repoPath: "/repo" },
-			dbDeleteThrows: true,
+			dbUpdateThrows: true,
 		});
 		const caller = workspaceCleanupRouter.createCaller(ctx);
 		await expect(
@@ -680,7 +701,31 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 				deleteBranch: false,
 				force: true,
 			}),
-		).rejects.toThrow(/sqlite delete boom/);
+		).rejects.toThrow(/sqlite update boom/);
 		expect(ctx.__mocks.cloudDelete).not.toHaveBeenCalled();
+	});
+
+	test("session destroy hard-deletes the row instead of archiving", async () => {
+		const ctx = makeCtx({
+			workspace: {
+				id: "ws-session",
+				projectId: null,
+				worktreePath: "/missing/session-dir",
+				branch: "main",
+				type: "session",
+			},
+		});
+		const caller = workspaceCleanupRouter.createCaller(ctx);
+		const result = await caller.destroy({
+			workspaceId: "ws-session",
+			deleteBranch: false,
+			force: true,
+		});
+		expect(result.success).toBe(true);
+		// Exactly one broadcast: the hard delete. No archive/unarchive pair.
+		const events = ctx.__mocks.broadcastWorkspaceChanged.mock.calls.map(
+			(call) => (call[0] as { eventType: string }).eventType,
+		);
+		expect(events).toEqual(["deleted"]);
 	});
 });

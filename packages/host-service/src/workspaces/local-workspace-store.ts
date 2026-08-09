@@ -197,7 +197,8 @@ export function updateLocalWorkspace(
 	return row;
 }
 
-/** Delete a local row and broadcast. Idempotent. */
+/** Delete a local row and broadcast. Idempotent. Sessions only — every
+ * other workspace type archives via `archiveLocalWorkspace` instead. */
 export function deleteLocalWorkspace(
 	ctx: WorkspaceStoreContext,
 	id: string,
@@ -213,6 +214,65 @@ export function deleteLocalWorkspace(
 		});
 		trackWorkspaceEvent(ctx, "workspace_deleted", existing);
 	}
+}
+
+/**
+ * Tombstone a local row instead of deleting it. Broadcasts the same
+ * `deleted` event shape as a hard delete so every existing consumer drops
+ * the row identically; the row itself survives for the board's
+ * Merged/Deleted history. Idempotent — re-archiving keeps the original
+ * timestamp and reason.
+ */
+export function archiveLocalWorkspace(
+	ctx: WorkspaceStoreContext,
+	id: string,
+	reason: "merged" | "deleted",
+): void {
+	const existing = getLocalWorkspace(ctx.db, id);
+	if (!existing) return;
+	if (existing.archivedAt == null) {
+		ctx.db
+			.update(workspaces)
+			.set({
+				archivedAt: Date.now(),
+				archiveReason: reason,
+				updatedAt: Date.now(),
+			})
+			.where(eq(workspaces.id, id))
+			.run();
+	}
+	ctx.eventBus.broadcastWorkspaceChanged({
+		workspaceId: id,
+		eventType: "deleted",
+		workspace: null,
+		occurredAt: Date.now(),
+	});
+	if (existing.archivedAt == null) {
+		trackWorkspaceEvent(ctx, "workspace_deleted", existing);
+	}
+}
+
+/**
+ * Revive a tombstoned row — the destroy pipeline failed after the
+ * mark-first commit, so the workspace is live and retryable again.
+ * Broadcasts `created` so list patchers that dropped the row on the
+ * archive event re-add it. Idempotent.
+ */
+export function unarchiveLocalWorkspace(
+	ctx: WorkspaceStoreContext,
+	id: string,
+): void {
+	const existing = getLocalWorkspace(ctx.db, id);
+	if (!existing) return;
+	if (existing.archivedAt != null) {
+		ctx.db
+			.update(workspaces)
+			.set({ archivedAt: null, archiveReason: null, updatedAt: Date.now() })
+			.where(eq(workspaces.id, id))
+			.run();
+	}
+	const row = getLocalWorkspace(ctx.db, id);
+	if (row) emitWorkspaceChanged(ctx.eventBus, "created", row);
 }
 
 function emitWorkspaceChanged(
