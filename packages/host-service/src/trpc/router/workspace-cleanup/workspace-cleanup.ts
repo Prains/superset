@@ -13,7 +13,6 @@ import type { HostServiceContext } from "../../../types";
 import type { GitTaskEnv } from "../../../workers/tasks/git";
 import {
 	archiveLocalWorkspace,
-	deleteLocalWorkspace,
 	unarchiveLocalWorkspace,
 } from "../../../workspaces/local-workspace-store";
 import type {
@@ -151,9 +150,9 @@ export const workspaceCleanupRouter = router({
 	 *   1.   Teardown     — run .superset/teardown.sh (per teardownMode)
 	 *   1.5. Archive      ← the commit point: the row tombstones
 	 *                       (archivedAt/archiveReason) and vanishes from
-	 *                       default lists; sessions skip this
+	 *                       default lists
 	 *   2.   Local cleanup — PTYs, worktree
-	 *   3.   Session row hard delete + best-effort legacy cloud delete
+	 *   3.   Best-effort legacy cloud delete (skipped for sessions)
 	 *   4.   Branch delete — optional local branch cleanup
 	 *   5.   Caches
 	 *
@@ -309,8 +308,11 @@ async function runDestroy(
 	// from default lists on every device before any physical destruction,
 	// and if the host crashes mid-cleanup the startup reconciler finishes
 	// the job. A cleanup failure below un-archives so the workspace stays
-	// live and retryable. Sessions are exempt — they hard-delete at step 3.
-	const marked = local != null && local.type !== "session";
+	// live and retryable. Sessions tombstone too — they're workspaces with
+	// a little missing data (no project, no PRs; reason is always
+	// "deleted"), and session folder names are claimed against ALL rows
+	// including tombstones, so a tombstone's path can't be reused.
+	const marked = local != null;
 	if (marked) {
 		archiveLocalWorkspace(ctx, input.workspaceId, archiveReasonFor(ctx, local));
 	}
@@ -459,14 +461,10 @@ async function runDestroyPhases(
 		}
 	}
 
-	// ─── Step 3: Local commit remainder ───────────────────────────
-	// Non-sessions already committed at step 0.5 (archived tombstone).
-	// Sessions hard-delete here — they are ephemeral and keep no history.
-	// The cloud delete is best-effort legacy cleanup for rows mirrored
-	// before workspaces went fully local.
-	if (local?.type === "session") {
-		deleteLocalWorkspace(ctx, input.workspaceId);
-	}
+	// ─── Step 3: Legacy cloud cleanup ──────────────────────────────
+	// The row already committed at step 1.5 (archived tombstone). The
+	// cloud delete is best-effort legacy cleanup for rows mirrored before
+	// workspaces went fully local.
 	let cloudDeleted = false;
 	// Sessions postdate the cloud mirror — there is no legacy row to clean.
 	if (local?.type !== "session") {

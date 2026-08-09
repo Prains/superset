@@ -84,6 +84,9 @@ All decisions below were made with Kiet in a walkthrough on 2026-08-09.
 - Decision: `V2WorkspaceRow` keeps its delete dialog mounted via a "mounted once opened" latch instead of the deleted provider's `deleting` flag.
   Rationale: preserves the teardown-failure re-open path without any global in-flight registry.
   Date/Author: 2026-08-09, implementation.
+- Decision: REVERSAL of the session exemption — sessions tombstone on delete too (reason always "deleted"; no PR link exists).
+  Rationale: Kiet, post-review: "they're essentially workspaces with a little missing data". Also simplifies the pipeline (no per-type branch at the commit point) and gives sessions Deleted-column history. Safe because `claimedSessionNames` counts tombstones, so a tombstone's folder path is never reused and the reconciler's live-path guard holds.
+  Date/Author: 2026-08-09, Kiet.
 
 
 ## Outcomes & Retrospective

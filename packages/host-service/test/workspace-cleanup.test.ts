@@ -705,7 +705,7 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 		expect(ctx.__mocks.cloudDelete).not.toHaveBeenCalled();
 	});
 
-	test("session destroy hard-deletes the row instead of archiving", async () => {
+	test("session destroy archives the row like any other workspace", async () => {
 		const ctx = makeCtx({
 			workspace: {
 				id: "ws-session",
@@ -722,10 +722,30 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 			force: true,
 		});
 		expect(result.success).toBe(true);
-		// Exactly one broadcast: the hard delete. No archive/unarchive pair.
 		const events = ctx.__mocks.broadcastWorkspaceChanged.mock.calls.map(
 			(call) => (call[0] as { eventType: string }).eventType,
 		);
 		expect(events).toEqual(["deleted"]);
+	});
+
+	test("the archive commit point applies to sessions too", async () => {
+		const ctx = makeCtx({
+			workspace: {
+				id: "ws-session",
+				projectId: null,
+				worktreePath: "/missing/session-dir",
+				branch: "main",
+				type: "session",
+			},
+			dbUpdateThrows: true,
+		});
+		const caller = workspaceCleanupRouter.createCaller(ctx);
+		await expect(
+			caller.destroy({
+				workspaceId: "ws-session",
+				deleteBranch: false,
+				force: true,
+			}),
+		).rejects.toThrow(/sqlite update boom/);
 	});
 });

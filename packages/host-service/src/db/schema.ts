@@ -241,9 +241,8 @@ export const workspaces = sqliteTable(
 		// Null = local changes not yet pushed to the cloud mirror (dual-write
 		// era only; the column and reconciler go away in R3).
 		cloudSyncedAt: integer("cloud_synced_at"),
-		// Tombstone: null = live. Set at destroy commit point (mark-first);
-		// rows are kept forever and surface on the board's Merged/Deleted
-		// columns. Sessions are exempt — they hard-delete.
+		// Tombstone: null = live. Set at the destroy commit point; rows are
+		// kept forever and surface on the board's Merged/Deleted columns.
 		archivedAt: integer("archived_at"),
 		// "merged" when the linked PR was merged at destroy time.
 		archiveReason: text("archive_reason").$type<"merged" | "deleted">(),

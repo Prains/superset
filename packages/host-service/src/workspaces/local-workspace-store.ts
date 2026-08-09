@@ -197,8 +197,9 @@ export function updateLocalWorkspace(
 	return row;
 }
 
-/** Delete a local row and broadcast. Idempotent. Sessions only — every
- * other workspace type archives via `archiveLocalWorkspace` instead. */
+/** Hard-delete a local row and broadcast. Idempotent. The destroy pipeline
+ * archives via `archiveLocalWorkspace` instead — this remains only for
+ * phantom-row cleanup (adopt-existing-worktree conflicts). */
 export function deleteLocalWorkspace(
 	ctx: WorkspaceStoreContext,
 	id: string,
