@@ -23,6 +23,7 @@ import {
 	FrameDecoder,
 } from "@superset/pty-daemon/protocol";
 import { DaemonSupervisor } from "./DaemonSupervisor.ts";
+import { EXPECTED_DAEMON_VERSION } from "./expected-version.ts";
 import {
 	type PtyDaemonManifest,
 	ptyDaemonManifestDir,
@@ -984,6 +985,74 @@ describe("trustd-degraded daemon heal", () => {
 				isAlive(placeholder.pid as number),
 				true,
 				"must be left alive",
+			);
+			// A permanently absent field must stay non-destructive across the
+			// liveness poll's later hello probes too, not just at adoption.
+			await new Promise((r) => setTimeout(r, 2_600));
+			assert.equal(
+				isAlive(placeholder.pid as number),
+				true,
+				"must survive poll re-probes",
+			);
+		} finally {
+			server.close();
+			placeholder.kill("SIGKILL");
+		}
+	});
+
+	test("heals when a daemon adopted before its probe landed later reports degraded", async () => {
+		// The daemon binds before probeTrustdHealthy() completes, so an
+		// adoption in that window sees no trustdHealthy. The liveness poll's
+		// hello probe must pick up the late self-report and apply the same
+		// guarded heal the adopt path would have.
+		const orgId = "org-trustd-late-report";
+		const socketPath = socketPathFor(orgId);
+		const placeholder = childProcess.spawn("sleep", ["60"], {
+			stdio: "ignore",
+		});
+		let reportDegraded = false;
+		const server = net.createServer((sock) => {
+			const decoder = new FrameDecoder();
+			sock.on("data", (chunk: Buffer) => {
+				decoder.push(chunk);
+				for (const { message } of decoder.drain()) {
+					if ((message as { type?: string }).type === "hello") {
+						sock.write(
+							encodeFrame({
+								type: "hello-ack",
+								protocol: CURRENT_PROTOCOL_VERSION,
+								daemonVersion: EXPECTED_DAEMON_VERSION,
+								daemonPid: placeholder.pid,
+								...(reportDegraded ? { trustdHealthy: false } : {}),
+							}),
+						);
+					}
+				}
+			});
+		});
+		await new Promise<void>((resolve) => server.listen(socketPath, resolve));
+
+		try {
+			seedManifest(orgId, placeholder.pid as number, socketPath);
+			const sup = new DaemonSupervisor({
+				scriptPath: DAEMON_BUNDLE,
+				autoUpdate: false,
+			});
+			supervisorsToCleanup.push({ sup, orgId });
+			const adopted = await sup.ensure(orgId);
+			assert.equal(adopted.pid, placeholder.pid, "adopted while unknown");
+
+			// Startup probe "lands": subsequent hello-acks self-report degraded.
+			reportDegraded = true;
+
+			const deadline = Date.now() + 10_000;
+			while (isAlive(placeholder.pid as number) && Date.now() < deadline) {
+				await new Promise((r) => setTimeout(r, 100));
+			}
+			assert.equal(
+				isAlive(placeholder.pid as number),
+				false,
+				"late degraded report must trigger the heal",
 			);
 		} finally {
 			server.close();

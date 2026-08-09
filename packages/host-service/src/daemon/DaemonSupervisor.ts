@@ -662,6 +662,36 @@ export class DaemonSupervisor {
 				this.kickoffAutoUpdate(organizationId, current);
 			}
 		}
+		// The daemon probes trustd AFTER binding, so a daemon adopted right
+		// after it started may not have self-reported yet. Fill in the value
+		// only while unknown — the reported value never changes after startup,
+		// so this can complete adoption-time triage late but can never turn
+		// into a mid-life kill of a long-adopted daemon.
+		if (
+			current.trustdHealthy === undefined &&
+			probe.trustdHealthy !== undefined
+		) {
+			current.trustdHealthy = probe.trustdHealthy;
+			if (probe.trustdHealthy === false && (await this.hostTrustdHealthy())) {
+				logEvent("pty_daemon_trustd_degraded_respawn", {
+					organizationId,
+					pid: current.pid,
+					runningVersion: current.runningVersion,
+					lateReport: true,
+				});
+				this.stopHealthPoll(organizationId);
+				await this.killAdoptedDaemon(organizationId, current);
+				if (this.instances.get(organizationId)?.pid === pid) {
+					this.instances.delete(organizationId);
+				}
+				void this.ensure(organizationId).catch((err) => {
+					console.error(
+						`[pty-daemon:${organizationId}] respawn after late degraded report failed:`,
+						err,
+					);
+				});
+			}
+		}
 	}
 
 	/**
