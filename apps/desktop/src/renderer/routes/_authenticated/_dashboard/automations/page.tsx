@@ -599,6 +599,7 @@ function AutomationsPage() {
 									value={search}
 									onChange={(e) => setSearch(e.target.value)}
 									placeholder="Search"
+									aria-label="Search automations"
 									className="h-8 w-44 pl-8"
 								/>
 							</div>

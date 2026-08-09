@@ -50,7 +50,7 @@ Ref: `onboard-*.png` in the screenshot corpus (Cursor empty dashboard, Zapier id
 
 Finding: nobody tours an empty automations page — the empty state IS the onboarding. Cursor launched Automations with zero tour: permanent sidebar entry + empty state + templates + changelog.
 
-1. **First visit:** NL chat input as the empty-state hero with rotating concrete placeholders; below it, 3-4 Zapier-style full-sentence example-prompt cards that click-to-fill (personalize from repo signals — CI present → "summarize failed CI runs each morning"). One line of run-model education in the empty state: "Each run gets its own isolated workspace — review the diff, merge what's good." That's our only novel teaching burden.
+1. **First visit:** NL chat input as the empty-state hero with rotating concrete placeholders; below it, 3-4 Zapier-style full-sentence example-prompt cards that click-to-fill (personalize from repo signals — CI present → "summarize failed CI runs each morning"). One line of run-model education in the empty state: "Runs land in a workspace — review the diff, merge what's good." That's our only novel teaching burden. (Wording note: dispatch reuses a pinned workspace when set; only "New workspace" automations get a fresh one per run.)
 2. **Returning, never created:** rotate example cards per visit; optionally a dismissible 3-item checklist (create via template one-click / review a run's workspace / turn on notifications). Stronger alternative: a pre-seeded read-only example automation with realistic run history (ChatGPT example-chats pattern).
 3. **Existing users at feature/redesign launch:** "New" dot on the sidebar entry + a single Mistral-style opt-in card ("Not now / Try it" → lands with NL box focused, suggestion pre-filled). No multi-step tours — across all 38 captures, tours only appear for spatially complex surfaces, never list+create pages.
 
@@ -94,6 +94,7 @@ Cursor's trigger UX to grow toward (`cursor2-editor-settings-pagerduty.png`): tr
 | 0 semantics | optional tiny migration (`trigger`) | S |
 | 1 dashboard | none | M — one page + row components |
 | 2 in-chat | none (MCP tools live) | M — chat card + freeform-chat entry points |
+| 2.5 onboarding | none (interim dialog-prefill); NL box benefits from 2 | S — see automations-onboarding.md |
 | 3 run history | 0 (language), #5449 status hooks | M — one tab |
 | 4 schedule + failure policy | migration for circuit breaker | S+S |
 

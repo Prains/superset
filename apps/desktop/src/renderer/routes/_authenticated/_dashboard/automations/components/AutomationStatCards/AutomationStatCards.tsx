@@ -51,9 +51,11 @@ export function AutomationStatCards({
 				disabled={!canFilterFailed && !failedFilter}
 				onClick={onToggleFailedFilter}
 				title={
-					canFilterFailed || failedFilter
-						? "Show only automations whose last run failed"
-						: "Runs failed earlier this week, but nothing is failing right now"
+					failedFilter
+						? "Show all automations again"
+						: canFilterFailed
+							? "Show only automations whose last run failed"
+							: "Runs failed earlier this week, but nothing is failing right now"
 				}
 				className={cn(
 					CARD,

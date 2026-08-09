@@ -5,7 +5,7 @@ Companion to `automations-ui-improvements.md` (Phase 2.5). Grounded in the Mobbi
 **Principles** (from the research):
 - No tours. Across every capture, tours only exist for spatially complex surfaces — never list+create pages. The empty state IS the onboarding (Cursor shipped Automations with zero tour).
 - Templates and NL creation are ONE surface (Zapier): example prompts click-to-fill the input, they aren't a separate gallery.
-- Our single novel teaching burden: **each run creates a workspace**. One sentence, placed where Cursor puts "Billed at plan rates."
+- Our single novel teaching burden: **runs land in a workspace** (a fresh one by default; dispatch reuses the automation's pinned workspace when one is set — see `dispatch.ts`). One sentence, placed where Cursor puts "Billed at plan rates."
 
 ---
 
@@ -13,13 +13,13 @@ Companion to `automations-ui-improvements.md` (Phase 2.5). Grounded in the Mobbi
 
 Layout (replaces `AutomationsEmptyState` content; stat cards + tabs stay above per Cursor):
 
-```
+```text
             What should run on a schedule?
    ┌──────────────────────────────────────────────┐
    │  ✦  <rotating placeholder, see below>     ↑  │   ← NL input (Phase 2 chat;
    └──────────────────────────────────────────────┘      interim: prefills CreateAutomationDialog)
-     Each run gets its own isolated workspace —
-     review the diff, merge what's good.              ← the one education line
+     Runs land in a workspace — review the
+     diff, merge what's good.                          ← the one education line
 
    SUGGESTED                                          ← 4 cards, picked by repo signals
    ┌ Fix CI failures ──────────┐ ┌ Triage new issues ────────┐
