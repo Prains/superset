@@ -1014,6 +1014,62 @@ describe("trustd-degraded daemon heal", () => {
 		}
 	});
 
+	test("adopts the probed daemon when the manifest pid is stale (recycled)", async () => {
+		// The socket answers with a daemonPid that differs from manifest.pid —
+		// the manifest pid may be recycled onto an unrelated process. Adoption
+		// must land on the probed pid (reusing the SAME probe — a transient
+		// re-probe failure must not demote a confirmed-live daemon to a fresh
+		// spawn), and nothing may be killed.
+		const orgId = "org-trustd-pid-mismatch";
+		const socketPath = socketPathFor(orgId);
+		const realDaemon = childProcess.spawn("sleep", ["60"], {
+			stdio: "ignore",
+		});
+		const recycled = childProcess.spawn("sleep", ["60"], { stdio: "ignore" });
+		const server = net.createServer((sock) => {
+			const decoder = new FrameDecoder();
+			sock.on("data", (chunk: Buffer) => {
+				decoder.push(chunk);
+				for (const { message } of decoder.drain()) {
+					if ((message as { type?: string }).type === "hello") {
+						sock.write(
+							encodeFrame({
+								type: "hello-ack",
+								protocol: CURRENT_PROTOCOL_VERSION,
+								daemonVersion: EXPECTED_DAEMON_VERSION,
+								daemonPid: realDaemon.pid,
+							}),
+						);
+					}
+				}
+			});
+		});
+		await new Promise<void>((resolve) => server.listen(socketPath, resolve));
+
+		try {
+			// Manifest points at the recycled (unrelated, live) pid.
+			seedManifest(orgId, recycled.pid as number, socketPath);
+			const sup = new DaemonSupervisor({
+				scriptPath: DAEMON_BUNDLE,
+				autoUpdate: false,
+			});
+			supervisorsToCleanup.push({ sup, orgId });
+			const adopted = await sup.ensure(orgId);
+
+			assert.equal(adopted.pid, realDaemon.pid, "must adopt the probed pid");
+			assert.equal(
+				isAlive(recycled.pid as number),
+				true,
+				"recycled pid untouched",
+			);
+			assert.equal(isAlive(realDaemon.pid as number), true, "daemon untouched");
+		} finally {
+			server.close();
+			realDaemon.kill("SIGKILL");
+			recycled.kill("SIGKILL");
+		}
+	});
+
 	test("heals when a daemon adopted before its probe landed later reports degraded", async () => {
 		// The daemon binds before probeTrustdHealthy() completes, so an
 		// adoption in that window sees no trustdHealthy. The liveness poll's

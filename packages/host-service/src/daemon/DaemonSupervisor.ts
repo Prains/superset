@@ -673,6 +673,10 @@ export class DaemonSupervisor {
 		) {
 			current.trustdHealthy = probe.trustdHealthy;
 			if (probe.trustdHealthy === false && (await this.hostTrustdHealthy())) {
+				// Re-check after the await: a concurrent restart can have
+				// replaced the instance, and killing `current` then would
+				// unlink the successor's socket and manifest under it.
+				if (this.instances.get(organizationId) !== current) return;
 				logEvent("pty_daemon_trustd_degraded_respawn", {
 					organizationId,
 					pid: current.pid,
@@ -1004,9 +1008,20 @@ export class DaemonSupervisor {
 				socketPath: manifest.socketPath,
 			});
 			removePtyDaemonManifest(organizationId);
-			return this.tryAdoptFromSocket(organizationId, expectedSocketPath, {
-				reason: "manifest_pid_mismatch",
-			});
+			// Reuse the probe we already have — re-probing would let a
+			// transient failure demote this confirmed-live daemon to a fresh
+			// spawn. Fall back to a socket adopt only if the probed pid died.
+			return (
+				this.adoptFromProbe(
+					organizationId,
+					manifest.socketPath,
+					probe,
+					"manifest_pid_mismatch",
+				) ??
+				this.tryAdoptFromSocket(organizationId, expectedSocketPath, {
+					reason: "manifest_pid_mismatch",
+				})
+			);
 		}
 		const runningVersion = probe?.daemonVersion ?? "unknown";
 		return {
@@ -1045,13 +1060,34 @@ export class DaemonSupervisor {
 			return null;
 		}
 
+		return this.adoptFromProbe(
+			organizationId,
+			socketPath,
+			probe,
+			context.reason,
+		);
+	}
+
+	/**
+	 * Build an adoption from an already-successful hello probe: validate the
+	 * probed pid, recover the manifest, and return the instance. Split out so
+	 * callers that HAVE a good probe (e.g. the manifest-pid-mismatch path)
+	 * don't re-probe — a transient failure of a second probe would turn a
+	 * confirmed live daemon into a fresh spawn that unlinks its socket.
+	 */
+	private adoptFromProbe(
+		organizationId: string,
+		socketPath: string,
+		probe: DaemonProbeResult,
+		sourceReason: string,
+	): DaemonInstance | null {
 		const resolvedPid = probe.daemonPid;
 		if (!isPositiveInteger(resolvedPid) || !isProcessAlive(resolvedPid)) {
 			logEvent("pty_daemon_socket_adopt_rejected", {
 				organizationId,
 				socketPath,
 				reason: "pid_unavailable",
-				sourceReason: context.reason,
+				sourceReason,
 				probedPid: resolvedPid,
 			});
 			return null;
@@ -1070,7 +1106,7 @@ export class DaemonSupervisor {
 			organizationId,
 			pid: resolvedPid,
 			socketPath,
-			sourceReason: context.reason,
+			sourceReason,
 			runningVersion: probe.daemonVersion,
 		});
 

@@ -40,6 +40,18 @@ export interface TrustdProbeDeps {
 // "unknown" forever; a real probe takes tens of milliseconds.
 const PROBE_TIMEOUT_MS = 3_000;
 
+/**
+ * An inconclusive probe fails open (healthy) so it can never trigger a
+ * session-destroying respawn — but persistent breakage (missing CA bundle,
+ * unspawnable `security`) must not be silently indistinguishable from a
+ * healthy system in logs.
+ */
+function warnInconclusive(detail: string): void {
+	process.stderr.write(
+		`[trustd-probe] inconclusive, failing open as healthy: ${detail}\n`,
+	);
+}
+
 /** Async execFile mirrored into spawnSync-style {status, error}. */
 function runCommand(cmd: string, args: string[]): Promise<TrustdProbeResult> {
 	return new Promise((resolve) => {
@@ -85,7 +97,10 @@ export async function probeTrustdHealthy(
 		// (e.g. "BEGIN TRUSTED CERTIFICATE") whose END sits before the first
 		// "BEGIN CERTIFICATE" can't produce a bogus slice.
 		const end = bundle.indexOf(END, begin);
-		if (begin === -1 || end === -1) return true;
+		if (begin === -1 || end === -1) {
+			warnInconclusive("no certificate found in system CA bundle");
+			return true;
+		}
 		// A cert from the trust store verifies cleanly WHEN trustd is reachable,
 		// so a non-zero exit isolates "trustd unreachable" from "bad cert".
 		const cert = `${bundle.slice(begin, end + END.length)}\n`;
@@ -97,10 +112,19 @@ export async function probeTrustdHealthy(
 		const certPath = path.join(certDir, "probe.pem");
 		await fs.writeFile(certPath, cert, { mode: 0o600 });
 		const result = await run("security", ["verify-cert", "-c", certPath]);
-		if (result.error) return true; // spawn failed / timed out → inconclusive
-		if (typeof result.status !== "number") return true; // killed by signal
+		if (result.error) {
+			// spawn failed / timed out → inconclusive
+			warnInconclusive(`security did not run cleanly: ${result.error.message}`);
+			return true;
+		}
+		if (typeof result.status !== "number") {
+			// killed by signal
+			warnInconclusive("security was killed by a signal");
+			return true;
+		}
 		return result.status === 0;
-	} catch {
+	} catch (err) {
+		warnInconclusive((err as Error).message);
 		return true;
 	} finally {
 		if (certDir) {
