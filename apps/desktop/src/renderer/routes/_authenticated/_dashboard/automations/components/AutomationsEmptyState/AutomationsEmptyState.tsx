@@ -18,12 +18,13 @@ const PLACEHOLDER_INTERVAL_MS = 5000;
 
 interface AutomationsEmptyStateProps {
 	onSelectTemplate: (template: AutomationTemplate) => void;
-	onCreate: () => void;
+	/** Opens an agent session seeded to create an automation interactively. */
+	onCreateWithAgent: () => void;
 }
 
 export function AutomationsEmptyState({
 	onSelectTemplate,
-	onCreate,
+	onCreateWithAgent,
 }: AutomationsEmptyStateProps) {
 	const [placeholderIndex, setPlaceholderIndex] = useState(0);
 	useEffect(() => {
@@ -40,11 +41,12 @@ export function AutomationsEmptyState({
 				<h2 className="text-lg font-semibold tracking-tight">
 					What should run on a schedule?
 				</h2>
-				{/* Interim affordance: looks like the future NL input, opens the
-				    create form today. Swaps to the real chat input in Phase 2. */}
+				{/* Opens an agent session that asks what to automate and creates it
+				    via the superset:automate skill / CLI. Swaps to the inline NL
+				    chat input in Phase 2. */}
 				<button
 					type="button"
-					onClick={onCreate}
+					onClick={onCreateWithAgent}
 					className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3.5 text-left transition-colors hover:border-border/80 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 				>
 					<LuSparkles className="size-4 shrink-0 text-muted-foreground" />
@@ -56,7 +58,7 @@ export function AutomationsEmptyState({
 					</span>
 				</button>
 				<p className="text-xs text-muted-foreground">
-					Runs land in a workspace — review the diff, merge what's good.
+					Runs land in a workspace. Review the diff, merge what's good.
 				</p>
 			</div>
 

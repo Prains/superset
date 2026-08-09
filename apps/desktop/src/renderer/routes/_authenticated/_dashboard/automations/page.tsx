@@ -35,7 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	LuCircleHelp,
@@ -43,11 +43,13 @@ import {
 	LuRotateCw,
 	LuSearch,
 	LuSearchX,
+	LuSparkles,
 	LuTerminal,
 	LuX,
 } from "react-icons/lu";
 import { useRecentProjects } from "renderer/hooks/host-projects/useRecentProjects";
 import { useNow } from "renderer/hooks/useNow";
+import { useV2AgentChoices } from "renderer/hooks/useV2AgentChoices";
 import { apiTrpcClient } from "renderer/lib/api-trpc-client";
 import { authClient } from "renderer/lib/auth-client";
 import { DATA_TABLE_HEAD_CELL } from "renderer/routes/_authenticated/_dashboard/components/DataTableHeader";
@@ -56,7 +58,10 @@ import {
 	type SortDirection,
 } from "renderer/routes/_authenticated/_dashboard/components/SortableHeader";
 import { useFailedAutomations } from "renderer/routes/_authenticated/_dashboard/hooks/useFailedAutomations";
+import { AGENT_STORAGE_KEY } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal/components/DashboardNewWorkspaceForm/PromptGroup/types";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
+import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
+import { useWorkspaceCreates } from "renderer/stores/workspace-creates";
 import { AutomationRow } from "./components/AutomationRow";
 import { AutomationStatCards } from "./components/AutomationStatCards";
 import { AutomationsEmptyState } from "./components/AutomationsEmptyState";
@@ -75,6 +80,12 @@ export const Route = createFileRoute("/_authenticated/_dashboard/automations/")(
 type Scope = "mine" | "team";
 
 type AutomationSortField = "name" | "owner" | "schedule" | "status";
+
+// Seeds the "Create with AI" agent session. The skill is provisioned as
+// superset:automate; mentioning it by name loads it (it isn't in the chat
+// slash-command allowlist).
+const AUTOMATION_AGENT_PROMPT =
+	"Help me create a Superset automation. Use the superset:automate skill if it's available, otherwise the `superset` CLI (start with `superset automations --help`). Ask me what should run on a schedule, confirm the cadence, target project, and agent, then create the automation and trigger a first run so we can review the result together.";
 
 function settledErrorMessage(result: PromiseSettledResult<unknown>) {
 	return result.status === "rejected" && result.reason instanceof Error
@@ -415,6 +426,41 @@ function AutomationsPage() {
 		setCreateOpen(true);
 	};
 
+	const navigate = useNavigate();
+	const { machineId, activeHostUrl } = useLocalHostService();
+	const { agents: agentChoices } = useV2AgentChoices(activeHostUrl);
+	const { submit: submitWorkspaceCreate } = useWorkspaceCreates();
+
+	// Opens a project-less agent session seeded with automation-creation
+	// instructions. The in-app "superset" chat agent can't run the CLI, so
+	// pick the user's last terminal agent (composer behavior).
+	const handleCreateWithAgent = () => {
+		if (!machineId) {
+			toast.error("Host service is not running");
+			return;
+		}
+		const terminalAgents = agentChoices.filter((a) => a.id !== "superset");
+		const stored = window.localStorage.getItem(AGENT_STORAGE_KEY);
+		const agent =
+			terminalAgents.find((a) => a.id === stored)?.id ?? terminalAgents[0]?.id;
+		if (!agent) {
+			toast.error("No terminal agent is configured on this device");
+			return;
+		}
+		const { workspaceId } = submitWorkspaceCreate({
+			hostId: machineId,
+			snapshot: {
+				id: crypto.randomUUID(),
+				projectId: null,
+				agents: [{ agent, prompt: AUTOMATION_AGENT_PROMPT }],
+			},
+		});
+		void navigate({
+			to: "/v2-workspace/$workspaceId",
+			params: { workspaceId },
+		});
+	};
+
 	const handleDialogOpenChange = (next: boolean) => {
 		setCreateOpen(next);
 		if (!next) setInitialTemplate(null);
@@ -511,6 +557,16 @@ function AutomationsPage() {
 								</TooltipTrigger>
 								<TooltipContent>Automations docs</TooltipContent>
 							</Tooltip>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 px-3"
+								onClick={handleCreateWithAgent}
+							>
+								<LuSparkles className="size-4" />
+								<span>Create with AI</span>
+							</Button>
 							<Button
 								type="button"
 								size="sm"
@@ -626,7 +682,7 @@ function AutomationsPage() {
 							<div className="flex-1 py-6">
 								<AutomationsEmptyState
 									onSelectTemplate={handleSelectTemplate}
-									onCreate={() => setCreateOpen(true)}
+									onCreateWithAgent={handleCreateWithAgent}
 								/>
 							</div>
 						) : showTeamEmptyState ? (
