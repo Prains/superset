@@ -45,7 +45,9 @@ export function register(server: McpServer): void {
 				.string()
 				.uuid()
 				.nullish()
-				.describe("Workspace UUID to reuse (may be a session workspace)."),
+				.describe(
+					"Workspace UUID to reuse. Pass targetHostId with it — required for session workspaces (no cloud record to resolve the host from).",
+				),
 			rrule: z
 				.string()
 				.min(1)

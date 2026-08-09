@@ -266,7 +266,7 @@ async function createWorkspaceOnHost(args: {
 	projectId: string | null;
 	automation: SelectAutomation;
 	runId: string;
-}): Promise<{ workspaceId: string; branchName: string }> {
+}): Promise<{ workspaceId: string }> {
 	// Session automation: no project, no branch. The host allocates a managed
 	// folder under ~/.superset/sessions and dedupes the name per run.
 	if (args.projectId === null) {
@@ -283,7 +283,7 @@ async function createWorkspaceOnHost(args: {
 			"workspaces.createSession",
 			{ name: args.automation.name.slice(0, 100) },
 		);
-		return { workspaceId: result.workspace.id, branchName: "main" };
+		return { workspaceId: result.workspace.id };
 	}
 
 	// Full-precision timestamp keeps branch names readable AND collision-free
@@ -332,7 +332,7 @@ async function createWorkspaceOnHost(args: {
 		},
 	);
 
-	return { workspaceId: result.workspace.id, branchName };
+	return { workspaceId: result.workspace.id };
 }
 
 async function runAgentOnHost(args: {

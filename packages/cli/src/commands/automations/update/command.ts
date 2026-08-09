@@ -25,6 +25,14 @@ export default command({
 	run: async ({ ctx, args, options }) => {
 		const id = args.id as string;
 
+		// Validate before any mutation — setEnabled below must not run for a
+		// rejected invocation.
+		if (options.session && (options.workspace || options.project)) {
+			throw new CLIError(
+				"--session cannot be combined with --project or --workspace",
+			);
+		}
+
 		if (options.enabled !== undefined) {
 			await ctx.api.automation.setEnabled.mutate({
 				id,
@@ -39,12 +47,6 @@ export default command({
 						.map((s) => s.trim())
 						.filter(Boolean)
 				: undefined;
-
-		if (options.session && (options.workspace || options.project)) {
-			throw new CLIError(
-				"--session cannot be combined with --project or --workspace",
-			);
-		}
 
 		// Retargeting (--workspace or --project) re-derives targetHostId +
 		// v2ProjectId; the resource must exist on the target host.

@@ -18,7 +18,13 @@ import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/Host
 
 interface WorkspacePickerProps {
 	hostId: string | null;
-	projectId: string | null;
+	/**
+	 * Null = session mode (list session workspaces, offer "New session").
+	 * Undefined = no project chosen yet — render neutral "New workspace" copy
+	 * and list nothing, so the pre-default loading window never looks like
+	 * session mode.
+	 */
+	projectId: string | null | undefined;
 	value: string | null;
 	onChange: (workspaceId: string | null) => void;
 	className?: string;
@@ -55,7 +61,7 @@ export function WorkspacePicker({
 	// (projectId null) as pin targets.
 	const workspaces = useMemo(
 		() =>
-			hostId
+			hostId && projectId !== undefined
 				? workspaceRows.filter(
 						(w) => w.hostId === hostId && w.projectId === projectId,
 					)

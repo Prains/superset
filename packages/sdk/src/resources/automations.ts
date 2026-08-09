@@ -259,8 +259,10 @@ export interface AutomationUpdateParams {
 	targetHostId?: string | null;
 	/**
 	 * When passing `v2WorkspaceId`, set this to the workspace's `projectId`
-	 * (null for a session workspace). Explicit null with no workspace pin
-	 * switches the automation to session mode.
+	 * (null for a session workspace). Explicit null switches the automation
+	 * to session mode; if a session workspace is currently pinned, also send
+	 * `v2WorkspaceId: null` to reach unpinned new-session-per-run mode (a
+	 * project *change* clears the pin automatically, null-to-null does not).
 	 */
 	v2ProjectId?: string | null;
 	/**

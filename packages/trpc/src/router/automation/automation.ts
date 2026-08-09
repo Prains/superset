@@ -358,7 +358,7 @@ export const automationRouter = {
 				}
 			}
 
-			if (nextWorkspaceId && input.v2WorkspaceId && input.targetHostId) {
+			if (input.v2WorkspaceId && input.targetHostId) {
 				// Denormalized pin (see create): the client supplies host (and
 				// project, when the workspace has one) with the workspace id; no
 				// workspace registry lookup. A null project = session pin.
@@ -367,12 +367,14 @@ export const automationRouter = {
 				}
 				nextProjectId = input.v2ProjectId ?? null;
 				nextTargetHostId = input.targetHostId;
-			} else if (nextWorkspaceId) {
-				// Legacy clients — resolve via the cloud table while it still
-				// exists; this branch is deleted in R3.
+			} else if (input.v2WorkspaceId) {
+				// Legacy clients changing the pin — resolve via the cloud table
+				// while it still exists; this branch is deleted in R3. A merely
+				// retained pin is never re-resolved here: hosts own workspace
+				// records, and session pins have no cloud row at all.
 				const workspace = await verifyWorkspaceInOrg(
 					organizationId,
-					nextWorkspaceId,
+					input.v2WorkspaceId,
 				);
 				// Mirror create: derive the project from the workspace and only
 				// reject when the caller *explicitly* passed a conflicting project.

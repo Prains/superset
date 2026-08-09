@@ -302,7 +302,7 @@ export function CreateAutomationDialog({
 									<WorkspacePicker
 										className="w-[160px]"
 										hostId={targetHostId ?? null}
-										projectId={selectedProjectId ?? null}
+										projectId={selectedProjectId}
 										value={v2WorkspaceId}
 										onChange={setV2WorkspaceId}
 									/>
