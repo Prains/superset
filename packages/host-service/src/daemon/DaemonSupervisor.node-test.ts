@@ -953,6 +953,58 @@ describe("trustd-degraded daemon heal", () => {
 		},
 	);
 
+	test(
+		"crash-relaunch chain: degraded boot adopts untouched, next healthy launch heals",
+		darwinOnly,
+		async () => {
+			// The confirmed field vector (#6127): a machine crash relaunches the
+			// app in a degraded login context, so host-service AND the daemon it
+			// spawns are both trustd-broken. That generation must not thrash
+			// (heal suppressed). The daemon then outlives the app quit, and the
+			// NEXT launch — a fresh, healthy host-service — must adopt the
+			// surviving self-reported-degraded daemon and replace it.
+			const orgId = "org-trustd-crash-relaunch";
+			const socketPath = socketPathFor(orgId);
+			const degradedPid = spawnDegradedDaemon(socketPath);
+			assert.equal(await waitForSocket(socketPath, 5000), true);
+			await waitForTrustdReport(socketPath);
+			seedManifest(orgId, degradedPid, socketPath);
+
+			// Generation 1: the crash-relaunched, degraded host-service.
+			const degradedBoot = new DaemonSupervisor({
+				scriptPath: DAEMON_BUNDLE,
+				autoUpdate: false,
+				hostTrustdProbe: async () => false,
+			});
+			const adopted = await degradedBoot.ensure(orgId);
+			assert.equal(adopted.pid, degradedPid, "degraded boot must adopt");
+			assert.equal(isAlive(degradedPid), true, "no heal from a degraded host");
+
+			// App quit: supervisor state dies with the process, daemon survives.
+			dropSupervisorInstance(degradedBoot, orgId);
+
+			// Generation 2: the next normal launch, healthy context (real probe).
+			const healthyLaunch = new DaemonSupervisor({
+				scriptPath: DAEMON_BUNDLE,
+				autoUpdate: false,
+			});
+			supervisorsToCleanup.push({ sup: healthyLaunch, orgId });
+			const healed = await healthyLaunch.ensure(orgId);
+
+			assert.notEqual(
+				healed.pid,
+				degradedPid,
+				"healthy launch must replace the surviving degraded daemon",
+			);
+			const deadline = Date.now() + 3000;
+			while (isAlive(degradedPid) && Date.now() < deadline) {
+				await new Promise((r) => setTimeout(r, 50));
+			}
+			assert.equal(isAlive(degradedPid), false, "degraded daemon still alive");
+			assert.equal(isAlive(healed.pid), true, "fresh daemon not running");
+		},
+	);
+
 	test("adopts (never kills) a pre-probe daemon whose hello-ack lacks trustdHealthy", async () => {
 		// Pre-0.3.0 daemons don't probe — their hello-ack has no trustdHealthy.
 		// Unknown must not be treated as degraded: those daemons hold real
