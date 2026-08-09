@@ -8,7 +8,6 @@ import type { DashboardSidebarSectionActionsProps } from "../../types";
 import { SectionActionsMenuItems } from "../SectionActionsMenuItems";
 
 export function DashboardSidebarSectionActionsDropdown({
-	sectionId,
 	color,
 	onRename,
 	onSetColor,
@@ -36,7 +35,6 @@ export function DashboardSidebarSectionActionsDropdown({
 				onPointerDown={(event) => event.stopPropagation()}
 			>
 				<SectionActionsMenuItems
-					sectionId={sectionId}
 					color={color}
 					kind="dropdown"
 					onRename={onRename}

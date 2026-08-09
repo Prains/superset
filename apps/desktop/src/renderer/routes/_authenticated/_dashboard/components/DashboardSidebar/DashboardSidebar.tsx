@@ -48,7 +48,7 @@ import { useDashboardSidebarShortcuts } from "./hooks/useDashboardSidebarShortcu
 import { DashboardSidebarHoverProvider } from "./providers/DashboardSidebarHoverProvider";
 import { DashboardSidebarPortsProvider } from "./providers/DashboardSidebarPortsProvider";
 import { DashboardSidebarSelectionProvider } from "./providers/DashboardSidebarSelectionProvider";
-import type { DashboardSidebarProject, DashboardSidebarSection } from "./types";
+import type { DashboardSidebarProject } from "./types";
 import { getProjectChildrenWorkspaces } from "./utils/projectChildren";
 
 interface DashboardSidebarProps {
@@ -110,7 +110,7 @@ export function DashboardSidebar({
 	const {
 		groups,
 		pinnedWorkspaces,
-		sessionsScope,
+		sessionWorkspaces,
 		refreshWorkspacePullRequest,
 		toggleProjectCollapsed,
 	} = useDashboardSidebarData();
@@ -157,7 +157,7 @@ export function DashboardSidebar({
 
 	const workspaceShortcutLabels = useDashboardSidebarShortcuts(
 		orderedGroups,
-		sessionsScope,
+		sessionWorkspaces,
 	);
 	const selectableWorkspaceIds = useMemo(
 		() =>
@@ -185,10 +185,6 @@ export function DashboardSidebar({
 		if (pinned) {
 			return groups.find((project) => project.id === pinned.projectId) ?? null;
 		}
-		// Recursive: nested groups hold workspaces too.
-		const sectionContains = (section: DashboardSidebarSection): boolean =>
-			section.workspaces.some((ws) => ws.id === activeV2WorkspaceId) ||
-			section.childSections.some(sectionContains);
 		for (const project of groups) {
 			for (const child of project.children) {
 				if (
@@ -197,8 +193,10 @@ export function DashboardSidebar({
 				) {
 					return project;
 				}
-				if (child.type === "section" && sectionContains(child.section)) {
-					return project;
+				if (child.type === "section") {
+					for (const ws of child.section.workspaces) {
+						if (ws.id === activeV2WorkspaceId) return project;
+					}
 				}
 			}
 		}
@@ -244,7 +242,7 @@ export function DashboardSidebar({
 										/>
 									)}
 									<DashboardSidebarSessionsSection
-										sessionsScope={sessionsScope}
+										sessionWorkspaces={sessionWorkspaces}
 										isCollapsed={isCollapsed}
 										rowsHidden={!isCollapsed && workspacesListCollapsed}
 										onWorkspaceHover={refreshWorkspacePullRequest}

@@ -26,104 +26,12 @@ export interface SidebarProjectInput {
 
 export interface SidebarSectionInput {
 	id: string;
-	/** Null scopes the group to the top-level Sessions area. */
-	projectId: string | null;
-	/** Non-null when this group nests inside another group. */
-	parentSectionId: string | null;
+	projectId: string;
 	name: string;
 	createdAt: Date;
 	isCollapsed: boolean;
 	tabOrder: number;
 	color: string | null;
-}
-
-/** Corrupt trees never brick the sidebar: deeper nesting splices to root. */
-const MAX_GROUP_DEPTH = 4;
-
-/**
- * Assembles one scope's groups into a tree of DashboardSidebarSection nodes.
- * Nested groups attach to their parent's `childSections` (sorted by tabOrder);
- * a group whose parent is missing, cyclic, or beyond MAX_GROUP_DEPTH is
- * spliced to the scope root instead of being dropped.
- *
- * Returns every node keyed by id plus the root-level nodes in input order.
- */
-export function buildSectionTree(sections: SidebarSectionInput[]): {
-	nodesById: Map<string, DashboardSidebarSection>;
-	rootSections: DashboardSidebarSection[];
-} {
-	const inputsById = new Map(sections.map((section) => [section.id, section]));
-
-	// A node keeps its declared parent when that parent exists and the chain
-	// doesn't loop back to the node itself. A dangling or cyclic ancestor
-	// deeper up re-roots THAT ancestor, which already unblocks this node's
-	// chain — so only self-cycles and missing direct parents splice here.
-	const resolveParent = (section: SidebarSectionInput): string | null => {
-		if (section.parentSectionId === null) return null;
-		if (!inputsById.has(section.parentSectionId)) return null;
-		const visited = new Set<string>([section.id]);
-		let current: string | null = section.parentSectionId;
-		while (current !== null) {
-			if (current === section.id) return null; // self-cycle → splice
-			if (visited.has(current)) break; // upstream loop — not ours to fix
-			visited.add(current);
-			current = inputsById.get(current)?.parentSectionId ?? null;
-			if (current === section.id) return null;
-		}
-		return section.parentSectionId;
-	};
-
-	const nodesById = new Map<string, DashboardSidebarSection>(
-		sections.map((section) => [
-			section.id,
-			{
-				...section,
-				workspaces: [],
-				childSections: [],
-			},
-		]),
-	);
-
-	const rootSections: DashboardSidebarSection[] = [];
-	for (const section of sections) {
-		const node = nodesById.get(section.id);
-		if (!node) continue;
-		const parentId = resolveParent(section);
-		node.parentSectionId = parentId;
-		if (parentId === null) {
-			rootSections.push(node);
-		} else {
-			nodesById.get(parentId)?.childSections.push(node);
-		}
-	}
-
-	// Depth cap: anything nested deeper than MAX_GROUP_DEPTH re-roots (kept
-	// visible, never dropped). Applied after attachment so re-rooted
-	// ancestors don't double-count depth.
-	const enforceDepth = (node: DashboardSidebarSection, depth: number): void => {
-		const keep: DashboardSidebarSection[] = [];
-		for (const child of node.childSections) {
-			if (depth + 1 >= MAX_GROUP_DEPTH) {
-				child.parentSectionId = null;
-				rootSections.push(child);
-				// The re-rooted subtree may itself exceed the cap.
-				enforceDepth(child, 0);
-			} else {
-				keep.push(child);
-				enforceDepth(child, depth + 1);
-			}
-		}
-		node.childSections = keep;
-	};
-	for (const root of [...rootSections]) {
-		enforceDepth(root, 0);
-	}
-
-	for (const node of nodesById.values()) {
-		node.childSections.sort((left, right) => left.tabOrder - right.tabOrder);
-	}
-	rootSections.sort((left, right) => left.tabOrder - right.tabOrder);
-	return { nodesById, rootSections };
 }
 
 export interface SidebarWorkspaceInput {
@@ -255,53 +163,31 @@ export function buildDashboardSidebarPinnedWorkspaces({
 	);
 }
 
-export interface DashboardSidebarSessionsScope {
-	/** Sessions outside any group, ordered by tabOrder. */
-	looseWorkspaces: DashboardSidebarWorkspace[];
-	/** Root-level session groups (tree), ordered by tabOrder. */
-	rootSections: DashboardSidebarSection[];
-}
-
 /**
- * Builds the top-level Sessions area: project-less workspaces plus the
- * null-scope group tree. Sessions have no repo identity, so every
- * project-derived affordance (repoUrl, remote-branch, PRs) is null/off.
- * A session pointing at a dangling group splices to the loose lane.
+ * Decorates the Sessions section rows (project-less workspaces), ordered by
+ * tabOrder ascending. Sessions have no repo identity, so every project-derived
+ * affordance (repoUrl, remote-branch, PRs) is null/off.
  */
-export function buildDashboardSidebarSessionsScope({
+export function buildDashboardSidebarSessionWorkspaces({
 	sessionSidebarWorkspaces,
-	sessionSections,
 	machineId,
 	pullRequestsByWorkspaceId,
 }: {
 	sessionSidebarWorkspaces: SidebarWorkspaceInput[];
-	sessionSections: SidebarSectionInput[];
 	machineId: string;
 	pullRequestsByWorkspaceId: Map<string, SidebarPullRequest>;
-}): DashboardSidebarSessionsScope {
-	const { nodesById, rootSections } = buildSectionTree(sessionSections);
-
-	const looseWorkspaces: DashboardSidebarWorkspace[] = [];
-	for (const workspace of sessionSidebarWorkspaces
+}): DashboardSidebarWorkspace[] {
+	return sessionSidebarWorkspaces
 		.slice()
-		.sort((left, right) => left.tabOrder - right.tabOrder)) {
-		const decorated = decorateSidebarWorkspace(
-			workspace,
-			{ githubOwner: null, githubRepoName: null },
-			machineId,
-			pullRequestsByWorkspaceId,
+		.sort((left, right) => left.tabOrder - right.tabOrder)
+		.map((workspace) =>
+			decorateSidebarWorkspace(
+				workspace,
+				{ githubOwner: null, githubRepoName: null },
+				machineId,
+				pullRequestsByWorkspaceId,
+			),
 		);
-		const section = workspace.sectionId
-			? nodesById.get(workspace.sectionId)
-			: undefined;
-		if (section) {
-			section.workspaces.push({ ...decorated, accentColor: section.color });
-		} else {
-			looseWorkspaces.push(decorated);
-		}
-	}
-	rootSections.sort((left, right) => left.tabOrder - right.tabOrder);
-	return { looseWorkspaces, rootSections };
 }
 
 export interface BuildDashboardSidebarProjectsParams {
@@ -344,33 +230,23 @@ export function buildDashboardSidebarProjects({
 		});
 	}
 
-	// Group the section inputs per project, then build each project's tree.
-	// Every node (root or nested) lands in sectionMap so workspaces can join
-	// their group by id; only root nodes become top-level child entries.
-	const sectionsByProject = new Map<string, SidebarSectionInput[]>();
 	for (const section of sidebarSections) {
-		if (section.projectId === null) continue; // sessions scope, built separately
-		if (!projectsById.has(section.projectId)) continue;
-		const list = sectionsByProject.get(section.projectId) ?? [];
-		list.push(section);
-		sectionsByProject.set(section.projectId, list);
-	}
-	for (const [projectId, projectSections] of sectionsByProject) {
-		const project = projectsById.get(projectId);
+		const project = projectsById.get(section.projectId);
 		if (!project) continue;
-		const { nodesById, rootSections } = buildSectionTree(projectSections);
-		for (const [sectionId, node] of nodesById) {
-			project.sectionMap.set(sectionId, node);
-		}
-		for (const section of rootSections) {
-			project.childEntries.push({
-				tabOrder: section.tabOrder,
-				child: {
-					type: "section",
-					section,
-				},
-			});
-		}
+
+		const sidebarSection: DashboardSidebarSection = {
+			...section,
+			workspaces: [],
+		};
+
+		project.sectionMap.set(section.id, sidebarSection);
+		project.childEntries.push({
+			tabOrder: section.tabOrder,
+			child: {
+				type: "section",
+				section: sidebarSection,
+			},
+		});
 	}
 
 	for (const workspace of visibleSidebarWorkspaces) {
