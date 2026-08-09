@@ -33,6 +33,8 @@ interface AutomationRowProps {
 	owner: Pick<SelectUser, "id" | "name" | "email"> | undefined;
 	showOwner: boolean;
 	project: ProjectOption | undefined;
+	/** True when the automation targets sessions (no project). */
+	isSession?: boolean;
 	/** The automation's most recent run; null when it has no runs. */
 	lastRun: AutomationLastRun | null;
 	/** Shared ticking clock so relative times stay fresh without per-row timers. */
@@ -79,6 +81,7 @@ export function AutomationRow({
 	owner,
 	showOwner,
 	project,
+	isSession = false,
 	lastRun,
 	now,
 	isOwner,
@@ -156,7 +159,7 @@ export function AutomationRow({
 							>
 								{automation.name}
 							</span>
-							{project && (
+							{project ? (
 								<span className="ml-1 flex min-w-0 shrink items-center gap-1.5 text-xs text-muted-foreground">
 									<ProjectThumbnail
 										projectName={project.name}
@@ -165,7 +168,11 @@ export function AutomationRow({
 									/>
 									<span className="truncate">{project.name}</span>
 								</span>
-							)}
+							) : isSession ? (
+								<span className="ml-1 shrink-0 text-xs text-muted-foreground">
+									Session
+								</span>
+							) : null}
 						</span>
 					</TableCell>
 

@@ -436,7 +436,12 @@ function AutomationsPage() {
 			automation={automation}
 			owner={usersById.get(automation.ownerUserId)}
 			showOwner={scope === "team"}
-			project={projectsById.get(automation.v2ProjectId)}
+			project={
+				automation.v2ProjectId === null
+					? undefined
+					: projectsById.get(automation.v2ProjectId)
+			}
+			isSession={automation.v2ProjectId === null}
 			lastRun={lastRunById.get(automation.id) ?? null}
 			now={now}
 			isOwner={automation.ownerUserId === currentUserId}
