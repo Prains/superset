@@ -51,9 +51,11 @@ export function WorkspacePicker({
 
 	const hostRows = allHosts as SelectV2Host[];
 
+	// Null projectId = session mode: offer the host's session workspaces
+	// (projectId null) as pin targets.
 	const workspaces = useMemo(
 		() =>
-			hostId && projectId
+			hostId
 				? workspaceRows.filter(
 						(w) => w.hostId === hostId && w.projectId === projectId,
 					)
@@ -88,7 +90,9 @@ export function WorkspacePicker({
 			? "Loading…"
 			: missing
 				? "Workspace not found"
-				: "New workspace";
+				: projectId === null
+					? "New session"
+					: "New workspace";
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -125,7 +129,9 @@ export function WorkspacePicker({
 								}}
 							>
 								<LuSparkles className="size-4" />
-								<span>New workspace</span>
+								<span>
+									{projectId === null ? "New session" : "New workspace"}
+								</span>
 								{!selected && !resolving && !missing && (
 									<HiCheck className="ml-auto size-4" />
 								)}
