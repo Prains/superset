@@ -434,7 +434,9 @@ function AutomationsPage() {
 	// Opens a project-less agent session seeded with automation-creation
 	// instructions. The in-app "superset" chat agent can't run the CLI, so
 	// pick the user's last terminal agent (composer behavior).
+	const [creatingWithAgent, setCreatingWithAgent] = useState(false);
 	const handleCreateWithAgent = () => {
+		if (creatingWithAgent) return;
 		if (!machineId) {
 			toast.error("Host service is not running");
 			return;
@@ -447,7 +449,8 @@ function AutomationsPage() {
 			toast.error("No terminal agent is configured on this device");
 			return;
 		}
-		const { workspaceId } = submitWorkspaceCreate({
+		setCreatingWithAgent(true);
+		const { workspaceId, completed } = submitWorkspaceCreate({
 			hostId: machineId,
 			snapshot: {
 				id: crypto.randomUUID(),
@@ -455,10 +458,13 @@ function AutomationsPage() {
 				agents: [{ agent, prompt: AUTOMATION_AGENT_PROMPT }],
 			},
 		});
-		void navigate({
+		// The store shows creation failures on the optimistic sidebar row; this
+		// just re-arms the button if the user navigates back.
+		void completed.finally(() => setCreatingWithAgent(false));
+		navigate({
 			to: "/v2-workspace/$workspaceId",
 			params: { workspaceId },
-		});
+		}).catch(() => {});
 	};
 
 	const handleDialogOpenChange = (next: boolean) => {
@@ -562,6 +568,7 @@ function AutomationsPage() {
 								variant="outline"
 								size="sm"
 								className="h-8 gap-1.5 px-3"
+								disabled={creatingWithAgent}
 								onClick={handleCreateWithAgent}
 							>
 								<LuSparkles className="size-4" />

@@ -178,7 +178,7 @@ export const ONBOARDING_SUGGESTIONS: AutomationTemplate[] = [
 		id: "onboard-fix-ci",
 		emoji: "🔧",
 		description:
-			"Each morning at 8am, look at yesterday's failed CI runs on main, diagnose the most common failure, and open a fix PR.",
+			"Each morning at 8am, look at yesterday's failed CI runs, diagnose the most common failure, and open a fix PR.",
 		name: "Fix CI failures",
 		prompt:
 			"Look at yesterday's failed CI runs on the default branch. Diagnose the most common failure, fix the root cause, run the affected checks locally, and open a PR with the fix. If nothing failed, say so and stop.",

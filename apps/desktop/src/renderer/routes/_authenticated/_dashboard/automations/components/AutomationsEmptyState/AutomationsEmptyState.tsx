@@ -10,7 +10,7 @@ import { TemplateCard } from "../TemplateCard";
 // See plans/automations-onboarding.md.
 const PLACEHOLDERS = [
 	"Every weekday at 9am, triage new GitHub issues and draft replies for my review",
-	"Summarize failed CI runs on main every morning before standup",
+	"Summarize failed CI runs every morning before standup",
 	"Every Friday at 4pm, draft release notes from this week's merged PRs",
 	"Nightly at 2am, find one small bug, fix it, and open a PR",
 ];
@@ -47,11 +47,14 @@ export function AutomationsEmptyState({
 				<button
 					type="button"
 					onClick={onCreateWithAgent}
+					aria-label="Create an automation with an agent"
 					className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3.5 text-left transition-colors hover:border-border/80 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 				>
 					<LuSparkles className="size-4 shrink-0 text-muted-foreground" />
+					{/* Rotating examples are decorative; the stable name is on the button. */}
 					<span
 						key={placeholderIndex}
+						aria-hidden="true"
 						className="min-w-0 truncate text-sm text-muted-foreground animate-in fade-in duration-300"
 					>
 						{PLACEHOLDERS[placeholderIndex]}
