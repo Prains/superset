@@ -2,6 +2,7 @@ import { PromptInputProvider } from "@superset/ui/ai-elements/prompt-input";
 import { createFileRoute } from "@tanstack/react-router";
 import { NewWorkspaceScreen } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal/components/NewWorkspaceScreen";
 import { DashboardNewWorkspaceDraftProvider } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal/DashboardNewWorkspaceDraftContext";
+import { newWorkspaceAttachmentsStore } from "renderer/stores/new-workspace-attachments";
 
 export const Route = createFileRoute(
 	"/_authenticated/_dashboard/new-workspace/",
@@ -24,7 +25,7 @@ function NewWorkspacePage() {
 	const { projectId, session } = Route.useSearch();
 	return (
 		<DashboardNewWorkspaceDraftProvider onClose={() => {}}>
-			<PromptInputProvider>
+			<PromptInputProvider attachmentsStore={newWorkspaceAttachmentsStore}>
 				<NewWorkspaceScreen
 					isOpen
 					preSelectedProjectId={projectId ?? null}
