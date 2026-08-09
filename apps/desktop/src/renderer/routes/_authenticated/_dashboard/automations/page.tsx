@@ -242,8 +242,7 @@ function AutomationsPage() {
 			})),
 		[collections.users],
 	);
-	const { lastRunStatusById, lastRunAtById, failedIds, markMyFailuresSeen } =
-		useFailedAutomations();
+	const { lastRunById, failedIds, markMyFailuresSeen } = useFailedAutomations();
 	const now = useNow(30_000);
 
 	// Opening the page clears the sidebar failure badge; failures that sync in
@@ -388,23 +387,27 @@ function AutomationsPage() {
 		});
 	}, [visible, sortField, sortDirection, usersById]);
 
-	// Default (unsorted) view groups rows Codex-style: soonest run first,
-	// paused automations in their own section at the bottom.
+	// Default (unsorted) view groups rows Codex-style: failing automations
+	// pinned on top, then soonest run first, paused in their own section.
+	const needsAttention = useMemo(
+		() => visible.filter((a) => failedIds.has(a.id)),
+		[visible, failedIds],
+	);
 	const upNext = useMemo(
 		() =>
 			visible
-				.filter((a) => a.enabled)
+				.filter((a) => a.enabled && !failedIds.has(a.id))
 				.slice()
 				.sort((a, b) => {
 					const at = a.nextRunAt ? new Date(a.nextRunAt).getTime() : Infinity;
 					const bt = b.nextRunAt ? new Date(b.nextRunAt).getTime() : Infinity;
 					return at - bt;
 				}),
-		[visible],
+		[visible, failedIds],
 	);
 	const pausedVisible = useMemo(
-		() => visible.filter((a) => !a.enabled),
-		[visible],
+		() => visible.filter((a) => !a.enabled && !failedIds.has(a.id)),
+		[visible, failedIds],
 	);
 
 	const handleSelectTemplate = (template: AutomationTemplate) => {
@@ -434,8 +437,7 @@ function AutomationsPage() {
 			owner={usersById.get(automation.ownerUserId)}
 			showOwner={scope === "team"}
 			project={projectsById.get(automation.v2ProjectId)}
-			lastRunStatus={lastRunStatusById.get(automation.id) ?? null}
-			lastRunAt={lastRunAtById.get(automation.id) ?? null}
+			lastRun={lastRunById.get(automation.id) ?? null}
 			now={now}
 			isOwner={automation.ownerUserId === currentUserId}
 			isRetrying={retryingIds.has(automation.id)}
@@ -457,11 +459,14 @@ function AutomationsPage() {
 		/>
 	);
 
-	const sectionRow = (label: string) => (
+	const sectionRow = (label: string, alert = false) => (
 		<TableRow className="border-border/50 hover:bg-transparent">
 			<TableCell
 				colSpan={columnCount}
-				className="h-8 bg-accent/20 pl-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70"
+				className={cn(
+					"h-8 bg-accent/20 pl-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70",
+					alert && "text-red-600/80 dark:text-red-400/80",
+				)}
 			>
 				{label}
 			</TableCell>
@@ -625,9 +630,11 @@ function AutomationsPage() {
 								</EmptyHeader>
 							</Empty>
 						) : (
-							<div className="overflow-hidden rounded-xl border border-border">
+							// No overflow-hidden: it would break the sticky header, which
+							// sticks relative to the page scroll container.
+							<div className="rounded-xl border border-border">
 								<Table className="table-fixed">
-									<TableHeader className="bg-accent/20 [&_tr]:border-border/50">
+									<TableHeader className="sticky top-0 z-10 rounded-t-xl bg-background shadow-[inset_0_-1px_0_0_var(--color-border)] [&_tr]:border-b-0">
 										<TableRow className="hover:bg-transparent">
 											<TableHead className={cn(DATA_TABLE_HEAD_CELL, "pl-4")}>
 												<SortableHeader
@@ -686,10 +693,22 @@ function AutomationsPage() {
 										</TableRow>
 									</TableHeader>
 									<TableBody>
-										{sortField ? (
+										{visible.length === 0 ? (
+											<TableRow className="hover:bg-transparent">
+												<TableCell
+													colSpan={columnCount}
+													className="h-24 text-center text-sm text-muted-foreground"
+												>
+													No automations match
+												</TableCell>
+											</TableRow>
+										) : sortField ? (
 											sortedVisible.map(renderAutomationRow)
 										) : (
 											<>
+												{needsAttention.length > 0 &&
+													sectionRow("Needs attention", true)}
+												{needsAttention.map(renderAutomationRow)}
 												{upNext.length > 0 && sectionRow("Up next")}
 												{upNext.map(renderAutomationRow)}
 												{pausedVisible.length > 0 && sectionRow("Paused")}

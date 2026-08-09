@@ -10,11 +10,20 @@ const FAILED_STATUSES: SelectAutomationRun["status"][] = [
 	"dispatch_failed",
 ];
 
+export interface AutomationLastRun {
+	status: SelectAutomationRun["status"];
+	/** createdAt as epoch ms; NaN-free (unparseable rows are dropped). */
+	at: number;
+	v2WorkspaceId: string | null;
+	chatSessionId: string | null;
+	terminalSessionId: string | null;
+}
+
 interface FailedAutomations {
 	/** Most recent run status per automation (absent = no runs yet). */
 	lastRunStatusById: Map<string, SelectAutomationRun["status"]>;
-	/** Most recent run createdAt (epoch ms) per automation. */
-	lastRunAtById: Map<string, number>;
+	/** Most recent run per automation, with its workspace/session links. */
+	lastRunById: Map<string, AutomationLastRun>;
 	/** Automations whose most recent run failed. */
 	failedIds: Set<string>;
 	/** How many of the current user's failures the user hasn't seen yet. */
@@ -40,6 +49,9 @@ export function useFailedAutomations(): FailedAutomations {
 				automationId: r.automationId,
 				status: r.status,
 				createdAt: r.createdAt,
+				v2WorkspaceId: r.v2WorkspaceId,
+				chatSessionId: r.chatSessionId,
+				terminalSessionId: r.terminalSessionId,
 			})),
 		[collections.automationRuns],
 	);
@@ -52,33 +64,34 @@ export function useFailedAutomations(): FailedAutomations {
 		[collections.automations],
 	);
 
-	const { lastRunStatusById, lastRunAtById, failedIds, myFailureTimes } =
+	const { lastRunStatusById, lastRunById, failedIds, myFailureTimes } =
 		useMemo(() => {
-			const latest = new Map<
-				string,
-				{ status: SelectAutomationRun["status"]; at: number }
-			>();
+			const latest = new Map<string, AutomationLastRun>();
 			for (const run of runRows) {
 				if (run == null) continue;
 				const at = new Date(run.createdAt as unknown as string).getTime();
+				if (!Number.isFinite(at)) continue;
 				const prev = latest.get(run.automationId);
 				if (!prev || at > prev.at) {
-					latest.set(run.automationId, { status: run.status, at });
+					latest.set(run.automationId, {
+						status: run.status,
+						at,
+						v2WorkspaceId: run.v2WorkspaceId ?? null,
+						chatSessionId: run.chatSessionId ?? null,
+						terminalSessionId: run.terminalSessionId ?? null,
+					});
 				}
 			}
 			const lastRunStatusById = new Map<
 				string,
 				SelectAutomationRun["status"]
 			>();
-			const lastRunAtById = new Map<string, number>();
 			const failedIds = new Set<string>();
 			for (const [id, run] of latest) {
 				lastRunStatusById.set(id, run.status);
-				if (Number.isFinite(run.at)) lastRunAtById.set(id, run.at);
 				if (FAILED_STATUSES.includes(run.status)) failedIds.add(id);
 			}
-			// createdAt of each of the current user's failing runs. Drop non-finite
-			// times (unparseable createdAt) so one bad run can't poison the max below.
+			// createdAt of each of the current user's failing runs.
 			const myFailureTimes = currentUserId
 				? automationRows
 						.filter(
@@ -90,7 +103,12 @@ export function useFailedAutomations(): FailedAutomations {
 						.map((a) => latest.get(a.id)?.at ?? 0)
 						.filter((at) => Number.isFinite(at))
 				: [];
-			return { lastRunStatusById, lastRunAtById, failedIds, myFailureTimes };
+			return {
+				lastRunStatusById,
+				lastRunById: latest,
+				failedIds,
+				myFailureTimes,
+			};
 		}, [runRows, automationRows, currentUserId]);
 
 	const myFailedCount = useMemo(
@@ -105,7 +123,7 @@ export function useFailedAutomations(): FailedAutomations {
 
 	return {
 		lastRunStatusById,
-		lastRunAtById,
+		lastRunById,
 		failedIds,
 		myFailedCount,
 		markMyFailuresSeen,

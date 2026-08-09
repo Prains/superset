@@ -22,7 +22,8 @@ import { TableCell, TableRow } from "@superset/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { LuEllipsis, LuRotateCw } from "react-icons/lu";
+import { LuEllipsis, LuPlay, LuRotateCw } from "react-icons/lu";
+import type { AutomationLastRun } from "renderer/routes/_authenticated/_dashboard/hooks/useFailedAutomations";
 import type { ProjectOption } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal/components/DashboardNewWorkspaceForm/PromptGroup/types";
 import { ProjectThumbnail } from "renderer/routes/_authenticated/components/ProjectThumbnail";
 import { AutomationActionsMenuItems } from "./components/AutomationActionsMenuItems";
@@ -32,10 +33,8 @@ interface AutomationRowProps {
 	owner: Pick<SelectUser, "id" | "name" | "email"> | undefined;
 	showOwner: boolean;
 	project: ProjectOption | undefined;
-	/** The automation's most recent run status; null when it has no runs. */
-	lastRunStatus: SelectAutomationRun["status"] | null;
-	/** createdAt (epoch ms) of the most recent run; null when it has no runs. */
-	lastRunAt: number | null;
+	/** The automation's most recent run; null when it has no runs. */
+	lastRun: AutomationLastRun | null;
 	/** Shared ticking clock so relative times stay fresh without per-row timers. */
 	now: Date;
 	isOwner: boolean;
@@ -80,8 +79,7 @@ export function AutomationRow({
 	owner,
 	showOwner,
 	project,
-	lastRunStatus,
-	lastRunAt,
+	lastRun,
 	now,
 	isOwner,
 	isRetrying,
@@ -103,6 +101,18 @@ export function AutomationRow({
 			params: { automationId: automation.id },
 			search: { history: true },
 		});
+	const openLastRunWorkspace = () => {
+		if (!lastRun?.v2WorkspaceId) return;
+		localStorage.setItem("lastViewedWorkspaceId", lastRun.v2WorkspaceId);
+		navigate({
+			to: "/v2-workspace/$workspaceId",
+			params: { workspaceId: lastRun.v2WorkspaceId },
+			search: {
+				terminalId: lastRun.terminalSessionId ?? undefined,
+				chatSessionId: lastRun.chatSessionId ?? undefined,
+			},
+		});
+	};
 
 	const actionsMenuItems = (kind: "context" | "dropdown") => (
 		<AutomationActionsMenuItems
@@ -116,6 +126,9 @@ export function AutomationRow({
 			onDelete={() => onDelete(automation)}
 		/>
 	);
+
+	const lastRunMeta = lastRun ? LAST_RUN_META[lastRun.status] : null;
+	const lastRunClickable = !!lastRun?.v2WorkspaceId;
 
 	return (
 		<ContextMenu>
@@ -202,75 +215,62 @@ export function AutomationRow({
 					</TableCell>
 
 					<TableCell className="text-xs text-muted-foreground">
-						{lastRunStatus ? (
+						{lastRun && lastRunMeta ? (
 							(() => {
-								const meta = LAST_RUN_META[lastRunStatus];
 								const cell = (
 									<span
 										className={cn(
 											"flex items-center gap-1.5",
-											meta.failed && "text-red-600 dark:text-red-400",
+											lastRunMeta.failed && "text-red-600 dark:text-red-400",
 										)}
 									>
 										<span
 											className={cn(
 												"inline-block size-1.5 shrink-0 rounded-full",
-												meta.dot,
+												lastRunMeta.dot,
 											)}
 										/>
-										{meta.label}
-										{lastRunAt != null && (
-											<span
-												className="truncate text-muted-foreground/70"
-												title={new Date(lastRunAt).toLocaleString()}
-											>
-												{compactAgo(lastRunAt, now)}
-											</span>
-										)}
+										{lastRunMeta.label}
+										<span
+											className="truncate text-muted-foreground/70"
+											title={new Date(lastRun.at).toLocaleString()}
+										>
+											{compactAgo(lastRun.at, now)}
+										</span>
 									</span>
 								);
-								return (
-									<span className="flex items-center gap-1">
-										{meta.failed ? (
-											<Tooltip>
-												<TooltipTrigger asChild>{cell}</TooltipTrigger>
-												<TooltipContent>
-													The last run failed. Click to see why.
-												</TooltipContent>
-											</Tooltip>
-										) : (
-											cell
-										)}
-										{meta.failed && isOwner && (
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Button
-														variant="ghost"
-														size="icon-sm"
-														disabled={isRetrying}
-														onClick={(e) => {
-															e.stopPropagation();
-															onRunNow(automation);
-														}}
-														aria-label={`Retry ${automation.name}`}
-														className={cn(
-															"size-5 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100",
-															isRetrying && "opacity-100",
-														)}
-													>
-														<LuRotateCw
-															className={cn(
-																"size-3",
-																isRetrying && "animate-spin",
-															)}
-														/>
-													</Button>
-												</TooltipTrigger>
-												<TooltipContent>Retry now</TooltipContent>
-											</Tooltip>
-										)}
-									</span>
-								);
+								if (lastRunClickable) {
+									return (
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<button
+													type="button"
+													onClick={(e) => {
+														e.stopPropagation();
+														openLastRunWorkspace();
+													}}
+													className="rounded outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/40"
+												>
+													{cell}
+												</button>
+											</TooltipTrigger>
+											<TooltipContent>Open the run's workspace</TooltipContent>
+										</Tooltip>
+									);
+								}
+								if (lastRunMeta.failed) {
+									return (
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<span className="block">{cell}</span>
+											</TooltipTrigger>
+											<TooltipContent>
+												The last run failed. Click the row to see why.
+											</TooltipContent>
+										</Tooltip>
+									);
+								}
+								return cell;
 							})()
 						) : (
 							<span>—</span>
@@ -278,7 +278,34 @@ export function AutomationRow({
 					</TableCell>
 
 					<TableCell className="pr-4">
-						<span className="flex items-center justify-end">
+						<span className="flex items-center justify-end gap-0.5">
+							{isOwner && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											disabled={isRetrying}
+											onClick={(e) => {
+												e.stopPropagation();
+												onRunNow(automation);
+											}}
+											aria-label={`Run ${automation.name} now`}
+											className={cn(
+												"opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+												isRetrying && "opacity-100",
+											)}
+										>
+											{isRetrying ? (
+												<LuRotateCw className="size-4 animate-spin" />
+											) : (
+												<LuPlay className="size-4" />
+											)}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Run now</TooltipContent>
+								</Tooltip>
+							)}
 							{isOwner && (
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
