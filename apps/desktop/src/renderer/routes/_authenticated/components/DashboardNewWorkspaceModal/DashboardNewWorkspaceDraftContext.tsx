@@ -63,6 +63,7 @@ export function useDashboardNewWorkspaceDraft() {
 			workspaceNameEdited: store.workspaceNameEdited,
 			branchName: store.branchName,
 			branchNameEdited: store.branchNameEdited,
+			branchNameFromProvider: store.branchNameFromProvider,
 			linkedIssues: store.linkedIssues,
 			linkedPR: store.linkedPR,
 			selectedAgentId: store.selectedAgentId,

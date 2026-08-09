@@ -90,6 +90,11 @@ const createInputSchema = z
 		// start. With no prompt, the friendly-random fallback is final.
 		name: z.string().min(1).optional(),
 		branch: z.string().min(1).optional(),
+		// Use the typed branch verbatim (still deduplicated) instead of
+		// namespacing it under the project branch prefix. Set when the
+		// branch comes from an external provider (Linear's branchName),
+		// whose exact format the provider autolinks.
+		skipBranchPrefix: z.boolean().optional(),
 		pr: z.number().int().positive().optional(),
 		baseBranch: z.string().min(1).optional(),
 		taskId: z.string().uuid().optional(),
@@ -841,8 +846,9 @@ export const workspacesRouter = router({
 					resolvedBranch = plan.branch;
 					// Namespace newly-created branches under the configured
 					// prefix. A typed branch that resolves to an existing ref is
-					// checked out as-is and never re-prefixed.
-					if (!plan.usedExistingBranch) {
+					// checked out as-is and never re-prefixed. Provider-supplied
+					// branches (skipBranchPrefix) keep their exact format.
+					if (!plan.usedExistingBranch && !input.skipBranchPrefix) {
 						const prefix = await resolveProjectBranchPrefix({
 							ctx,
 							project: localProject,

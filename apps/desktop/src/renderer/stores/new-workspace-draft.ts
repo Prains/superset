@@ -39,6 +39,12 @@ export interface NewWorkspaceDraft {
 	workspaceNameEdited: boolean;
 	branchName: string;
 	branchNameEdited: boolean;
+	/**
+	 * True while branchName is the provider's own branch name (Linear's
+	 * branchName) seeded by linking an issue. Cleared on manual edits.
+	 * Provider branches are created verbatim — no project branch prefix.
+	 */
+	branchNameFromProvider: boolean;
 	linkedIssues: LinkedIssue[];
 	linkedPR: LinkedPR | null;
 	selectedAgentId: string | null;
@@ -65,6 +71,7 @@ function buildInitialDraft(): NewWorkspaceDraft {
 		workspaceNameEdited: false,
 		branchName: "",
 		branchNameEdited: false,
+		branchNameFromProvider: false,
 		linkedIssues: [],
 		linkedPR: null,
 		selectedAgentId: null,

@@ -190,6 +190,7 @@ export function OpenInWorkspaceV2({ task }: OpenInWorkspaceV2Props) {
 		if (!selectedProjectId || !hostId) return;
 
 		const snapshotId = crypto.randomUUID();
+		const providerBranch = !!task.branch?.trim();
 		const branch = deriveBranchName({
 			slug: task.slug,
 			title: task.title,
@@ -221,6 +222,7 @@ export function OpenInWorkspaceV2({ task }: OpenInWorkspaceV2Props) {
 				projectId: selectedProjectId,
 				name: task.title,
 				branch,
+				skipBranchPrefix: providerBranch || undefined,
 				taskId: task.id,
 				agents,
 			},

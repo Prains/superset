@@ -202,6 +202,7 @@ export function RunInWorkspacePopoverV2({
 						title: task.title,
 						branch: task.branch,
 					}),
+					skipBranchPrefix: task.branch?.trim() ? true : undefined,
 					taskId: task.id,
 					agents:
 						selectedAgent === NONE

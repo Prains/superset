@@ -42,6 +42,7 @@ export function useLinkedContext(
 			if (!draft.branchNameEdited && !draft.branchName.trim()) {
 				patch.branchName = deriveBranchName({ slug, title, branch });
 				patch.branchNameEdited = true;
+				patch.branchNameFromProvider = !!branch?.trim();
 			}
 			if (!draft.workspaceNameEdited && !draft.workspaceName.trim()) {
 				patch.workspaceName = title;
@@ -90,6 +91,7 @@ export function useLinkedContext(
 				if (draft.branchName === seededBranch) {
 					patch.branchName = "";
 					patch.branchNameEdited = false;
+					patch.branchNameFromProvider = false;
 				}
 				if (draft.workspaceName === removed.title) {
 					patch.workspaceName = "";
