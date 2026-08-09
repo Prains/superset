@@ -324,6 +324,16 @@ interface TerminalSession {
 /** PTY lifetime is independent of socket lifetime — sockets detach/reattach freely. */
 const sessions = new Map<string, TerminalSession>();
 
+/**
+ * Respawns triggered by a WS attach, keyed by terminalId, so concurrent
+ * attaches share one creation and exactly one of them owns the
+ * skip-the-reset resync (the others hold stale grids and must be reset).
+ */
+const inflightRespawns = new Map<
+	string,
+	Promise<TerminalSession | { error: string }>
+>();
+
 // When the daemon disconnects, close every WS socket so the renderer's
 // existing exponential-backoff reconnect kicks in. On reconnect, host-service
 // rebuilds the DaemonClient (next getDaemonClient() call), and the adoption-
@@ -1893,11 +1903,16 @@ export function registerWorkspaceTerminalRoute({
 						error,
 					);
 				}
-				// A concurrent attach may have created the session while we awaited
-				// the adopt attempt — only the attach that actually creates the
-				// respawn may skip the reset.
-				const createdByThisAttach = !sessions.has(terminalId);
-				const respawned = await createTerminalSessionInternal({
+				// Concurrent attaches for the same id must share one respawn, and
+				// only the attach that owns it may skip the reset — the others'
+				// renderers hold stale grids that need the full resync.
+				const inflight = inflightRespawns.get(terminalId);
+				if (inflight) {
+					const shared = await inflight;
+					if ("error" in shared) return shared;
+					return { session: shared, respawned: false };
+				}
+				const respawnPromise = createTerminalSessionInternal({
 					terminalId,
 					workspaceId: record.originWorkspaceId,
 					themeType,
@@ -1905,8 +1920,14 @@ export function registerWorkspaceTerminalRoute({
 					eventBus,
 					restoredNotice: true,
 				});
-				if ("error" in respawned) return respawned;
-				return { session: respawned, respawned: createdByThisAttach };
+				inflightRespawns.set(terminalId, respawnPromise);
+				try {
+					const respawned = await respawnPromise;
+					if ("error" in respawned) return respawned;
+					return { session: respawned, respawned: true };
+				} finally {
+					inflightRespawns.delete(terminalId);
+				}
 			};
 
 			return {
