@@ -184,6 +184,12 @@ export interface DaemonSupervisorOptions {
 	 * real handoff.
 	 */
 	autoUpdate?: boolean;
+	/**
+	 * Override for host-service's own trustd probe. Tests inject this to
+	 * exercise the degraded-host branch (heal suppressed), which can't be
+	 * staged for real without breaking the test process's own bootstrap.
+	 */
+	hostTrustdProbe?: () => Promise<boolean>;
 }
 
 export class DaemonSupervisor {
@@ -235,7 +241,9 @@ export class DaemonSupervisor {
 	 * if we're healthy. Cached — a process's bootstrap doesn't change under it.
 	 */
 	private hostTrustdHealthy(): Promise<boolean> {
-		this.hostTrustdHealthyCache ??= probeTrustdHealthy();
+		this.hostTrustdHealthyCache ??= (
+			this.opts.hostTrustdProbe ?? probeTrustdHealthy
+		)();
 		return this.hostTrustdHealthyCache;
 	}
 
