@@ -448,11 +448,19 @@ export function healV2UserPreferences(raw: unknown): V2UserPreferencesRow {
 		r.sidebarFileLinks &&
 		isCompleteLinkTierMap(r.sidebarFileLinks) &&
 		isSameLinkTierMap(r.sidebarFileLinks, LEGACY_SIDEBAR_FILE_LINKS);
+	// A stored map identical to the retired default was never customized —
+	// swap it for the current default (shift gained "newTab").
+	const shouldMigrateLegacyUrlLinks =
+		r.urlLinks &&
+		isCompleteLinkTierMap(r.urlLinks) &&
+		isSameLinkTierMap(r.urlLinks, DEFAULT_LINK_TIER_MAP);
 	return {
 		...DEFAULT_V2_USER_PREFERENCES,
 		...r,
 		fileLinks: { ...DEFAULT_V2_USER_PREFERENCES.fileLinks, ...r.fileLinks },
-		urlLinks: { ...DEFAULT_V2_USER_PREFERENCES.urlLinks, ...r.urlLinks },
+		urlLinks: shouldMigrateLegacyUrlLinks
+			? DEFAULT_V2_USER_PREFERENCES.urlLinks
+			: { ...DEFAULT_V2_USER_PREFERENCES.urlLinks, ...r.urlLinks },
 		sidebarFileLinks: shouldMigrateLegacySidebarFileLinks
 			? DEFAULT_V2_USER_PREFERENCES.sidebarFileLinks
 			: sidebarFileLinks,
