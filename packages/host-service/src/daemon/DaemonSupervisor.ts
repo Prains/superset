@@ -988,6 +988,26 @@ export class DaemonSupervisor {
 				reason: "manifest_socket_unreachable",
 			});
 		}
+		if (
+			probe &&
+			isPositiveInteger(probe.daemonPid) &&
+			probe.daemonPid !== manifest.pid
+		) {
+			// The socket answers, but a DIFFERENT daemon serves it — the
+			// manifest pid is stale (recycled, or lost a bind race). Adopting
+			// manifest.pid would aim any later destructive action (trustd heal,
+			// user restart) at an unrelated process tree. Trust the socket.
+			logEvent("pty_daemon_manifest_pid_mismatch", {
+				organizationId,
+				manifestPid: manifest.pid,
+				probedPid: probe.daemonPid,
+				socketPath: manifest.socketPath,
+			});
+			removePtyDaemonManifest(organizationId);
+			return this.tryAdoptFromSocket(organizationId, expectedSocketPath, {
+				reason: "manifest_pid_mismatch",
+			});
+		}
 		const runningVersion = probe?.daemonVersion ?? "unknown";
 		return {
 			pid: manifest.pid,
@@ -1067,6 +1087,10 @@ export class DaemonSupervisor {
 	}
 
 	private async spawn(organizationId: string): Promise<DaemonInstance> {
+		// Resolve before spawning the child: an await between the spawn and
+		// instances.set would let a crashing child's exit handler run against
+		// a not-yet-registered instance.
+		const hostTrustdHealthy = await this.hostTrustdHealthy();
 		const dir = ptyDaemonManifestDir(organizationId);
 		if (!fs.existsSync(dir)) {
 			fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -1256,7 +1280,7 @@ export class DaemonSupervisor {
 			unreachableSince: null,
 			// A freshly spawned daemon inherits host-service's bootstrap, so its
 			// trustd reachability matches ours.
-			trustdHealthy: await this.hostTrustdHealthy(),
+			trustdHealthy: hostTrustdHealthy,
 		};
 		this.instances.set(organizationId, instance);
 		// Reachability only — `child.on("exit")` above owns death + respawn.

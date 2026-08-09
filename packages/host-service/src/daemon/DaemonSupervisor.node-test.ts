@@ -787,6 +787,19 @@ describe("trustd-degraded daemon heal", () => {
 	// The probe is darwin-only; on other platforms it always reports healthy.
 	const darwinOnly = { skip: process.platform !== "darwin" };
 
+	// Detached daemons spawned by a test that fails before registering its
+	// supervisor would outlive the run — reap them unconditionally.
+	const strayPids: number[] = [];
+	afterEach(() => {
+		for (const pid of strayPids.splice(0)) {
+			try {
+				process.kill(pid, "SIGKILL");
+			} catch {
+				// already dead
+			}
+		}
+	});
+
 	function socketPathFor(orgId: string): string {
 		const socketPath = path.join(
 			os.tmpdir(),
@@ -829,6 +842,7 @@ describe("trustd-degraded daemon heal", () => {
 			},
 		);
 		child.unref();
+		strayPids.push(child.pid as number);
 		return child.pid as number;
 	}
 
