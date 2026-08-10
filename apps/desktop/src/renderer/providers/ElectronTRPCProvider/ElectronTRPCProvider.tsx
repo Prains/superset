@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { del, get, set } from "idb-keyval";
+import { cloudTrpc, cloudTrpcClient } from "renderer/lib/cloud-trpc";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronReactClient } from "../../lib/trpc-client";
 
@@ -77,23 +78,27 @@ export function ElectronTRPCProvider({
 			client={electronReactClient}
 			queryClient={queryClient}
 		>
-			<PersistQueryClientProvider
-				client={queryClient}
-				persistOptions={{
-					persister,
-					maxAge: 24 * 60 * 60 * 1000, // 24h
-					buster: PERSIST_BUSTER,
-					dehydrateOptions: {
-						shouldDehydrateQuery: (query) => {
-							if (!defaultShouldDehydrateQuery(query)) return false;
-							const head = query.queryKey[0];
-							return typeof head === "string" && PERSIST_KEY_PREFIXES.has(head);
+			<cloudTrpc.Provider client={cloudTrpcClient} queryClient={queryClient}>
+				<PersistQueryClientProvider
+					client={queryClient}
+					persistOptions={{
+						persister,
+						maxAge: 24 * 60 * 60 * 1000, // 24h
+						buster: PERSIST_BUSTER,
+						dehydrateOptions: {
+							shouldDehydrateQuery: (query) => {
+								if (!defaultShouldDehydrateQuery(query)) return false;
+								const head = query.queryKey[0];
+								return (
+									typeof head === "string" && PERSIST_KEY_PREFIXES.has(head)
+								);
+							},
 						},
-					},
-				}}
-			>
-				{children}
-			</PersistQueryClientProvider>
+					}}
+				>
+					{children}
+				</PersistQueryClientProvider>
+			</cloudTrpc.Provider>
 		</electronTrpc.Provider>
 	);
 }
