@@ -4,11 +4,11 @@ import {
 	type ChatHistorySidebarMessage,
 	ChatHistorySidebarScroller,
 } from "@superset/ui/chat-history-sidebar";
+import { getPresetIcon } from "@superset/ui/icons/preset-icons";
 import {
 	ChartNoAxesColumnIcon,
 	FileCode2Icon,
 	FolderIcon,
-	GitPullRequestIcon,
 	LightbulbIcon,
 	PaperclipIcon,
 	SparklesIcon,
@@ -65,6 +65,47 @@ const SKILLS = [
 ];
 
 const WORKSPACES = ["woolly-smoke", "quiet-fjord", "amber-basin"];
+
+const AGENTS = [
+	{ id: "claude", label: "Claude Code", description: "Anthropic coding agent" },
+	{ id: "codex", label: "Codex", description: "OpenAI coding agent" },
+	{ id: "copilot", label: "Copilot", description: "GitHub coding agent" },
+	{ id: "gemini", label: "Gemini", description: "Google coding agent" },
+];
+
+function PresetIcon({ name }: { name: string }) {
+	return (
+		<img
+			src={getPresetIcon(name, true)}
+			alt=""
+			className="size-4.5 rounded-[4px]"
+		/>
+	);
+}
+
+function agentsProvider(priority: number): ComposerMentionProvider {
+	return {
+		id: "agents",
+		title: "Agents",
+		priority,
+		source: {
+			kind: "static",
+			load: () =>
+				AGENTS.map((agent) => ({
+					id: agent.id,
+					label: agent.label,
+					description: agent.description,
+					icon: <PresetIcon name={agent.id} />,
+					select: (ctx) =>
+						ctx.insertChip({
+							label: agent.label,
+							serialized: `agent://${agent.id}`,
+							data: { agent: agent.id },
+						}),
+				})),
+		},
+	};
+}
 
 function fileSearchProvider(priority: number): ComposerMentionProvider {
 	return {
@@ -144,7 +185,7 @@ function workspacesProvider(priority: number): ComposerMentionProvider {
 					id: name,
 					label: name,
 					description: "Workspace",
-					icon: <GitPullRequestIcon className="size-4.5" />,
+					icon: <PresetIcon name="superset" />,
 					select: (ctx) =>
 						ctx.insertChip({
 							label: name,
@@ -260,9 +301,10 @@ function ChatScreen() {
 	const [planMode, setPlanMode] = useState(false);
 	const [providers] = useState<ComposerMentionProvider[]>(() => [
 		addProvider(0, setPlanMode),
-		skillsProvider(1),
-		workspacesProvider(2),
-		fileSearchProvider(3),
+		agentsProvider(1),
+		skillsProvider(2),
+		workspacesProvider(3),
+		fileSearchProvider(4),
 	]);
 
 	const handleSubmit = ({ text, mentions }: LexicalComposerSubmitPayload) => {

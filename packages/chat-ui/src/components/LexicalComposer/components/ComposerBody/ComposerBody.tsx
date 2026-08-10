@@ -12,6 +12,7 @@ import {
 	$getRoot,
 	$getSelection,
 	$isRangeSelection,
+	$isTextNode,
 	COMMAND_PRIORITY_HIGH,
 	COMMAND_PRIORITY_LOW,
 	DROP_COMMAND,
@@ -39,8 +40,8 @@ import {
 } from "../../utils/typeaheadOptions";
 import { AttachmentPills } from "../AttachmentPills";
 import { ComposerPanel } from "../ComposerPanel";
+import { ContextButton } from "../ContextButton";
 import { MentionMenu } from "../MentionMenu";
-import { PlusMenu } from "../PlusMenu";
 import { SuggestionListbox } from "../SuggestionListbox";
 
 const MAX_COMMAND_SUGGESTIONS = 8;
@@ -256,6 +257,27 @@ export function ComposerBody({
 		};
 	}, [editor]);
 
+	const openContextMenu = () => {
+		editor.focus();
+		editor.update(() => {
+			let selection = $getSelection();
+			if (!$isRangeSelection(selection)) {
+				$getRoot().selectEnd();
+				selection = $getSelection();
+			}
+			if (!$isRangeSelection(selection)) return;
+			const anchorNode = selection.anchor.getNode();
+			const offset = selection.anchor.offset;
+			const previousChar = $isTextNode(anchorNode)
+				? anchorNode.getTextContent()[offset - 1]
+				: undefined;
+			const needsSpace =
+				(previousChar != null && !/\s/.test(previousChar)) ||
+				(!$isTextNode(anchorNode) && offset > 0);
+			selection.insertText(needsSpace ? " @" : "@");
+		});
+	};
+
 	const canSend = !isEmpty || attachments.length > 0;
 
 	return (
@@ -403,7 +425,17 @@ export function ComposerBody({
 				/>
 			</div>
 			<div className="flex min-h-12 items-center gap-1 px-3 pb-2.5">
-				<PlusMenu onFiles={addFiles} fileInputRef={fileInputRef} />
+				<ContextButton onClick={openContextMenu} />
+				<input
+					ref={fileInputRef}
+					type="file"
+					multiple
+					className="hidden"
+					onChange={(event) => {
+						if (event.target.files) addFiles(event.target.files);
+						event.target.value = "";
+					}}
+				/>
 				{toolbar}
 				<div className="flex-1" />
 				{status === "streaming" ? (
