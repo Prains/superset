@@ -64,6 +64,8 @@ export type LexicalComposerCommand = {
 export type LexicalComposerAttachment = {
 	id: string;
 	file: File;
+	// Object URL for image attachments; owned and revoked by the composer.
+	previewUrl?: string;
 };
 
 export type LexicalComposerSubmitPayload = {

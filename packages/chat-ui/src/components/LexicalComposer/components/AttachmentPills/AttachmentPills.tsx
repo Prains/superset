@@ -1,13 +1,60 @@
 "use client";
 
-import { PaperclipIcon, XIcon } from "lucide-react";
+import {
+	FileArchiveIcon,
+	FileCode2Icon,
+	FileJson2Icon,
+	FileTextIcon,
+	XIcon,
+} from "lucide-react";
+import type { JSX } from "react";
 import type { LexicalComposerAttachment } from "../../types";
-import { formatBytes } from "../../utils/formatBytes";
 
 export type AttachmentPillsProps = {
 	attachments: LexicalComposerAttachment[];
 	onRemove: (id: string) => void;
 };
+
+const CODE_EXTENSIONS = new Set([
+	"ts",
+	"tsx",
+	"js",
+	"jsx",
+	"py",
+	"rs",
+	"go",
+	"rb",
+	"swift",
+	"css",
+	"html",
+	"sh",
+]);
+const DATA_EXTENSIONS = new Set(["json", "yaml", "yml", "toml", "lock"]);
+const ARCHIVE_EXTENSIONS = new Set(["zip", "tar", "gz", "tgz", "7z", "rar"]);
+
+function fileTypeIcon(extension: string): JSX.Element {
+	const lowered = extension.toLowerCase();
+	if (CODE_EXTENSIONS.has(lowered))
+		return <FileCode2Icon className="size-5 text-muted-foreground" />;
+	if (DATA_EXTENSIONS.has(lowered))
+		return <FileJson2Icon className="size-5 text-muted-foreground" />;
+	if (ARCHIVE_EXTENSIONS.has(lowered))
+		return <FileArchiveIcon className="size-5 text-muted-foreground" />;
+	return <FileTextIcon className="size-5 text-muted-foreground" />;
+}
+
+function RemoveButton({ onClick }: { onClick: () => void }) {
+	return (
+		<button
+			type="button"
+			aria-label="Remove attachment"
+			className="absolute top-1 right-1 z-10 flex size-5 cursor-pointer items-center justify-center rounded-full bg-background/80 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+			onClick={onClick}
+		>
+			<XIcon className="size-3" />
+		</button>
+	);
+}
 
 export function AttachmentPills({
 	attachments,
@@ -15,27 +62,47 @@ export function AttachmentPills({
 }: AttachmentPillsProps) {
 	if (attachments.length === 0) return null;
 	return (
-		<div className="flex flex-wrap gap-1.5 px-3 pt-3">
-			{attachments.map((attachment) => (
-				<span
-					key={attachment.id}
-					className="flex items-center gap-1.5 rounded-lg bg-secondary px-2 py-1 text-xs text-secondary-foreground"
-				>
-					<PaperclipIcon className="size-3.5 text-muted-foreground" />
-					<span className="max-w-40 truncate">{attachment.file.name}</span>
-					<span className="text-muted-foreground">
-						{formatBytes(attachment.file.size)}
-					</span>
-					<button
-						type="button"
-						aria-label={`Remove ${attachment.file.name}`}
-						className="cursor-pointer text-muted-foreground hover:text-foreground"
-						onClick={() => onRemove(attachment.id)}
-					>
-						<XIcon className="size-3.5" />
-					</button>
-				</span>
-			))}
+		<div className="flex flex-wrap gap-2 px-3 pt-3">
+			{attachments.map((attachment) => {
+				const filename = attachment.file.name || "attachment";
+				const dotIndex = filename.lastIndexOf(".");
+				const extension =
+					dotIndex > 0 ? filename.slice(dotIndex + 1).toUpperCase() : "";
+				if (attachment.previewUrl) {
+					return (
+						<div key={attachment.id} className="relative shrink-0">
+							<div className="relative block size-16 overflow-hidden rounded-xl border-[0.5px] border-border bg-foreground/[0.04]">
+								<img
+									src={attachment.previewUrl}
+									alt={filename}
+									className="size-full object-cover"
+								/>
+							</div>
+							<RemoveButton onClick={() => onRemove(attachment.id)} />
+						</div>
+					);
+				}
+				return (
+					<div key={attachment.id} className="relative shrink-0">
+						<div className="relative flex h-16 w-[200px] items-center gap-2.5 rounded-xl border-[0.5px] border-border bg-foreground/[0.03] px-2.5">
+							<div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06]">
+								{fileTypeIcon(extension)}
+							</div>
+							<div className="min-w-0 flex-1 pr-3">
+								<div className="truncate text-xs text-foreground">
+									{filename}
+								</div>
+								{extension && (
+									<div className="text-[10px] text-muted-foreground">
+										{extension}
+									</div>
+								)}
+							</div>
+						</div>
+						<RemoveButton onClick={() => onRemove(attachment.id)} />
+					</div>
+				);
+			})}
 		</div>
 	);
 }

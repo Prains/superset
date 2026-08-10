@@ -115,7 +115,13 @@ export function ComposerBody({
 		if (incoming.length === 0) return;
 		setAttachments((previous) => [
 			...previous,
-			...incoming.map((file) => ({ id: crypto.randomUUID(), file })),
+			...incoming.map((file) => ({
+				id: crypto.randomUUID(),
+				file,
+				previewUrl: file.type.startsWith("image/")
+					? URL.createObjectURL(file)
+					: undefined,
+			})),
 		]);
 	};
 	const addFilesRef = useRef(addFiles);
@@ -189,6 +195,10 @@ export function ComposerBody({
 		if (mentionQuery == null) onMentionHighlight?.(null);
 	}, [mentionQuery, onMentionHighlight]);
 
+	const releaseAttachment = (attachment: LexicalComposerAttachment) => {
+		if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+	};
+
 	const submit = () => {
 		if (stateRef.current.status === "streaming") return;
 		const { text, mentions } = editor.getEditorState().read(() => ({
@@ -201,7 +211,10 @@ export function ComposerBody({
 		if (!text && files.length === 0) return;
 		stateRef.current.onSubmit?.({ text, files, mentions });
 		editor.update(() => $getRoot().clear());
-		setAttachments([]);
+		setAttachments((previous) => {
+			for (const attachment of previous) releaseAttachment(attachment);
+			return [];
+		});
 		setPanel(null);
 	};
 	const submitRef = useRef(submit);
@@ -329,7 +342,11 @@ export function ComposerBody({
 				attachments={attachments}
 				onRemove={(id) =>
 					setAttachments((previous) =>
-						previous.filter((entry) => entry.id !== id),
+						previous.filter((entry) => {
+							if (entry.id !== id) return true;
+							releaseAttachment(entry);
+							return false;
+						}),
 					)
 				}
 			/>
