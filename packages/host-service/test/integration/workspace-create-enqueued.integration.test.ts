@@ -87,6 +87,37 @@ describe("workspaces.createEnqueued integration", () => {
 		expect(existsSync(persisted?.worktreePath ?? "")).toBe(true);
 	});
 
+	test("resolving to an existing workspace settles with the canonical id and alreadyExists", async () => {
+		const scenario = await createProjectScenario({
+			hostOptions: { apiOverrides: cloudFlows.workspaceCreateOk() },
+		});
+		dispose = scenario.dispose;
+
+		const first = await scenario.host.trpc.workspaces.create.mutate({
+			projectId: scenario.projectId,
+			name: "original ws",
+			branch: "feature/shared-branch",
+		});
+		const canonicalId = first.workspace.id;
+
+		const settled = captureSettled(scenario.host.eventBus);
+		const enqueueId = randomUUID();
+		await scenario.host.trpc.workspaces.createEnqueued.mutate({
+			projectId: scenario.projectId,
+			branch: "feature/shared-branch",
+			id: enqueueId,
+		});
+		await waitFor(() => settled.length > 0);
+
+		const event = settled[0];
+		// The renderer keys cleanup off this divergence: the optimistic row
+		// under enqueueId is dropped in favor of the canonical workspace.
+		expect(event?.workspaceId).toBe(enqueueId);
+		expect(event?.ok).toBe(true);
+		expect(event?.canonicalWorkspaceId).toBe(canonicalId);
+		expect(event?.alreadyExists).toBe(true);
+	});
+
 	test("rejects without a client-minted id", async () => {
 		const scenario = await createProjectScenario({
 			hostOptions: { apiOverrides: cloudFlows.workspaceCreateOk() },
