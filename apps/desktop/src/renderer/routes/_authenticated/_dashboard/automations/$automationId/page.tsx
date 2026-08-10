@@ -69,6 +69,17 @@ function AutomationDetailPage() {
 	);
 	const recentRuns = runRows as SelectAutomationRun[];
 
+	const ownerUserId = automation?.ownerUserId;
+	const { data: ownerRows = [] } = useLiveQuery(
+		(q) =>
+			q
+				.from({ u: collections.users })
+				.where(({ u }) => eq(u.id, ownerUserId ?? ""))
+				.select(({ u }) => ({ name: u.name, email: u.email })),
+		[collections.users, ownerUserId],
+	);
+	const ownerName = ownerRows[0]?.name ?? ownerRows[0]?.email ?? null;
+
 	const setEnabledMutation = useMutation({
 		mutationFn: (enabled: boolean) =>
 			apiTrpcClient.automation.setEnabled.mutate({ id: automationId, enabled }),
@@ -122,8 +133,6 @@ function AutomationDetailPage() {
 			<div className="flex flex-1 flex-col overflow-hidden">
 				<AutomationDetailHeader
 					name={automation.name}
-					enabled={automation.enabled}
-					onToggleEnabled={() => setEnabledMutation.mutate(!automation.enabled)}
 					onDelete={() => {
 						alert({
 							title: "Delete automation?",
@@ -149,7 +158,6 @@ function AutomationDetailPage() {
 					}}
 					onRunNow={() => runNowMutation.mutate()}
 					onOpenHistory={() => setHistoryOpen(true)}
-					toggleDisabled={setEnabledMutation.isPending}
 					deleteDisabled={deleteMutation.isPending}
 					runNowDisabled={runNowMutation.isPending}
 					readOnly={readOnly}
@@ -158,6 +166,9 @@ function AutomationDetailPage() {
 				<AutomationBody
 					key={automation.id}
 					automation={automation}
+					ownerName={ownerName}
+					onToggleEnabled={(enabled) => setEnabledMutation.mutate(enabled)}
+					toggleDisabled={setEnabledMutation.isPending}
 					readOnly={readOnly}
 				/>
 			</div>
@@ -165,6 +176,7 @@ function AutomationDetailPage() {
 			<AutomationDetailSidebar
 				automation={automation}
 				recentRuns={recentRuns}
+				ownerName={ownerName}
 				readOnly={readOnly}
 			/>
 

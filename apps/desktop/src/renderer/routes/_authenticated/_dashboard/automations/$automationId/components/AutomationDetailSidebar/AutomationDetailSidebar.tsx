@@ -2,19 +2,21 @@ import type {
 	SelectAutomation,
 	SelectAutomationRun,
 } from "@superset/db/schema";
-import { formatDateTimeInTimezone } from "@superset/shared/rrule";
+import {
+	formatDateTimeInTimezone,
+	nextOccurrenceAfter,
+} from "@superset/shared/rrule";
 import { toast } from "@superset/ui/sonner";
-import { cn } from "@superset/ui/utils";
-import { eq } from "@tanstack/db";
-import { useLiveQuery } from "@tanstack/react-db";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { useMutation } from "@tanstack/react-query";
+import { formatDistanceStrict } from "date-fns";
+import { useMemo } from "react";
 import { useRecentProjects } from "renderer/hooks/host-projects/useRecentProjects";
 import { useHostUrl } from "renderer/hooks/host-service/useHostTargetUrl";
 import { useV2AgentChoices } from "renderer/hooks/useV2AgentChoices";
 import { apiTrpcClient } from "renderer/lib/api-trpc-client";
 import { DevicePicker } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal/components/DashboardNewWorkspaceForm/components/DevicePicker";
 import { useWorkspaceHostOptions } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal/components/DashboardNewWorkspaceForm/components/DevicePicker/hooks/useWorkspaceHostOptions/useWorkspaceHostOptions";
-import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
 import { AgentPicker } from "../../../components/AgentPicker";
 import { ProjectPicker } from "../../../components/ProjectPicker";
 import { RelayOfflineNotice } from "../../../components/RelayOfflineNotice";
@@ -30,6 +32,7 @@ import { SectionTitle } from "./components/SectionTitle";
 interface AutomationDetailSidebarProps {
 	automation: SelectAutomation;
 	recentRuns: SelectAutomationRun[];
+	ownerName?: string | null;
 	/** Disables every editor — automation updates are owner-gated server-side. */
 	readOnly?: boolean;
 }
@@ -37,10 +40,10 @@ interface AutomationDetailSidebarProps {
 export function AutomationDetailSidebar({
 	automation,
 	recentRuns,
+	ownerName,
 	readOnly,
 }: AutomationDetailSidebarProps) {
 	const recentProjects = useRecentProjects();
-	const collections = useCollections();
 	const { localHostId } = useWorkspaceHostOptions();
 	const selectedProject = recentProjects.find(
 		(p) => p.id === automation.v2ProjectId,
@@ -71,51 +74,61 @@ export function AutomationDetailSidebar({
 			),
 	});
 
-	const { data: ownerRows = [] } = useLiveQuery(
-		(q) =>
-			q
-				.from({ u: collections.users })
-				.where(({ u }) => eq(u.id, automation.ownerUserId))
-				.select(({ u }) => ({ name: u.name, email: u.email })),
-		[collections.users, automation.ownerUserId],
-	);
-	const ownerName = ownerRows[0]?.name ?? ownerRows[0]?.email ?? null;
-
 	const lastRunAt = recentRuns
 		.map((run) => run.scheduledFor)
 		.map((d) => (d ? new Date(d) : null))
 		.filter((d): d is Date => d !== null)
 		.sort((a, b) => b.getTime() - a.getTime())[0];
 
+	// Paused automations keep a stale nextRunAt; compute what the schedule
+	// would fire next so edits are previewable before resuming.
+	const nextRunDate = useMemo(() => {
+		if (automation.enabled) {
+			return automation.nextRunAt ? new Date(automation.nextRunAt) : null;
+		}
+		try {
+			return nextOccurrenceAfter({
+				rrule: automation.rrule,
+				dtstart: new Date(automation.dtstart),
+				timezone: automation.timezone,
+				after: new Date(),
+			});
+		} catch {
+			return null;
+		}
+	}, [
+		automation.enabled,
+		automation.nextRunAt,
+		automation.rrule,
+		automation.dtstart,
+		automation.timezone,
+	]);
+
 	return (
 		<aside className="flex w-[360px] shrink-0 flex-col overflow-hidden border-l border-border">
 			<div className="flex shrink-0 flex-col gap-6 px-5 pt-5 pb-2">
 				<Section title="Status">
 					<Row
-						label="Status"
-						value={
-							<span className="inline-flex items-center gap-2">
-								<span
-									className={cn(
-										"inline-block size-2 shrink-0 rounded-full",
-										automation.enabled
-											? "bg-emerald-500"
-											: "border border-muted-foreground/60",
-									)}
-								/>
-								{automation.enabled ? "Active" : "Paused"}
-							</span>
-						}
-					/>
-					<Row
 						label="Next run"
 						value={
-							automation.enabled && automation.nextRunAt
-								? formatDateTimeInTimezone(
-										new Date(automation.nextRunAt),
-										automation.timezone,
-									)
-								: "—"
+							nextRunDate ? (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span>
+											{automation.enabled
+												? formatDistanceStrict(nextRunDate, new Date(), {
+														addSuffix: true,
+													})
+												: `Would run ${formatDistanceStrict(nextRunDate, new Date(), { addSuffix: true })}`}
+										</span>
+									</TooltipTrigger>
+									<TooltipContent side="left">
+										{formatDateTimeInTimezone(nextRunDate, automation.timezone)}
+									</TooltipContent>
+								</Tooltip>
+							) : (
+								"—"
+							)
 						}
 					/>
 					<Row

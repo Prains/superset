@@ -7,32 +7,32 @@ import {
 	BreadcrumbSeparator,
 } from "@superset/ui/breadcrumb";
 import { Button } from "@superset/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@superset/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { Link } from "@tanstack/react-router";
-import { LuClock, LuPause, LuPlay, LuTrash2 } from "react-icons/lu";
+import { LuClock, LuEllipsis, LuPlay, LuTrash2 } from "react-icons/lu";
 
 interface AutomationDetailHeaderProps {
 	name: string;
-	enabled: boolean;
-	onToggleEnabled: () => void;
 	onDelete: () => void;
 	onRunNow: () => void;
 	onOpenHistory: () => void;
-	toggleDisabled?: boolean;
 	deleteDisabled?: boolean;
 	runNowDisabled?: boolean;
-	/** Hides the actions — they're all owner-gated server-side. */
+	/** Disables the actions — they're all owner-gated server-side. */
 	readOnly?: boolean;
 }
 
 export function AutomationDetailHeader({
 	name,
-	enabled,
-	onToggleEnabled,
 	onDelete,
 	onRunNow,
 	onOpenHistory,
-	toggleDisabled,
 	deleteDisabled,
 	runNowDisabled,
 	readOnly,
@@ -56,66 +56,66 @@ export function AutomationDetailHeader({
 			{/* Window-drag leaf standing in for the hidden TopBar. */}
 			<div className="drag h-full min-w-0 flex-1" />
 
-			{!readOnly && (
-				<div className="flex items-center gap-1">
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								onClick={onOpenHistory}
-								aria-label="Version history"
-							>
-								<LuClock className="size-4" />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Version history</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								onClick={onToggleEnabled}
-								disabled={toggleDisabled}
-								aria-label={enabled ? "Pause" : "Resume"}
-							>
-								{enabled ? (
-									<LuPause className="size-4" />
-								) : (
-									<LuPlay className="size-4" />
-								)}
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>{enabled ? "Pause" : "Resume"}</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								onClick={onDelete}
-								disabled={deleteDisabled}
-								aria-label="Delete"
-							>
-								<LuTrash2 className="size-4" />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Delete</TooltipContent>
-					</Tooltip>
-					<div className="mx-1 h-4 w-px bg-border" />
-					<Button
-						variant="outline"
-						size="sm"
-						className="h-8 gap-1.5 px-3"
-						onClick={onRunNow}
-						disabled={runNowDisabled}
-					>
-						<LuPlay className="size-4" />
-						<span>Run now</span>
-					</Button>
-				</div>
-			)}
+			<div className="flex items-center gap-1">
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							onClick={onOpenHistory}
+							disabled={readOnly}
+							aria-label="Version history"
+						>
+							<LuClock className="size-4" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						{readOnly ? "Only the owner can view versions" : "Version history"}
+					</TooltipContent>
+				</Tooltip>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							disabled={readOnly}
+							aria-label="More actions"
+						>
+							<LuEllipsis className="size-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem
+							variant="destructive"
+							disabled={deleteDisabled}
+							onSelect={onDelete}
+						>
+							<LuTrash2 className="size-4" />
+							Delete automation
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+				<div className="mx-1 h-4 w-px bg-border" />
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-8 gap-1.5 px-3"
+							onClick={onRunNow}
+							disabled={readOnly || runNowDisabled}
+						>
+							<LuPlay className="size-4" />
+							<span>Run now</span>
+						</Button>
+					</TooltipTrigger>
+					{readOnly && (
+						<TooltipContent>
+							Only the owner can run this automation
+						</TooltipContent>
+					)}
+				</Tooltip>
+			</div>
 		</header>
 	);
 }
