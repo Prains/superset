@@ -1,0 +1,17 @@
+.lexical-composer-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	padding: 0 2px;
+	font-weight: 500;
+	color: var(--chip-color, var(--primary));
+	vertical-align: bottom;
+	white-space: nowrap;
+}
+
+.lexical-composer-editor {
+	font-size: 14px;
+	line-height: 20px;
+	min-height: 44px;
+	outline: none;
+}

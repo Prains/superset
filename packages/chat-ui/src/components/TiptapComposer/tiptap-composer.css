@@ -1,4 +1,4 @@
-.chat-composer-chip {
+.tiptap-composer-chip {
 	display: inline-flex;
 	align-items: center;
 	gap: 3px;
@@ -9,21 +9,21 @@
 	white-space: nowrap;
 }
 
-.chat-composer-editor {
+.tiptap-composer-editor {
 	font-size: 14px;
 	line-height: 20px;
 	min-height: 44px;
 	outline: none;
 }
 
-.chat-composer-editor p {
+.tiptap-composer-editor p {
 	margin: 0;
 }
 
-.chat-composer-editor [data-placeholder]::before,
-.chat-composer-editor.is-empty::before {
+.tiptap-composer-editor p.is-editor-empty:first-child::before {
 	content: attr(data-placeholder);
-	position: absolute;
+	float: left;
+	height: 0;
 	pointer-events: none;
 	color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
 }
