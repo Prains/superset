@@ -74,6 +74,27 @@ function isMissingProcedureError(error: unknown): boolean {
 	);
 }
 
+/** An `AbortSignal.timeout` firing — host reachable but slow, as opposed to
+ * unreachable (network errors reject differently). */
+function isTimeoutAbort(error: unknown): boolean {
+	const cause = error instanceof TRPCClientError ? error.cause : error;
+	return (
+		cause instanceof DOMException &&
+		(cause.name === "TimeoutError" || cause.name === "AbortError")
+	);
+}
+
+/** Bounded row-existence probe: did the host actually create this workspace? */
+async function workspaceRowExists(
+	client: HostServiceClient,
+	workspaceId: string,
+): Promise<boolean> {
+	const existing = await client.workspace.get
+		.query({ id: workspaceId }, { signal: AbortSignal.timeout(15_000) })
+		.catch(() => null);
+	return existing != null;
+}
+
 /**
  * Enqueue the create and resolve from the `workspace:create-settled` event.
  * The synchronous `workspaces.create` mutation holds one of Chromium's six
@@ -105,27 +126,35 @@ async function createViaEnqueue(
 				signal: AbortSignal.timeout(ENQUEUE_TIMEOUT_MS),
 			});
 		} catch (error) {
-			if (!isMissingProcedureError(error)) throw error;
-			// Legacy host: fall back to the long-held synchronous create.
-			const result = await client.workspaces.create.mutate(payload);
-			return result;
+			if (isMissingProcedureError(error)) {
+				// Legacy host: fall back to the long-held synchronous create.
+				const result = await client.workspaces.create.mutate(payload);
+				return result;
+			}
+			// A timed-out enqueue may still have reached the host (reachable but
+			// slow — e.g. a saturated socket pool). Hard-failing here could tear
+			// down a workspace the host is actually creating; fall through and
+			// let the settled event / backstop decide. Anything else (network
+			// error, rejection) is a definitive no-enqueue: fail now.
+			if (!isTimeoutAbort(error)) throw error;
 		}
 
+		let backstopTimer: ReturnType<typeof setTimeout> | undefined;
 		const outcome = await Promise.race([
 			settled,
-			new Promise<"timeout">((resolve) =>
-				setTimeout(() => resolve("timeout"), CREATE_SETTLE_TIMEOUT_MS),
-			),
-		]);
+			new Promise<"timeout">((resolve) => {
+				backstopTimer = setTimeout(
+					() => resolve("timeout"),
+					CREATE_SETTLE_TIMEOUT_MS,
+				);
+			}),
+		]).finally(() => clearTimeout(backstopTimer));
 
 		if (outcome === "timeout") {
 			// The event was lost, not necessarily the create. If the row exists
 			// the workspace is real — recover with an empty pane seed rather
 			// than tearing down a workspace the user can already see.
-			const existing = await client.workspace.get
-				.query({ id: workspaceId })
-				.catch(() => null);
-			if (existing) {
+			if (await workspaceRowExists(client, workspaceId)) {
 				return {
 					workspace: { id: workspaceId, projectId: payload.projectId },
 					terminals: [],
@@ -258,11 +287,28 @@ export function useWorkspaceCreates(): UseWorkspaceCreatesApi {
 					// Sessions have no setup scripts, so no wait-for-setup gate —
 					// and no git worktree work, so the synchronous mutation stays.
 					const { projectId: _null, ...sessionInput } = snapshot;
-					const result = await client.workspaces.createSession.mutate(
-						sessionInput,
-						{ signal: AbortSignal.timeout(SESSION_CREATE_TIMEOUT_MS) },
-					);
-					return result;
+					try {
+						const result = await client.workspaces.createSession.mutate(
+							sessionInput,
+							{ signal: AbortSignal.timeout(SESSION_CREATE_TIMEOUT_MS) },
+						);
+						return result;
+					} catch (error) {
+						// The abort cancels the client, not the host — a slow but
+						// ultimately successful session create must not be recorded
+						// as failed (the row would pop back via workspace:changed).
+						if (
+							isTimeoutAbort(error) &&
+							(await workspaceRowExists(client, workspaceId))
+						) {
+							return {
+								workspace: { id: workspaceId, projectId: null },
+								terminals: [],
+								agents: [],
+							};
+						}
+						throw error;
+					}
 				}
 				let waitForSetup = waitForSetupBeforeAgent;
 				if (waitForSetup === undefined && snapshot.agents?.length) {

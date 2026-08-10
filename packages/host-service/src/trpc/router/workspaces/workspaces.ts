@@ -1235,7 +1235,10 @@ export const workspacesRouter = router({
 					});
 				})
 				.catch((error) => {
-					console.warn("[workspaces.createEnqueued] create failed", error);
+					console.warn(
+						`[workspaces.createEnqueued] create failed for workspace ${workspaceId} (project ${input.projectId})`,
+						error,
+					);
 					ctx.eventBus.broadcastWorkspaceCreateSettled({
 						workspaceId,
 						ok: false,
