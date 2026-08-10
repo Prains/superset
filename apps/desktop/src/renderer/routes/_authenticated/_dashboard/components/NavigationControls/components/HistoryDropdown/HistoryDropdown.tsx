@@ -281,14 +281,14 @@ export function HistoryDropdown() {
 		[automations],
 	);
 
-	const { data: tasks = [] } = cloudTrpc.task.list.useQuery({
+	const { data: taskPage } = cloudTrpc.task.listPage.useQuery({
 		limit: TASK_LOOKUP_LIMIT,
 	});
 	const { data: taskStatuses = [] } =
 		cloudTrpc.task.statuses.list.useQuery(undefined);
 	const taskData = useMemo(
-		() => joinTasksWithStatuses(tasks, taskStatuses),
-		[tasks, taskStatuses],
+		() => joinTasksWithStatuses(taskPage?.items ?? [], taskStatuses),
+		[taskPage, taskStatuses],
 	);
 
 	const filteredEntries = recentEntries.filter((entry) => {

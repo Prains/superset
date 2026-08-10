@@ -4,7 +4,6 @@ import { Separator } from "@superset/ui/separator";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { MarkdownEditor } from "renderer/components/MarkdownEditor";
-import { apiTrpcClient } from "renderer/lib/api-trpc-client";
 import { cloudTrpc } from "renderer/lib/cloud-trpc";
 import { resolveProjectFilterParams } from "renderer/routes/_authenticated/_dashboard/components/ProjectFilter/project-filter-utils";
 import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";

@@ -146,8 +146,8 @@ export function GroupStrip() {
 		Boolean(activeWorkspaceId) && targetSessionIds.length > 0;
 
 	const { data: allChatSessions = [] } = cloudTrpc.chat.listSessions.useQuery(
-		undefined,
-		{ refetchInterval: 30_000 },
+		{ sessionIds: targetSessionIds },
+		{ refetchInterval: 30_000, enabled: shouldSyncChatTitles },
 	);
 	const chatSessions = useMemo(() => {
 		if (!shouldSyncChatTitles) return [];

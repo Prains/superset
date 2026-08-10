@@ -36,6 +36,8 @@ type TaskRecord = TaskListRow["task"];
 type TaskPatch = Partial<TaskRecord>;
 type TaskRowPatch = Partial<Omit<TaskListRow, "task">>;
 type TaskDetail = RouterOutputs["task"]["byIdOrSlug"] | null;
+type TaskPage = RouterOutputs["task"]["listPage"];
+type TaskPages = { pages: TaskPage[]; pageParams: unknown[] };
 
 /**
  * The pending-rename UI tracks transaction-shaped objects; wrap the mutate
@@ -125,6 +127,7 @@ function useTaskCachePatcher() {
 			},
 		) => {
 			const listKey = getQueryKey(cloudTrpc.task.list);
+			const pageKey = getQueryKey(cloudTrpc.task.listPage);
 			const detailKeys = [
 				getQueryKey(cloudTrpc.task.byId),
 				getQueryKey(cloudTrpc.task.bySlug),
@@ -133,23 +136,47 @@ function useTaskCachePatcher() {
 
 			// An in-flight refetch would otherwise land after the patch and
 			// overwrite it with pre-mutation rows.
-			for (const queryKey of [listKey, ...detailKeys]) {
+			for (const queryKey of [listKey, pageKey, ...detailKeys]) {
 				void queryClient.cancelQueries({ queryKey });
 			}
 
+			const patchRows = (rows: TaskListRow[]) =>
+				rows.flatMap((row) => {
+					if (row.task.id !== taskId) return [row];
+					const next = apply.row(row);
+					return next ? [next] : [];
+				});
+
 			const previousLists = queryClient.getQueriesData<TaskListRow[]>({
 				queryKey: listKey,
+			});
+			const previousPages = queryClient.getQueriesData<TaskPage | TaskPages>({
+				queryKey: pageKey,
 			});
 			const previousDetails = detailKeys.flatMap((queryKey) =>
 				queryClient.getQueriesData<TaskDetail>({ queryKey }),
 			);
 
-			queryClient.setQueriesData<TaskListRow[]>({ queryKey: listKey }, (rows) =>
-				rows?.flatMap((row) => {
-					if (row.task.id !== taskId) return [row];
-					const next = apply.row(row);
-					return next ? [next] : [];
-				}),
+			queryClient.setQueriesData<TaskListRow[]>(
+				{ queryKey: listKey },
+				(rows) => (rows ? patchRows(rows) : rows),
+			);
+
+			queryClient.setQueriesData<TaskPage | TaskPages>(
+				{ queryKey: pageKey },
+				(data) => {
+					if (!data) return data;
+					if ("pages" in data) {
+						return {
+							...data,
+							pages: data.pages.map((page) => ({
+								...page,
+								items: patchRows(page.items),
+							})),
+						};
+					}
+					return { ...data, items: patchRows(data.items) };
+				},
 			);
 
 			for (const queryKey of detailKeys) {
@@ -161,6 +188,9 @@ function useTaskCachePatcher() {
 			return () => {
 				for (const [queryKey, rows] of previousLists) {
 					queryClient.setQueryData(queryKey, rows);
+				}
+				for (const [queryKey, pages] of previousPages) {
+					queryClient.setQueryData(queryKey, pages);
 				}
 				for (const [queryKey, task] of previousDetails) {
 					queryClient.setQueryData(queryKey, task);

@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@superset/ui/popover";
 import { useMemo, useState } from "react";
 import { HiCheck, HiChevronDown, HiOutlineFolder } from "react-icons/hi2";
 import { cloudTrpc } from "renderer/lib/cloud-trpc";
-import { TASK_LIST_INPUT } from "../../../../hooks/useTasksData";
+import { TASK_PICKER_INPUT } from "../../../../hooks/useTasksData";
 
 interface LinearProjectFilterProps {
 	value: string | null;
@@ -30,11 +30,12 @@ export function LinearProjectFilter({
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 
-	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT);
+	const { data: taskPage } =
+		cloudTrpc.task.listPage.useQuery(TASK_PICKER_INPUT);
 
 	const projects = useMemo(() => {
 		const byId = new Map<string, LinearProjectOption>();
-		for (const { task } of taskRows ?? []) {
+		for (const { task } of taskPage?.items ?? []) {
 			if (!task.externalProjectId) continue;
 			byId.set(task.externalProjectId, {
 				id: task.externalProjectId,
@@ -42,7 +43,7 @@ export function LinearProjectFilter({
 			});
 		}
 		return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
-	}, [taskRows]);
+	}, [taskPage]);
 
 	const selected = useMemo(
 		() => (value ? (projects.find((p) => p.id === value) ?? null) : null),

@@ -23,9 +23,9 @@ import {
 } from "../../components/shared/StatusIcon";
 import type { TabValue } from "../../components/TasksTopBar";
 import { matchesTaskStatusFilter } from "../../utils/matchesTaskStatusFilter";
-import { compareTasks } from "../../utils/sorting";
 import { useHybridSearch } from "../useHybridSearch";
 import {
+	type TasksPagination,
 	type TaskWithStatus,
 	useTasksJoinedWithStatuses,
 } from "../useTasksData";
@@ -65,7 +65,7 @@ export function useTasksTable({
 	searchQuery,
 	assigneeFilter,
 	linearProjectFilter,
-}: UseTasksTableParams): {
+}: UseTasksTableParams): TasksPagination & {
 	table: Table<TaskWithStatus>;
 	slugColumnWidth: string;
 	rowSelection: RowSelectionState;
@@ -81,7 +81,12 @@ export function useTasksTable({
 	const rowSelection = useRowSelectionStore((s) => s.rowSelection);
 	const setRowSelection = useRowSelectionStore((s) => s.setRowSelection);
 
-	const { tasks: sortedData } = useTasksJoinedWithStatuses();
+	const {
+		tasks: sortedData,
+		fetchNextTasksPage,
+		hasNextTasksPage,
+		isFetchingNextTasksPage,
+	} = useTasksJoinedWithStatuses();
 
 	const projectScopedData = useMemo(() => {
 		if (!linearProjectFilter) return sortedData;
@@ -313,5 +318,13 @@ export function useTasksTable({
 		autoResetExpanded: false,
 	});
 
-	return { table, slugColumnWidth, rowSelection, setRowSelection };
+	return {
+		table,
+		slugColumnWidth,
+		rowSelection,
+		setRowSelection,
+		fetchNextTasksPage,
+		hasNextTasksPage,
+		isFetchingNextTasksPage,
+	};
 }

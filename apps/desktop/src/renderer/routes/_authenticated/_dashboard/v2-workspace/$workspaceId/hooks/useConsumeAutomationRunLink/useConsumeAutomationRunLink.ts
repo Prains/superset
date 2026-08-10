@@ -36,9 +36,10 @@ export function useConsumeAutomationRunLink({
 		},
 	);
 	const { data: chatSessionRows = [], isPending: chatSessionsPending } =
-		cloudTrpc.chat.listSessions.useQuery(undefined, {
-			enabled: chatSessionId != null,
-		});
+		cloudTrpc.chat.listSessions.useQuery(
+			{ sessionIds: chatSessionId != null ? [chatSessionId] : [] },
+			{ enabled: chatSessionId != null },
+		);
 	const chatSession = useMemo(
 		() =>
 			chatSessionRows.find((session) => session.id === chatSessionId) ?? null,

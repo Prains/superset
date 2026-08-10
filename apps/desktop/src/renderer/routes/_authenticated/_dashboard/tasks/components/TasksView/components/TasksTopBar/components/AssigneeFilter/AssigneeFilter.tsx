@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@superset/ui/popover";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HiCheck, HiChevronDown, HiOutlineUserCircle } from "react-icons/hi2";
 import { cloudTrpc } from "renderer/lib/cloud-trpc";
-import { TASK_LIST_INPUT } from "../../../../hooks/useTasksData";
+import { TASK_PICKER_INPUT } from "../../../../hooks/useTasksData";
 
 type Tab = "all" | "internal" | "external";
 
@@ -35,15 +35,16 @@ export function AssigneeFilter({ value, onChange }: AssigneeFilterProps) {
 		[members],
 	);
 
-	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT);
+	const { data: taskPage } =
+		cloudTrpc.task.listPage.useQuery(TASK_PICKER_INPUT);
 
 	const externalAssignees = useMemo(() => {
-		if (!taskRows) return [];
+		if (!taskPage) return [];
 		const seen = new Map<
 			string,
 			{ id: string; name: string | null; avatar: string | null }
 		>();
-		for (const { task } of taskRows) {
+		for (const { task } of taskPage.items) {
 			if (task.assigneeExternalId && !seen.has(task.assigneeExternalId)) {
 				seen.set(task.assigneeExternalId, {
 					id: task.assigneeExternalId,
@@ -53,7 +54,7 @@ export function AssigneeFilter({ value, onChange }: AssigneeFilterProps) {
 			}
 		}
 		return [...seen.values()];
-	}, [taskRows]);
+	}, [taskPage]);
 
 	const selectedUser = useMemo(() => {
 		if (value === null) return null;

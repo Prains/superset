@@ -1,9 +1,9 @@
 import type { RouterOutputs } from "@superset/trpc";
 
 /** Recently-viewed entries resolve by id or slug, so fetch a wide page. */
-export const TASK_LOOKUP_LIMIT = 500;
+export const TASK_LOOKUP_LIMIT = 200;
 
-type TaskListRow = RouterOutputs["task"]["list"][number];
+type TaskListRow = RouterOutputs["task"]["listPage"]["items"][number];
 type TaskStatusRow = RouterOutputs["task"]["statuses"]["list"][number];
 
 export interface RecentTaskEntry {

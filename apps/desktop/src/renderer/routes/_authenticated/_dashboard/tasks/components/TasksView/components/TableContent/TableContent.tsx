@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { HiCheckCircle } from "react-icons/hi2";
 import type { TaskWithStatus } from "../../hooks/useTasksData";
 import { useTasksTable } from "../../hooks/useTasksTable";
+import { LoadMoreTasksButton } from "../LoadMoreTasksButton";
 import { TasksTableView } from "../TasksTableView";
 import type { TabValue } from "../TasksTopBar";
 import { getSelectedTasks } from "./utils/getSelectedTasks";
@@ -26,13 +27,20 @@ export function TableContent({
 	onTaskClick,
 	onSelectionChange,
 }: TableContentProps) {
-	const { table, slugColumnWidth, rowSelection, setRowSelection } =
-		useTasksTable({
-			filterTab,
-			searchQuery,
-			assigneeFilter,
-			linearProjectFilter,
-		});
+	const {
+		table,
+		slugColumnWidth,
+		rowSelection,
+		setRowSelection,
+		fetchNextTasksPage,
+		hasNextTasksPage,
+		isFetchingNextTasksPage,
+	} = useTasksTable({
+		filterTab,
+		searchQuery,
+		assigneeFilter,
+		linearProjectFilter,
+	});
 
 	const selectedTasks = useMemo(() => {
 		return getSelectedTasks(table.getRowModel().flatRows, rowSelection);
@@ -48,12 +56,20 @@ export function TableContent({
 
 	if (table.getRowModel().rows.length === 0) {
 		return (
-			<div className="flex-1 flex items-center justify-center">
-				<div className="flex flex-col items-center gap-2 text-muted-foreground">
-					<HiCheckCircle className="h-8 w-8" />
-					<span className="text-sm">No tasks found</span>
+			<>
+				<div className="flex-1 flex items-center justify-center">
+					<div className="flex flex-col items-center gap-2 text-muted-foreground">
+						<HiCheckCircle className="h-8 w-8" />
+						<span className="text-sm">No tasks found</span>
+					</div>
 				</div>
-			</div>
+				{hasNextTasksPage && (
+					<LoadMoreTasksButton
+						onLoadMore={fetchNextTasksPage}
+						isLoading={isFetchingNextTasksPage}
+					/>
+				)}
+			</>
 		);
 	}
 
@@ -62,6 +78,9 @@ export function TableContent({
 			table={table}
 			slugColumnWidth={slugColumnWidth}
 			onTaskClick={onTaskClick}
+			hasNextPage={hasNextTasksPage}
+			isFetchingNextPage={isFetchingNextTasksPage}
+			onLoadMore={fetchNextTasksPage}
 		/>
 	);
 }

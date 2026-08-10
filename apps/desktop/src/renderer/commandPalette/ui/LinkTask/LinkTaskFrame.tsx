@@ -12,7 +12,7 @@ import {
 	type StatusType,
 } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/components/shared/StatusIcon";
 import { useHybridSearch } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/hooks/useHybridSearch";
-import { TASK_LIST_INPUT } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/hooks/useTasksData";
+import { TASK_PICKER_INPUT } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/hooks/useTasksData";
 import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions/useOptimisticCollectionActions";
 import { useFrameStackStore } from "../../core/frames";
 import { useCommandPaletteQuery } from "../CommandPalette/CommandPalette";
@@ -46,11 +46,12 @@ export function LinkTaskFrame({ workspaceId }: LinkTaskFrameProps) {
 	const setOpen = useFrameStackStore((s) => s.setOpen);
 	const { v2Workspaces } = useOptimisticCollectionActions();
 
-	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT);
+	const { data: taskPage } =
+		cloudTrpc.task.listPage.useQuery(TASK_PICKER_INPUT);
 
 	const tasks = useMemo(
 		() =>
-			(taskRows ?? []).map(({ task }) => ({
+			(taskPage?.items ?? []).map(({ task }) => ({
 				id: task.id,
 				slug: task.slug,
 				title: task.title,
@@ -61,7 +62,7 @@ export function LinkTaskFrame({ workspaceId }: LinkTaskFrameProps) {
 				externalUrl: task.externalUrl,
 				updatedAt: task.updatedAt,
 			})),
-		[taskRows],
+		[taskPage],
 	);
 
 	const { data: statuses = [] } =

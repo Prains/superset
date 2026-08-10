@@ -17,7 +17,7 @@ import {
 	StatusIcon,
 	type StatusType,
 } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/components/shared/StatusIcon";
-import { TASK_LIST_INPUT } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/hooks/useTasksData";
+import { TASK_PICKER_INPUT } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/hooks/useTasksData";
 
 const MAX_RESULTS = 20;
 
@@ -47,13 +47,16 @@ export function IssueLinkCommand({
 	const [showClosed, setShowClosed] = useState(false);
 	const showClosedId = useId();
 
-	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT, {
-		enabled: open,
-	});
+	const { data: taskPage } = cloudTrpc.task.listPage.useQuery(
+		TASK_PICKER_INPUT,
+		{
+			enabled: open,
+		},
+	);
 
 	const allTasks = useMemo(
 		() =>
-			(taskRows ?? []).map(({ task }) => ({
+			(taskPage?.items ?? []).map(({ task }) => ({
 				id: task.id,
 				slug: task.slug,
 				title: task.title,
@@ -63,7 +66,7 @@ export function IssueLinkCommand({
 				externalUrl: task.externalUrl,
 				branch: task.branch,
 			})),
-		[taskRows],
+		[taskPage],
 	);
 
 	const { data: allStatuses } = cloudTrpc.task.statuses.list.useQuery(

@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-virtual";
 import { Fragment, useCallback, useMemo, useRef } from "react";
 import type { TaskWithStatus } from "../../hooks/useTasksTable";
+import { LoadMoreTasksButton } from "../LoadMoreTasksButton";
 import { TaskContextMenu } from "./components/TaskContextMenu";
 
 const ROW_HEIGHT = 36;
@@ -16,12 +17,18 @@ interface TasksTableViewProps {
 	table: Table<TaskWithStatus>;
 	slugColumnWidth: string;
 	onTaskClick: (task: TaskWithStatus) => void;
+	hasNextPage: boolean;
+	isFetchingNextPage: boolean;
+	onLoadMore: () => void;
 }
 
 export function TasksTableView({
 	table,
 	slugColumnWidth,
 	onTaskClick,
+	hasNextPage,
+	isFetchingNextPage,
+	onLoadMore,
 }: TasksTableViewProps) {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const rows = table.getRowModel().rows;
@@ -135,6 +142,12 @@ export function TasksTableView({
 					);
 				})}
 			</div>
+			{hasNextPage && (
+				<LoadMoreTasksButton
+					onLoadMore={onLoadMore}
+					isLoading={isFetchingNextPage}
+				/>
+			)}
 		</div>
 	);
 }

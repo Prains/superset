@@ -1,26 +1,35 @@
 import type { SelectTask, SelectTaskStatus } from "@superset/db/schema";
 import type { RouterOutputs } from "@superset/trpc";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { cloudTrpc } from "renderer/lib/cloud-trpc";
 import type { TabValue } from "../../components/TasksTopBar";
 import { matchesTaskStatusFilter } from "../../utils/matchesTaskStatusFilter";
 import { compareTasks } from "../../utils/sorting";
 import { useHybridSearch } from "../useHybridSearch";
 
+export const TASK_PAGE_SIZE = 100;
+
 /**
- * Shared by every tasks read site so they hit one React Query cache entry.
+ * Shared by every picker that only needs a recent window of tasks so they hit
+ * one React Query cache entry.
  */
-export const TASK_LIST_INPUT = { limit: 500 };
+export const TASK_PICKER_INPUT = { limit: 200 };
 export const TASK_LIST_REFETCH_INTERVAL = 15_000;
 
 export type TaskAssignee = NonNullable<
-	RouterOutputs["task"]["list"][number]["assignee"]
+	RouterOutputs["task"]["listPage"]["items"][number]["assignee"]
 >;
 
 export type TaskWithStatus = SelectTask & {
 	status: SelectTaskStatus;
 	assignee: TaskAssignee | null;
 };
+
+export interface TasksPagination {
+	fetchNextTasksPage: () => void;
+	hasNextTasksPage: boolean;
+	isFetchingNextTasksPage: boolean;
+}
 
 interface UseTasksDataParams {
 	filterTab: TabValue;
@@ -29,19 +38,29 @@ interface UseTasksDataParams {
 	linearProjectFilter: string | null;
 }
 
-export function useTasksJoinedWithStatuses(): {
+export function useTasksJoinedWithStatuses(): TasksPagination & {
 	tasks: TaskWithStatus[];
 	statuses: SelectTaskStatus[];
 } {
-	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT, {
-		refetchInterval: TASK_LIST_REFETCH_INTERVAL,
-	});
+	const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+		cloudTrpc.task.listPage.useInfiniteQuery(
+			{ limit: TASK_PAGE_SIZE },
+			{
+				getNextPageParam: (page) => page.nextCursor,
+				refetchInterval: TASK_LIST_REFETCH_INTERVAL,
+			},
+		);
 	const { data: statusRows } = cloudTrpc.task.statuses.list.useQuery(
 		undefined,
 		{ refetchInterval: TASK_LIST_REFETCH_INTERVAL },
 	);
 
 	const statuses = useMemo(() => statusRows ?? [], [statusRows]);
+
+	const taskRows = useMemo(
+		() => data?.pages.flatMap((page) => page.items),
+		[data],
+	);
 
 	const tasks = useMemo(() => {
 		if (!taskRows || statuses.length === 0) return [];
@@ -55,7 +74,17 @@ export function useTasksJoinedWithStatuses(): {
 			.sort(compareTasks);
 	}, [taskRows, statuses]);
 
-	return { tasks, statuses };
+	const fetchNextTasksPage = useCallback(() => {
+		void fetchNextPage();
+	}, [fetchNextPage]);
+
+	return {
+		tasks,
+		statuses,
+		fetchNextTasksPage,
+		hasNextTasksPage: hasNextPage,
+		isFetchingNextTasksPage: isFetchingNextPage,
+	};
 }
 
 export function useTasksData({
@@ -63,12 +92,17 @@ export function useTasksData({
 	searchQuery,
 	assigneeFilter,
 	linearProjectFilter,
-}: UseTasksDataParams): {
+}: UseTasksDataParams): TasksPagination & {
 	data: TaskWithStatus[];
 	allStatuses: SelectTaskStatus[];
 } {
-	const { tasks: sortedData, statuses: allStatuses } =
-		useTasksJoinedWithStatuses();
+	const {
+		tasks: sortedData,
+		statuses: allStatuses,
+		fetchNextTasksPage,
+		hasNextTasksPage,
+		isFetchingNextTasksPage,
+	} = useTasksJoinedWithStatuses();
 
 	const { search } = useHybridSearch(sortedData);
 
@@ -113,5 +147,8 @@ export function useTasksData({
 	return {
 		data: filteredData,
 		allStatuses,
+		fetchNextTasksPage,
+		hasNextTasksPage,
+		isFetchingNextTasksPage,
 	};
 }
