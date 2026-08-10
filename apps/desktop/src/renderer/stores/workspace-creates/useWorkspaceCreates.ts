@@ -1,9 +1,18 @@
+import {
+	getEventBus,
+	type WorkspaceCreateSettledPayload,
+} from "@superset/workspace-client";
+import { TRPCClientError } from "@trpc/client";
 import { useCallback } from "react";
 import { resolveHostUrl } from "renderer/hooks/host-service/useHostTargetUrl";
 import { useRelayUrl } from "renderer/hooks/useRelayUrl";
 import { authClient } from "renderer/lib/auth-client";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
+import { getHostServiceWsToken } from "renderer/lib/host-service-auth";
+import {
+	getHostServiceClientByUrl,
+	type HostServiceClient,
+} from "renderer/lib/host-service-client";
 import { getHostServiceUnavailableMessage } from "renderer/lib/host-service-unavailable";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
@@ -36,6 +45,111 @@ export interface SubmitHandle {
 
 export interface UseWorkspaceCreatesApi {
 	submit: (args: SubmitArgs) => SubmitHandle;
+}
+
+/** Sessions create a folder + git init — quick. A wedged transport must not
+ * hold the pending-create UI forever. */
+const SESSION_CREATE_TIMEOUT_MS = 30_000;
+/** The enqueue call validates and returns — it does none of the git work. */
+const ENQUEUE_TIMEOUT_MS = 15_000;
+/** Backstop for a lost `workspace:create-settled` event (host restart or WS
+ * drop mid-create). Sized for worktree adds on monorepo-scale repos. */
+const CREATE_SETTLE_TIMEOUT_MS = 10 * 60_000;
+
+/** What the completed-create pipeline needs, from either transport. */
+interface CreateOutcome {
+	workspace: { id: string; projectId: string | null };
+	terminals: Array<{ terminalId: string; label?: string }>;
+	agents: Array<
+		| { ok: true; kind: "terminal" | "chat"; sessionId: string; label: string }
+		| { ok: false; error: string }
+	>;
+}
+
+/** Older hosts don't have `workspaces.createEnqueued` yet. */
+function isMissingProcedureError(error: unknown): boolean {
+	return (
+		error instanceof TRPCClientError &&
+		/no procedure found on path/i.test(error.message)
+	);
+}
+
+/**
+ * Enqueue the create and resolve from the `workspace:create-settled` event.
+ * The synchronous `workspaces.create` mutation holds one of Chromium's six
+ * pooled sockets for the whole create (minutes on big repos) and exceeds the
+ * relay's 30s exchange cap outright; the enqueue variant returns immediately
+ * and the result arrives over the eventBus WebSocket instead.
+ */
+async function createViaEnqueue(
+	client: HostServiceClient,
+	hostUrl: string,
+	workspaceId: string,
+	payload: WorkspacesCreateInput,
+): Promise<CreateOutcome> {
+	const bus = getEventBus(hostUrl, () => getHostServiceWsToken(hostUrl));
+	const releaseBus = bus.retain();
+	let unsubscribe: () => void = () => {};
+	try {
+		// Subscribe before enqueueing so the settled event can't slip past.
+		const settled = new Promise<WorkspaceCreateSettledPayload>((resolve) => {
+			unsubscribe = bus.on(
+				"workspace:create-settled",
+				workspaceId,
+				(_workspaceId, eventPayload) => resolve(eventPayload),
+			);
+		});
+
+		try {
+			await client.workspaces.createEnqueued.mutate(payload, {
+				signal: AbortSignal.timeout(ENQUEUE_TIMEOUT_MS),
+			});
+		} catch (error) {
+			if (!isMissingProcedureError(error)) throw error;
+			// Legacy host: fall back to the long-held synchronous create.
+			const result = await client.workspaces.create.mutate(payload);
+			return result;
+		}
+
+		const outcome = await Promise.race([
+			settled,
+			new Promise<"timeout">((resolve) =>
+				setTimeout(() => resolve("timeout"), CREATE_SETTLE_TIMEOUT_MS),
+			),
+		]);
+
+		if (outcome === "timeout") {
+			// The event was lost, not necessarily the create. If the row exists
+			// the workspace is real — recover with an empty pane seed rather
+			// than tearing down a workspace the user can already see.
+			const existing = await client.workspace.get
+				.query({ id: workspaceId })
+				.catch(() => null);
+			if (existing) {
+				return {
+					workspace: { id: workspaceId, projectId: payload.projectId },
+					terminals: [],
+					agents: [],
+				};
+			}
+			throw new Error("Timed out waiting for the host to create the workspace");
+		}
+
+		if (!outcome.ok) {
+			throw new Error(outcome.error ?? "Workspace creation failed");
+		}
+		return {
+			workspace: {
+				id: outcome.canonicalWorkspaceId ?? workspaceId,
+				projectId: outcome.projectId,
+			},
+			terminals: outcome.terminals,
+			agents: outcome.agents,
+		};
+	} finally {
+		unsubscribe();
+		releaseBus();
+	}
 }
 
 export function useWorkspaceCreates(): UseWorkspaceCreatesApi {
@@ -138,14 +252,17 @@ export function useWorkspaceCreates(): UseWorkspaceCreatesApi {
 			// agent behind the setup commands. On a cold cache the hook value is
 			// still undefined — resolve it directly so an early create can't
 			// silently skip the gate (failures fall back to default-off).
-			const createPromise = (async () => {
+			const createPromise: Promise<CreateOutcome> = (async () => {
 				const client = getHostServiceClientByUrl(hostUrl);
 				if (snapshot.projectId === null) {
-					// Sessions have no setup scripts, so no wait-for-setup gate.
+					// Sessions have no setup scripts, so no wait-for-setup gate —
+					// and no git worktree work, so the synchronous mutation stays.
 					const { projectId: _null, ...sessionInput } = snapshot;
-					const result =
-						await client.workspaces.createSession.mutate(sessionInput);
-					return { ...result, alreadyExists: false };
+					const result = await client.workspaces.createSession.mutate(
+						sessionInput,
+						{ signal: AbortSignal.timeout(SESSION_CREATE_TIMEOUT_MS) },
+					);
+					return result;
 				}
 				let waitForSetup = waitForSetupBeforeAgent;
 				if (waitForSetup === undefined && snapshot.agents?.length) {
@@ -158,7 +275,7 @@ export function useWorkspaceCreates(): UseWorkspaceCreatesApi {
 					snapshot.agents?.length && waitForSetup
 						? { ...snapshot, waitForSetupBeforeAgents: true }
 						: snapshot;
-				return client.workspaces.create.mutate(payload);
+				return createViaEnqueue(client, hostUrl, workspaceId, payload);
 			})();
 
 			writeWorkspacePaneLayout(
