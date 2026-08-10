@@ -305,7 +305,6 @@ export function ComposerBody({
 		<div
 			className={cn(
 				"relative flex flex-col rounded-2xl bg-card ring-1 ring-border transition-shadow focus-within:ring-ring/40",
-				dragging && "ring-2 ring-primary",
 			)}
 			onDragOver={(event) => {
 				if (dropZone == null && event.dataTransfer.types.includes("Files")) {
@@ -349,8 +348,10 @@ export function ComposerBody({
 				</ComposerPanel>
 			)}
 			{dragging && (
-				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-primary/5 text-sm font-medium text-primary">
-					Drop files to attach
+				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-primary/10">
+					<span className="inline-flex items-center rounded-md border border-border/50 bg-secondary px-3 py-1 text-sm text-foreground shadow">
+						Drop to attach
+					</span>
 				</div>
 			)}
 			<AttachmentPills

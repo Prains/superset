@@ -98,8 +98,8 @@ export function ComposerDropZone({
 			>
 				{children}
 				{isDraggingFiles && (
-					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-primary/5 ring-2 ring-primary ring-inset">
-						<span className="rounded-lg bg-background/90 px-3 py-1.5 text-sm font-medium text-primary shadow-sm">
+					<div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-primary/10">
+						<span className="inline-flex items-center rounded-md border border-border/50 bg-secondary px-3 py-1 text-sm text-foreground shadow">
 							{label}
 						</span>
 					</div>
