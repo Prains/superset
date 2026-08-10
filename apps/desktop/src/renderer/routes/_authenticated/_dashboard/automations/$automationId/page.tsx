@@ -123,7 +123,6 @@ function AutomationDetailPage() {
 				<AutomationDetailHeader
 					name={automation.name}
 					enabled={automation.enabled}
-					onBack={() => navigate({ to: "/automations" })}
 					onToggleEnabled={() => setEnabledMutation.mutate(!automation.enabled)}
 					onDelete={() => {
 						alert({

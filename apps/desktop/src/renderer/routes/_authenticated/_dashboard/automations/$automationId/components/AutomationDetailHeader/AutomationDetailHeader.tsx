@@ -8,12 +8,12 @@ import {
 } from "@superset/ui/breadcrumb";
 import { Button } from "@superset/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
+import { Link } from "@tanstack/react-router";
 import { LuClock, LuPause, LuPlay, LuTrash2 } from "react-icons/lu";
 
 interface AutomationDetailHeaderProps {
 	name: string;
 	enabled: boolean;
-	onBack: () => void;
 	onToggleEnabled: () => void;
 	onDelete: () => void;
 	onRunNow: () => void;
@@ -28,7 +28,6 @@ interface AutomationDetailHeaderProps {
 export function AutomationDetailHeader({
 	name,
 	enabled,
-	onBack,
 	onToggleEnabled,
 	onDelete,
 	onRunNow,
@@ -43,8 +42,8 @@ export function AutomationDetailHeader({
 			<Breadcrumb>
 				<BreadcrumbList className="text-sm">
 					<BreadcrumbItem>
-						<BreadcrumbLink onClick={onBack} className="cursor-pointer">
-							Automations
+						<BreadcrumbLink asChild>
+							<Link to="/automations">Automations</Link>
 						</BreadcrumbLink>
 					</BreadcrumbItem>
 					<BreadcrumbSeparator />
