@@ -7,12 +7,14 @@ import {
 	FileTextIcon,
 	XIcon,
 } from "lucide-react";
-import type { JSX } from "react";
+import { type JSX, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LexicalComposerAttachment } from "../../types";
 
 export type AttachmentPillsProps = {
 	attachments: LexicalComposerAttachment[];
 	onRemove: (id: string) => void;
+	onPreviewError?: (id: string) => void;
 };
 
 const CODE_EXTENSIONS = new Set([
@@ -48,7 +50,7 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
 		<button
 			type="button"
 			aria-label="Remove attachment"
-			className="absolute top-1 right-1 z-10 flex size-5 cursor-pointer items-center justify-center rounded-full bg-background/80 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+			className="absolute top-1 right-1 z-10 flex size-5 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
 			onClick={onClick}
 		>
 			<XIcon className="size-3" />
@@ -56,11 +58,50 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
 	);
 }
 
+function ImagePreviewOverlay({
+	src,
+	filename,
+	onClose,
+}: {
+	src: string;
+	filename: string;
+	onClose: () => void;
+}) {
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") onClose();
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [onClose]);
+
+	return createPortal(
+		// biome-ignore lint/a11y/useKeyWithClickEvents: Escape handled globally above
+		// biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismissal
+		<div
+			className="fixed inset-0 z-[100] flex cursor-zoom-out items-center justify-center bg-background/80 p-10 backdrop-blur-sm"
+			onClick={onClose}
+		>
+			<img
+				src={src}
+				alt={filename}
+				className="max-h-full max-w-full rounded-xl shadow-2xl"
+			/>
+		</div>,
+		document.body,
+	);
+}
+
 export function AttachmentPills({
 	attachments,
 	onRemove,
+	onPreviewError,
 }: AttachmentPillsProps) {
+	const [previewId, setPreviewId] = useState<string | null>(null);
 	if (attachments.length === 0) return null;
+	const previewAttachment = attachments.find(
+		(attachment) => attachment.id === previewId && attachment.previewUrl,
+	);
 	return (
 		<div className="flex flex-wrap gap-2 px-3 pt-3">
 			{attachments.map((attachment) => {
@@ -71,13 +112,19 @@ export function AttachmentPills({
 				if (attachment.previewUrl) {
 					return (
 						<div key={attachment.id} className="relative shrink-0">
-							<div className="relative block size-16 overflow-hidden rounded-xl border-[0.5px] border-border bg-foreground/[0.04]">
+							<button
+								type="button"
+								aria-label={`Preview ${filename}`}
+								className="relative block size-16 cursor-zoom-in overflow-hidden rounded-xl border-[0.5px] border-border bg-foreground/[0.04]"
+								onClick={() => setPreviewId(attachment.id)}
+							>
 								<img
 									src={attachment.previewUrl}
 									alt={filename}
 									className="size-full object-cover"
+									onError={() => onPreviewError?.(attachment.id)}
 								/>
-							</div>
+							</button>
 							<RemoveButton onClick={() => onRemove(attachment.id)} />
 						</div>
 					);
@@ -103,6 +150,13 @@ export function AttachmentPills({
 					</div>
 				);
 			})}
+			{previewAttachment?.previewUrl && (
+				<ImagePreviewOverlay
+					src={previewAttachment.previewUrl}
+					filename={previewAttachment.file.name}
+					onClose={() => setPreviewId(null)}
+				/>
+			)}
 		</div>
 	);
 }

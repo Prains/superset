@@ -310,7 +310,9 @@ export function ComposerBody({
 					setDragging(false);
 			}}
 			onDrop={(event) => {
-				if (event.dataTransfer.files.length > 0) {
+				// The editor's DROP_COMMAND handler may have consumed this already;
+				// preventDefault marks it and the event still bubbles here.
+				if (!event.defaultPrevented && event.dataTransfer.files.length > 0) {
 					event.preventDefault();
 					addFiles(event.dataTransfer.files);
 				}
@@ -340,6 +342,15 @@ export function ComposerBody({
 			)}
 			<AttachmentPills
 				attachments={attachments}
+				onPreviewError={(id) =>
+					setAttachments((previous) =>
+						previous.map((entry) => {
+							if (entry.id !== id || !entry.previewUrl) return entry;
+							URL.revokeObjectURL(entry.previewUrl);
+							return { ...entry, previewUrl: undefined };
+						}),
+					)
+				}
 				onRemove={(id) =>
 					setAttachments((previous) =>
 						previous.filter((entry) => {
