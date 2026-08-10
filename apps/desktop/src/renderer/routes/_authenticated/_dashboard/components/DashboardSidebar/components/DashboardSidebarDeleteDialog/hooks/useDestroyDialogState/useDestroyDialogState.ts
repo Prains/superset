@@ -101,8 +101,9 @@ export function useDestroyDialogState({
 
 			setError(null);
 			onOpenChange(false);
-			// The row stays listed until the archive commit (post-teardown);
-			// mark it so navigation/shortcuts skip it in the meantime.
+			// The archive commit tombstones the row almost immediately, but
+			// until that broadcast lands (and if a failure un-archives it)
+			// navigation/shortcuts must skip it.
 			useDeletingWorkspacesStore.getState().markDeleting(workspaceId);
 			// Navigate up-front: no-ops if the deleted workspace isn't the
 			// active route, so a later user navigation won't be hijacked.
