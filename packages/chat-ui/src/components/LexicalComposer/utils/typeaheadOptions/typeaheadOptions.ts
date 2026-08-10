@@ -1,14 +1,11 @@
 import { MenuOption } from "@lexical/react/LexicalTypeaheadMenuPlugin";
-import type {
-	LexicalComposerCommand,
-	LexicalComposerMentionItem,
-} from "../../types";
+import type { ComposerMentionEntry, LexicalComposerCommand } from "../../types";
 
 export class MentionTypeaheadOption extends MenuOption {
-	item: LexicalComposerMentionItem;
-	constructor(item: LexicalComposerMentionItem) {
-		super(item.id);
-		this.item = item;
+	entry: ComposerMentionEntry;
+	constructor(entry: ComposerMentionEntry) {
+		super(entry.id);
+		this.entry = entry;
 	}
 }
 

@@ -7,14 +7,14 @@ import {
 	DropdownMenuTrigger,
 } from "@superset/ui/dropdown-menu";
 import { ImageIcon, PaperclipIcon, PlusIcon } from "lucide-react";
-import { useRef } from "react";
+import type { RefObject } from "react";
 
 export type PlusMenuProps = {
 	onFiles: (files: FileList) => void;
+	fileInputRef: RefObject<HTMLInputElement | null>;
 };
 
-export function PlusMenu({ onFiles }: PlusMenuProps) {
-	const fileInputRef = useRef<HTMLInputElement>(null);
+export function PlusMenu({ onFiles, fileInputRef }: PlusMenuProps) {
 	return (
 		<>
 			<DropdownMenu>

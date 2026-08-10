@@ -10,22 +10,25 @@ import { cn } from "@superset/ui/utils";
 import {
 	$createTextNode,
 	$getRoot,
+	$getSelection,
+	$isRangeSelection,
 	COMMAND_PRIORITY_HIGH,
 	COMMAND_PRIORITY_LOW,
 	DROP_COMMAND,
 	KEY_ENTER_COMMAND,
+	type LexicalNode,
 	PASTE_COMMAND,
 } from "lexical";
-import {
-	ArrowUpIcon,
-	FileCode2Icon,
-	SlashSquareIcon,
-	SquareIcon,
-} from "lucide-react";
+import { ArrowUpIcon, SlashSquareIcon, SquareIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useMentionSources } from "../../hooks/useMentionSources";
 import { MentionChipNode } from "../../nodes/mentionChipNode";
 import type {
+	ComposerActionContext,
+	ComposerChip,
+	ComposerMentionEntry,
+	ComposerPanelContent,
 	LexicalComposerAttachment,
 	LexicalComposerProps,
 } from "../../types";
@@ -35,23 +38,49 @@ import {
 	MentionTypeaheadOption,
 } from "../../utils/typeaheadOptions";
 import { AttachmentPills } from "../AttachmentPills";
-import { CaretMenu } from "../CaretMenu";
+import { ComposerPanel } from "../ComposerPanel";
+import { MentionMenu } from "../MentionMenu";
 import { PlusMenu } from "../PlusMenu";
 import { SuggestionListbox } from "../SuggestionListbox";
 
-const MAX_SUGGESTIONS = 8;
+const MAX_COMMAND_SUGGESTIONS = 8;
 
 export type ComposerBodyProps = Required<
 	Pick<LexicalComposerProps, "placeholder" | "status">
 > &
 	Pick<
 		LexicalComposerProps,
-		"mentionItems" | "commands" | "onSubmit" | "onStop"
+		"mentionProviders" | "commands" | "onSubmit" | "onStop"
 	>;
+
+function $insertChipAtSelection(chip: ComposerChip) {
+	const selection = $getSelection();
+	if (!$isRangeSelection(selection)) return;
+	const chipNode = MentionChipNode.fromChip(chip);
+	selection.insertNodes([chipNode, $createTextNode(" ")]);
+}
+
+function $collectChips(): ComposerChip[] {
+	const chips: ComposerChip[] = [];
+	const visit = (node: LexicalNode) => {
+		if (node instanceof MentionChipNode) {
+			chips.push(node.toChip());
+		}
+		if ("getChildren" in node) {
+			for (const child of (
+				node as unknown as { getChildren(): LexicalNode[] }
+			).getChildren()) {
+				visit(child);
+			}
+		}
+	};
+	visit($getRoot());
+	return chips;
+}
 
 export function ComposerBody({
 	placeholder,
-	mentionItems,
+	mentionProviders,
 	commands,
 	status,
 	onSubmit,
@@ -65,6 +94,10 @@ export function ComposerBody({
 	const [dragging, setDragging] = useState(false);
 	const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 	const [commandQuery, setCommandQuery] = useState<string | null>(null);
+	const [panel, setPanel] = useState<ComposerPanelContent | null>(null);
+	const [menuSlot, setMenuSlot] = useState<HTMLDivElement | null>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
+	const closeMenuRef = useRef<() => void>(() => {});
 	// Lexical command listeners register once; this ref bridges them to live React state.
 	const stateRef = useRef({ attachments, onSubmit, status });
 	stateRef.current = { attachments, onSubmit, status };
@@ -80,16 +113,31 @@ export function ComposerBody({
 	const addFilesRef = useRef(addFiles);
 	addFilesRef.current = addFiles;
 
+	const actionContext: ComposerActionContext = {
+		insertChip: (chip) => {
+			editor.update(() => $insertChipAtSelection(chip));
+		},
+		attachFiles: () => fileInputRef.current?.click(),
+		openPanel: setPanel,
+		closeMenu: () => closeMenuRef.current(),
+		query: mentionQuery ?? "",
+	};
+	const actionContextRef = useRef(actionContext);
+	actionContextRef.current = actionContext;
+
+	const sections = useMentionSources(
+		mentionProviders ?? [],
+		mentionQuery != null,
+		mentionQuery ?? "",
+	);
 	const mentionOptions = useMemo(
 		() =>
-			(mentionItems ?? [])
-				.filter((item) =>
-					item.label.toLowerCase().includes((mentionQuery ?? "").toLowerCase()),
-				)
-				.slice(0, MAX_SUGGESTIONS)
-				.map((item) => new MentionTypeaheadOption(item)),
-		[mentionItems, mentionQuery],
+			sections.flatMap((section) =>
+				section.entries.map((entry) => new MentionTypeaheadOption(entry)),
+			),
+		[sections],
 	);
+
 	const commandOptions = useMemo(
 		() =>
 			(commands ?? [])
@@ -98,24 +146,52 @@ export function ComposerBody({
 						.toLowerCase()
 						.includes((commandQuery ?? "").toLowerCase()),
 				)
-				.slice(0, MAX_SUGGESTIONS)
+				.slice(0, MAX_COMMAND_SUGGESTIONS)
 				.map((command) => new CommandTypeaheadOption(command)),
 		[commands, commandQuery],
 	);
 
+	const selectMentionEntry = (
+		entry: ComposerMentionEntry,
+		nodeToReplace: LexicalNode | null,
+		closeMenu: () => void,
+	) => {
+		closeMenuRef.current = closeMenu;
+		editor.update(() => {
+			if (entry.action.type === "insert-chip") {
+				const chipNode = MentionChipNode.fromChip(entry.action.chip);
+				const space = $createTextNode(" ");
+				if (nodeToReplace) {
+					nodeToReplace.replace(chipNode);
+					chipNode.insertAfter(space);
+					space.select(1, 1);
+				} else {
+					$insertChipAtSelection(entry.action.chip);
+				}
+			} else {
+				nodeToReplace?.remove();
+			}
+			closeMenu();
+		});
+		if (entry.action.type === "run") {
+			void entry.action.run(actionContextRef.current);
+		}
+	};
+
 	const submit = () => {
 		if (stateRef.current.status === "streaming") return;
-		const text = editor
-			.getEditorState()
-			.read(() => $getRoot().getTextContent())
-			.trim();
+		const { text, mentions } = editor.getEditorState().read(() => ({
+			text: $getRoot().getTextContent().trim(),
+			mentions: $collectChips(),
+		}));
 		const files = stateRef.current.attachments.map(
 			(attachment) => attachment.file,
 		);
 		if (!text && files.length === 0) return;
-		stateRef.current.onSubmit?.({ text, files });
+		stateRef.current.onSubmit?.({ text, files, mentions });
 		editor.update(() => $getRoot().clear());
 		setAttachments([]);
+		setPanel(null);
 	};
 	const submitRef = useRef(submit);
 	submitRef.current = submit;
@@ -196,6 +272,15 @@ export function ComposerBody({
 				setDragging(false);
 			}}
 		>
+			<div
+				ref={setMenuSlot}
+				className="pointer-events-none absolute inset-x-0 bottom-full [&>*]:pointer-events-auto"
+			/>
+			{panel && (
+				<ComposerPanel title={panel.title} onClose={() => setPanel(null)}>
+					{panel.render()}
+				</ComposerPanel>
+			)}
 			{dragging && (
 				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-primary/5 text-sm font-medium text-primary">
 					Drop files to attach
@@ -224,47 +309,31 @@ export function ComposerBody({
 				<HistoryPlugin />
 				<LexicalTypeaheadMenuPlugin<MentionTypeaheadOption>
 					onQueryChange={setMentionQuery}
-					onSelectOption={(option, nodeToReplace, closeMenu) => {
-						editor.update(() => {
-							const chip = new MentionChipNode(
-								option.item.label,
-								option.item.brandColor ?? null,
-							);
-							if (nodeToReplace) {
-								nodeToReplace.replace(chip);
-							}
-							const space = $createTextNode(" ");
-							chip.insertAfter(space);
-							space.select(1, 1);
-							closeMenu();
-						});
-					}}
+					onSelectOption={(option, nodeToReplace, closeMenu) =>
+						selectMentionEntry(option.entry, nodeToReplace, closeMenu)
+					}
 					options={mentionOptions}
 					triggerFn={(text) => matchToken(text, "@", false)}
 					commandPriority={COMMAND_PRIORITY_HIGH}
+					onClose={() => setMentionQuery(null)}
 					menuRenderFn={(
 						anchorElementRef,
 						{ selectedIndex, selectOptionAndCleanUp, setHighlightedIndex },
 					) =>
-						anchorElementRef.current && mentionOptions.length > 0
+						anchorElementRef.current && menuSlot
 							? createPortal(
-									<CaretMenu anchor={anchorElementRef.current}>
-										<SuggestionListbox
-											options={mentionOptions}
-											selectedIndex={selectedIndex}
-											onHighlight={setHighlightedIndex}
-											onSelect={selectOptionAndCleanUp}
-											renderRow={(option) => (
-												<>
-													<FileCode2Icon className="size-4 shrink-0 text-muted-foreground" />
-													<span className="min-w-0 truncate">
-														{option.item.label}
-													</span>
-												</>
-											)}
-										/>
-									</CaretMenu>,
-									document.body,
+									<MentionMenu
+										sections={sections}
+										selectedIndex={selectedIndex}
+										onHighlight={setHighlightedIndex}
+										onSelect={(entry) => {
+											const option = mentionOptions.find(
+												(candidate) => candidate.entry.id === entry.id,
+											);
+											if (option) selectOptionAndCleanUp(option);
+										}}
+									/>,
+									menuSlot,
 								)
 							: null
 					}
@@ -288,37 +357,35 @@ export function ComposerBody({
 						anchorElementRef,
 						{ selectedIndex, selectOptionAndCleanUp, setHighlightedIndex },
 					) =>
-						anchorElementRef.current && commandOptions.length > 0
+						anchorElementRef.current && menuSlot && commandOptions.length > 0
 							? createPortal(
-									<CaretMenu anchor={anchorElementRef.current}>
-										<SuggestionListbox
-											options={commandOptions}
-											selectedIndex={selectedIndex}
-											onHighlight={setHighlightedIndex}
-											onSelect={selectOptionAndCleanUp}
-											renderRow={(option) => (
-												<>
-													<SlashSquareIcon className="size-4 shrink-0 text-muted-foreground" />
-													<span className="min-w-0 truncate">
-														/{option.command.label}
+									<SuggestionListbox
+										options={commandOptions}
+										selectedIndex={selectedIndex}
+										onHighlight={setHighlightedIndex}
+										onSelect={selectOptionAndCleanUp}
+										renderRow={(option) => (
+											<>
+												<SlashSquareIcon className="size-4 shrink-0 text-muted-foreground" />
+												<span className="min-w-0 truncate">
+													/{option.command.label}
+												</span>
+												{option.command.description && (
+													<span className="ml-auto min-w-0 shrink-[2] truncate text-xs text-muted-foreground">
+														{option.command.description}
 													</span>
-													{option.command.description && (
-														<span className="ml-auto min-w-0 shrink-[2] truncate text-xs text-muted-foreground">
-															{option.command.description}
-														</span>
-													)}
-												</>
-											)}
-										/>
-									</CaretMenu>,
-									document.body,
+												)}
+											</>
+										)}
+									/>,
+									menuSlot,
 								)
 							: null
 					}
 				/>
 			</div>
 			<div className="flex min-h-12 items-center gap-1 px-3 pb-2.5">
-				<PlusMenu onFiles={addFiles} />
+				<PlusMenu onFiles={addFiles} fileInputRef={fileInputRef} />
 				<div className="flex-1" />
 				{status === "streaming" ? (
 					<button

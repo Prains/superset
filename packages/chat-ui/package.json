@@ -11,20 +11,9 @@
 		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
 	},
 	"dependencies": {
-		"@floating-ui/react-dom": "2.1.9",
 		"@lexical/react": "0.41.0",
 		"@superset/chat": "workspace:*",
 		"@superset/ui": "workspace:*",
-		"@tiptap/core": "3.21.0",
-		"@tiptap/extension-document": "3.21.0",
-		"@tiptap/extension-hard-break": "3.21.0",
-		"@tiptap/extension-history": "3.21.0",
-		"@tiptap/extension-paragraph": "3.21.0",
-		"@tiptap/extension-placeholder": "3.21.0",
-		"@tiptap/extension-text": "3.21.0",
-		"@tiptap/pm": "3.21.0",
-		"@tiptap/react": "3.21.0",
-		"@tiptap/suggestion": "3.21.0",
 		"lexical": "0.41.0",
 		"lucide-react": "0.563.0"
 	},

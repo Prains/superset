@@ -11,16 +11,22 @@ import type { LexicalComposerProps } from "./types";
 import "./lexical-composer.css";
 
 export type {
+	ComposerActionContext,
+	ComposerChip,
+	ComposerMentionAction,
+	ComposerMentionEntry,
+	ComposerMentionProvider,
+	ComposerMentionSource,
+	ComposerPanelContent,
 	LexicalComposerAttachment,
 	LexicalComposerCommand,
-	LexicalComposerMentionItem,
 	LexicalComposerProps,
 	LexicalComposerSubmitPayload,
 } from "./types";
 
 export function LexicalComposer({
 	placeholder = "Do anything",
-	mentionItems,
+	mentionProviders,
 	commands,
 	status = "ready",
 	onSubmit,
@@ -40,7 +46,7 @@ export function LexicalComposer({
 			<LexicalComposerProvider initialConfig={initialConfig}>
 				<ComposerBody
 					placeholder={placeholder}
-					mentionItems={mentionItems}
+					mentionProviders={mentionProviders}
 					commands={commands}
 					status={status}
 					onSubmit={onSubmit}
