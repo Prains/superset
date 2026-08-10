@@ -17,7 +17,6 @@ import { isHostOfflineError } from "../utils/hostOfflineError";
 import { isStaleAgentError, STALE_AGENT_HELP } from "../utils/staleAgentError";
 import { AutomationBody } from "./components/AutomationBody";
 import { AutomationDetailHeader } from "./components/AutomationDetailHeader";
-import { AutomationDetailSidebar } from "./components/AutomationDetailSidebar";
 import { VersionHistorySheet } from "./components/VersionHistorySheet";
 
 type AutomationDetailSearch = {
@@ -166,19 +165,13 @@ function AutomationDetailPage() {
 				<AutomationBody
 					key={automation.id}
 					automation={automation}
+					recentRuns={recentRuns}
 					ownerName={ownerName}
 					onToggleEnabled={(enabled) => setEnabledMutation.mutate(enabled)}
 					toggleDisabled={setEnabledMutation.isPending}
 					readOnly={readOnly}
 				/>
 			</div>
-
-			<AutomationDetailSidebar
-				automation={automation}
-				recentRuns={recentRuns}
-				ownerName={ownerName}
-				readOnly={readOnly}
-			/>
 
 			<HostOfflineRunDialog
 				hostId={automation.targetHostId}
