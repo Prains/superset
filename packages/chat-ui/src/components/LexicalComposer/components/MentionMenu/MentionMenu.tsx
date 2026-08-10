@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@superset/ui/utils";
+import { useEffect } from "react";
 import type { MentionSection } from "../../hooks/useMentionSources";
 import type { ComposerMentionEntry } from "../../types";
 
@@ -9,6 +10,7 @@ export type MentionMenuProps = {
 	selectedIndex: number | null;
 	onHighlight: (index: number) => void;
 	onSelect: (entry: ComposerMentionEntry) => void;
+	onSelectionChange?: (entry: ComposerMentionEntry | null) => void;
 };
 
 export function MentionMenu({
@@ -16,24 +18,42 @@ export function MentionMenu({
 	selectedIndex,
 	onHighlight,
 	onSelect,
+	onSelectionChange,
 }: MentionMenuProps) {
+	const flatEntries = sections.flatMap((section) => section.entries);
+
+	useEffect(() => {
+		onSelectionChange?.(
+			selectedIndex == null ? null : (flatEntries[selectedIndex] ?? null),
+		);
+		// flatEntries identity churns per render; selection identity is (index, length)
+		// biome-ignore lint/correctness/useExhaustiveDependencies: see above
+	}, [selectedIndex, flatEntries.length]);
+
 	if (sections.length === 0) return null;
 	let flatIndex = -1;
 	return (
 		<div
 			role="listbox"
-			className="relative z-50 mb-2 max-h-96 w-full overflow-y-auto rounded-2xl bg-popover/95 p-2 shadow-xl ring-1 ring-border backdrop-blur-sm"
+			className="relative z-50 max-h-96 w-full overflow-y-auto rounded-2xl bg-popover/95 p-2 shadow-xl ring-1 ring-border backdrop-blur-sm"
 		>
 			{sections.map((section) => (
 				<div key={section.providerId}>
 					<p className="px-2.5 pt-2 pb-1 text-sm text-muted-foreground">
-						{section.label}
+						{section.title}
 					</p>
-					{section.hint != null && section.entries.length === 0 && (
+					{section.isLoading && section.entries.length === 0 && (
 						<p className="px-2.5 pb-2 text-sm text-muted-foreground/60">
-							{section.hint}
+							{section.loadingState ?? "Loading…"}
 						</p>
 					)}
+					{!section.isLoading &&
+						section.emptyState != null &&
+						section.entries.length === 0 && (
+							<p className="px-2.5 pb-2 text-sm text-muted-foreground/60">
+								{section.emptyState}
+							</p>
+						)}
 					{section.entries.map((entry) => {
 						flatIndex += 1;
 						const index = flatIndex;

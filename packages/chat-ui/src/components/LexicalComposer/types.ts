@@ -11,7 +11,6 @@ export type ComposerActionContext = {
 	insertChip(chip: ComposerChip): void;
 	attachFiles(): void;
 	openPanel(panel: ComposerPanelContent): void;
-	closeMenu(): void;
 	query: string;
 };
 
@@ -20,17 +19,16 @@ export type ComposerPanelContent = {
 	render: () => ReactNode;
 };
 
-export type ComposerMentionAction =
-	| { type: "insert-chip"; chip: ComposerChip }
-	| { type: "run"; run: (ctx: ComposerActionContext) => void | Promise<void> };
-
 export type ComposerMentionEntry = {
 	id: string;
 	label: string;
 	description?: string;
 	icon?: ReactNode;
 	keywords?: string[];
-	action: ComposerMentionAction;
+	// When set, selecting rewrites the query to this value and keeps the menu
+	// open (directory drilling); select() is not called.
+	completionQuery?: string;
+	select(ctx: ComposerActionContext): void | Promise<void>;
 };
 
 export type ComposerMentionSource =
@@ -46,12 +44,14 @@ export type ComposerMentionSource =
 				query: string,
 				signal: AbortSignal,
 			): Promise<ComposerMentionEntry[]>;
-			hint: string;
+			emptyState: string;
+			loadingState?: string;
 	  };
 
 export type ComposerMentionProvider = {
 	id: string;
-	section: { label: string; priority: number };
+	title: string;
+	priority: number;
 	source: ComposerMentionSource;
 };
 
@@ -77,7 +77,10 @@ export type LexicalComposerProps = {
 	mentionProviders: ComposerMentionProvider[];
 	commands: LexicalComposerCommand[];
 	status?: "ready" | "streaming";
+	placement?: "top" | "bottom";
+	toolbar?: ReactNode;
 	onSubmit?: (payload: LexicalComposerSubmitPayload) => void;
 	onStop?: () => void;
+	onMentionHighlight?: (entry: ComposerMentionEntry | null) => void;
 	className?: string;
 };

@@ -46,11 +46,16 @@ import { SuggestionListbox } from "../SuggestionListbox";
 const MAX_COMMAND_SUGGESTIONS = 8;
 
 export type ComposerBodyProps = Required<
-	Pick<LexicalComposerProps, "placeholder" | "status">
+	Pick<LexicalComposerProps, "placeholder" | "status" | "placement">
 > &
 	Pick<
 		LexicalComposerProps,
-		"mentionProviders" | "commands" | "onSubmit" | "onStop"
+		| "mentionProviders"
+		| "commands"
+		| "toolbar"
+		| "onSubmit"
+		| "onStop"
+		| "onMentionHighlight"
 	>;
 
 function $insertChipAtSelection(chip: ComposerChip) {
@@ -83,8 +88,11 @@ export function ComposerBody({
 	mentionProviders,
 	commands,
 	status,
+	placement,
+	toolbar,
 	onSubmit,
 	onStop,
+	onMentionHighlight,
 }: ComposerBodyProps) {
 	const [editor] = useLexicalComposerContext();
 	const [attachments, setAttachments] = useState<LexicalComposerAttachment[]>(
@@ -97,7 +105,6 @@ export function ComposerBody({
 	const [panel, setPanel] = useState<ComposerPanelContent | null>(null);
 	const [menuSlot, setMenuSlot] = useState<HTMLDivElement | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const closeMenuRef = useRef<() => void>(() => {});
 	// Lexical command listeners register once; this ref bridges them to live React state.
 	const stateRef = useRef({ attachments, onSubmit, status });
 	stateRef.current = { attachments, onSubmit, status };
@@ -119,7 +126,6 @@ export function ComposerBody({
 		},
 		attachFiles: () => fileInputRef.current?.click(),
 		openPanel: setPanel,
-		closeMenu: () => closeMenuRef.current(),
 		query: mentionQuery ?? "",
 	};
 	const actionContextRef = useRef(actionContext);
@@ -156,27 +162,31 @@ export function ComposerBody({
 		nodeToReplace: LexicalNode | null,
 		closeMenu: () => void,
 	) => {
-		closeMenuRef.current = closeMenu;
-		editor.update(() => {
-			if (entry.action.type === "insert-chip") {
-				const chipNode = MentionChipNode.fromChip(entry.action.chip);
-				const space = $createTextNode(" ");
-				if (nodeToReplace) {
-					nodeToReplace.replace(chipNode);
-					chipNode.insertAfter(space);
-					space.select(1, 1);
-				} else {
-					$insertChipAtSelection(entry.action.chip);
+		if (entry.completionQuery != null) {
+			const completion = entry.completionQuery;
+			editor.update(() => {
+				if (nodeToReplace && "setTextContent" in nodeToReplace) {
+					const textNode = nodeToReplace as unknown as {
+						setTextContent(text: string): void;
+						select(anchor: number, focus: number): void;
+					};
+					const text = `@${completion}`;
+					textNode.setTextContent(text);
+					textNode.select(text.length, text.length);
 				}
-			} else {
-				nodeToReplace?.remove();
-			}
+			});
+			return;
+		}
+		editor.update(() => {
+			nodeToReplace?.remove();
 			closeMenu();
 		});
-		if (entry.action.type === "run") {
-			void entry.action.run(actionContextRef.current);
-		}
+		void entry.select(actionContextRef.current);
 	};
+
+	useEffect(() => {
+		if (mentionQuery == null) onMentionHighlight?.(null);
+	}, [mentionQuery, onMentionHighlight]);
 
 	const submit = () => {
 		if (stateRef.current.status === "streaming") return;
@@ -274,10 +284,17 @@ export function ComposerBody({
 		>
 			<div
 				ref={setMenuSlot}
-				className="pointer-events-none absolute inset-x-0 bottom-full [&>*]:pointer-events-auto"
+				className={cn(
+					"pointer-events-none absolute inset-x-0 [&>*]:pointer-events-auto",
+					placement === "bottom" ? "top-full pt-2" : "bottom-full pb-2",
+				)}
 			/>
 			{panel && (
-				<ComposerPanel title={panel.title} onClose={() => setPanel(null)}>
+				<ComposerPanel
+					title={panel.title}
+					placement={placement}
+					onClose={() => setPanel(null)}
+				>
 					{panel.render()}
 				</ComposerPanel>
 			)}
@@ -326,6 +343,7 @@ export function ComposerBody({
 										sections={sections}
 										selectedIndex={selectedIndex}
 										onHighlight={setHighlightedIndex}
+										onSelectionChange={onMentionHighlight}
 										onSelect={(entry) => {
 											const option = mentionOptions.find(
 												(candidate) => candidate.entry.id === entry.id,
@@ -386,6 +404,7 @@ export function ComposerBody({
 			</div>
 			<div className="flex min-h-12 items-center gap-1 px-3 pb-2.5">
 				<PlusMenu onFiles={addFiles} fileInputRef={fileInputRef} />
+				{toolbar}
 				<div className="flex-1" />
 				{status === "streaming" ? (
 					<button

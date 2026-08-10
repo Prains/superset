@@ -1,7 +1,6 @@
 export {
 	type ComposerActionContext,
 	type ComposerChip,
-	type ComposerMentionAction,
 	type ComposerMentionEntry,
 	type ComposerMentionProvider,
 	type ComposerMentionSource,

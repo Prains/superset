@@ -6,9 +6,11 @@ import type {
 
 export type MentionSection = {
 	providerId: string;
-	label: string;
+	title: string;
 	entries: ComposerMentionEntry[];
-	hint?: string;
+	emptyState?: string;
+	loadingState?: string;
+	isLoading: boolean;
 };
 
 function matchesQuery(entry: ComposerMentionEntry, query: string): boolean {
@@ -31,6 +33,9 @@ export function useMentionSources(
 	const [searchEntries, setSearchEntries] = useState<
 		Record<string, ComposerMentionEntry[]>
 	>({});
+	const [searchPending, setSearchPending] = useState<Record<string, boolean>>(
+		{},
+	);
 	const providersRef = useRef(providers);
 	providersRef.current = providers;
 
@@ -65,8 +70,13 @@ export function useMentionSources(
 			if (provider.source.kind !== "search") continue;
 			if (query === "") {
 				setSearchEntries((previous) => ({ ...previous, [provider.id]: [] }));
+				setSearchPending((previous) => ({
+					...previous,
+					[provider.id]: false,
+				}));
 				continue;
 			}
+			setSearchPending((previous) => ({ ...previous, [provider.id]: true }));
 			provider.source
 				.search(query, controller.signal)
 				.then((entries) => {
@@ -74,6 +84,10 @@ export function useMentionSources(
 					setSearchEntries((previous) => ({
 						...previous,
 						[provider.id]: entries,
+					}));
+					setSearchPending((previous) => ({
+						...previous,
+						[provider.id]: false,
 					}));
 				})
 				.catch(() => {});
@@ -83,9 +97,7 @@ export function useMentionSources(
 
 	return useMemo(() => {
 		const sections: MentionSection[] = [];
-		const sorted = [...providers].sort(
-			(a, b) => a.section.priority - b.section.priority,
-		);
+		const sorted = [...providers].sort((a, b) => a.priority - b.priority);
 		for (const provider of sorted) {
 			if (provider.source.kind === "static") {
 				const entries = (staticEntries[provider.id] ?? []).filter((entry) =>
@@ -94,28 +106,26 @@ export function useMentionSources(
 				if (entries.length > 0) {
 					sections.push({
 						providerId: provider.id,
-						label: provider.section.label,
+						title: provider.title,
 						entries,
+						isLoading: false,
 					});
 				}
 			} else {
 				const entries = query === "" ? [] : (searchEntries[provider.id] ?? []);
-				if (entries.length > 0) {
+				const isLoading = searchPending[provider.id] === true;
+				if (entries.length > 0 || query === "" || isLoading) {
 					sections.push({
 						providerId: provider.id,
-						label: provider.section.label,
+						title: provider.title,
 						entries,
-					});
-				} else if (query === "") {
-					sections.push({
-						providerId: provider.id,
-						label: provider.section.label,
-						entries: [],
-						hint: provider.source.hint,
+						emptyState: query === "" ? provider.source.emptyState : undefined,
+						loadingState: provider.source.loadingState,
+						isLoading,
 					});
 				}
 			}
 		}
 		return sections;
-	}, [providers, staticEntries, searchEntries, query]);
+	}, [providers, staticEntries, searchEntries, searchPending, query]);
 }

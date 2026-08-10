@@ -13,7 +13,6 @@ import "./lexical-composer.css";
 export type {
 	ComposerActionContext,
 	ComposerChip,
-	ComposerMentionAction,
 	ComposerMentionEntry,
 	ComposerMentionProvider,
 	ComposerMentionSource,
@@ -29,8 +28,11 @@ export function LexicalComposer({
 	mentionProviders,
 	commands,
 	status = "ready",
+	placement = "top",
+	toolbar,
 	onSubmit,
 	onStop,
+	onMentionHighlight,
 	className,
 }: LexicalComposerProps) {
 	const [initialConfig] = useState<InitialConfigType>(() => ({
@@ -49,8 +51,11 @@ export function LexicalComposer({
 					mentionProviders={mentionProviders}
 					commands={commands}
 					status={status}
+					placement={placement}
+					toolbar={toolbar}
 					onSubmit={onSubmit}
 					onStop={onStop}
+					onMentionHighlight={onMentionHighlight}
 				/>
 			</LexicalComposerProvider>
 		</div>
