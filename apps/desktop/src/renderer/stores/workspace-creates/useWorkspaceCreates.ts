@@ -84,15 +84,47 @@ function isTimeoutAbort(error: unknown): boolean {
 	);
 }
 
-/** Bounded row-existence probe: did the host actually create this workspace? */
-async function workspaceRowExists(
+/**
+ * Bounded row-existence probe: did the host actually create this workspace?
+ * "unknown" means the probe itself failed (transport/auth) — callers must not
+ * treat that as absence.
+ */
+async function probeWorkspaceRow(
 	client: HostServiceClient,
 	workspaceId: string,
-): Promise<boolean> {
-	const existing = await client.workspace.get
-		.query({ id: workspaceId }, { signal: AbortSignal.timeout(15_000) })
-		.catch(() => null);
-	return existing != null;
+): Promise<"exists" | "absent" | "unknown"> {
+	try {
+		const existing = await client.workspace.get.query(
+			{ id: workspaceId },
+			{ signal: AbortSignal.timeout(15_000) },
+		);
+		return existing != null ? "exists" : "absent";
+	} catch (error) {
+		if (error instanceof TRPCClientError && error.data?.code === "NOT_FOUND") {
+			return "absent";
+		}
+		return "unknown";
+	}
+}
+
+/** A few spaced probes: a client-side timeout can race a create that hasn't
+ * inserted its row yet. Resolves "exists" as soon as any probe sees the row. */
+async function probeWorkspaceRowWithRetries(
+	client: HostServiceClient,
+	workspaceId: string,
+	attempts = 3,
+	delayMs = 4_000,
+): Promise<"exists" | "absent" | "unknown"> {
+	let last: "absent" | "unknown" = "absent";
+	for (let attempt = 0; attempt < attempts; attempt++) {
+		if (attempt > 0) {
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+		}
+		const result = await probeWorkspaceRow(client, workspaceId);
+		if (result === "exists") return result;
+		last = result;
+	}
+	return last;
 }
 
 /**
@@ -152,16 +184,23 @@ async function createViaEnqueue(
 
 		if (outcome === "timeout") {
 			// The event was lost, not necessarily the create. If the row exists
-			// the workspace is real — recover with an empty pane seed rather
-			// than tearing down a workspace the user can already see.
-			if (await workspaceRowExists(client, workspaceId)) {
+			// the workspace is real — recover with an EMPTY pane seed rather
+			// than tearing down a workspace the user can already see. Launched
+			// terminals/agents aren't recoverable without the event; the
+			// background-session auto-adopt path surfaces them on open.
+			const row = await probeWorkspaceRow(client, workspaceId);
+			if (row === "exists") {
 				return {
 					workspace: { id: workspaceId, projectId: payload.projectId },
 					terminals: [],
 					agents: [],
 				};
 			}
-			throw new Error("Timed out waiting for the host to create the workspace");
+			throw new Error(
+				row === "unknown"
+					? "Timed out waiting for the host to create the workspace, and the host could not be reached to verify it"
+					: "Timed out waiting for the host to create the workspace",
+			);
 		}
 
 		if (!outcome.ok) {
@@ -297,9 +336,12 @@ export function useWorkspaceCreates(): UseWorkspaceCreatesApi {
 						// The abort cancels the client, not the host — a slow but
 						// ultimately successful session create must not be recorded
 						// as failed (the row would pop back via workspace:changed).
+						// Spaced probes cover a create that hasn't inserted its row
+						// yet; the empty pane seed is healed by session auto-adopt.
 						if (
 							isTimeoutAbort(error) &&
-							(await workspaceRowExists(client, workspaceId))
+							(await probeWorkspaceRowWithRetries(client, workspaceId)) ===
+								"exists"
 						) {
 							return {
 								workspace: { id: workspaceId, projectId: null },
