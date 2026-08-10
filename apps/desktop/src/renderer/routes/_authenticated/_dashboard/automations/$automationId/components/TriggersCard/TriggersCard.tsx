@@ -53,7 +53,11 @@ export function TriggersCard({
 				timezone: automation.timezone,
 				after: new Date(),
 			});
-		} catch {
+		} catch (error) {
+			console.warn(
+				`[TriggersCard] failed to compute next occurrence for automation ${automation.id}`,
+				error,
+			);
 			return null;
 		}
 	}, [
@@ -62,6 +66,7 @@ export function TriggersCard({
 		automation.rrule,
 		automation.dtstart,
 		automation.timezone,
+		automation.id,
 	]);
 
 	return (
@@ -71,6 +76,7 @@ export function TriggersCard({
 				onRruleChange={(rrule) => onUpdate({ rrule })}
 				timezone={automation.timezone}
 				onTimezoneChange={(timezone) => onUpdate({ timezone })}
+				disabled={readOnly}
 			/>
 			<div className="ml-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-l border-border pl-4 pt-1 text-sm text-muted-foreground">
 				<span>in</span>
@@ -78,6 +84,7 @@ export function TriggersCard({
 					selectedProject={selectedProject}
 					sessionSelected={automation.v2ProjectId === null}
 					recentProjects={recentProjects}
+					disabled={readOnly}
 					onSelectProject={(v2ProjectId) => onUpdate({ v2ProjectId })}
 				/>
 				<span>on</span>
@@ -94,6 +101,7 @@ export function TriggersCard({
 					hostId={hostId}
 					projectId={automation.v2ProjectId}
 					value={automation.v2WorkspaceId}
+					disabled={readOnly}
 					onChange={(v2WorkspaceId) =>
 						onUpdate({
 							v2WorkspaceId,

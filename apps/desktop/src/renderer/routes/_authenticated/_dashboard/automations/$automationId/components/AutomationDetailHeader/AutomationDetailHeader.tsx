@@ -58,16 +58,20 @@ export function AutomationDetailHeader({
 
 			<div className="flex items-center gap-1">
 				<Tooltip>
+					{/* Disabled buttons swallow hover events, so the trigger is a
+					    span — otherwise the read-only explanation never shows. */}
 					<TooltipTrigger asChild>
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							onClick={onOpenHistory}
-							disabled={readOnly}
-							aria-label="Version history"
-						>
-							<LuClock className="size-4" />
-						</Button>
+						<span className="inline-flex">
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={onOpenHistory}
+								disabled={readOnly}
+								aria-label="Version history"
+							>
+								<LuClock className="size-4" />
+							</Button>
+						</span>
 					</TooltipTrigger>
 					<TooltipContent>
 						{readOnly ? "Only the owner can view versions" : "Version history"}
@@ -98,16 +102,18 @@ export function AutomationDetailHeader({
 				<div className="mx-1 h-4 w-px bg-border" />
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-8 gap-1.5 px-3"
-							onClick={onRunNow}
-							disabled={readOnly || runNowDisabled}
-						>
-							<LuPlay className="size-4" />
-							<span>Run now</span>
-						</Button>
+						<span className="inline-flex">
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 px-3"
+								onClick={onRunNow}
+								disabled={readOnly || runNowDisabled}
+							>
+								<LuPlay className="size-4" />
+								<span>Run now</span>
+							</Button>
+						</span>
 					</TooltipTrigger>
 					{readOnly && (
 						<TooltipContent>

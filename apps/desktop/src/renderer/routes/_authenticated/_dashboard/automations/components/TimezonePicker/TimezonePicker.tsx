@@ -16,6 +16,7 @@ interface TimezonePickerProps {
 	value: string;
 	onChange: (timezone: string) => void;
 	className?: string;
+	disabled?: boolean;
 }
 
 function listTimezones(): string[] {
@@ -46,14 +47,18 @@ export function TimezonePicker({
 	value,
 	onChange,
 	className,
+	disabled,
 }: TimezonePickerProps) {
 	const [open, setOpen] = useState(false);
 	const timezones = useMemo(listTimezones, []);
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		// Guard the open state, not just the trigger: Radix opens on pointerdown,
+		// which Chromium still dispatches to fieldset-disabled buttons.
+		<Popover open={open} onOpenChange={(next) => !disabled && setOpen(next)}>
 			<PopoverTrigger asChild>
 				<PickerTrigger
+					disabled={disabled}
 					className={className}
 					icon={<LuGlobe className="size-4 shrink-0" />}
 					label={shortTimezoneLabel(value)}

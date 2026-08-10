@@ -31,6 +31,7 @@ interface ScheduleSentenceProps {
 	timezone: string;
 	onTimezoneChange: (timezone: string) => void;
 	className?: string;
+	disabled?: boolean;
 }
 
 /**
@@ -44,6 +45,7 @@ export function ScheduleSentence({
 	timezone,
 	onTimezoneChange,
 	className,
+	disabled,
 }: ScheduleSentenceProps) {
 	const [state, setState] = useState<SchedulePickerState>(() =>
 		stateFromRrule(rrule),
@@ -68,13 +70,9 @@ export function ScheduleSentence({
 
 	const update = (patch: Partial<SchedulePickerState>) => {
 		const next = { ...state, ...patch };
-		if (
-			patch.kind === "custom" &&
-			state.kind !== "custom" &&
-			!next.customRrule
-		) {
-			// Entering Custom mode: seed the field with the current rule so the
-			// user edits in place instead of starting from an empty string.
+		if (patch.kind === "custom" && state.kind !== "custom") {
+			// Entering Custom mode: seed from the current saved rule (a stale
+			// draft from a prior visit would silently mismatch what's persisted).
 			next.customRrule = rrule;
 		}
 		setState(next);
@@ -104,6 +102,7 @@ export function ScheduleSentence({
 
 				<Select
 					value={state.kind}
+					disabled={disabled}
 					onValueChange={(value) => update({ kind: value as PresetKind })}
 				>
 					<SelectTrigger size="sm" className={CHIP}>
@@ -123,6 +122,7 @@ export function ScheduleSentence({
 						<span className="text-muted-foreground">on</span>
 						<Select
 							value={state.day}
+							disabled={disabled}
 							onValueChange={(value) => update({ day: value as Weekday })}
 						>
 							<SelectTrigger size="sm" className={CHIP}>
@@ -144,7 +144,8 @@ export function ScheduleSentence({
 						<span className="text-muted-foreground">at</span>
 						<input
 							type="time"
-							className="h-8 rounded-md px-1.5 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden"
+							disabled={disabled}
+							className="h-8 rounded-md px-1.5 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 disabled:opacity-50 dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden"
 							value={formatTimeInputValue(state.hour, state.minute)}
 							onChange={(event) => {
 								const parsed = parseTimeInputValue(event.target.value);
@@ -157,6 +158,7 @@ export function ScheduleSentence({
 				<TimezonePicker
 					className="text-muted-foreground"
 					value={timezone}
+					disabled={disabled}
 					onChange={onTimezoneChange}
 				/>
 			</div>
@@ -165,6 +167,7 @@ export function ScheduleSentence({
 				<div className="ml-[26px] flex flex-col gap-1">
 					<Input
 						autoFocus
+						disabled={disabled}
 						placeholder="FREQ=WEEKLY;BYDAY=FR;BYHOUR=9;BYMINUTE=0"
 						className="h-8 w-full max-w-md font-mono text-xs"
 						value={state.customRrule}

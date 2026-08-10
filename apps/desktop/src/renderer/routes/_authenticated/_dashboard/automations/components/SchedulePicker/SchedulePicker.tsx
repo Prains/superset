@@ -60,13 +60,9 @@ export function SchedulePicker({
 
 	const update = (patch: Partial<SchedulePickerState>) => {
 		const next = { ...state, ...patch };
-		if (
-			patch.kind === "custom" &&
-			state.kind !== "custom" &&
-			!next.customRrule
-		) {
-			// Entering Custom mode: seed the field with the current rule so the
-			// user edits in place instead of starting from an empty string.
+		if (patch.kind === "custom" && state.kind !== "custom") {
+			// Entering Custom mode: seed from the current saved rule (a stale
+			// draft from a prior visit would silently mismatch what's persisted).
 			next.customRrule = rrule;
 		}
 		setState(next);
