@@ -62,7 +62,11 @@ export type ComposerBodyProps = Required<
 	>;
 
 function $insertChipAtSelection(chip: ComposerChip) {
-	const selection = $getSelection();
+	let selection = $getSelection();
+	if (!$isRangeSelection(selection)) {
+		$getRoot().selectEnd();
+		selection = $getSelection();
+	}
 	if (!$isRangeSelection(selection)) return;
 	const chipNode = MentionChipNode.fromChip(chip);
 	selection.insertNodes([chipNode, $createTextNode(" ")]);
@@ -108,6 +112,10 @@ export function ComposerBody({
 	const [commandQuery, setCommandQuery] = useState<string | null>(null);
 	const [panel, setPanel] = useState<ComposerPanelContent | null>(null);
 	const [menuSlot, setMenuSlot] = useState<HTMLDivElement | null>(null);
+	const [browseOpen, setBrowseOpen] = useState(false);
+	const [browseIndex, setBrowseIndex] = useState(0);
+	const [typeaheadDismissed, setTypeaheadDismissed] = useState(false);
+	const rootRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	// Lexical command listeners register once; this ref bridges them to live React state.
 	const stateRef = useRef({ attachments, onSubmit, status });
@@ -148,9 +156,17 @@ export function ComposerBody({
 
 	const sections = useMentionSources(
 		mentionProviders ?? [],
-		mentionQuery != null,
+		mentionQuery != null || browseOpen,
 		mentionQuery ?? "",
 	);
+	const browseEntries = useMemo(
+		() => sections.flatMap((section) => section.entries),
+		[sections],
+	);
+
+	useEffect(() => {
+		setTypeaheadDismissed(false);
+	}, [mentionQuery]);
 	const mentionOptions = useMemo(
 		() =>
 			sections.flatMap((section) =>
@@ -278,31 +294,85 @@ export function ComposerBody({
 		};
 	}, [editor]);
 
-	const openContextMenu = () => {
-		editor.focus();
-		editor.update(() => {
-			let selection = $getSelection();
-			if (!$isRangeSelection(selection)) {
-				$getRoot().selectEnd();
-				selection = $getSelection();
-			}
-			if (!$isRangeSelection(selection)) return;
-			const anchorNode = selection.anchor.getNode();
-			const offset = selection.anchor.offset;
-			const previousChar = $isTextNode(anchorNode)
-				? anchorNode.getTextContent()[offset - 1]
-				: undefined;
-			const needsSpace =
-				(previousChar != null && !/\s/.test(previousChar)) ||
-				(!$isTextNode(anchorNode) && offset > 0);
-			selection.insertText(needsSpace ? " @" : "@");
-		});
+	const toggleBrowseMenu = () => {
+		setTypeaheadDismissed(true);
+		setBrowseIndex(0);
+		setBrowseOpen((previous) => !previous);
 	};
+
+	const selectBrowseEntry = (entry: ComposerMentionEntry) => {
+		setBrowseOpen(false);
+		if (entry.completionQuery != null) {
+			const completion = entry.completionQuery;
+			editor.focus();
+			editor.update(() => {
+				let selection = $getSelection();
+				if (!$isRangeSelection(selection)) {
+					$getRoot().selectEnd();
+					selection = $getSelection();
+				}
+				if (!$isRangeSelection(selection)) return;
+				const anchorNode = selection.anchor.getNode();
+				const offset = selection.anchor.offset;
+				const previousChar = $isTextNode(anchorNode)
+					? anchorNode.getTextContent()[offset - 1]
+					: undefined;
+				const needsSpace =
+					(previousChar != null && !/\s/.test(previousChar)) ||
+					(!$isTextNode(anchorNode) && offset > 0);
+				selection.insertText(needsSpace ? ` @${completion}` : `@${completion}`);
+			});
+			return;
+		}
+		void entry.select(actionContextRef.current);
+	};
+
+	// Browse-mode keyboard: the editor may not be focused, so listen globally.
+	useEffect(() => {
+		if (!browseOpen) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+				event.preventDefault();
+				const delta = event.key === "ArrowDown" ? 1 : -1;
+				setBrowseIndex((previous) => {
+					const count = browseEntries.length;
+					return count === 0 ? 0 : (previous + delta + count) % count;
+				});
+				return;
+			}
+			if (event.key === "Enter") {
+				event.preventDefault();
+				const entry = browseEntries[browseIndex];
+				if (entry) selectBrowseEntry(entry);
+				return;
+			}
+			if (event.key === "Escape") {
+				event.preventDefault();
+				setBrowseOpen(false);
+			}
+		};
+		window.addEventListener("keydown", onKeyDown, { capture: true });
+		return () =>
+			window.removeEventListener("keydown", onKeyDown, { capture: true });
+	});
+
+	// Any pointer press outside the composer and its menus dismisses both modes.
+	useEffect(() => {
+		const onPointerDown = (event: PointerEvent) => {
+			const target = event.target as Node | null;
+			if (target && rootRef.current?.contains(target)) return;
+			setBrowseOpen(false);
+			setTypeaheadDismissed(true);
+		};
+		document.addEventListener("pointerdown", onPointerDown);
+		return () => document.removeEventListener("pointerdown", onPointerDown);
+	}, []);
 
 	const canSend = !isEmpty || attachments.length > 0;
 
 	return (
 		<div
+			ref={rootRef}
 			className={cn(
 				"relative flex flex-col rounded-2xl bg-card ring-1 ring-border transition-shadow focus-within:ring-ring/40",
 			)}
@@ -337,7 +407,17 @@ export function ComposerBody({
 					"pointer-events-none absolute inset-x-0 [&>*]:pointer-events-auto",
 					placement === "bottom" ? "top-full pt-2" : "bottom-full pb-2",
 				)}
-			/>
+			>
+				{browseOpen && (
+					<MentionMenu
+						sections={sections}
+						selectedIndex={browseIndex}
+						onHighlight={setBrowseIndex}
+						onSelectionChange={onMentionHighlight}
+						onSelect={selectBrowseEntry}
+					/>
+				)}
+			</div>
 			{panel && (
 				<ComposerPanel
 					title={panel.title}
@@ -411,7 +491,7 @@ export function ComposerBody({
 						anchorElementRef,
 						{ selectedIndex, selectOptionAndCleanUp, setHighlightedIndex },
 					) =>
-						anchorElementRef.current && menuSlot
+						anchorElementRef.current && menuSlot && !typeaheadDismissed
 							? createPortal(
 									<MentionMenu
 										sections={sections}
@@ -477,7 +557,7 @@ export function ComposerBody({
 				/>
 			</div>
 			<div className="flex min-h-12 items-center gap-1 px-3 pb-2.5">
-				<ContextButton onClick={openContextMenu} />
+				<ContextButton onClick={toggleBrowseMenu} />
 				<input
 					ref={fileInputRef}
 					type="file"
