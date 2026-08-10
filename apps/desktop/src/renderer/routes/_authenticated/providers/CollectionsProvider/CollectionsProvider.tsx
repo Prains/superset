@@ -5,16 +5,57 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { env } from "renderer/env.renderer";
 import { authClient } from "renderer/lib/auth-client";
+import { electronQueryClient } from "renderer/providers/ElectronTRPCProvider/ElectronTRPCProvider";
 import { MOCK_ORG_ID } from "shared/constants";
 import {
 	evictInactiveOrgCollections,
 	getCollections,
 	preloadCollections,
 } from "./collections";
+
+// Cloud tRPC routers holding org-scoped data. Their query procedures take no
+// organizationId input (the server scopes by active org), so their React Query
+// keys don't encode the org — on org switch the previous org's rows must be
+// dropped, not just marked stale. Electron IPC routers sharing the QueryClient
+// are untouched ("analytics" and "device" exist on both routers and are
+// deliberately absent here).
+const ORG_SCOPED_CLOUD_ROUTERS = new Set([
+	"admin",
+	"apiKey",
+	"automation",
+	"billing",
+	"chat",
+	"host",
+	"integration",
+	"organization",
+	"project",
+	"support",
+	"task",
+	"team",
+	"user",
+	"v2Host",
+	"v2Project",
+	"v2Workspace",
+	"workspace",
+]);
+
+function dropCloudQueriesForOrgSwitch(): void {
+	electronQueryClient.removeQueries({
+		predicate: (query) => {
+			const head = query.queryKey[0];
+			return (
+				Array.isArray(head) &&
+				typeof head[0] === "string" &&
+				ORG_SCOPED_CLOUD_ROUTERS.has(head[0])
+			);
+		},
+	});
+}
 
 type CollectionsContextType = ReturnType<typeof getCollections> & {
 	switchOrganization: (organizationId: string) => Promise<void>;
@@ -56,15 +97,22 @@ export function CollectionsProvider({ children }: { children: ReactNode }) {
 		[activeOrganizationId, refetchSession],
 	);
 
+	const previousOrganizationIdRef = useRef<string | null>(null);
 	useEffect(() => {
 		preloadActiveOrganizationCollections(activeOrganizationId);
-		// Once the active org is current (its collections are already cached by the
-		// `collections` memo above, which runs during render), evict every prior
-		// org's set to free the synced tables they hold. This effect is the single
-		// trigger for all switch paths, including callers that set the active org
-		// directly without going through `switchOrganization`.
+		// Once the active org is current, evict every prior org's local
+		// collection set. This effect is the single trigger for all switch
+		// paths, including callers that set the active org directly without
+		// going through `switchOrganization`.
 		if (activeOrganizationId) {
 			evictInactiveOrgCollections(activeOrganizationId);
+			if (
+				previousOrganizationIdRef.current &&
+				previousOrganizationIdRef.current !== activeOrganizationId
+			) {
+				dropCloudQueriesForOrgSwitch();
+			}
+			previousOrganizationIdRef.current = activeOrganizationId;
 		}
 	}, [activeOrganizationId]);
 

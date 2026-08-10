@@ -180,6 +180,17 @@ export const githubRouter = {
 			});
 		}),
 
+	listOrganizationPullRequests: protectedProcedure
+		.input(z.object({ organizationId: z.string().uuid() }))
+		.query(async ({ ctx, input }) => {
+			await verifyOrgMembership(ctx.session.user.id, input.organizationId);
+
+			return db.query.githubPullRequests.findMany({
+				where: eq(githubPullRequests.organizationId, input.organizationId),
+				orderBy: [desc(githubPullRequests.updatedAt)],
+			});
+		}),
+
 	getStats: protectedProcedure
 		.input(z.object({ organizationId: z.string().uuid() }))
 		.query(async ({ ctx, input }) => {

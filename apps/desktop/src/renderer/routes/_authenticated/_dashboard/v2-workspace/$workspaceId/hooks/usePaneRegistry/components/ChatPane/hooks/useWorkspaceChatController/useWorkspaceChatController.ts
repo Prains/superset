@@ -1,16 +1,14 @@
 import { workspaceTrpc } from "@superset/workspace-client";
-import { eq } from "@tanstack/db";
-import { useLiveQuery } from "@tanstack/react-db";
 import { useCallback, useMemo } from "react";
 import { apiTrpcClient } from "renderer/lib/api-trpc-client";
 import { authClient } from "renderer/lib/auth-client";
+import { cloudTrpc } from "renderer/lib/cloud-trpc";
 import {
 	isDesktopChatDevMode,
 	resolveDesktopChatOrganizationId,
 } from "renderer/lib/dev-chat";
 import { posthog } from "renderer/lib/posthog";
 import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
-import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
 
 interface SessionSelectorItem {
 	sessionId: string;
@@ -62,7 +60,6 @@ export function useWorkspaceChatController({
 	const organizationId = resolveDesktopChatOrganizationId(
 		session?.session?.activeOrganizationId,
 	);
-	const collections = useCollections();
 	const endSessionMutation = workspaceTrpc.chat.endSession.useMutation();
 	const { chatSessions: chatSessionActions } = useOptimisticCollectionActions();
 
@@ -71,18 +68,16 @@ export function useWorkspaceChatController({
 		{ enabled: Boolean(workspaceId) },
 	);
 
-	const { data: allSessionsData } = useLiveQuery(
-		(q) =>
-			q
-				.from({ chatSessions: collections.chatSessions })
-				.where(({ chatSessions }) =>
-					eq(chatSessions.v2WorkspaceId, workspaceId),
-				)
-				.orderBy(({ chatSessions }) => chatSessions.lastActiveAt, "desc")
-				.select(({ chatSessions }) => ({ ...chatSessions })),
-		[collections.chatSessions, workspaceId],
+	// Already ordered by lastActiveAt desc server-side.
+	const { data: allSessions = [] } = cloudTrpc.chat.listSessions.useQuery(
+		undefined,
+		{ staleTime: 30_000 },
 	);
-	const sessions = allSessionsData ?? [];
+	const sessions = useMemo(
+		() =>
+			allSessions.filter((session) => session.v2WorkspaceId === workspaceId),
+		[allSessions, workspaceId],
+	);
 
 	const handleSelectSession = useCallback(
 		(nextSessionId: string) => {

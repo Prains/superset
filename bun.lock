@@ -145,7 +145,6 @@
         "@dnd-kit/core": "6.3.1",
         "@dnd-kit/sortable": "10.0.0",
         "@dnd-kit/utilities": "3.2.2",
-        "@electric-sql/client": "1.5.23",
         "@headless-tree/core": "1.6.3",
         "@headless-tree/react": "1.6.3",
         "@hono/node-server": "2.0.10",
@@ -178,7 +177,6 @@
         "@superset/workspace-fs": "workspace:*",
         "@t3-oss/env-core": "0.13.11",
         "@tanstack/db": "0.6.17",
-        "@tanstack/electric-db-collection": "0.3.15",
         "@tanstack/electron-db-sqlite-persistence": "0.1.21",
         "@tanstack/node-db-sqlite-persistence": "0.2.9",
         "@tanstack/query-async-storage-persister": "5.101.1",
@@ -485,7 +483,6 @@
       "version": "1.0.0",
       "dependencies": {
         "@better-auth/expo": "1.6.22",
-        "@electric-sql/client": "1.5.23",
         "@expo/ui": "56.0.16",
         "@expo/vector-icons": "15.1.1",
         "@legendapp/list": "3.0.3",
@@ -525,9 +522,6 @@
         "@superset/session-protocol": "workspace:*",
         "@superset/shared": "workspace:*",
         "@superset/trpc": "workspace:*",
-        "@tanstack/db": "0.6.17",
-        "@tanstack/electric-db-collection": "0.3.15",
-        "@tanstack/react-db": "0.1.95",
         "@tanstack/react-query": "5.101.1",
         "@trpc/client": "11.16.0",
         "@trpc/react-query": "11.16.0",
@@ -3106,8 +3100,6 @@
     "@tanstack/db-ivm": ["@tanstack/db-ivm@0.1.18", "", { "dependencies": { "fractional-indexing": "^3.2.0", "sorted-btree": "^1.8.1" }, "peerDependencies": { "typescript": ">=4.7" } }, "sha512-+pZJiRKdoKRM5Epq9T7otD9ZJl82pRFauo7LKuJGrarjVKQ7r+QQlPe3kGdN9LEKSnuNGIWjX9OOY4M8kH4eLw=="],
 
     "@tanstack/db-sqlite-persistence-core": ["@tanstack/db-sqlite-persistence-core@0.2.9", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "@tanstack/db": "0.6.17" }, "peerDependencies": { "typescript": ">=4.7" } }, "sha512-yp0dpWAf5lK5RgnoKL9Bv5+e+TGzHnlHjkNt6YqhITPlymWgjcibjlj8pqx/iAowPY7kQZoMuiBFhxbPGmf3Zg=="],
-
-    "@tanstack/electric-db-collection": ["@tanstack/electric-db-collection@0.3.15", "", { "dependencies": { "@electric-sql/client": "^1.5.15", "@standard-schema/spec": "^1.1.0", "@tanstack/db": "0.6.17", "@tanstack/store": "^0.9.2", "debug": "^4.4.3" } }, "sha512-vBnoKpgahLz2QPBK8EDxQROa5kTrXFac4ZVT3lmKxvzjltEOUfqQno5/CyxWXUYniQV38aqpdOZe1ZP0Gf/+gQ=="],
 
     "@tanstack/electron-db-sqlite-persistence": ["@tanstack/electron-db-sqlite-persistence@0.1.21", "", { "dependencies": { "@tanstack/db-sqlite-persistence-core": "0.2.9" }, "peerDependencies": { "typescript": ">=4.7" } }, "sha512-99U/BAgRnrqt6iu1qBX9joZORfqf1yDGECYfHB3Fwcagf1UG6t9RQrqSSn8E9HZJYz6GiccbRilDUhPhR8ZFzw=="],
 

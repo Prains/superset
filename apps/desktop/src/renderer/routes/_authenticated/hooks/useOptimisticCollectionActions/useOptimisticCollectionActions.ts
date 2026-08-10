@@ -1,9 +1,13 @@
 import type { TaskPriority, V2UsersHostRole } from "@superset/db/enums";
+import type { RouterOutputs } from "@superset/trpc";
 import { toast } from "@superset/ui/sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { getQueryKey } from "@trpc/react-query";
 import { useCallback, useMemo } from "react";
+import { apiTrpcClient } from "renderer/lib/api-trpc-client";
+import { cloudTrpc } from "renderer/lib/cloud-trpc";
 import { isDesktopChatDevMode } from "renderer/lib/dev-chat";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
-import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 import {
 	type TrackableWorkspaceTransactionState,
@@ -27,12 +31,17 @@ interface V2WorkspacePatch {
 	taskId?: string | null;
 }
 
+type TaskListRow = RouterOutputs["task"]["list"][number];
+type TaskRecord = TaskListRow["task"];
+type TaskPatch = Partial<TaskRecord>;
+type TaskRowPatch = Partial<Omit<TaskListRow, "task">>;
+type TaskDetail = RouterOutputs["task"]["byIdOrSlug"] | null;
+
 /**
- * Host workspace writes aren't collection transactions, but the pending-
- * rename UI tracks transaction-shaped objects; wrap the host mutate
+ * The pending-rename UI tracks transaction-shaped objects; wrap the mutate
  * promise in one.
  */
-function makeHostWorkspaceTransaction(
+function makeTransaction(
 	type: WorkspaceTransactionType,
 	promise: Promise<unknown>,
 ): PersistableTransaction {
@@ -43,6 +52,19 @@ function makeHostWorkspaceTransaction(
 		mutations: [{ type }],
 		isPersisted: { promise },
 	};
+}
+
+function parseUsersHostsKey(rowKey: string): {
+	userId: string;
+	hostId: string;
+} {
+	const separatorIndex = rowKey.indexOf(":");
+	const userId = rowKey.slice(0, separatorIndex);
+	const hostId = rowKey.slice(separatorIndex + 1);
+	if (separatorIndex === -1 || !userId || !hostId) {
+		throw new Error("Invalid host membership key");
+	}
+	return { userId, hostId };
 }
 
 function getErrorMessage(error: unknown): string {
@@ -91,11 +113,70 @@ function useOptimisticMutationRunner() {
 	);
 }
 
+function useTaskCachePatcher() {
+	const queryClient = useQueryClient();
+
+	return useCallback(
+		(
+			taskId: string,
+			apply: {
+				row: (row: TaskListRow) => TaskListRow | null;
+				detail: (task: NonNullable<TaskDetail>) => TaskDetail;
+			},
+		) => {
+			const listKey = getQueryKey(cloudTrpc.task.list);
+			const detailKeys = [
+				getQueryKey(cloudTrpc.task.byId),
+				getQueryKey(cloudTrpc.task.bySlug),
+				getQueryKey(cloudTrpc.task.byIdOrSlug),
+			];
+
+			// An in-flight refetch would otherwise land after the patch and
+			// overwrite it with pre-mutation rows.
+			for (const queryKey of [listKey, ...detailKeys]) {
+				void queryClient.cancelQueries({ queryKey });
+			}
+
+			const previousLists = queryClient.getQueriesData<TaskListRow[]>({
+				queryKey: listKey,
+			});
+			const previousDetails = detailKeys.flatMap((queryKey) =>
+				queryClient.getQueriesData<TaskDetail>({ queryKey }),
+			);
+
+			queryClient.setQueriesData<TaskListRow[]>({ queryKey: listKey }, (rows) =>
+				rows?.flatMap((row) => {
+					if (row.task.id !== taskId) return [row];
+					const next = apply.row(row);
+					return next ? [next] : [];
+				}),
+			);
+
+			for (const queryKey of detailKeys) {
+				queryClient.setQueriesData<TaskDetail>({ queryKey }, (task) =>
+					task && task.id === taskId ? apply.detail(task) : task,
+				);
+			}
+
+			return () => {
+				for (const [queryKey, rows] of previousLists) {
+					queryClient.setQueryData(queryKey, rows);
+				}
+				for (const [queryKey, task] of previousDetails) {
+					queryClient.setQueryData(queryKey, task);
+				}
+			};
+		},
+		[queryClient],
+	);
+}
+
 export function useOptimisticCollectionActions() {
-	const collections = useCollections();
 	const { workspaces: hostWorkspaces, cache: hostWorkspacesCache } =
 		useHostWorkspaces();
 	const runMutation = useOptimisticMutationRunner();
+	const patchTaskCaches = useTaskCachePatcher();
+	const utils = cloudTrpc.useUtils();
 	const trackWorkspaceTransaction = useWorkspaceTransactionsStore(
 		(state) => state.track,
 	);
@@ -126,153 +207,204 @@ export function useOptimisticCollectionActions() {
 			mutation: () => PersistableTransaction,
 		) => runMutation("optimistic.v2Hosts", failureTitle, mutation);
 
+		const updateTask = (
+			taskId: string,
+			patch: TaskPatch,
+			rowPatch?: TaskRowPatch,
+		) => {
+			const rollback = patchTaskCaches(taskId, {
+				row: (row) => ({
+					...row,
+					...rowPatch,
+					task: { ...row.task, ...patch },
+				}),
+				detail: (task) => ({ ...task, ...patch }),
+			});
+
+			const promise = apiTrpcClient.task.update
+				.mutate({ id: taskId, ...patch })
+				.catch((error: unknown) => {
+					rollback();
+					throw error;
+				})
+				.finally(() => {
+					void utils.task.invalidate();
+				});
+
+			return makeTransaction("update", promise);
+		};
+
+		const trackedWorkspaceWrite = (
+			failureTitle: string,
+			workspaceId: string,
+			patch: V2WorkspacePatch,
+		) => {
+			const transaction = runWorkspaceMutation(failureTitle, () => {
+				const workspace = hostWorkspaces.find(
+					(item) => item.id === workspaceId,
+				);
+				if (!workspace) {
+					throw new Error("Workspace not found");
+				}
+				const hostUrl = hostWorkspacesCache.resolveHostUrl(workspace.hostId);
+				if (!hostUrl) {
+					throw new Error(
+						"The workspace's host is offline — try again when it reconnects.",
+					);
+				}
+				hostWorkspacesCache.upsertWorkspace({
+					...workspace,
+					...patch,
+					worktreePath: workspace.worktreePath ?? "",
+					worktreeExists: workspace.worktreeExists ?? true,
+					updatedAt: new Date(),
+				});
+				const promise = getHostServiceClientByUrl(hostUrl)
+					.workspace.update.mutate({
+						id: workspaceId,
+						name: patch.name,
+						branch: patch.branch,
+						taskId: patch.taskId,
+					})
+					.catch((error: unknown) => {
+						hostWorkspacesCache.invalidateHost(workspace.hostId);
+						throw error;
+					});
+				return makeTransaction("update", promise);
+			});
+			if (transaction) {
+				trackWorkspaceTransaction(workspaceId, transaction);
+			}
+			return transaction;
+		};
+
 		return {
 			tasks: {
 				updateTitle: (taskId: string, title: string) =>
 					runTaskMutation("Failed to update task title", () =>
-						collections.tasks.update(taskId, (draft) => {
-							draft.title = title;
-						}),
+						updateTask(taskId, { title }),
 					),
 				updateDescription: (taskId: string, description: string) =>
 					runTaskMutation("Failed to update task description", () =>
-						collections.tasks.update(taskId, (draft) => {
-							draft.description = description;
-						}),
+						updateTask(taskId, { description }),
 					),
 				updateStatus: (taskId: string, statusId: string) =>
-					runTaskMutation("Failed to update task status", () =>
-						collections.tasks.update(taskId, (draft) => {
-							draft.statusId = statusId;
-						}),
-					),
+					runTaskMutation("Failed to update task status", () => {
+						const statusName = utils.task.statuses.list
+							.getData()
+							?.find((status) => status.id === statusId)?.name;
+						return updateTask(
+							taskId,
+							{ statusId },
+							statusName === undefined ? undefined : { statusName },
+						);
+					}),
 				updatePriority: (taskId: string, priority: TaskPriority) =>
 					runTaskMutation("Failed to update task priority", () =>
-						collections.tasks.update(taskId, (draft) => {
-							draft.priority = priority;
-						}),
+						updateTask(taskId, { priority }),
 					),
 				updateAssignee: (taskId: string, assigneeId: string | null) =>
-					runTaskMutation("Failed to update task assignee", () =>
-						collections.tasks.update(taskId, (draft) => {
-							draft.assigneeId = assigneeId;
-							draft.assigneeExternalId = null;
-							draft.assigneeDisplayName = null;
-							draft.assigneeAvatarUrl = null;
-						}),
-					),
+					runTaskMutation("Failed to update task assignee", () => {
+						const member = assigneeId
+							? utils.organization.listMembers
+									.getData()
+									?.find((entry) => entry.user.id === assigneeId)
+							: undefined;
+						return updateTask(
+							taskId,
+							{
+								assigneeId,
+								assigneeExternalId: null,
+								assigneeDisplayName: null,
+								assigneeAvatarUrl: null,
+							},
+							{
+								assignee: member
+									? {
+											id: member.user.id,
+											name: member.user.name,
+											image: member.user.image,
+										}
+									: null,
+							},
+						);
+					}),
 				deleteTask: (taskId: string) =>
-					runTaskMutation("Failed to delete task", () =>
-						collections.tasks.delete(taskId),
-					),
+					runTaskMutation("Failed to delete task", () => {
+						const rollback = patchTaskCaches(taskId, {
+							row: () => null,
+							detail: () => null,
+						});
+
+						const promise = apiTrpcClient.task.delete
+							.mutate(taskId)
+							.catch((error: unknown) => {
+								rollback();
+								throw error;
+							})
+							.finally(() => {
+								void utils.task.invalidate();
+							});
+
+						return makeTransaction("delete", promise);
+					}),
 			},
 			v2Workspaces: {
 				// Workspace records are host-owned: the write goes to the owning
 				// host, the cache is patched optimistically, and the host's
 				// workspace:changed broadcast (or a rollback refetch) converges it.
-				updateWorkspace: (workspaceId: string, patch: V2WorkspacePatch) => {
-					const transaction = runWorkspaceMutation(
+				updateWorkspace: (workspaceId: string, patch: V2WorkspacePatch) =>
+					trackedWorkspaceWrite(
 						"Failed to update workspace",
-						() => {
-							const workspace = hostWorkspaces.find(
-								(item) => item.id === workspaceId,
-							);
-							if (!workspace) {
-								throw new Error("Workspace not found");
-							}
-							const hostUrl = hostWorkspacesCache.resolveHostUrl(
-								workspace.hostId,
-							);
-							if (!hostUrl) {
-								throw new Error(
-									"The workspace's host is offline — try again when it reconnects.",
-								);
-							}
-							hostWorkspacesCache.upsertWorkspace({
-								...workspace,
-								...patch,
-								worktreePath: workspace.worktreePath ?? "",
-								worktreeExists: workspace.worktreeExists ?? true,
-								updatedAt: new Date(),
-							});
-							const promise = getHostServiceClientByUrl(hostUrl)
-								.workspace.update.mutate({
-									id: workspaceId,
-									name: patch.name,
-									branch: patch.branch,
-									taskId: patch.taskId,
-								})
-								.catch((error: unknown) => {
-									hostWorkspacesCache.invalidateHost(workspace.hostId);
-									throw error;
-								});
-							return makeHostWorkspaceTransaction("update", promise);
-						},
-					);
-					if (transaction) {
-						trackWorkspaceTransaction(workspaceId, transaction);
-					}
-					return transaction;
-				},
-				renameWorkspace: (workspaceId: string, name: string) => {
-					const transaction = runWorkspaceMutation(
-						"Failed to rename workspace",
-						() => {
-							const workspace = hostWorkspaces.find(
-								(item) => item.id === workspaceId,
-							);
-							if (!workspace) {
-								throw new Error("Workspace not found");
-							}
-							const hostUrl = hostWorkspacesCache.resolveHostUrl(
-								workspace.hostId,
-							);
-							if (!hostUrl) {
-								throw new Error(
-									"The workspace's host is offline — try again when it reconnects.",
-								);
-							}
-							hostWorkspacesCache.upsertWorkspace({
-								...workspace,
-								name,
-								worktreePath: workspace.worktreePath ?? "",
-								worktreeExists: workspace.worktreeExists ?? true,
-								updatedAt: new Date(),
-							});
-							const promise = getHostServiceClientByUrl(hostUrl)
-								.workspace.update.mutate({ id: workspaceId, name })
-								.catch((error: unknown) => {
-									hostWorkspacesCache.invalidateHost(workspace.hostId);
-									throw error;
-								});
-							return makeHostWorkspaceTransaction("update", promise);
-						},
-					);
-					if (transaction) {
-						trackWorkspaceTransaction(workspaceId, transaction);
-					}
-					return transaction;
-				},
+						workspaceId,
+						patch,
+					),
+				renameWorkspace: (workspaceId: string, name: string) =>
+					trackedWorkspaceWrite("Failed to rename workspace", workspaceId, {
+						name,
+					}),
 			},
 			chatSessions: {
 				deleteSession: (sessionId: string) => {
 					if (isDesktopChatDevMode()) return null;
 
-					return runChatSessionMutation("Failed to delete chat session", () =>
-						collections.chatSessions.delete(sessionId),
-					);
+					return runChatSessionMutation("Failed to delete chat session", () => {
+						const promise = apiTrpcClient.chat.deleteSession
+							.mutate({ sessionId })
+							.then((result) => {
+								if (!result.deleted) {
+									throw new Error("Chat session was not deleted");
+								}
+								return result;
+							})
+							.finally(() => {
+								void utils.chat.listSessions.invalidate();
+							});
+
+						return makeTransaction("delete", promise);
+					});
 				},
 			},
 			v2Hosts: {
 				deleteHost: (hostId: string) =>
 					runHostsMutation("Failed to delete host", () =>
-						collections.v2Hosts.delete(hostId),
+						makeTransaction(
+							"delete",
+							apiTrpcClient.v2Host.delete.mutate({ hostId }).finally(() => {
+								void utils.v2Host.invalidate();
+							}),
+						),
 					),
 				renameHost: (hostId: string, name: string) =>
 					runHostsMutation("Failed to rename host", () =>
-						collections.v2Hosts.update(hostId, (draft) => {
-							draft.name = name;
-						}),
+						makeTransaction(
+							"update",
+							apiTrpcClient.v2Host.rename
+								.mutate({ hostId, name })
+								.finally(() => {
+									void utils.v2Host.invalidate();
+								}),
+						),
 					),
 			},
 			v2UsersHosts: {
@@ -282,34 +414,52 @@ export function useOptimisticCollectionActions() {
 					organizationId: string;
 					role?: V2UsersHostRole;
 				}) =>
-					runUsersHostsMutation("Failed to add member", () => {
-						const now = new Date();
-						return collections.v2UsersHosts.insert({
-							hostId: input.hostId,
-							userId: input.userId,
-							organizationId: input.organizationId,
-							role: input.role ?? "member",
-							createdAt: now,
-							updatedAt: now,
-						});
-					}),
+					runUsersHostsMutation("Failed to add member", () =>
+						makeTransaction(
+							"insert",
+							apiTrpcClient.v2Host.addMember
+								.mutate({
+									hostId: input.hostId,
+									userId: input.userId,
+									role: input.role ?? "member",
+								})
+								.finally(() => {
+									void utils.v2Host.invalidate();
+								}),
+						),
+					),
 				removeMember: (rowKey: string) =>
-					runUsersHostsMutation("Failed to remove member", () =>
-						collections.v2UsersHosts.delete(rowKey),
-					),
+					runUsersHostsMutation("Failed to remove member", () => {
+						const { userId, hostId } = parseUsersHostsKey(rowKey);
+						return makeTransaction(
+							"delete",
+							apiTrpcClient.v2Host.removeMember
+								.mutate({ hostId, userId })
+								.finally(() => {
+									void utils.v2Host.invalidate();
+								}),
+						);
+					}),
 				setMemberRole: (rowKey: string, role: V2UsersHostRole) =>
-					runUsersHostsMutation("Failed to update role", () =>
-						collections.v2UsersHosts.update(rowKey, (draft) => {
-							draft.role = role;
-						}),
-					),
+					runUsersHostsMutation("Failed to update role", () => {
+						const { userId, hostId } = parseUsersHostsKey(rowKey);
+						return makeTransaction(
+							"update",
+							apiTrpcClient.v2Host.setMemberRole
+								.mutate({ hostId, userId, role })
+								.finally(() => {
+									void utils.v2Host.invalidate();
+								}),
+						);
+					}),
 			},
 		};
 	}, [
-		collections,
 		hostWorkspaces,
 		hostWorkspacesCache,
+		patchTaskCaches,
 		runMutation,
 		trackWorkspaceTransaction,
+		utils,
 	]);
 }

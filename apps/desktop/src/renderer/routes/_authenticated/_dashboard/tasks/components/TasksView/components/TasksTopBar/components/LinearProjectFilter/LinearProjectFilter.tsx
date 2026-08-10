@@ -8,10 +8,10 @@ import {
 	CommandList,
 } from "@superset/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@superset/ui/popover";
-import { useLiveQuery } from "@tanstack/react-db";
 import { useMemo, useState } from "react";
 import { HiCheck, HiChevronDown, HiOutlineFolder } from "react-icons/hi2";
-import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
+import { cloudTrpc } from "renderer/lib/cloud-trpc";
+import { TASK_LIST_INPUT } from "../../../../hooks/useTasksData";
 
 interface LinearProjectFilterProps {
 	value: string | null;
@@ -27,26 +27,20 @@ export function LinearProjectFilter({
 	value,
 	onChange,
 }: LinearProjectFilterProps) {
-	const collections = useCollections();
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 
-	const { data: taskRows } = useLiveQuery(
-		(q) =>
-			q.from({ tasks: collections.tasks }).select(({ tasks }) => ({
-				externalProjectId: tasks.externalProjectId,
-				externalProjectName: tasks.externalProjectName,
-			})),
-		[collections],
-	);
+	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT, {
+		staleTime: 30_000,
+	});
 
 	const projects = useMemo(() => {
 		const byId = new Map<string, LinearProjectOption>();
-		for (const row of taskRows ?? []) {
-			if (!row.externalProjectId) continue;
-			byId.set(row.externalProjectId, {
-				id: row.externalProjectId,
-				name: row.externalProjectName ?? row.externalProjectId,
+		for (const { task } of taskRows ?? []) {
+			if (!task.externalProjectId) continue;
+			byId.set(task.externalProjectId, {
+				id: task.externalProjectId,
+				name: task.externalProjectName ?? task.externalProjectId,
 			});
 		}
 		return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));

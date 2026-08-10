@@ -1,16 +1,15 @@
 import { toast } from "@superset/ui/sonner";
-import { useLiveQuery } from "@tanstack/react-db";
 import { useCallback, useMemo } from "react";
 import type { StartFreshSessionResult } from "renderer/components/Chat/ChatInterface/types";
 import { apiTrpcClient } from "renderer/lib/api-trpc-client";
 import { authClient } from "renderer/lib/auth-client";
+import { cloudTrpc } from "renderer/lib/cloud-trpc";
 import {
 	isDesktopChatDevMode,
 	resolveDesktopChatOrganizationId,
 } from "renderer/lib/dev-chat";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { posthog } from "renderer/lib/posthog";
-import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { ChatLaunchConfig } from "shared/tabs-types";
 import { reportChatError } from "../../utils/reportChatError";
@@ -77,22 +76,17 @@ export function useChatPaneController({
 	const organizationId = resolveDesktopChatOrganizationId(
 		session?.session?.activeOrganizationId,
 	);
-	const collections = useCollections();
 
 	const { data: workspace } = electronTrpc.workspaces.get.useQuery(
 		{ id: workspaceId },
 		{ enabled: Boolean(workspaceId) },
 	);
 
-	const { data: allSessionsData } = useLiveQuery(
-		(q) =>
-			q
-				.from({ chatSessions: collections.chatSessions })
-				.orderBy(({ chatSessions }) => chatSessions.lastActiveAt, "desc")
-				.select(({ chatSessions }) => ({ ...chatSessions })),
-		[collections.chatSessions],
+	// Already ordered by lastActiveAt desc server-side.
+	const { data: allSessions = [] } = cloudTrpc.chat.listSessions.useQuery(
+		undefined,
+		{ staleTime: 30_000 },
 	);
-	const allSessions = allSessionsData ?? [];
 	const sessions = useMemo(() => {
 		const scopedOrUnscoped = allSessions.filter(
 			(item) => item.workspaceId === workspaceId || item.workspaceId === null,

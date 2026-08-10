@@ -9,15 +9,15 @@ import {
 } from "@superset/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@superset/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
-import { useLiveQuery } from "@tanstack/react-db";
 import Fuse from "fuse.js";
 import type { ReactNode } from "react";
 import { useId, useMemo, useState } from "react";
+import { cloudTrpc } from "renderer/lib/cloud-trpc";
 import {
 	StatusIcon,
 	type StatusType,
 } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/components/shared/StatusIcon";
-import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
+import { TASK_LIST_INPUT } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/hooks/useTasksData";
 
 const MAX_RESULTS = 20;
 
@@ -46,32 +46,30 @@ export function IssueLinkCommand({
 	const [searchQuery, setSearchQuery] = useState("");
 	const [showClosed, setShowClosed] = useState(false);
 	const showClosedId = useId();
-	const collections = useCollections();
 
-	const { data: allTasks } = useLiveQuery(
-		(q) =>
-			q.from({ t: collections.tasks }).select(({ t }) => ({
-				id: t.id,
-				slug: t.slug,
-				title: t.title,
-				statusId: t.statusId,
-				priority: t.priority,
-				updatedAt: t.updatedAt,
-				externalUrl: t.externalUrl,
-				branch: t.branch,
+	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT, {
+		enabled: open,
+		staleTime: 30_000,
+	});
+
+	const allTasks = useMemo(
+		() =>
+			(taskRows ?? []).map(({ task }) => ({
+				id: task.id,
+				slug: task.slug,
+				title: task.title,
+				statusId: task.statusId,
+				priority: task.priority,
+				updatedAt: task.updatedAt,
+				externalUrl: task.externalUrl,
+				branch: task.branch,
 			})),
-		[collections.tasks],
+		[taskRows],
 	);
 
-	const { data: allStatuses } = useLiveQuery(
-		(q) =>
-			q.from({ s: collections.taskStatuses }).select(({ s }) => ({
-				id: s.id,
-				type: s.type,
-				color: s.color,
-				progressPercent: s.progressPercent,
-			})),
-		[collections.taskStatuses],
+	const { data: allStatuses } = cloudTrpc.task.statuses.list.useQuery(
+		undefined,
+		{ enabled: open, staleTime: 30_000 },
 	);
 
 	const statusMap = useMemo(() => {

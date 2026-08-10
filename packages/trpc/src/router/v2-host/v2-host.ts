@@ -71,7 +71,12 @@ export const v2HostRouter = {
 	list: protectedProcedure.query(async ({ ctx }) => {
 		const organizationId = requireActiveOrgId(ctx);
 		return db
-			.select({ machineId: v2Hosts.machineId, name: v2Hosts.name })
+			.select({
+				machineId: v2Hosts.machineId,
+				name: v2Hosts.name,
+				isOnline: v2Hosts.isOnline,
+				organizationId: v2Hosts.organizationId,
+			})
 			.from(v2Hosts)
 			.innerJoin(
 				v2UsersHosts,

@@ -65,6 +65,20 @@ function verificationMatchesInvitation({
 export const organizationRouter = {
 	members: organizationMembersRouter,
 
+	list: protectedProcedure.query(async ({ ctx }) => {
+		return db
+			.select({
+				id: organizations.id,
+				name: organizations.name,
+				slug: organizations.slug,
+				logo: organizations.logo,
+			})
+			.from(organizations)
+			.innerJoin(members, eq(members.organizationId, organizations.id))
+			.where(eq(members.userId, ctx.session.user.id))
+			.orderBy(organizations.name);
+	}),
+
 	listMembers: protectedProcedure.query(async ({ ctx }) => {
 		const organizationId = await requireActiveOrgMembership(ctx);
 		return db
@@ -73,12 +87,7 @@ export const organizationRouter = {
 				role: members.role,
 				createdAt: members.createdAt,
 				userId: members.userId,
-				user: {
-					id: users.id,
-					name: users.name,
-					email: users.email,
-					image: users.image,
-				},
+				user: users,
 			})
 			.from(members)
 			.innerJoin(users, eq(members.userId, users.id))
@@ -121,6 +130,7 @@ export const organizationRouter = {
 				.select({
 					id: teams.id,
 					name: teams.name,
+					slug: teams.slug,
 					createdAt: teams.createdAt,
 				})
 				.from(teams)
