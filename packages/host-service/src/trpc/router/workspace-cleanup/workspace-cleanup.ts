@@ -158,8 +158,11 @@ export const workspaceCleanupRouter = router({
 	 *   5.   Branch delete — optional local branch cleanup
 	 *   6.   Caches
 	 *
-	 * ANY failure in phases 1-6 un-archives the row so the workspace
-	 * reappears and stays retryable instead of orphaning disk state; a
+	 * A thrown failure — preflight conflict, blocking teardown, or the
+	 * unrecoverable parts of step 3 — un-archives the row so the workspace
+	 * reappears and stays retryable instead of orphaning disk state.
+	 * Steps 4-6 (and the tolerated parts of step 3) degrade to warnings on
+	 * a still-successful delete, and telemetry fires on that success. A
 	 * crash after the archive is finished by the startup reconciler
 	 * (runArchivedWorkspaceReconcile) with best-effort teardown.
 	 *

@@ -13,8 +13,8 @@ import {
 
 export interface DestroyWorkspaceInput {
 	deleteBranch?: boolean;
-	/** Git-destructive consent only (skip dirty preflight, force worktree/
-	 * branch removal). Does NOT skip the teardown script. */
+	/** Git-destructive consent only (skips the dirty-worktree preflight).
+	 * Does NOT skip the teardown script. */
 	force?: boolean;
 	/** Consent to abandon the teardown script — only the teardown-failed
 	 * retry sets this. */

@@ -25,9 +25,10 @@ half-deleted. Telemetry fires only after step 6 succeeds.
 
 ## Two consent flags (never conflated)
 
-- **`force`** — git-destructive consent only: skips the dirty preflight,
-  double-forces worktree removal, uses `-D` for branch delete. Set by a
-  warned "Delete anyway" confirm and by the silent dirty-race retry.
+- **`force`** — git-destructive consent only: skips the dirty-worktree
+  preflight. (Worktree removal is always double-forced and branch delete
+  always uses `-D` — the deleteBranch checkbox is the consent there.) Set by
+  a warned "Delete anyway" confirm and by the silent dirty-race retry.
   **Teardown still runs.**
 - **`skipTeardown`** — consent to abandon the teardown script. Set ONLY by
   the retry button on the teardown-failed pane (single and bulk).
