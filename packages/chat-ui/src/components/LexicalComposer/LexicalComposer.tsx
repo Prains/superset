@@ -33,6 +33,7 @@ export function LexicalComposer({
 	onSubmit,
 	onStop,
 	onMentionHighlight,
+	onAttachmentClick,
 	className,
 }: LexicalComposerProps) {
 	const [initialConfig] = useState<InitialConfigType>(() => ({
@@ -56,6 +57,7 @@ export function LexicalComposer({
 					onSubmit={onSubmit}
 					onStop={onStop}
 					onMentionHighlight={onMentionHighlight}
+					onAttachmentClick={onAttachmentClick}
 				/>
 			</LexicalComposerProvider>
 		</div>

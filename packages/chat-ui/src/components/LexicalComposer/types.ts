@@ -84,5 +84,6 @@ export type LexicalComposerProps = {
 	onSubmit?: (payload: LexicalComposerSubmitPayload) => void;
 	onStop?: () => void;
 	onMentionHighlight?: (entry: ComposerMentionEntry | null) => void;
+	onAttachmentClick?: (attachment: LexicalComposerAttachment) => void;
 	className?: string;
 };

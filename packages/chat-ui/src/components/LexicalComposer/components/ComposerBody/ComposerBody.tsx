@@ -23,6 +23,7 @@ import {
 import { ArrowUpIcon, SlashSquareIcon, SquareIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useComposerDropZone } from "../../../ComposerDropZone";
 import { useMentionSources } from "../../hooks/useMentionSources";
 import { MentionChipNode } from "../../nodes/mentionChipNode";
 import type {
@@ -57,6 +58,7 @@ export type ComposerBodyProps = Required<
 		| "onSubmit"
 		| "onStop"
 		| "onMentionHighlight"
+		| "onAttachmentClick"
 	>;
 
 function $insertChipAtSelection(chip: ComposerChip) {
@@ -94,6 +96,7 @@ export function ComposerBody({
 	onSubmit,
 	onStop,
 	onMentionHighlight,
+	onAttachmentClick,
 }: ComposerBodyProps) {
 	const [editor] = useLexicalComposerContext();
 	const [attachments, setAttachments] = useState<LexicalComposerAttachment[]>(
@@ -126,6 +129,11 @@ export function ComposerBody({
 	};
 	const addFilesRef = useRef(addFiles);
 	addFilesRef.current = addFiles;
+
+	const dropZone = useComposerDropZone();
+	useEffect(() => {
+		return dropZone?.register((files) => addFilesRef.current(files));
+	}, [dropZone]);
 
 	const actionContext: ComposerActionContext = {
 		insertChip: (chip) => {
@@ -300,7 +308,7 @@ export function ComposerBody({
 				dragging && "ring-2 ring-primary",
 			)}
 			onDragOver={(event) => {
-				if (event.dataTransfer.types.includes("Files")) {
+				if (dropZone == null && event.dataTransfer.types.includes("Files")) {
 					event.preventDefault();
 					setDragging(true);
 				}
@@ -311,8 +319,13 @@ export function ComposerBody({
 			}}
 			onDrop={(event) => {
 				// The editor's DROP_COMMAND handler may have consumed this already;
-				// preventDefault marks it and the event still bubbles here.
-				if (!event.defaultPrevented && event.dataTransfer.files.length > 0) {
+				// preventDefault marks it and the event still bubbles here. Inside a
+				// layout ComposerDropZone the zone owns non-editor drops instead.
+				if (
+					dropZone == null &&
+					!event.defaultPrevented &&
+					event.dataTransfer.files.length > 0
+				) {
 					event.preventDefault();
 					addFiles(event.dataTransfer.files);
 				}
@@ -342,6 +355,7 @@ export function ComposerBody({
 			)}
 			<AttachmentPills
 				attachments={attachments}
+				onAttachmentClick={onAttachmentClick}
 				onPreviewError={(id) =>
 					setAttachments((previous) =>
 						previous.map((entry) => {

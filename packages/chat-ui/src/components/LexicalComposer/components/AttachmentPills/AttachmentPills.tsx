@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@superset/ui/utils";
 import {
 	FileArchiveIcon,
 	FileCode2Icon,
@@ -7,14 +8,14 @@ import {
 	FileTextIcon,
 	XIcon,
 } from "lucide-react";
-import { type JSX, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import type { JSX } from "react";
 import type { LexicalComposerAttachment } from "../../types";
 
 export type AttachmentPillsProps = {
 	attachments: LexicalComposerAttachment[];
 	onRemove: (id: string) => void;
 	onPreviewError?: (id: string) => void;
+	onAttachmentClick?: (attachment: LexicalComposerAttachment) => void;
 };
 
 const CODE_EXTENSIONS = new Set([
@@ -58,50 +59,13 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
 	);
 }
 
-function ImagePreviewOverlay({
-	src,
-	filename,
-	onClose,
-}: {
-	src: string;
-	filename: string;
-	onClose: () => void;
-}) {
-	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === "Escape") onClose();
-		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [onClose]);
-
-	return createPortal(
-		// biome-ignore lint/a11y/useKeyWithClickEvents: Escape handled globally above
-		// biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismissal
-		<div
-			className="fixed inset-0 z-[100] flex cursor-zoom-out items-center justify-center bg-background/80 p-10 backdrop-blur-sm"
-			onClick={onClose}
-		>
-			<img
-				src={src}
-				alt={filename}
-				className="max-h-full max-w-full rounded-xl shadow-2xl"
-			/>
-		</div>,
-		document.body,
-	);
-}
-
 export function AttachmentPills({
 	attachments,
 	onRemove,
 	onPreviewError,
+	onAttachmentClick,
 }: AttachmentPillsProps) {
-	const [previewId, setPreviewId] = useState<string | null>(null);
 	if (attachments.length === 0) return null;
-	const previewAttachment = attachments.find(
-		(attachment) => attachment.id === previewId && attachment.previewUrl,
-	);
 	return (
 		<div className="flex flex-wrap gap-2 px-3 pt-3">
 			{attachments.map((attachment) => {
@@ -114,9 +78,13 @@ export function AttachmentPills({
 						<div key={attachment.id} className="relative shrink-0">
 							<button
 								type="button"
-								aria-label={`Preview ${filename}`}
-								className="relative block size-16 cursor-zoom-in overflow-hidden rounded-xl border-[0.5px] border-border bg-foreground/[0.04]"
-								onClick={() => setPreviewId(attachment.id)}
+								aria-label={filename}
+								disabled={!onAttachmentClick}
+								className={cn(
+									"relative block size-16 overflow-hidden rounded-xl border-[0.5px] border-border bg-foreground/[0.04]",
+									onAttachmentClick && "cursor-pointer",
+								)}
+								onClick={() => onAttachmentClick?.(attachment)}
 							>
 								<img
 									src={attachment.previewUrl}
@@ -131,7 +99,16 @@ export function AttachmentPills({
 				}
 				return (
 					<div key={attachment.id} className="relative shrink-0">
-						<div className="relative flex h-16 w-[200px] items-center gap-2.5 rounded-xl border-[0.5px] border-border bg-foreground/[0.03] px-2.5">
+						<button
+							type="button"
+							disabled={!onAttachmentClick}
+							onClick={() => onAttachmentClick?.(attachment)}
+							className={cn(
+								"relative flex h-16 w-[200px] items-center gap-2.5 rounded-xl border-[0.5px] border-border bg-foreground/[0.03] px-2.5 text-left",
+								onAttachmentClick &&
+									"cursor-pointer transition-colors hover:bg-foreground/[0.06]",
+							)}
+						>
 							<div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06]">
 								{fileTypeIcon(extension)}
 							</div>
@@ -145,18 +122,11 @@ export function AttachmentPills({
 									</div>
 								)}
 							</div>
-						</div>
+						</button>
 						<RemoveButton onClick={() => onRemove(attachment.id)} />
 					</div>
 				);
 			})}
-			{previewAttachment?.previewUrl && (
-				<ImagePreviewOverlay
-					src={previewAttachment.previewUrl}
-					filename={previewAttachment.file.name}
-					onClose={() => setPreviewId(null)}
-				/>
-			)}
 		</div>
 	);
 }

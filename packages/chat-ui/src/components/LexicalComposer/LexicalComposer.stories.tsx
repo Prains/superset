@@ -17,10 +17,12 @@ import {
 	SparklesIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { ComposerDropZone } from "../ComposerDropZone";
 import { LexicalComposer } from "./LexicalComposer";
 import type {
 	ComposerMentionEntry,
 	ComposerMentionProvider,
+	LexicalComposerAttachment,
 	LexicalComposerSubmitPayload,
 } from "./types";
 
@@ -402,6 +404,12 @@ function ChatScreen() {
 		useState<ChatHistorySidebarMessage[]>(SEED_MESSAGES);
 	const [streaming, setStreaming] = useState(false);
 	const [planMode, setPlanMode] = useState(false);
+	// App-owned attachment click handling: images get a lightbox here; a real
+	// surface might open files in the editor instead.
+	const [preview, setPreview] = useState<LexicalComposerAttachment | null>(
+		null,
+	);
+	const [fileNotice, setFileNotice] = useState<string | null>(null);
 	const [providers] = useState<ComposerMentionProvider[]>(() => [
 		addProvider(0, setPlanMode),
 		pluginsProvider(1),
@@ -434,7 +442,7 @@ function ChatScreen() {
 	};
 
 	return (
-		<div className="flex h-screen bg-background text-foreground">
+		<ComposerDropZone className="flex h-screen bg-background text-foreground">
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 				<div className="flex w-16 shrink-0 items-center pl-3">
 					<ChatHistorySidebarScroller messages={messages} />
@@ -462,6 +470,9 @@ function ChatScreen() {
 						</MessageScroller.Content>
 					</MessageScroller.Viewport>
 					<div className="mx-auto w-full max-w-3xl px-6 pb-[18px]">
+						{fileNotice && (
+							<p className="pb-2 text-xs text-muted-foreground">{fileNotice}</p>
+						)}
 						<LexicalComposer
 							placeholder="Ask to make changes, @mention files, run /commands"
 							mentionProviders={providers}
@@ -470,11 +481,35 @@ function ChatScreen() {
 							toolbar={<DemoToolbar planMode={planMode} />}
 							onStop={() => setStreaming(false)}
 							onSubmit={handleSubmit}
+							onAttachmentClick={(attachment) => {
+								if (attachment.previewUrl) {
+									setPreview(attachment);
+								} else {
+									setFileNotice(
+										`Would open ${attachment.file.name} in your editor`,
+									);
+									window.setTimeout(() => setFileNotice(null), 2500);
+								}
+							}}
 						/>
 					</div>
 				</MessageScroller.Root>
 			</MessageScroller.Provider>
-		</div>
+			{preview?.previewUrl && (
+				// biome-ignore lint/a11y/useKeyWithClickEvents: demo lightbox, backdrop dismissal
+				// biome-ignore lint/a11y/noStaticElementInteractions: demo lightbox, backdrop dismissal
+				<div
+					className="fixed inset-0 z-[100] flex cursor-pointer items-center justify-center bg-background/80 p-10 backdrop-blur-sm"
+					onClick={() => setPreview(null)}
+				>
+					<img
+						src={preview.previewUrl}
+						alt={preview.file.name}
+						className="max-h-full max-w-full rounded-xl shadow-2xl"
+					/>
+				</div>
+			)}
+		</ComposerDropZone>
 	);
 }
 
