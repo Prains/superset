@@ -347,13 +347,22 @@ export function ComposerBody({
 					{panel.render()}
 				</ComposerPanel>
 			)}
-			{dragging && (
-				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-primary/10">
-					<span className="inline-flex items-center rounded-md border border-border/50 bg-secondary px-3 py-1 text-sm text-foreground shadow">
-						Drop to attach
-					</span>
-				</div>
-			)}
+			<div
+				aria-hidden={!dragging}
+				className={cn(
+					"pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-primary/10 transition-opacity duration-150 motion-reduce:transition-none",
+					dragging ? "opacity-100" : "opacity-0",
+				)}
+			>
+				<span
+					className={cn(
+						"inline-flex items-center rounded-md border border-border/50 bg-secondary px-3 py-1 text-sm text-foreground shadow transition-transform duration-150 motion-reduce:transition-none",
+						dragging ? "scale-100" : "scale-95",
+					)}
+				>
+					Drop to attach
+				</span>
+			</div>
 			<AttachmentPills
 				attachments={attachments}
 				onAttachmentClick={onAttachmentClick}

@@ -97,13 +97,22 @@ export function ComposerDropZone({
 				}}
 			>
 				{children}
-				{isDraggingFiles && (
-					<div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-primary/10">
-						<span className="inline-flex items-center rounded-md border border-border/50 bg-secondary px-3 py-1 text-sm text-foreground shadow">
-							{label}
-						</span>
-					</div>
-				)}
+				<div
+					aria-hidden={!isDraggingFiles}
+					className={cn(
+						"pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-primary/10 transition-opacity duration-150 motion-reduce:transition-none",
+						isDraggingFiles ? "opacity-100" : "opacity-0",
+					)}
+				>
+					<span
+						className={cn(
+							"inline-flex items-center rounded-md border border-border/50 bg-secondary px-3 py-1 text-sm text-foreground shadow transition-transform duration-150 motion-reduce:transition-none",
+							isDraggingFiles ? "scale-100" : "scale-95",
+						)}
+					>
+						{label}
+					</span>
+				</div>
 			</div>
 		</ComposerDropZoneContext.Provider>
 	);
