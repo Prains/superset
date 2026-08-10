@@ -166,6 +166,8 @@ export function ComposerBody({
 
 	useEffect(() => {
 		setTypeaheadDismissed(false);
+		// The two menu modes are mutually exclusive: typing "@" replaces browse.
+		if (mentionQuery != null) setBrowseOpen(false);
 	}, [mentionQuery]);
 	const mentionOptions = useMemo(
 		() =>
@@ -356,11 +358,20 @@ export function ComposerBody({
 			window.removeEventListener("keydown", onKeyDown, { capture: true });
 	});
 
-	// Any pointer press outside the composer and its menus dismisses both modes.
+	// Any pointer press outside the composer and its menus dismisses both
+	// modes; a press on the editor itself closes browse (typing intent).
 	useEffect(() => {
 		const onPointerDown = (event: PointerEvent) => {
 			const target = event.target as Node | null;
-			if (target && rootRef.current?.contains(target)) return;
+			if (target && rootRef.current?.contains(target)) {
+				if (
+					target instanceof Element &&
+					target.closest(".lexical-composer-editor")
+				) {
+					setBrowseOpen(false);
+				}
+				return;
+			}
 			setBrowseOpen(false);
 			setTypeaheadDismissed(true);
 		};

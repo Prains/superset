@@ -202,8 +202,12 @@ function fileSearchProvider(priority: number): ComposerMentionProvider {
 						label: dir,
 						description: "Directory",
 						icon: <FolderIcon className="size-4.5" />,
-						completionQuery: dir,
-						select: () => {},
+						select: (ctx) =>
+							ctx.insertChip({
+								label: dir,
+								serialized: `@${dir}`,
+								data: { directory: true },
+							}),
 					}),
 				);
 				const files = REPO_FILES.filter((path) =>
