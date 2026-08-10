@@ -26,6 +26,22 @@ function listTimezones(): string[] {
 	return supported.length > 0 ? supported : ["UTC"];
 }
 
+/** "America/Los_Angeles" → "Los Angeles (PDT)" — city + current abbreviation. */
+function shortTimezoneLabel(tz: string): string {
+	const city = tz.split("/").pop()?.replace(/_/g, " ") ?? tz;
+	try {
+		const abbr = new Intl.DateTimeFormat("en-US", {
+			timeZone: tz,
+			timeZoneName: "short",
+		})
+			.formatToParts(new Date())
+			.find((p) => p.type === "timeZoneName")?.value;
+		return abbr ? `${city} (${abbr})` : city;
+	} catch {
+		return tz;
+	}
+}
+
 export function TimezonePicker({
 	value,
 	onChange,
@@ -40,7 +56,7 @@ export function TimezonePicker({
 				<PickerTrigger
 					className={className}
 					icon={<LuGlobe className="size-4 shrink-0" />}
-					label={value}
+					label={shortTimezoneLabel(value)}
 				/>
 			</PopoverTrigger>
 			<PopoverContent

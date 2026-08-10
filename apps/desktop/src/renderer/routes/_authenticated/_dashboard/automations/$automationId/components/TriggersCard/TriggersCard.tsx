@@ -11,8 +11,7 @@ import type { apiTrpcClient } from "renderer/lib/api-trpc-client";
 import { DevicePicker } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal/components/DashboardNewWorkspaceForm/components/DevicePicker";
 import { ProjectPicker } from "../../../components/ProjectPicker";
 import { RelayOfflineNotice } from "../../../components/RelayOfflineNotice";
-import { SchedulePicker } from "../../../components/SchedulePicker";
-import { TimezonePicker } from "../../../components/TimezonePicker";
+import { ScheduleSentence } from "../../../components/ScheduleSentence";
 import { WorkspacePicker } from "../../../components/WorkspacePicker";
 
 export type AutomationUpdatePatch = Partial<
@@ -67,16 +66,12 @@ export function TriggersCard({
 
 	return (
 		<div className="flex flex-col rounded-xl border border-border bg-card/40 px-4 py-3">
-			<div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
-				<SchedulePicker
-					rrule={automation.rrule}
-					onRruleChange={(rrule) => onUpdate({ rrule })}
-				/>
-				<TimezonePicker
-					value={automation.timezone}
-					onChange={(timezone) => onUpdate({ timezone })}
-				/>
-			</div>
+			<ScheduleSentence
+				rrule={automation.rrule}
+				onRruleChange={(rrule) => onUpdate({ rrule })}
+				timezone={automation.timezone}
+				onTimezoneChange={(timezone) => onUpdate({ timezone })}
+			/>
 			<div className="ml-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-l border-border pl-4 pt-1 text-sm text-muted-foreground">
 				<span>in</span>
 				<ProjectPicker
@@ -94,7 +89,7 @@ export function TriggersCard({
 						onUpdate({ targetHostId: nextHostId })
 					}
 				/>
-				<span>·</span>
+				<span>using</span>
 				<WorkspacePicker
 					hostId={hostId}
 					projectId={automation.v2ProjectId}
@@ -119,7 +114,7 @@ export function TriggersCard({
 			{nextRunDate && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<span className="mt-2 w-fit text-xs text-muted-foreground">
+						<span className="mt-3 w-fit border-t border-border/60 pt-2 text-xs text-muted-foreground">
 							{automation.enabled ? "Next run " : "Would run "}
 							{formatDistanceStrict(nextRunDate, new Date(), {
 								addSuffix: true,
