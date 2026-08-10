@@ -4,9 +4,10 @@ import { getCurrentTxid } from "@superset/db/utils";
 import { SUPERSET_CHAT_MODELS } from "@superset/shared/agent-models";
 import type { TRPCRouterRecord } from "@trpc/server";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure } from "../../trpc";
+import { requireActiveOrgMembership } from "../utils/active-org";
 import { uploadChatAttachment } from "./utils/upload-chat-attachment";
 
 // Re-shaped from the canonical catalog in `@superset/shared/agent-models` so
@@ -20,6 +21,24 @@ const AVAILABLE_MODELS = SUPERSET_CHAT_MODELS.map((model) => ({
 export const chatRouter = {
 	getModels: protectedProcedure.query(() => {
 		return { models: AVAILABLE_MODELS };
+	}),
+
+	listSessions: protectedProcedure.query(async ({ ctx }) => {
+		const organizationId = await requireActiveOrgMembership(ctx);
+		return db
+			.select({
+				id: chatSessions.id,
+				title: chatSessions.title,
+				workspaceId: chatSessions.workspaceId,
+				v2WorkspaceId: chatSessions.v2WorkspaceId,
+				organizationId: chatSessions.organizationId,
+				createdBy: chatSessions.createdBy,
+				createdAt: chatSessions.createdAt,
+				lastActiveAt: chatSessions.lastActiveAt,
+			})
+			.from(chatSessions)
+			.where(eq(chatSessions.organizationId, organizationId))
+			.orderBy(desc(chatSessions.lastActiveAt));
 	}),
 
 	createSession: protectedProcedure
