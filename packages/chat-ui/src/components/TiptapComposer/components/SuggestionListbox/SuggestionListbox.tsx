@@ -22,6 +22,7 @@ export function SuggestionListbox({
 	onHighlight,
 	onSelect,
 }: SuggestionListboxProps) {
+	if (items.length === 0) return null;
 	return (
 		<div
 			role="listbox"

@@ -11,6 +11,7 @@
 		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
 	},
 	"dependencies": {
+		"@floating-ui/react-dom": "2.1.9",
 		"@lexical/react": "0.41.0",
 		"@superset/chat": "workspace:*",
 		"@superset/ui": "workspace:*",

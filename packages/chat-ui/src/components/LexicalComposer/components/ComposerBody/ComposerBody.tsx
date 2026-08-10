@@ -35,6 +35,7 @@ import {
 	MentionTypeaheadOption,
 } from "../../utils/typeaheadOptions";
 import { AttachmentPills } from "../AttachmentPills";
+import { CaretMenu } from "../CaretMenu";
 import { PlusMenu } from "../PlusMenu";
 import { SuggestionListbox } from "../SuggestionListbox";
 
@@ -247,21 +248,23 @@ export function ComposerBody({
 					) =>
 						anchorElementRef.current && mentionOptions.length > 0
 							? createPortal(
-									<SuggestionListbox
-										options={mentionOptions}
-										selectedIndex={selectedIndex}
-										onHighlight={setHighlightedIndex}
-										onSelect={selectOptionAndCleanUp}
-										renderRow={(option) => (
-											<>
-												<FileCode2Icon className="size-4 shrink-0 text-muted-foreground" />
-												<span className="min-w-0 truncate">
-													{option.item.label}
-												</span>
-											</>
-										)}
-									/>,
-									anchorElementRef.current,
+									<CaretMenu anchor={anchorElementRef.current}>
+										<SuggestionListbox
+											options={mentionOptions}
+											selectedIndex={selectedIndex}
+											onHighlight={setHighlightedIndex}
+											onSelect={selectOptionAndCleanUp}
+											renderRow={(option) => (
+												<>
+													<FileCode2Icon className="size-4 shrink-0 text-muted-foreground" />
+													<span className="min-w-0 truncate">
+														{option.item.label}
+													</span>
+												</>
+											)}
+										/>
+									</CaretMenu>,
+									document.body,
 								)
 							: null
 					}
@@ -287,26 +290,28 @@ export function ComposerBody({
 					) =>
 						anchorElementRef.current && commandOptions.length > 0
 							? createPortal(
-									<SuggestionListbox
-										options={commandOptions}
-										selectedIndex={selectedIndex}
-										onHighlight={setHighlightedIndex}
-										onSelect={selectOptionAndCleanUp}
-										renderRow={(option) => (
-											<>
-												<SlashSquareIcon className="size-4 shrink-0 text-muted-foreground" />
-												<span className="min-w-0 truncate">
-													/{option.command.label}
-												</span>
-												{option.command.description && (
-													<span className="ml-auto min-w-0 shrink-[2] truncate text-xs text-muted-foreground">
-														{option.command.description}
+									<CaretMenu anchor={anchorElementRef.current}>
+										<SuggestionListbox
+											options={commandOptions}
+											selectedIndex={selectedIndex}
+											onHighlight={setHighlightedIndex}
+											onSelect={selectOptionAndCleanUp}
+											renderRow={(option) => (
+												<>
+													<SlashSquareIcon className="size-4 shrink-0 text-muted-foreground" />
+													<span className="min-w-0 truncate">
+														/{option.command.label}
 													</span>
-												)}
-											</>
-										)}
-									/>,
-									anchorElementRef.current,
+													{option.command.description && (
+														<span className="ml-auto min-w-0 shrink-[2] truncate text-xs text-muted-foreground">
+															{option.command.description}
+														</span>
+													)}
+												</>
+											)}
+										/>
+									</CaretMenu>,
+									document.body,
 								)
 							: null
 					}

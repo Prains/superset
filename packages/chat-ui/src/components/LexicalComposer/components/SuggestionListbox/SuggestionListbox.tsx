@@ -19,6 +19,7 @@ export function SuggestionListbox<TOption extends MenuOption>({
 	onSelect,
 	renderRow,
 }: SuggestionListboxProps<TOption>) {
+	if (options.length === 0) return null;
 	return (
 		<div
 			role="listbox"

@@ -13,8 +13,8 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import Suggestion from "@tiptap/suggestion";
 import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { AttachmentPills } from "./components/AttachmentPills";
+import { CaretMenu } from "./components/CaretMenu";
 import { PlusMenu } from "./components/PlusMenu";
 import { SuggestionListbox } from "./components/SuggestionListbox";
 import { MentionChip } from "./extensions/mentionChip";
@@ -275,8 +275,6 @@ export function TiptapComposer({
 	submitRef.current = submit;
 
 	const canSend = !isEmpty || attachments.length > 0;
-	const popoverBelow =
-		popover != null && popover.rect.bottom + 300 < window.innerHeight;
 
 	return (
 		<div
@@ -352,30 +350,17 @@ export function TiptapComposer({
 					</button>
 				)}
 			</div>
-			{popover &&
-				popover.items.length > 0 &&
-				createPortal(
-					<div
-						className="fixed z-50"
-						style={
-							popoverBelow
-								? { left: popover.rect.left, top: popover.rect.bottom + 6 }
-								: {
-										left: popover.rect.left,
-										bottom: window.innerHeight - popover.rect.top + 6,
-									}
-						}
-					>
-						<SuggestionListbox
-							kind={popover.kind}
-							items={popover.items}
-							activeIndex={activeIndex}
-							onHighlight={setActiveIndex}
-							onSelect={(item) => popover.command(item)}
-						/>
-					</div>,
-					document.body,
-				)}
+			{popover && popover.items.length > 0 && (
+				<CaretMenu rect={popover.rect}>
+					<SuggestionListbox
+						kind={popover.kind}
+						items={popover.items}
+						activeIndex={activeIndex}
+						onHighlight={setActiveIndex}
+						onSelect={(item) => popover.command(item)}
+					/>
+				</CaretMenu>
+			)}
 		</div>
 	);
 }
