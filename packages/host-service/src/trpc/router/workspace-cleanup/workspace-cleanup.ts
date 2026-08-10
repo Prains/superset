@@ -188,14 +188,21 @@ export const workspaceCleanupRouter = router({
 				workspaceId: z.string(),
 				deleteBranch: z.boolean().default(false),
 				force: z.boolean().default(false),
+				// Consent to NOT run the teardown script — set only by the
+				// teardown-failed retry. Deliberately a separate flag from
+				// `force`, which carries only the git-destructive consent
+				// (dirty worktree / unpushed commits): a warned "Delete
+				// anyway" must still run teardown, otherwise editing any
+				// tracked file silently disables the user's cleanup script.
+				skipTeardown: z.boolean().default(false),
 			}),
 		)
 		.mutation(async ({ ctx, input }) =>
 			destroyWorkspace(ctx, {
-				...input,
-				// Interactive contract: force-retry is the user's explicit consent
-				// to abandon a failed teardown.
-				teardownMode: input.force ? "skip" : "blocking",
+				workspaceId: input.workspaceId,
+				deleteBranch: input.deleteBranch,
+				force: input.force,
+				teardownMode: input.skipTeardown ? "skip" : "blocking",
 			}),
 		),
 });

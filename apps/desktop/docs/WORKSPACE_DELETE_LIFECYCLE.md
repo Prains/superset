@@ -23,32 +23,34 @@ moment the user confirms (~200 ms measured, broadcast-bound). Any failure in
 steps 1–3 un-archives, so the row *reappears* instead of being stuck
 half-deleted. Telemetry fires only after step 6 succeeds.
 
-## Force semantics
+## Two consent flags (never conflated)
 
-`force: true` (the "Delete anyway" paths) skips preflight, double-forces the
-worktree removal, uses `-D` for branch delete — **and skips teardown
-entirely** (interactive contract: force-retry is consent to abandon a failed
-teardown). Non-interactive callers (CLI/SDK/MCP via `workspace.delete`) use
+- **`force`** — git-destructive consent only: skips the dirty preflight,
+  double-forces worktree removal, uses `-D` for branch delete. Set by a
+  warned "Delete anyway" confirm and by the silent dirty-race retry.
+  **Teardown still runs.**
+- **`skipTeardown`** — consent to abandon the teardown script. Set ONLY by
+  the retry button on the teardown-failed pane (single and bulk).
+
+These were one flag originally, which meant editing any tracked file (dirty
+worktree → warned confirm → force) silently disabled the user's teardown
+script. Non-interactive callers (CLI/SDK/MCP via `workspace.delete`) use
 `teardownMode: "best-effort"` instead: teardown always runs, failures degrade
 to warnings (#6174).
-
-Consequence worth knowing: if the confirm dialog showed *any* warning
-(uncommitted changes / unpushed commits), confirming passes `force: true`, so
-**teardown does not run for warned deletes**.
 
 ## Failure modes
 
 | Scenario | Behavior |
 |----------|----------|
-| **Blocking teardown failure** | Row vanishes on confirm → teardown fails → row reappears (un-archive) and the globally-mounted dialog re-opens as "Teardown exited with code N" with the script's output tail. "Delete anyway" force-retries (teardown skipped); Cancel leaves the workspace fully alive. |
-| **Dirty-worktree race** (clean at dialog-open, dirty by destroy time) | Archive → preflight CONFLICT → un-archive → renderer silently retries with `force: true` → re-archive → deleted. The row blips back for ~100 ms; no error is surfaced. The retry is only for `conflict` — never for `in-progress`. |
+| **Blocking teardown failure** | Row vanishes on confirm → teardown fails → row reappears (un-archive) and the globally-mounted dialog re-opens as "Teardown exited with code N" with the script's output tail. The retry sets `skipTeardown: true`; Cancel leaves the workspace fully alive. Applies to warned deletes too — `force` no longer bypasses teardown. |
+| **Dirty-worktree race** (clean at dialog-open, dirty by destroy time) | Archive → preflight CONFLICT → un-archive → renderer silently retries with `force: true` (git consent only; teardown still runs) → re-archive → deleted. The row blips back for ~100 ms; no error is surfaced. The retry is only for `conflict` — never for `in-progress`. |
 | **Indeterminate preflight** (git status timeout/pool failure) | Fails closed (INTERNAL error, un-archive) rather than skipping the dirty check on a destructive path. Retry usually succeeds; `force` is the escape hatch. |
 | **Worktree removal fails** (still registered after `git worktree remove`) | Throw → un-archive; workspace stays visible and retryable rather than orphaning disk state. |
 | **Host crash mid-delete** | The tombstone is the durable delete-intent record. On startup `runArchivedWorkspaceReconcile` finishes interrupted deletes with best-effort teardown. Path-reuse guard: a tombstone whose `worktreePath` is owned by a live row is left alone (`selectStranded`), so re-created branches never get a healthy worktree rm'd. |
 | **Concurrent destroy** | Process-local `destroysInFlight` guard → CONFLICT with `deleteInProgress` cause → renderer shows a toast and does NOT force-retry. Because the row is already gone (archive-first), UI-initiated double-deletes are mostly impossible anyway. |
 | **Main workspace** | BAD_REQUEST, never archived. |
 | **Deleting the viewed workspace** | Renderer navigates away up-front (before the RPC), so the route never 404s; teardown failure still re-opens the global dialog on whatever route the user landed on. |
-| **Repo with no remote** | `rev-list HEAD --not --remotes` counts *every* commit as unpushed → the dialog always warns → confirm becomes `force` → teardown never runs for such projects. Known quirk, predates archive-first. |
+| **Repo with no remote** | `rev-list HEAD --not --remotes` counts *every* commit as unpushed → the dialog always warns → confirm becomes `force`. Since the flag split, teardown still runs; the only cost is a skipped preflight. |
 
 ## Renderer contract
 
