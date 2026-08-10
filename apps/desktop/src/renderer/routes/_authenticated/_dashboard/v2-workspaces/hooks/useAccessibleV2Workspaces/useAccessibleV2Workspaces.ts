@@ -309,7 +309,6 @@ export function useAccessibleV2Workspaces(
 	const rows = useMemo(() => {
 		if (activeOrganizationId == null || currentUserId == null) return [];
 		const hostsById = new Map(hostRows.map((host) => [host.machineId, host]));
-		const accessibleHostIds = new Set(userHostRows.map((row) => row.hostId));
 		const projectsById = new Map(
 			hostProjects.map((project) => [project.projectKey, project]),
 		);
@@ -355,16 +354,9 @@ export function useAccessibleV2Workspaces(
 		};
 		return hostWorkspaces.flatMap((workspace): AccessibleRowDraft[] => {
 			if (workspace.organizationId !== activeOrganizationId) return [];
-			const host = hostsById.get(workspace.hostId);
 			// A host-served row is its own proof of existence and access — the
-			// host answered this caller's credentials. Only cloud-fallback rows
-			// need the v2Hosts/v2UsersHosts gate; stale or unsynced cloud host
-			// tables must not hide live host data.
-			if (
-				workspace.source !== "host" &&
-				(!host || !accessibleHostIds.has(workspace.hostId))
-			)
-				return [];
+			// host answered this caller's credentials.
+			const host = hostsById.get(workspace.hostId);
 			// Session workspaces (null projectId) skip the project join and
 			// group under the "Sessions" pseudo-project.
 			if (workspace.projectId === null) {
@@ -451,7 +443,6 @@ export function useAccessibleV2Workspaces(
 		machineId,
 		hostWorkspaces,
 		hostRows,
-		userHostRows,
 		hostProjects,
 		sidebarStateRows,
 		sidebarProjectRows,

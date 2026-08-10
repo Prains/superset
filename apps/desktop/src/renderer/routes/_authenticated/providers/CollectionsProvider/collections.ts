@@ -20,10 +20,8 @@ import type {
 	SelectTeam,
 	SelectTeamMember,
 	SelectUser,
-	SelectV2Client,
 	SelectV2Host,
 	SelectV2UsersHosts,
-	SelectV2Workspace,
 	SelectWorkspace,
 } from "@superset/db/schema";
 import type { AppRouter as HostServiceAppRouter } from "@superset/host-service";
@@ -172,9 +170,7 @@ export interface OrgCollections {
 	taskStatuses: Collection<SelectTaskStatus>;
 	projects: Collection<SelectProject>;
 	v2Hosts: Collection<SelectV2Host>;
-	v2Clients: Collection<SelectV2Client>;
 	v2UsersHosts: Collection<SelectV2UsersHosts>;
-	v2Workspaces: Collection<SelectV2Workspace>;
 	workspaces: Collection<SelectWorkspace>;
 	members: Collection<SelectMember>;
 	users: Collection<SelectUser>;
@@ -410,25 +406,6 @@ function createOrgCollections(organizationId: string): OrgCollections {
 	);
 	v2Hosts.createIndex((host) => host.machineId, basicIndexConfig);
 
-	const v2Clients = createPersistedElectricCollection(
-		electricCollectionOptions<SelectV2Client>({
-			id: `v2_clients-${organizationId}`,
-			shapeOptions: {
-				url: electricUrl,
-				params: {
-					table: "v2_clients",
-					organizationId,
-				},
-				headers: electricHeaders,
-				columnMapper,
-				onError: handleElectricSyncError,
-			},
-			// Composite PK on (organization_id, user_id, machine_id); within
-			// an org-scoped collection, (user_id, machine_id) is unique.
-			getKey: (item) => `${item.userId}:${item.machineId}`,
-		}),
-	);
-
 	const v2UsersHosts = createPersistedElectricCollection(
 		electricCollectionOptions<SelectV2UsersHosts>({
 			id: `v2_users_hosts-${organizationId}`,
@@ -476,33 +453,6 @@ function createOrgCollections(organizationId: string): OrgCollections {
 	);
 	v2UsersHosts.createIndex((userHost) => userHost.hostId, basicIndexConfig);
 	v2UsersHosts.createIndex((userHost) => userHost.userId, basicIndexConfig);
-
-	const v2Workspaces = createPersistedElectricCollection(
-		electricCollectionOptions<SelectV2Workspace>({
-			id: `v2_workspaces-${organizationId}`,
-			shapeOptions: {
-				url: electricUrl,
-				params: {
-					table: "v2_workspaces",
-					organizationId,
-				},
-				headers: electricHeaders,
-				columnMapper,
-				onError: handleElectricSyncError,
-			},
-			getKey: (item) => item.id,
-			// Read-only: workspace records are host-owned now. This collection
-			// is only the R2 read-through fallback for hosts still on pre-R1
-			// builds and is deleted in R3 — writes go through the owning host
-			// (workspaces.create / workspace.update via useHostWorkspaces).
-		}),
-	);
-	v2Workspaces.createIndex((workspace) => workspace.hostId, basicIndexConfig);
-	v2Workspaces.createIndex(
-		(workspace) => workspace.projectId,
-		basicIndexConfig,
-	);
-	v2Workspaces.createIndex((workspace) => workspace.type, basicIndexConfig);
 
 	const workspaces = createPersistedElectricCollection(
 		electricCollectionOptions<SelectWorkspace>({
@@ -862,9 +812,7 @@ function createOrgCollections(organizationId: string): OrgCollections {
 		taskStatuses,
 		projects,
 		v2Hosts,
-		v2Clients,
 		v2UsersHosts,
-		v2Workspaces,
 		workspaces,
 		members,
 		users,
