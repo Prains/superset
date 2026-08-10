@@ -72,6 +72,37 @@ const SKILLS = [
 
 const WORKSPACES = ["woolly-smoke", "quiet-fjord", "amber-basin"];
 
+const CONVERSATIONS = [
+	{
+		id: "conv-1",
+		title: "Fix rail follow-scroll at transcript bottom",
+		agent: "claude",
+		agentLabel: "Claude Code",
+		workspace: "woolly-smoke",
+	},
+	{
+		id: "conv-2",
+		title: "Composer bake-off: Lexical vs Tiptap",
+		agent: "claude",
+		agentLabel: "Claude Code",
+		workspace: "woolly-smoke",
+	},
+	{
+		id: "conv-3",
+		title: "Investigate relay reconnect loop",
+		agent: "codex",
+		agentLabel: "Codex",
+		workspace: "quiet-fjord",
+	},
+	{
+		id: "conv-4",
+		title: "Ship provider-based mention registry",
+		agent: "copilot",
+		agentLabel: "Copilot",
+		workspace: "amber-basin",
+	},
+];
+
 const PLUGINS = [
 	{
 		id: "docs",
@@ -240,6 +271,36 @@ function workspacesProvider(priority: number): ComposerMentionProvider {
 	};
 }
 
+function conversationsProvider(priority: number): ComposerMentionProvider {
+	return {
+		id: "conversations",
+		title: "Conversations",
+		priority,
+		source: {
+			kind: "static",
+			load: async () => {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				return CONVERSATIONS.map((conversation) => ({
+					id: conversation.id,
+					label: conversation.title,
+					description: `${conversation.agentLabel} · ${conversation.workspace}`,
+					icon: <PresetIcon name={conversation.agent} />,
+					keywords: [conversation.agentLabel, conversation.workspace],
+					select: (ctx) =>
+						ctx.insertChip({
+							label: conversation.title,
+							serialized: `conversation://${conversation.id}`,
+							data: {
+								conversationId: conversation.id,
+								agent: conversation.agent,
+							},
+						}),
+				}));
+			},
+		},
+	};
+}
+
 function addProvider(
 	priority: number,
 	setPlanMode: (on: boolean) => void,
@@ -346,7 +407,8 @@ function ChatScreen() {
 		pluginsProvider(1),
 		skillsProvider(2),
 		workspacesProvider(3),
-		fileSearchProvider(4),
+		conversationsProvider(4),
+		fileSearchProvider(5),
 	]);
 
 	const handleSubmit = ({ text, mentions }: LexicalComposerSubmitPayload) => {
