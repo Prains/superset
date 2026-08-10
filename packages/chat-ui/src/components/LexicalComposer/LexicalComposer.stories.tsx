@@ -30,7 +30,7 @@ function Playground() {
 	const [payloads, setPayloads] = useState<string[]>([]);
 	const [streaming, setStreaming] = useState(false);
 	return (
-		<div className="flex h-screen flex-col justify-end bg-background p-10 text-foreground">
+		<div className="flex h-screen flex-col justify-end bg-background px-10 pt-10 pb-[18px] text-foreground">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
 				{payloads.map((payload, index) => (
 					<pre
