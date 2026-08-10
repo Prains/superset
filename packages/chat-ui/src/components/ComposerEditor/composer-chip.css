@@ -1,0 +1,29 @@
+.chat-composer-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	padding: 0 2px;
+	font-weight: 500;
+	color: var(--chip-color, var(--primary));
+	vertical-align: bottom;
+	white-space: nowrap;
+}
+
+.chat-composer-editor {
+	font-size: 14px;
+	line-height: 20px;
+	min-height: 44px;
+	outline: none;
+}
+
+.chat-composer-editor p {
+	margin: 0;
+}
+
+.chat-composer-editor [data-placeholder]::before,
+.chat-composer-editor.is-empty::before {
+	content: attr(data-placeholder);
+	position: absolute;
+	pointer-events: none;
+	color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+}

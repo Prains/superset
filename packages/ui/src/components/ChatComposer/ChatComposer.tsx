@@ -160,7 +160,7 @@ export function ChatComposer({
 		suggestionListRef.current
 			?.querySelector('[data-highlighted="true"]')
 			?.scrollIntoView({ block: "nearest" });
-	}, [activeIndex]);
+	}, []);
 
 	useLayoutEffect(() => {
 		const textarea = textareaRef.current;
@@ -232,6 +232,7 @@ export function ChatComposer({
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: click-to-focus convenience; the textarea is the interactive element
+		// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard interaction lives on the textarea
 		<div
 			className={cn(
 				"relative flex flex-col rounded-2xl bg-card ring-1 ring-border transition-shadow focus-within:ring-ring/40",
@@ -250,6 +251,7 @@ export function ChatComposer({
 				>
 					{suggestions.map((item, index) => (
 						// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled by the textarea (arrows + enter)
+						// biome-ignore lint/a11y/useFocusableInteractive: focus stays in the textarea; listbox is virtual
 						<div
 							key={item.id}
 							role="option"
