@@ -65,8 +65,10 @@ describe("workspaces.createEnqueued integration", () => {
 			id,
 		});
 		expect(enqueue.workspaceId).toBe(id);
-		// The enqueue response must not wait for the create: no settled
-		// broadcast may have happened synchronously with the mutation.
+		// The enqueue response must not wait for the create: the mutation
+		// round-trip is milliseconds while the worktree add takes hundreds,
+		// so nothing may have settled by the time the response resolves.
+		expect(settled.length).toBe(0);
 		await waitFor(() => settled.length > 0);
 
 		const event = settled[0];
