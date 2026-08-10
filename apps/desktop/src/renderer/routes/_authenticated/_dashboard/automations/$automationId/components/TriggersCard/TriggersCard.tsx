@@ -114,7 +114,7 @@ export function TriggersCard({
 			{nextRunDate && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<span className="mt-3 w-fit border-t border-border/60 pt-2 text-xs text-muted-foreground">
+						<span className="mt-3 w-fit text-xs text-muted-foreground">
 							{automation.enabled ? "Next run " : "Would run "}
 							{formatDistanceStrict(nextRunDate, new Date(), {
 								addSuffix: true,
