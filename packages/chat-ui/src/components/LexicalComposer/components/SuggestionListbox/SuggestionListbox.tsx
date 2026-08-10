@@ -23,7 +23,7 @@ export function SuggestionListbox<TOption extends MenuOption>({
 	return (
 		<div
 			role="listbox"
-			className="relative z-50 max-h-72 w-full overflow-y-auto rounded-2xl bg-popover/95 p-1 shadow-xl ring-1 ring-border backdrop-blur-sm"
+			className="relative z-50 max-h-72 w-full overflow-y-auto rounded-2xl bg-popover/95 p-1.5 shadow-xl ring-1 ring-border backdrop-blur-sm"
 		>
 			{options.map((option, index) => (
 				// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled by the editor
@@ -33,7 +33,7 @@ export function SuggestionListbox<TOption extends MenuOption>({
 					role="option"
 					aria-selected={index === selectedIndex}
 					className={cn(
-						"flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm",
+						"flex cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-[5px] text-[15px] leading-[21px]",
 						index === selectedIndex
 							? "bg-accent text-accent-foreground"
 							: "text-foreground",

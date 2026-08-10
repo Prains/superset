@@ -7,10 +7,13 @@ import {
 import { getPresetIcon } from "@superset/ui/icons/preset-icons";
 import {
 	ChartNoAxesColumnIcon,
+	DatabaseIcon,
 	FileCode2Icon,
 	FolderIcon,
+	GitPullRequestArrowIcon,
 	LightbulbIcon,
 	PaperclipIcon,
+	ShieldCheckIcon,
 	SparklesIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -49,29 +52,68 @@ const SKILLS = [
 		label: "create-pr",
 		description: "Open a pull request",
 		color: "#16A34A",
+		icon: <GitPullRequestArrowIcon className="size-5" strokeWidth={1.75} />,
 	},
 	{
 		id: "db-migrations",
 		label: "db-migrations",
 		description: "Drizzle migration workflow",
 		color: "#2563EB",
+		icon: <DatabaseIcon className="size-5" strokeWidth={1.75} />,
 	},
 	{
 		id: "ci-check",
 		label: "ci-check",
 		description: "Lint, typecheck, test",
 		color: "#9333EA",
+		icon: <ShieldCheckIcon className="size-5" strokeWidth={1.75} />,
 	},
 ];
 
 const WORKSPACES = ["woolly-smoke", "quiet-fjord", "amber-basin"];
 
-const AGENTS = [
-	{ id: "claude", label: "Claude Code", description: "Anthropic coding agent" },
-	{ id: "codex", label: "Codex", description: "OpenAI coding agent" },
-	{ id: "copilot", label: "Copilot", description: "GitHub coding agent" },
-	{ id: "gemini", label: "Gemini", description: "Google coding agent" },
+const PLUGINS = [
+	{
+		id: "docs",
+		label: "Google Docs",
+		description: "Draft and edit documents",
+		domain: "docs.google.com",
+	},
+	{
+		id: "figma",
+		label: "Figma",
+		description: "Inspect designs and export assets",
+		domain: "figma.com",
+	},
+	{
+		id: "github",
+		label: "GitHub",
+		description: "Triage PRs, issues, and CI",
+		domain: "github.com",
+	},
+	{
+		id: "linear",
+		label: "Linear",
+		description: "Create and update issues",
+		domain: "linear.app",
+	},
+	{
+		id: "gmail",
+		label: "Gmail",
+		description: "Read and manage email",
+		domain: "gmail.com",
+	},
 ];
+
+function Favicon({ domain }: { domain: string }) {
+	return (
+		<img
+			src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+			alt=""
+			className="size-5 rounded-[5px]"
+		/>
+	);
+}
 
 function PresetIcon({ name }: { name: string }) {
 	return (
@@ -83,24 +125,24 @@ function PresetIcon({ name }: { name: string }) {
 	);
 }
 
-function agentsProvider(priority: number): ComposerMentionProvider {
+function pluginsProvider(priority: number): ComposerMentionProvider {
 	return {
-		id: "agents",
-		title: "Agents",
+		id: "plugins",
+		title: "Plugins",
 		priority,
 		source: {
 			kind: "static",
 			load: () =>
-				AGENTS.map((agent) => ({
-					id: agent.id,
-					label: agent.label,
-					description: agent.description,
-					icon: <PresetIcon name={agent.id} />,
+				PLUGINS.map((plugin) => ({
+					id: plugin.id,
+					label: plugin.label,
+					description: plugin.description,
+					icon: <Favicon domain={plugin.domain} />,
 					select: (ctx) =>
 						ctx.insertChip({
-							label: agent.label,
-							serialized: `agent://${agent.id}`,
-							data: { agent: agent.id },
+							label: plugin.label,
+							serialized: `plugin://${plugin.id}`,
+							data: { plugin: plugin.id },
 						}),
 				})),
 		},
@@ -160,7 +202,7 @@ function skillsProvider(priority: number): ComposerMentionProvider {
 					id: skill.id,
 					label: skill.label,
 					description: skill.description,
-					icon: <SparklesIcon className="size-4.5" />,
+					icon: skill.icon,
 					select: (ctx) =>
 						ctx.insertChip({
 							label: skill.label,
@@ -301,7 +343,7 @@ function ChatScreen() {
 	const [planMode, setPlanMode] = useState(false);
 	const [providers] = useState<ComposerMentionProvider[]>(() => [
 		addProvider(0, setPlanMode),
-		agentsProvider(1),
+		pluginsProvider(1),
 		skillsProvider(2),
 		workspacesProvider(3),
 		fileSearchProvider(4),

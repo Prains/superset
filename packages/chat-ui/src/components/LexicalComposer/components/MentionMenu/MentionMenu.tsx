@@ -35,22 +35,22 @@ export function MentionMenu({
 	return (
 		<div
 			role="listbox"
-			className="relative z-50 max-h-96 w-full overflow-y-auto rounded-2xl bg-popover/95 p-2 shadow-xl ring-1 ring-border backdrop-blur-sm"
+			className="relative z-50 max-h-96 w-full overflow-y-auto rounded-2xl bg-popover/95 p-1.5 shadow-xl ring-1 ring-border backdrop-blur-sm"
 		>
 			{sections.map((section) => (
 				<div key={section.providerId}>
-					<p className="px-2.5 pt-2 pb-1 text-sm text-muted-foreground">
+					<p className="px-3 pt-2.5 pb-1 text-[13px] text-muted-foreground">
 						{section.title}
 					</p>
 					{section.isLoading && section.entries.length === 0 && (
-						<p className="px-2.5 pb-2 text-sm text-muted-foreground/60">
+						<p className="px-3 pb-2 text-[15px] text-muted-foreground/60">
 							{section.loadingState ?? "Loading…"}
 						</p>
 					)}
 					{!section.isLoading &&
 						section.emptyState != null &&
 						section.entries.length === 0 && (
-							<p className="px-2.5 pb-2 text-sm text-muted-foreground/60">
+							<p className="px-3 pb-2 text-[15px] text-muted-foreground/60">
 								{section.emptyState}
 							</p>
 						)}
@@ -65,7 +65,7 @@ export function MentionMenu({
 								role="option"
 								aria-selected={index === selectedIndex}
 								className={cn(
-									"flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm",
+									"flex cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-[5px] text-[15px] leading-[21px]",
 									index === selectedIndex
 										? "bg-accent text-accent-foreground"
 										: "text-foreground",
@@ -75,7 +75,7 @@ export function MentionMenu({
 								onClick={() => onSelect(entry)}
 							>
 								{entry.icon && (
-									<span className="flex size-4.5 shrink-0 items-center justify-center text-muted-foreground">
+									<span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
 										{entry.icon}
 									</span>
 								)}
