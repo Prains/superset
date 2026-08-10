@@ -25,7 +25,7 @@ export function AssigneeCell({ info }: AssigneeCellProps) {
 
 	const { data: members } = cloudTrpc.organization.listMembers.useQuery(
 		undefined,
-		{ enabled: open, staleTime: 30_000 },
+		{ enabled: open },
 	);
 
 	const users = useMemo(

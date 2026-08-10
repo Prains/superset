@@ -11,12 +11,8 @@ interface LinkedTaskSectionProps {
 }
 
 export function LinkedTaskSection({ taskId }: LinkedTaskSectionProps) {
-	const { data: taskRecord } = cloudTrpc.task.byIdOrSlug.useQuery(taskId, {
-		staleTime: 30_000,
-	});
-	const { data: statuses } = cloudTrpc.task.statuses.list.useQuery(undefined, {
-		staleTime: 30_000,
-	});
+	const { data: taskRecord } = cloudTrpc.task.byIdOrSlug.useQuery(taskId);
+	const { data: statuses } = cloudTrpc.task.statuses.list.useQuery(undefined);
 
 	if (!taskRecord) return null;
 

@@ -45,10 +45,8 @@ export function ApiKeysSettings({ visibleItems }: ApiKeysSettingsProps) {
 	const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);
 	const [newKeyName, setNewKeyName] = useState("");
 	const [newKeyValue, setNewKeyValue] = useState("");
-	const { data: apiKeysData, isPending } = cloudTrpc.apiKey.list.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: apiKeysData, isPending } =
+		cloudTrpc.apiKey.list.useQuery(undefined);
 	const apiKeys = apiKeysData ?? [];
 
 	const showApiKeysList = isItemVisible(

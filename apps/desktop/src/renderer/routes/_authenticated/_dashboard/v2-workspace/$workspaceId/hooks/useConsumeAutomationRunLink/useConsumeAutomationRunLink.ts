@@ -38,7 +38,6 @@ export function useConsumeAutomationRunLink({
 	const { data: chatSessionRows = [], isPending: chatSessionsPending } =
 		cloudTrpc.chat.listSessions.useQuery(undefined, {
 			enabled: chatSessionId != null,
-			staleTime: 30_000,
 		});
 	const chatSession = useMemo(
 		() =>

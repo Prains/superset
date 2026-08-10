@@ -230,7 +230,6 @@ export function useAccessibleV2Workspaces(
 
 	const { data: rawHostRows = [] } = cloudTrpc.v2Host.list.useQuery(undefined, {
 		refetchInterval: 30_000,
-		staleTime: 30_000,
 	});
 	const presence = useHostsPresence(rawHostRows);
 	const hostRows = useMemo(
@@ -246,7 +245,7 @@ export function useAccessibleV2Workspaces(
 
 	const { data: hostMemberRows = [] } = cloudTrpc.v2Host.listMembers.useQuery(
 		undefined,
-		{ staleTime: 30_000 },
+		{},
 	);
 	const userHostRows = useMemo(
 		() => hostMemberRows.filter((row) => row.userId === currentUserId),
@@ -280,12 +279,12 @@ export function useAccessibleV2Workspaces(
 	const { data: repoRows = [] } =
 		cloudTrpc.integration.github.listRepositories.useQuery(
 			{ organizationId: activeOrganizationId ?? "" },
-			{ staleTime: 30_000, enabled: !!activeOrganizationId },
+			{ enabled: !!activeOrganizationId },
 		);
 
 	const { data: memberRows = [] } = cloudTrpc.organization.listMembers.useQuery(
 		undefined,
-		{ staleTime: 30_000 },
+		{},
 	);
 	const creatorRows = useMemo(
 		() => memberRows.map((member) => member.user),

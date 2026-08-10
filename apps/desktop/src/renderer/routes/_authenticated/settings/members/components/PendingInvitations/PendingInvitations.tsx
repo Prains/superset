@@ -41,9 +41,7 @@ export function PendingInvitations({
 	);
 
 	const { data: invitationsData, isPending } =
-		cloudTrpc.organization.listInvitations.useQuery(undefined, {
-			staleTime: 30_000,
-		});
+		cloudTrpc.organization.listInvitations.useQuery(undefined);
 
 	const invitations = invitationsData ?? [];
 

@@ -39,10 +39,8 @@ export function useWorkspaceHostOptions(): UseWorkspaceHostOptionsResult {
 		refetchInterval: 30_000,
 	});
 
-	const { data: hostMemberRows = [] } = cloudTrpc.v2Host.listMembers.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: hostMemberRows = [] } =
+		cloudTrpc.v2Host.listMembers.useQuery(undefined);
 
 	const accessibleHosts = useMemo(() => {
 		const accessibleHostIds = new Set(

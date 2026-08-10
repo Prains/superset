@@ -27,19 +27,15 @@ export function AssigneeFilter({ value, onChange }: AssigneeFilterProps) {
 	const [search, setSearch] = useState("");
 	const [tab, setTab] = useState<Tab>("all");
 
-	const { data: members } = cloudTrpc.organization.listMembers.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: members } =
+		cloudTrpc.organization.listMembers.useQuery(undefined);
 
 	const users = useMemo(
 		() => (members ?? []).map((member) => member.user),
 		[members],
 	);
 
-	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT, {
-		staleTime: 30_000,
-	});
+	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT);
 
 	const externalAssignees = useMemo(() => {
 		if (!taskRows) return [];

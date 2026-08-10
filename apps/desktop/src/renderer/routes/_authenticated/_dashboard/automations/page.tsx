@@ -233,12 +233,11 @@ function AutomationsPage() {
 	const { data: automations = [], isPending: automationsPending } =
 		cloudTrpc.automation.list.useQuery(undefined, {
 			refetchInterval: 15_000,
-			staleTime: 30_000,
 		});
 
 	const { data: memberRows = [] } = cloudTrpc.organization.listMembers.useQuery(
 		undefined,
-		{ staleTime: 30_000 },
+		{},
 	);
 	const { lastRunById, failedIds, markMyFailuresSeen } = useFailedAutomations();
 	const now = useNow(30_000);

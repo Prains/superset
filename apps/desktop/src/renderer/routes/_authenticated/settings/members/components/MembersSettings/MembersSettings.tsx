@@ -43,13 +43,9 @@ export function MembersSettings({ visibleItems }: MembersSettingsProps) {
 	);
 
 	const { data: membersData, isPending } =
-		cloudTrpc.organization.listMembers.useQuery(undefined, {
-			staleTime: 30_000,
-		});
+		cloudTrpc.organization.listMembers.useQuery(undefined);
 
-	const { data: orgData } = cloudTrpc.organization.list.useQuery(undefined, {
-		staleTime: 30_000,
-	});
+	const { data: orgData } = cloudTrpc.organization.list.useQuery(undefined);
 	const organization = orgData?.find((org) => org.id === activeOrganizationId);
 
 	const members: TeamMember[] = useMemo(() => {

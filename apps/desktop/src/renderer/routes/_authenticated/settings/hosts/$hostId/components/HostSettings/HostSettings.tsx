@@ -42,7 +42,7 @@ export function HostSettings({ hostId }: HostSettingsProps) {
 	const hostUrl = useHostUrl(hostId);
 
 	const { data: hosts = [], isPending: hostsPending } =
-		cloudTrpc.v2Host.list.useQuery(undefined, { staleTime: 30_000 });
+		cloudTrpc.v2Host.list.useQuery(undefined);
 	const host = useMemo(
 		() => hosts.find((row) => row.machineId === hostId),
 		[hosts, hostId],
@@ -52,19 +52,15 @@ export function HostSettings({ hostId }: HostSettingsProps) {
 		? (presence?.get(host.machineId) ?? host.isOnline)
 		: false;
 
-	const { data: allHostMembers = [] } = cloudTrpc.v2Host.listMembers.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: allHostMembers = [] } =
+		cloudTrpc.v2Host.listMembers.useQuery(undefined);
 	const hostUserRows = useMemo(
 		() => allHostMembers.filter((row) => row.hostId === hostId),
 		[allHostMembers, hostId],
 	);
 
-	const { data: orgMembers = [] } = cloudTrpc.organization.listMembers.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: orgMembers = [] } =
+		cloudTrpc.organization.listMembers.useQuery(undefined);
 
 	const userMap = useMemo(() => {
 		const map = new Map<string, { name: string; email: string }>();

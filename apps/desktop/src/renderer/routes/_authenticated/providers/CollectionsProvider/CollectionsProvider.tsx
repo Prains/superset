@@ -10,6 +10,7 @@ import {
 } from "react";
 import { env } from "renderer/env.renderer";
 import { authClient } from "renderer/lib/auth-client";
+import { CLOUD_TRPC_ROUTER_ROOTS } from "renderer/lib/cloud-trpc";
 import { electronQueryClient } from "renderer/providers/ElectronTRPCProvider/ElectronTRPCProvider";
 import { MOCK_ORG_ID } from "shared/constants";
 import {
@@ -18,31 +19,10 @@ import {
 	preloadCollections,
 } from "./collections";
 
-// Cloud tRPC routers holding org-scoped data. Their query procedures take no
-// organizationId input (the server scopes by active org), so their React Query
-// keys don't encode the org — on org switch the previous org's rows must be
-// dropped, not just marked stale. Electron IPC routers sharing the QueryClient
-// are untouched ("analytics" and "device" exist on both routers and are
-// deliberately absent here).
-const ORG_SCOPED_CLOUD_ROUTERS = new Set([
-	"admin",
-	"apiKey",
-	"automation",
-	"billing",
-	"chat",
-	"host",
-	"integration",
-	"organization",
-	"project",
-	"support",
-	"task",
-	"team",
-	"user",
-	"v2Host",
-	"v2Project",
-	"v2Workspace",
-	"workspace",
-]);
+// Cloud query procedures take no organizationId input (the server scopes by
+// active org), so their React Query keys don't encode the org — on org switch
+// the previous org's rows must be dropped, not just marked stale.
+const ORG_SCOPED_CLOUD_ROUTERS = new Set<string>(CLOUD_TRPC_ROUTER_ROOTS);
 
 function dropCloudQueriesForOrgSwitch(): void {
 	electronQueryClient.removeQueries({

@@ -6,9 +6,7 @@ interface LinkedTaskChipProps {
 }
 
 export function LinkedTaskChip({ slug }: LinkedTaskChipProps) {
-	const { data: task } = cloudTrpc.task.byIdOrSlug.useQuery(slug, {
-		staleTime: 30_000,
-	});
+	const { data: task } = cloudTrpc.task.byIdOrSlug.useQuery(slug);
 
 	const title = task?.title ?? null;
 

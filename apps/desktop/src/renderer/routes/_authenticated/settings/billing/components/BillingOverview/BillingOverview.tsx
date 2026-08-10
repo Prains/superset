@@ -41,10 +41,7 @@ export function BillingOverview({ visibleItems }: BillingOverviewProps) {
 	);
 	const isOwner = currentMember?.role === "owner";
 
-	const { data: activePlan } = cloudTrpc.billing.activePlan.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: activePlan } = cloudTrpc.billing.activePlan.useQuery(undefined);
 
 	// The subscription row wins over the session (which can lag a checkout), but
 	// an unresolved query must not read as "free" — fall back to the session plan
@@ -55,10 +52,8 @@ export function BillingOverview({ visibleItems }: BillingOverviewProps) {
 		subscriptionsLoaded: activePlan !== undefined,
 	});
 
-	const { data: membersData } = cloudTrpc.organization.listMembers.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: membersData } =
+		cloudTrpc.organization.listMembers.useQuery(undefined);
 	// Seats are billed from this — never derive it from an unresolved query.
 	// undefined (not 0) keeps the upgrade action disabled until it loads.
 	const memberCount =

@@ -269,10 +269,8 @@ export function HistoryDropdown() {
 		});
 	}, [hostWorkspaces, v2ProjectData]);
 
-	const { data: automations = [] } = cloudTrpc.automation.list.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: automations = [] } =
+		cloudTrpc.automation.list.useQuery(undefined);
 	const automationData = useMemo(
 		() =>
 			automations.map((automation) => ({
@@ -283,14 +281,11 @@ export function HistoryDropdown() {
 		[automations],
 	);
 
-	const { data: tasks = [] } = cloudTrpc.task.list.useQuery(
-		{ limit: TASK_LOOKUP_LIMIT },
-		{ staleTime: 30_000 },
-	);
-	const { data: taskStatuses = [] } = cloudTrpc.task.statuses.list.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: tasks = [] } = cloudTrpc.task.list.useQuery({
+		limit: TASK_LOOKUP_LIMIT,
+	});
+	const { data: taskStatuses = [] } =
+		cloudTrpc.task.statuses.list.useQuery(undefined);
 	const taskData = useMemo(
 		() => joinTasksWithStatuses(tasks, taskStatuses),
 		[tasks, taskStatuses],

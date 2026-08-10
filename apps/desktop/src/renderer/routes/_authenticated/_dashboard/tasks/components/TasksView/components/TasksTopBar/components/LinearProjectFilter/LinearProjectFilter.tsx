@@ -30,9 +30,7 @@ export function LinearProjectFilter({
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 
-	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT, {
-		staleTime: 30_000,
-	});
+	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT);
 
 	const projects = useMemo(() => {
 		const byId = new Map<string, LinearProjectOption>();

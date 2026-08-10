@@ -49,9 +49,7 @@ export function WorkspacePicker({
 		[hostWorkspaces],
 	);
 
-	const { data: hostRows = [] } = cloudTrpc.v2Host.list.useQuery(undefined, {
-		staleTime: 30_000,
-	});
+	const { data: hostRows = [] } = cloudTrpc.v2Host.list.useQuery(undefined);
 
 	// Null projectId = session mode: offer the host's session workspaces
 	// (projectId null) as pin targets.

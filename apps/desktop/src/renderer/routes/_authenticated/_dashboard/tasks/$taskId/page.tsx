@@ -77,10 +77,8 @@ function TaskDetailPage() {
 		cloudTrpc.task.statuses.list.useQuery(undefined, {
 			refetchInterval: TASK_LIST_REFETCH_INTERVAL,
 		});
-	const { data: members } = cloudTrpc.organization.listMembers.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: members } =
+		cloudTrpc.organization.listMembers.useQuery(undefined);
 
 	const task: TaskDetailRecord | null = useMemo(() => {
 		if (!taskRecord) return null;

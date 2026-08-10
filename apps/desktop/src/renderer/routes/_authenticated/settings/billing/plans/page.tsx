@@ -218,10 +218,7 @@ function PlansPage() {
 
 	const activeOrgId = session?.session?.activeOrganizationId;
 
-	const { data: activePlan } = cloudTrpc.billing.activePlan.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: activePlan } = cloudTrpc.billing.activePlan.useQuery(undefined);
 
 	// An unresolved query must not read as "free": that renders a live Upgrade
 	// action for an org that may already be paying. Session plan fills in
@@ -241,10 +238,7 @@ function PlansPage() {
 			new Date(activePlan.periodStart),
 		) > 60;
 
-	const { data: membersData } = cloudTrpc.organization.listMembers.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: membersData } = cloudTrpc.organization.listMembers.useQuery(undefined);
 	// Seats are billed from this — never derive it from an unresolved query.
 	const memberCount =
 		membersData && membersData.length > 0 ? membersData.length : undefined;

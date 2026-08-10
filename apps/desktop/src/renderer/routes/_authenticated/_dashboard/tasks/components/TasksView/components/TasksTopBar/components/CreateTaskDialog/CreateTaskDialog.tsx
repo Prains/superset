@@ -53,19 +53,16 @@ export function CreateTaskDialog({
 
 	const { data: statusData } = cloudTrpc.task.statuses.list.useQuery(
 		undefined,
-		{
-			enabled: open,
-			staleTime: 30_000,
-		},
+		{ enabled: open },
 	);
 
 	const { data: memberData } = cloudTrpc.organization.listMembers.useQuery(
 		undefined,
-		{ enabled: open, staleTime: 30_000 },
+		{ enabled: open },
 	);
 	const { data: organizationData } = cloudTrpc.organization.list.useQuery(
 		undefined,
-		{ enabled: open, staleTime: 30_000 },
+		{ enabled: open },
 	);
 
 	const statuses = useMemo(() => statusData ?? [], [statusData]);

@@ -38,7 +38,7 @@ export function IntegrationsSettings({
 
 	const { data: integrations } = cloudTrpc.integration.list.useQuery(
 		{ organizationId: activeOrganizationId ?? "" },
-		{ staleTime: 30_000, enabled: !!activeOrganizationId },
+		{ enabled: !!activeOrganizationId },
 	);
 
 	const [githubInstallation, setGithubInstallation] =

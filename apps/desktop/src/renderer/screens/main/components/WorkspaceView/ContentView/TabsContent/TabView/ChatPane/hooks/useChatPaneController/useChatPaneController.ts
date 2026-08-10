@@ -83,10 +83,8 @@ export function useChatPaneController({
 	);
 
 	// Already ordered by lastActiveAt desc server-side.
-	const { data: allSessions = [] } = cloudTrpc.chat.listSessions.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: allSessions = [] } =
+		cloudTrpc.chat.listSessions.useQuery(undefined);
 	const sessions = useMemo(() => {
 		const scopedOrUnscoped = allSessions.filter(
 			(item) => item.workspaceId === workspaceId || item.workspaceId === null,

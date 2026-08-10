@@ -46,9 +46,7 @@ export function LinkTaskFrame({ workspaceId }: LinkTaskFrameProps) {
 	const setOpen = useFrameStackStore((s) => s.setOpen);
 	const { v2Workspaces } = useOptimisticCollectionActions();
 
-	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT, {
-		staleTime: 30_000,
-	});
+	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT);
 
 	const tasks = useMemo(
 		() =>
@@ -66,10 +64,8 @@ export function LinkTaskFrame({ workspaceId }: LinkTaskFrameProps) {
 		[taskRows],
 	);
 
-	const { data: statuses = [] } = cloudTrpc.task.statuses.list.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: statuses = [] } =
+		cloudTrpc.task.statuses.list.useQuery(undefined);
 
 	const statusMap = useMemo(() => {
 		const map = new Map<

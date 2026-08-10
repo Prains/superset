@@ -26,7 +26,7 @@ export function StatusProperty({ task }: StatusPropertyProps) {
 
 	const { data: allStatuses } = cloudTrpc.task.statuses.list.useQuery(
 		undefined,
-		{ enabled: open, staleTime: 30_000 },
+		{ enabled: open },
 	);
 
 	const currentStatus = task.status;

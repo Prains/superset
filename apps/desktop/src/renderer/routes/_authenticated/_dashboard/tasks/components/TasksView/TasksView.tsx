@@ -181,7 +181,7 @@ export function TasksView({
 
 	const { data: integrations } = cloudTrpc.integration.list.useQuery(
 		{ organizationId: activeOrganizationId ?? "" },
-		{ staleTime: 30_000, enabled: !!activeOrganizationId },
+		{ enabled: !!activeOrganizationId },
 	);
 
 	// Projects are fully local — identity comes from the host fan-out.

@@ -42,12 +42,12 @@ export function TaskContextMenu({
 
 	const { data: allStatuses } = cloudTrpc.task.statuses.list.useQuery(
 		undefined,
-		{ enabled: open, staleTime: 30_000 },
+		{ enabled: open },
 	);
 
 	const { data: members } = cloudTrpc.organization.listMembers.useQuery(
 		undefined,
-		{ enabled: open, staleTime: 30_000 },
+		{ enabled: open },
 	);
 
 	const sortedStatuses = useMemo(() => {

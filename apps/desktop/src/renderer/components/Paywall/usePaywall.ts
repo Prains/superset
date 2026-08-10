@@ -12,10 +12,7 @@ export function usePaywall() {
 	const sessionPlan = session?.session?.plan;
 	const utils = cloudTrpc.useUtils();
 
-	const { data: activePlan } = cloudTrpc.billing.activePlan.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: activePlan } = cloudTrpc.billing.activePlan.useQuery(undefined);
 	const isReady = activePlan !== undefined;
 	const userPlan = resolveCurrentPlan({
 		subscriptionPlan: activePlan?.plan,

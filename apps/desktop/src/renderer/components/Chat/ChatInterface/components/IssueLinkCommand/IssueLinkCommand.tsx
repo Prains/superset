@@ -49,7 +49,6 @@ export function IssueLinkCommand({
 
 	const { data: taskRows } = cloudTrpc.task.list.useQuery(TASK_LIST_INPUT, {
 		enabled: open,
-		staleTime: 30_000,
 	});
 
 	const allTasks = useMemo(
@@ -69,7 +68,7 @@ export function IssueLinkCommand({
 
 	const { data: allStatuses } = cloudTrpc.task.statuses.list.useQuery(
 		undefined,
-		{ enabled: open, staleTime: 30_000 },
+		{ enabled: open },
 	);
 
 	const statusMap = useMemo(() => {

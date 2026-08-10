@@ -42,10 +42,8 @@ export function OrganizationDropdown({
 
 	const activeOrganizationId = session?.session?.activeOrganizationId;
 
-	const { data: organizations } = cloudTrpc.organization.list.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: organizations } =
+		cloudTrpc.organization.list.useQuery(undefined);
 
 	const activeOrganization = organizations?.find(
 		(o) => o.id === activeOrganizationId,

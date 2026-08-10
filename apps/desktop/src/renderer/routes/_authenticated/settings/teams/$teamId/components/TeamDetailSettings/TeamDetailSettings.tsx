@@ -52,14 +52,10 @@ export function TeamDetailSettings({ teamId }: TeamDetailSettingsProps) {
 	const currentUserId = session?.user?.id;
 
 	const { data: teamsData, isPending: teamsPending } =
-		cloudTrpc.organization.listTeams.useQuery(undefined, {
-			staleTime: 30_000,
-		});
+		cloudTrpc.organization.listTeams.useQuery(undefined);
 
 	const { data: orgMembers, isPending: orgMembersPending } =
-		cloudTrpc.organization.listMembers.useQuery(undefined, {
-			staleTime: 30_000,
-		});
+		cloudTrpc.organization.listMembers.useQuery(undefined);
 
 	const orgUsers = useMemo(
 		() => (orgMembers ?? []).map((member) => member.user),

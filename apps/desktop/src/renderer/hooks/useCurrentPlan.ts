@@ -37,10 +37,7 @@ export function resolveCurrentPlan({
 export function useCurrentPlan(): { plan: PlanTier; isReady: boolean } {
 	const { data: session } = authClient.useSession();
 
-	const { data: activePlan } = cloudTrpc.billing.activePlan.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
+	const { data: activePlan } = cloudTrpc.billing.activePlan.useQuery(undefined);
 
 	const subscriptionsLoaded = activePlan !== undefined;
 

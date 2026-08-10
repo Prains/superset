@@ -89,7 +89,7 @@ export function OrganizationSettings({
 	const [nameValue, setNameValue] = useState("");
 
 	const { data: organizations, isPending } =
-		cloudTrpc.organization.list.useQuery(undefined, { staleTime: 30_000 });
+		cloudTrpc.organization.list.useQuery(undefined);
 
 	const organization = organizations?.find(
 		(o) => o.id === activeOrganizationId,
@@ -124,9 +124,7 @@ export function OrganizationSettings({
 	);
 
 	const { data: membersData, isPending: membersPending } =
-		cloudTrpc.organization.listMembers.useQuery(undefined, {
-			staleTime: 30_000,
-		});
+		cloudTrpc.organization.listMembers.useQuery(undefined);
 
 	const members: TeamMember[] = useMemo(() => {
 		if (!activeOrganizationId) return [];

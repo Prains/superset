@@ -22,9 +22,7 @@ export function TeamsSettings() {
 	const activeOrganizationId = session?.session?.activeOrganizationId;
 
 	const { data: teamsData, isPending } =
-		cloudTrpc.organization.listTeams.useQuery(undefined, {
-			staleTime: 30_000,
-		});
+		cloudTrpc.organization.listTeams.useQuery(undefined);
 
 	const teams = useMemo(
 		() =>

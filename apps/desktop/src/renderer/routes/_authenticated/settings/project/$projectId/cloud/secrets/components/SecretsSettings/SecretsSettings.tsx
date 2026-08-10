@@ -37,9 +37,7 @@ export function SecretsSettings({ projectId }: SecretsSettingsProps) {
 	});
 
 	const cloudUtils = cloudTrpc.useUtils();
-	const { data: cloudProjects } = cloudTrpc.project.list.useQuery(undefined, {
-		staleTime: 30_000,
-	});
+	const { data: cloudProjects } = cloudTrpc.project.list.useQuery(undefined);
 
 	const suggestedMatch = useMemo(() => {
 		if (!project || project.neonProjectId || !cloudProjects) return null;

@@ -23,9 +23,7 @@ interface HostsSettingsSidebarProps {
 export function HostsSettingsSidebar({
 	selectedHostId,
 }: HostsSettingsSidebarProps) {
-	const { data: hosts = [] } = cloudTrpc.v2Host.list.useQuery(undefined, {
-		staleTime: 30_000,
-	});
+	const { data: hosts = [] } = cloudTrpc.v2Host.list.useQuery(undefined);
 
 	const presence = useHostsPresence(hosts);
 	const hostsWithPresence = useMemo(

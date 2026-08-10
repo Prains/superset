@@ -13,6 +13,33 @@ import { getAuthToken } from "./auth-client";
  */
 export const cloudTrpc = createTRPCReact<AppRouter>();
 
+/**
+ * Cloud router roots on the shared renderer QueryClient. Drives the 30s
+ * staleTime default (set once in ElectronTRPCProvider, not per call site)
+ * and the org-switch cache purge. "analytics" and "device" exist on the
+ * electron IPC router too and are deliberately absent — their cloud queries
+ * fall back to per-site options.
+ */
+export const CLOUD_TRPC_ROUTER_ROOTS = [
+	"admin",
+	"apiKey",
+	"automation",
+	"billing",
+	"chat",
+	"host",
+	"integration",
+	"organization",
+	"project",
+	"support",
+	"task",
+	"team",
+	"user",
+	"v2Host",
+	"v2Project",
+	"v2Workspace",
+	"workspace",
+] as const;
+
 export const cloudTrpcClient = cloudTrpc.createClient({
 	links: [
 		httpBatchStreamLink({
