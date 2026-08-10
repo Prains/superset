@@ -1,13 +1,7 @@
 "use client";
 
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@superset/ui/dropdown-menu";
 import { cn } from "@superset/ui/utils";
-import { mergeAttributes, Node, type Range } from "@tiptap/core";
+import { Node } from "@tiptap/core";
 import Document from "@tiptap/extension-document";
 import HardBreak from "@tiptap/extension-hard-break";
 import History from "@tiptap/extension-history";
@@ -17,83 +11,30 @@ import Text from "@tiptap/extension-text";
 import { PluginKey } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import Suggestion from "@tiptap/suggestion";
-import {
-	ArrowUpIcon,
-	FileCode2Icon,
-	ImageIcon,
-	PaperclipIcon,
-	PlusIcon,
-	SlashSquareIcon,
-	SquareIcon,
-	XIcon,
-} from "lucide-react";
+import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { AttachmentPills } from "./components/AttachmentPills";
+import { PlusMenu } from "./components/PlusMenu";
+import { SuggestionListbox } from "./components/SuggestionListbox";
+import { MentionChip } from "./extensions/mentionChip";
+import type {
+	TiptapComposerAttachment,
+	TiptapComposerCommand,
+	TiptapComposerMentionItem,
+	TiptapComposerProps,
+} from "./types";
 import "./tiptap-composer.css";
 
-export type TiptapComposerMentionItem = {
-	id: string;
-	label: string;
-	brandColor?: string;
-};
-
-export type TiptapComposerCommand = {
-	id: string;
-	label: string;
-	description?: string;
-};
-
-export type TiptapComposerAttachment = {
-	id: string;
-	file: File;
-};
-
-export type TiptapComposerSubmitPayload = {
-	text: string;
-	files: File[];
-};
-
-export type TiptapComposerProps = {
-	placeholder?: string;
-	mentionItems: TiptapComposerMentionItem[];
-	commands: TiptapComposerCommand[];
-	status?: "ready" | "streaming";
-	onSubmit?: (payload: TiptapComposerSubmitPayload) => void;
-	onStop?: () => void;
-	className?: string;
-};
+export type {
+	TiptapComposerAttachment,
+	TiptapComposerCommand,
+	TiptapComposerMentionItem,
+	TiptapComposerProps,
+	TiptapComposerSubmitPayload,
+} from "./types";
 
 const MAX_SUGGESTIONS = 8;
-
-const MentionChip = Node.create({
-	name: "mentionChip",
-	group: "inline",
-	inline: true,
-	atom: true,
-	selectable: true,
-	addAttributes() {
-		return { label: { default: "" }, brandColor: { default: null } };
-	},
-	parseHTML() {
-		return [{ tag: "span[data-mention-chip]" }];
-	},
-	renderHTML({ node }) {
-		return [
-			"span",
-			mergeAttributes({
-				"data-mention-chip": "true",
-				class: "tiptap-composer-chip",
-				style: node.attrs.brandColor
-					? `--chip-color:${node.attrs.brandColor}`
-					: undefined,
-			}),
-			node.attrs.label,
-		];
-	},
-	renderText({ node }) {
-		return `@${node.attrs.label}`;
-	},
-});
 
 type PopoverState = {
 	kind: "mention" | "command";
@@ -101,12 +42,6 @@ type PopoverState = {
 	rect: { left: number; bottom: number; top: number };
 	command: (item: TiptapComposerMentionItem | TiptapComposerCommand) => void;
 };
-
-function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export function TiptapComposer({
 	placeholder = "Do anything",
@@ -124,7 +59,7 @@ export function TiptapComposer({
 	);
 	const [isEmpty, setIsEmpty] = useState(true);
 	const [dragging, setDragging] = useState(false);
-	const fileInputRef = useRef<HTMLInputElement>(null);
+	// Tiptap extensions are instantiated once; this ref bridges them to live React state.
 	const stateRef = useRef({
 		popover,
 		activeIndex,
@@ -377,69 +312,19 @@ export function TiptapComposer({
 					Drop files to attach
 				</div>
 			)}
-			{attachments.length > 0 && (
-				<div className="flex flex-wrap gap-1.5 px-3 pt-3">
-					{attachments.map((attachment) => (
-						<span
-							key={attachment.id}
-							className="flex items-center gap-1.5 rounded-lg bg-secondary px-2 py-1 text-xs text-secondary-foreground"
-						>
-							<PaperclipIcon className="size-3.5 text-muted-foreground" />
-							<span className="max-w-40 truncate">{attachment.file.name}</span>
-							<span className="text-muted-foreground">
-								{formatBytes(attachment.file.size)}
-							</span>
-							<button
-								type="button"
-								aria-label={`Remove ${attachment.file.name}`}
-								className="cursor-pointer text-muted-foreground hover:text-foreground"
-								onClick={() =>
-									setAttachments((previous) =>
-										previous.filter((entry) => entry.id !== attachment.id),
-									)
-								}
-							>
-								<XIcon className="size-3.5" />
-							</button>
-						</span>
-					))}
-				</div>
-			)}
+			<AttachmentPills
+				attachments={attachments}
+				onRemove={(id) =>
+					setAttachments((previous) =>
+						previous.filter((entry) => entry.id !== id),
+					)
+				}
+			/>
 			<div className="px-4 pt-3.5 pb-1">
 				<EditorContent editor={editor} />
 			</div>
 			<div className="flex min-h-12 items-center gap-1 px-3 pb-2.5">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<button
-							type="button"
-							aria-label="Add"
-							className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						>
-							<PlusIcon className="size-4.5" />
-						</button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start">
-						<DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>
-							<PaperclipIcon className="size-4" />
-							Photos & files
-						</DropdownMenuItem>
-						<DropdownMenuItem disabled>
-							<ImageIcon className="size-4" />
-							Screenshot
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-				<input
-					ref={fileInputRef}
-					type="file"
-					multiple
-					className="hidden"
-					onChange={(event) => {
-						if (event.target.files) addFiles(event.target.files);
-						event.target.value = "";
-					}}
-				/>
+				<PlusMenu onFiles={addFiles} />
 				<div className="flex-1" />
 				{status === "streaming" ? (
 					<button
@@ -471,8 +356,7 @@ export function TiptapComposer({
 				popover.items.length > 0 &&
 				createPortal(
 					<div
-						role="listbox"
-						className="fixed z-50 max-h-72 w-80 overflow-y-auto rounded-xl bg-popover/95 p-1 shadow-xl ring-1 ring-border backdrop-blur-sm"
+						className="fixed z-50"
 						style={
 							popoverBelow
 								? { left: popover.rect.left, top: popover.rect.bottom + 6 }
@@ -482,38 +366,13 @@ export function TiptapComposer({
 									}
 						}
 					>
-						{popover.items.map((item, index) => (
-							// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled by the editor
-							// biome-ignore lint/a11y/useFocusableInteractive: focus stays in the editor; listbox is virtual
-							<div
-								key={item.id}
-								role="option"
-								aria-selected={index === activeIndex}
-								className={cn(
-									"flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm",
-									index === activeIndex
-										? "bg-accent text-accent-foreground"
-										: "text-foreground",
-								)}
-								onMouseEnter={() => setActiveIndex(index)}
-								onMouseDown={(event) => event.preventDefault()}
-								onClick={() => popover.command(item)}
-							>
-								{popover.kind === "mention" ? (
-									<FileCode2Icon className="size-4 shrink-0 text-muted-foreground" />
-								) : (
-									<SlashSquareIcon className="size-4 shrink-0 text-muted-foreground" />
-								)}
-								<span className="min-w-0 truncate">
-									{popover.kind === "command" ? `/${item.label}` : item.label}
-								</span>
-								{"description" in item && item.description && (
-									<span className="ml-auto min-w-0 shrink-[2] truncate text-xs text-muted-foreground">
-										{item.description}
-									</span>
-								)}
-							</div>
-						))}
+						<SuggestionListbox
+							kind={popover.kind}
+							items={popover.items}
+							activeIndex={activeIndex}
+							onHighlight={setActiveIndex}
+							onSelect={(item) => popover.command(item)}
+						/>
 					</div>,
 					document.body,
 				)}
