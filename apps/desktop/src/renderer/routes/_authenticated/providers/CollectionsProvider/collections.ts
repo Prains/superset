@@ -4,7 +4,6 @@ import {
 	snakeCamelMapper,
 } from "@electric-sql/client";
 import type {
-	SelectAgentCommand,
 	SelectAutomation,
 	SelectAutomationRun,
 	SelectChatSession,
@@ -182,7 +181,6 @@ export interface OrgCollections {
 	invitations: Collection<SelectInvitation>;
 	teams: Collection<SelectTeam>;
 	teamMembers: Collection<SelectTeamMember>;
-	agentCommands: Collection<SelectAgentCommand>;
 	integrationConnections: Collection<IntegrationConnectionDisplay>;
 	subscriptions: Collection<SelectSubscription>;
 	apiKeys: Collection<ApiKeyDisplay>;
@@ -608,31 +606,6 @@ function createOrgCollections(organizationId: string): OrgCollections {
 		}),
 	);
 
-	const agentCommands = createPersistedElectricCollection(
-		electricCollectionOptions<SelectAgentCommand>({
-			id: `agent_commands-${organizationId}`,
-			shapeOptions: {
-				url: electricUrl,
-				params: {
-					table: "agent_commands",
-					organizationId,
-				},
-				headers: electricHeaders,
-				columnMapper,
-				onError: handleElectricSyncError,
-			},
-			getKey: (item) => item.id,
-			onUpdate: async ({ transaction }) => {
-				const { original, changes } = transaction.mutations[0];
-				const result = await apiClient.agent.updateCommand.mutate({
-					...changes,
-					id: original.id,
-				});
-				return electricTxidMatch(result.txid);
-			},
-		}),
-	);
-
 	const integrationConnections = createPersistedElectricCollection(
 		electricCollectionOptions<IntegrationConnectionDisplay>({
 			id: `integration_connections-${organizationId}`,
@@ -898,7 +871,6 @@ function createOrgCollections(organizationId: string): OrgCollections {
 		invitations,
 		teams,
 		teamMembers,
-		agentCommands,
 		integrationConnections,
 		subscriptions,
 		apiKeys,

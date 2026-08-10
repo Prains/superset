@@ -1,5 +1,4 @@
 import {
-	agentCommands,
 	automationRuns,
 	automations,
 	chatSessions,
@@ -112,8 +111,6 @@ export function buildWhereClause(
 				organizationId,
 			);
 
-		case "agent_commands":
-			return build(agentCommands, agentCommands.organizationId, organizationId);
 
 		case "auth.apikeys": {
 			const fragment = `"organization_id" = $1`;
