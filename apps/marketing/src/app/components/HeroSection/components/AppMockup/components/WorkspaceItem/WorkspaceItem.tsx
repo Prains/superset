@@ -61,12 +61,19 @@ export function WorkspaceItem({
 			</span>
 
 			{add !== undefined && (
-				<span
-					className={`shrink-0 font-mono text-[10px] tabular-nums ${isActive ? "" : "opacity-60"}`}
-				>
-					<span className="text-emerald-400/80">+{add}</span>
-					{del !== undefined && del > 0 && (
-						<span className="ml-1 text-rose-400/75">−{del}</span>
+				<span className="shrink-0 font-mono text-[10px] tabular-nums">
+					{isActive ? (
+						<>
+							<span className="text-emerald-400/80">+{add}</span>
+							{del !== undefined && del > 0 && (
+								<span className="ml-1 text-rose-400/75">−{del}</span>
+							)}
+						</>
+					) : (
+						<span className="text-muted-foreground/45">
+							+{add}
+							{del !== undefined && del > 0 && <> −{del}</>}
+						</span>
 					)}
 				</span>
 			)}

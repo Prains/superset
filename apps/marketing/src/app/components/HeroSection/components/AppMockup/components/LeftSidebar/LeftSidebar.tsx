@@ -19,7 +19,7 @@ interface LeftSidebarProps {
 
 export function LeftSidebar({ activeDemo }: LeftSidebarProps) {
 	return (
-		<div className="flex w-[208px] shrink-0 flex-col border-r border-border/60 bg-card text-[11px]">
+		<div className="flex w-[232px] shrink-0 flex-col border-r border-border/60 bg-card text-[11px]">
 			<div className="flex h-9 items-center gap-1.5 px-3">
 				<div className="size-2.5 rounded-full bg-[#ff5f57]" />
 				<div className="size-2.5 rounded-full bg-[#febc2e]" />

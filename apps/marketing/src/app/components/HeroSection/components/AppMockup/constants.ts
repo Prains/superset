@@ -56,10 +56,6 @@ export const FILE_CHANGES: FileChange[] = [
 		type: "delete",
 		indent: 1,
 	},
-	{ path: "WorkspaceSidebar.tsx", add: 14, del: 0, type: "edit", indent: 1 },
-	{ path: "apps/api/src/trpc/routers", type: "folder" },
-	{ path: "ssh-manager.ts", add: 277, del: 0, type: "add", indent: 1 },
-	{ path: "index.ts", add: 7, del: 0, type: "edit", indent: 1 },
 ];
 
 export const AGENT_TABS: AgentTab[] = [
@@ -75,32 +71,6 @@ export const AGENT_TABS: AgentTab[] = [
 		alt: "OpenCode",
 		label: "opencode",
 		delay: 0.3,
-	},
-	{
-		src: "/app-icons/copilot-white.svg",
-		alt: "Copilot",
-		label: "copilot",
-		delay: 0.4,
-	},
-	{ src: "/app-icons/amp.svg", alt: "Amp", label: "amp", delay: 0.5 },
-	{ src: "/app-icons/gemini.svg", alt: "Gemini", label: "gemini", delay: 0.6 },
-	{
-		src: "/app-icons/vibe.svg",
-		alt: "Mistral Vibe",
-		label: "vibe",
-		delay: 0.7,
-	},
-	{
-		src: "/app-icons/kimi.svg",
-		alt: "Kimi Code",
-		label: "kimi",
-		delay: 0.8,
-	},
-	{
-		src: "/app-icons/grok.svg",
-		alt: "Grok CLI",
-		label: "grok",
-		delay: 0.9,
 	},
 ];
 
