@@ -2,13 +2,13 @@
 
 import {
 	type InitialConfigType,
-	LexicalComposer as LexicalComposerProvider,
+	LexicalComposer as LexicalRoot,
 } from "@lexical/react/LexicalComposer";
 import { useState } from "react";
 import { ComposerBody } from "./components/ComposerBody";
 import { MentionChipNode } from "./nodes/mentionChipNode";
-import type { LexicalComposerProps } from "./types";
-import "./lexical-composer.css";
+import type { PromptInputProps } from "./types";
+import "./prompt-input.css";
 
 export type {
 	ComposerActionContext,
@@ -17,14 +17,14 @@ export type {
 	ComposerMentionProvider,
 	ComposerMentionSource,
 	ComposerPanelContent,
-	LexicalComposerAttachment,
-	LexicalComposerCommand,
-	LexicalComposerDictation,
-	LexicalComposerProps,
-	LexicalComposerSubmitPayload,
+	PromptInputAttachment,
+	PromptInputCommand,
+	PromptInputDictation,
+	PromptInputProps,
+	PromptInputSubmitPayload,
 } from "./types";
 
-export function LexicalComposer({
+export function PromptInput({
 	placeholder = "Do anything",
 	mentionProviders,
 	commands,
@@ -38,9 +38,9 @@ export function LexicalComposer({
 	onAttachmentClick,
 	onChipClick,
 	className,
-}: LexicalComposerProps) {
+}: PromptInputProps) {
 	const [initialConfig] = useState<InitialConfigType>(() => ({
-		namespace: "lexical-chat-composer",
+		namespace: "prompt-input",
 		nodes: [MentionChipNode],
 		onError: (error: Error) => {
 			throw error;
@@ -49,7 +49,7 @@ export function LexicalComposer({
 
 	return (
 		<div className={className}>
-			<LexicalComposerProvider initialConfig={initialConfig}>
+			<LexicalRoot initialConfig={initialConfig}>
 				<ComposerBody
 					placeholder={placeholder}
 					mentionProviders={mentionProviders}
@@ -64,7 +64,7 @@ export function LexicalComposer({
 					onAttachmentClick={onAttachmentClick}
 					onChipClick={onChipClick}
 				/>
-			</LexicalComposerProvider>
+			</LexicalRoot>
 		</div>
 	);
 }

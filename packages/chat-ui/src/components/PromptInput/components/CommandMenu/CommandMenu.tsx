@@ -3,13 +3,13 @@
 import { cn } from "@superset/ui/utils";
 import { SlashSquareIcon } from "lucide-react";
 import { Fragment } from "react";
-import type { LexicalComposerCommand } from "../../types";
+import type { PromptInputCommand } from "../../types";
 
 export type CommandMenuProps = {
-	commands: LexicalComposerCommand[];
+	commands: PromptInputCommand[];
 	selectedIndex: number | null;
 	onHighlight: (index: number) => void;
-	onSelect: (command: LexicalComposerCommand) => void;
+	onSelect: (command: PromptInputCommand) => void;
 };
 
 export function CommandMenu({

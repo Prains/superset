@@ -1,4 +1,4 @@
-.lexical-composer-chip {
+.prompt-input-chip {
 	display: inline-flex;
 	max-width: 100%;
 	gap: 3px;
@@ -16,7 +16,7 @@
 }
 
 /* Brand colors blend toward the foreground in dark mode for legibility. */
-.dark .lexical-composer-chip {
+.dark .prompt-input-chip {
 	color: color-mix(
 		in oklch,
 		var(--chip-color, var(--primary)) 50%,
@@ -24,11 +24,11 @@
 	);
 }
 
-.lexical-composer-chip[data-selected="true"] {
+.prompt-input-chip[data-selected="true"] {
 	background: var(--accent);
 }
 
-.lexical-composer-chip:hover .lexical-composer-chip-label {
+.prompt-input-chip:hover .prompt-input-chip-label {
 	text-decoration: underline;
 	text-decoration-style: dashed;
 	text-decoration-thickness: 0.5px;
@@ -36,14 +36,14 @@
 }
 
 /* Icon rides the first text line even when the label wraps. */
-.lexical-composer-chip-icon {
+.prompt-input-chip-icon {
 	position: relative;
 	height: 1lh;
 	width: 14px;
 	flex-shrink: 0;
 }
 
-.lexical-composer-chip-icon img {
+.prompt-input-chip-icon img {
 	position: absolute;
 	top: 50%;
 	translate: 0 -50%;
@@ -53,12 +53,12 @@
 	object-fit: contain;
 }
 
-.lexical-composer-chip-label {
+.prompt-input-chip-label {
 	min-width: 0;
 	overflow-wrap: break-word;
 }
 
-.lexical-composer-editor {
+.prompt-input-editor {
 	font-size: 14px;
 	line-height: 20px;
 	min-height: 40px;

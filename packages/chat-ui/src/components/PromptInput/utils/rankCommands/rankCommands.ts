@@ -1,4 +1,4 @@
-import type { LexicalComposerCommand } from "../../types";
+import type { PromptInputCommand } from "../../types";
 
 function termScore(candidate: string, query: string): number {
 	const lowered = candidate.toLowerCase();
@@ -7,7 +7,7 @@ function termScore(candidate: string, query: string): number {
 	return 0;
 }
 
-function commandScore(command: LexicalComposerCommand, query: string): number {
+function commandScore(command: PromptInputCommand, query: string): number {
 	return Math.max(
 		termScore(command.title, query),
 		termScore(command.id, query),
@@ -16,9 +16,9 @@ function commandScore(command: LexicalComposerCommand, query: string): number {
 }
 
 export function rankCommands(
-	commands: LexicalComposerCommand[],
+	commands: PromptInputCommand[],
 	query: string,
-): LexicalComposerCommand[] {
+): PromptInputCommand[] {
 	const trimmed = query.trim().toLowerCase();
 	if (trimmed.length === 0) return commands;
 	const groupOrder = new Map<string | null, number>();

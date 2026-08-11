@@ -57,7 +57,7 @@ export type ComposerMentionProvider = {
 	source: ComposerMentionSource;
 };
 
-export type LexicalComposerCommand = {
+export type PromptInputCommand = {
 	id: string;
 	title: string;
 	description?: string;
@@ -68,44 +68,44 @@ export type LexicalComposerCommand = {
 	onSelect(ctx: ComposerActionContext): void | Promise<void>;
 };
 
-export type LexicalComposerAttachment = {
+export type PromptInputAttachment = {
 	id: string;
 	file: File;
 	// Object URL for image attachments; owned and revoked by the composer.
 	previewUrl?: string;
 };
 
-export type LexicalComposerSubmitPayload = {
+export type PromptInputSubmitPayload = {
 	text: string;
 	files: File[];
 	mentions: ComposerChip[];
 };
 
-export type LexicalComposerDictationError = {
+export type PromptInputDictationError = {
 	message: string;
 	canRetry: boolean;
 };
 
-export type LexicalComposerDictation = {
+export type PromptInputDictation = {
 	transcribe(audio: Blob): Promise<string> | string;
 	// Surfaced for app-owned toasts; retryable failures also keep the
 	// recording and show retry controls in the composer row.
-	onError?(error: LexicalComposerDictationError): void;
+	onError?(error: PromptInputDictationError): void;
 };
 
-export type LexicalComposerProps = {
+export type PromptInputProps = {
 	placeholder?: string;
 	mentionProviders: ComposerMentionProvider[];
-	commands: LexicalComposerCommand[];
+	commands: PromptInputCommand[];
 	status?: "ready" | "streaming";
 	placement?: "top" | "bottom";
 	// Enables the mic button; the app owns speech-to-text.
-	dictation?: LexicalComposerDictation;
+	dictation?: PromptInputDictation;
 	toolbar?: ReactNode;
-	onSubmit?: (payload: LexicalComposerSubmitPayload) => void;
+	onSubmit?: (payload: PromptInputSubmitPayload) => void;
 	onStop?: () => void;
 	onMentionHighlight?: (entry: ComposerMentionEntry | null) => void;
-	onAttachmentClick?: (attachment: LexicalComposerAttachment) => void;
+	onAttachmentClick?: (attachment: PromptInputAttachment) => void;
 	onChipClick?: (chip: ComposerChip) => void;
 	className?: string;
 };

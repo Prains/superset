@@ -9,13 +9,13 @@ import {
 	XIcon,
 } from "lucide-react";
 import type { JSX } from "react";
-import type { LexicalComposerAttachment } from "../../types";
+import type { PromptInputAttachment } from "../../types";
 
 export type AttachmentPillsProps = {
-	attachments: LexicalComposerAttachment[];
+	attachments: PromptInputAttachment[];
 	onRemove: (id: string) => void;
 	onPreviewError?: (id: string) => void;
-	onAttachmentClick?: (attachment: LexicalComposerAttachment) => void;
+	onAttachmentClick?: (attachment: PromptInputAttachment) => void;
 };
 
 const CODE_EXTENSIONS = new Set([

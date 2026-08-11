@@ -45,8 +45,8 @@ import type {
 	ComposerChip,
 	ComposerMentionEntry,
 	ComposerPanelContent,
-	LexicalComposerAttachment,
-	LexicalComposerProps,
+	PromptInputAttachment,
+	PromptInputProps,
 } from "../../types";
 import { matchToken } from "../../utils/matchToken";
 import { rankCommands } from "../../utils/rankCommands";
@@ -73,10 +73,10 @@ function matchCommandToken(text: string) {
 }
 
 export type ComposerBodyProps = Required<
-	Pick<LexicalComposerProps, "placeholder" | "status" | "placement">
+	Pick<PromptInputProps, "placeholder" | "status" | "placement">
 > &
 	Pick<
-		LexicalComposerProps,
+		PromptInputProps,
 		| "mentionProviders"
 		| "commands"
 		| "dictation"
@@ -132,9 +132,7 @@ export function ComposerBody({
 	onChipClick,
 }: ComposerBodyProps) {
 	const [editor] = useLexicalComposerContext();
-	const [attachments, setAttachments] = useState<LexicalComposerAttachment[]>(
-		[],
-	);
+	const [attachments, setAttachments] = useState<PromptInputAttachment[]>([]);
 	const [isEmpty, setIsEmpty] = useState(true);
 	const [dragging, setDragging] = useState(false);
 	const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -251,7 +249,7 @@ export function ComposerBody({
 		if (mentionQuery == null) onMentionHighlight?.(null);
 	}, [mentionQuery, onMentionHighlight]);
 
-	const releaseAttachment = (attachment: LexicalComposerAttachment) => {
+	const releaseAttachment = (attachment: PromptInputAttachment) => {
 		if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
 	};
 
@@ -479,7 +477,7 @@ export function ComposerBody({
 			if (target && rootRef.current?.contains(target)) {
 				if (
 					target instanceof Element &&
-					target.closest(".lexical-composer-editor")
+					target.closest(".prompt-input-editor")
 				) {
 					setBrowseOpen(false);
 				}
@@ -593,9 +591,7 @@ export function ComposerBody({
 			/>
 			<div className="relative px-4 pt-3.5 pb-1">
 				<PlainTextPlugin
-					contentEditable={
-						<ContentEditable className="lexical-composer-editor" />
-					}
+					contentEditable={<ContentEditable className="prompt-input-editor" />}
 					placeholder={
 						<span className="pointer-events-none absolute top-3.5 left-4 text-sm text-muted-foreground/70">
 							{placeholder}

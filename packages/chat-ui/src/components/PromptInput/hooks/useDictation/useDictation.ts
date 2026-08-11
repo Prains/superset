@@ -1,7 +1,7 @@
 "use client";
 
 import { type RefObject, useEffect, useRef, useState } from "react";
-import type { LexicalComposerDictationError } from "../../types";
+import type { PromptInputDictationError } from "../../types";
 
 const BAR_SPACING = 4;
 const BAR_WIDTH = 2;
@@ -15,13 +15,13 @@ export type DictationStatus = "idle" | "recording" | "transcribing" | "error";
 export type UseDictationOptions = {
 	transcribe: (audio: Blob) => Promise<string> | string;
 	onTranscript: (text: string) => void;
-	onError?: (error: LexicalComposerDictationError) => void;
+	onError?: (error: PromptInputDictationError) => void;
 };
 
 export type Dictation = {
 	status: DictationStatus;
 	seconds: number;
-	error: LexicalComposerDictationError | null;
+	error: PromptInputDictationError | null;
 	canvasRef: RefObject<HTMLCanvasElement | null>;
 	start: () => Promise<void>;
 	finish: () => Promise<void>;
@@ -29,7 +29,7 @@ export type Dictation = {
 	cancel: () => void;
 };
 
-function describeStartError(error: unknown): LexicalComposerDictationError {
+function describeStartError(error: unknown): PromptInputDictationError {
 	const name = error instanceof Error ? error.name : null;
 	if (name === "NotAllowedError" || name === "SecurityError")
 		return {
@@ -58,9 +58,7 @@ function describeStartError(error: unknown): LexicalComposerDictationError {
 	return { message: "Unable to start dictation", canRetry: false };
 }
 
-function describeTranscribeError(
-	error: unknown,
-): LexicalComposerDictationError {
+function describeTranscribeError(error: unknown): PromptInputDictationError {
 	const text = error instanceof Error ? error.message.toLowerCase() : "";
 	if (
 		text.includes("fetch failed") ||
@@ -78,9 +76,7 @@ export function useDictation({
 }: UseDictationOptions): Dictation {
 	const [status, setStatus] = useState<DictationStatus>("idle");
 	const [seconds, setSeconds] = useState(0);
-	const [error, setError] = useState<LexicalComposerDictationError | null>(
-		null,
-	);
+	const [error, setError] = useState<PromptInputDictationError | null>(null);
 	const retryAudioRef = useRef<Blob | null>(null);
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
 	const sessionRef = useRef<{

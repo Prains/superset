@@ -5,9 +5,9 @@ export {
 	type ComposerMentionProvider,
 	type ComposerMentionSource,
 	type ComposerPanelContent,
-	LexicalComposer,
-	type LexicalComposerAttachment,
-	type LexicalComposerCommand,
-	type LexicalComposerProps,
-	type LexicalComposerSubmitPayload,
-} from "./LexicalComposer";
+	PromptInput,
+	type PromptInputAttachment,
+	type PromptInputCommand,
+	type PromptInputProps,
+	type PromptInputSubmitPayload,
+} from "./PromptInput";

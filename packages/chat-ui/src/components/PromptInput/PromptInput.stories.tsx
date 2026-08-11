@@ -28,13 +28,13 @@ import {
 import { useRef, useState } from "react";
 import { ComposerDropZone } from "../ComposerDropZone";
 import { ScrollToBottomButton } from "../ScrollToBottomButton";
-import { LexicalComposer } from "./LexicalComposer";
+import { PromptInput } from "./PromptInput";
 import type {
 	ComposerMentionEntry,
 	ComposerMentionProvider,
-	LexicalComposerAttachment,
-	LexicalComposerCommand,
-	LexicalComposerSubmitPayload,
+	PromptInputAttachment,
+	PromptInputCommand,
+	PromptInputSubmitPayload,
 } from "./types";
 
 const REPO_DIRS = [
@@ -49,8 +49,8 @@ const REPO_DIRS = [
 ];
 
 const REPO_FILES = [
-	"packages/chat-ui/src/components/LexicalComposer/LexicalComposer.tsx",
-	"packages/chat-ui/src/components/LexicalComposer/types.ts",
+	"packages/chat-ui/src/components/PromptInput/PromptInput.tsx",
+	"packages/chat-ui/src/components/PromptInput/types.ts",
 	"packages/chat/src/protocol/items.ts",
 	"packages/ui/src/components/ChatHistorySidebar/ChatHistorySidebar.tsx",
 	"apps/desktop/src/main/index.ts",
@@ -351,7 +351,7 @@ function addProvider(
 }
 
 const SKILL_COMMANDS = SKILLS.map(
-	(skill): LexicalComposerCommand => ({
+	(skill): PromptInputCommand => ({
 		id: `skill:${skill.id}`,
 		title: skill.label,
 		description: skill.description,
@@ -366,7 +366,7 @@ const SKILL_COMMANDS = SKILLS.map(
 	}),
 );
 
-const COMMANDS: LexicalComposerCommand[] = [
+const COMMANDS: PromptInputCommand[] = [
 	{
 		id: "compact",
 		title: "Compact",
@@ -420,9 +420,9 @@ function DemoToolbar({
 }
 
 const meta = {
-	component: LexicalComposer,
+	component: PromptInput,
 	parameters: { layout: "fullscreen" },
-} satisfies Meta<typeof LexicalComposer>;
+} satisfies Meta<typeof PromptInput>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -460,9 +460,7 @@ function ChatScreen() {
 	const [model, setModel] = useState("Sonnet 5");
 	// App-owned attachment click handling: images get a lightbox here; a real
 	// surface might open files in the editor instead.
-	const [preview, setPreview] = useState<LexicalComposerAttachment | null>(
-		null,
-	);
+	const [preview, setPreview] = useState<PromptInputAttachment | null>(null);
 	const [fileNotice, setFileNotice] = useState<string | null>(null);
 	const [providers] = useState<ComposerMentionProvider[]>(() => [
 		addProvider(0, setPlanMode),
@@ -481,7 +479,7 @@ function ChatScreen() {
 		noticeTimerRef.current = window.setTimeout(() => setFileNotice(null), 2500);
 	};
 
-	const commands: LexicalComposerCommand[] = [
+	const commands: PromptInputCommand[] = [
 		{
 			id: "plan",
 			title: "Plan",
@@ -562,7 +560,7 @@ function ChatScreen() {
 		...SKILL_COMMANDS,
 	];
 
-	const handleSubmit = ({ text, mentions }: LexicalComposerSubmitPayload) => {
+	const handleSubmit = ({ text, mentions }: PromptInputSubmitPayload) => {
 		setMessages((previous) => [
 			...previous,
 			{ id: nextId(), role: "user", preview: text },
@@ -619,7 +617,7 @@ function ChatScreen() {
 						{fileNotice && (
 							<p className="pb-2 text-xs text-muted-foreground">{fileNotice}</p>
 						)}
-						<LexicalComposer
+						<PromptInput
 							placeholder="Ask to make changes, @mention files, run /commands"
 							mentionProviders={providers}
 							commands={commands}
@@ -680,7 +678,7 @@ function ComposerOnly() {
 	return (
 		<div className="flex min-h-screen items-end justify-center bg-background px-6 pb-10 text-foreground">
 			<div className="w-full max-w-3xl">
-				<LexicalComposer
+				<PromptInput
 					placeholder="Ask to make changes, @mention files, run /commands"
 					mentionProviders={providers}
 					commands={COMMANDS}
@@ -797,7 +795,7 @@ export const WithAttachments: Story = {
 				new File([blob], "screenshot.png", { type: "image/png" }),
 			);
 		transfer.items.add(new File(["{}"], "bun.lock", { type: "" }));
-		canvasElement.querySelector(".lexical-composer-editor")?.dispatchEvent(
+		canvasElement.querySelector(".prompt-input-editor")?.dispatchEvent(
 			new DragEvent("drop", {
 				bubbles: true,
 				cancelable: true,

@@ -1,5 +1,5 @@
 import { MenuOption } from "@lexical/react/LexicalTypeaheadMenuPlugin";
-import type { ComposerMentionEntry, LexicalComposerCommand } from "../../types";
+import type { ComposerMentionEntry, PromptInputCommand } from "../../types";
 
 export class MentionTypeaheadOption extends MenuOption {
 	entry: ComposerMentionEntry;
@@ -10,8 +10,8 @@ export class MentionTypeaheadOption extends MenuOption {
 }
 
 export class CommandTypeaheadOption extends MenuOption {
-	command: LexicalComposerCommand;
-	constructor(command: LexicalComposerCommand) {
+	command: PromptInputCommand;
+	constructor(command: PromptInputCommand) {
 		super(command.id);
 		this.command = command;
 	}

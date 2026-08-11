@@ -22,7 +22,7 @@ function MentionChipComponent({
 	const [isSelected] = useLexicalNodeSelection(nodeKey);
 	return (
 		<span
-			className="lexical-composer-chip"
+			className="prompt-input-chip"
 			data-mention-chip="true"
 			data-selected={isSelected || undefined}
 			style={
@@ -32,11 +32,11 @@ function MentionChipComponent({
 			}
 		>
 			{iconUrl && (
-				<span className="lexical-composer-chip-icon">
+				<span className="prompt-input-chip-icon">
 					<img src={iconUrl} alt="" draggable={false} />
 				</span>
 			)}
-			<span className="lexical-composer-chip-label">{label}</span>
+			<span className="prompt-input-chip-label">{label}</span>
 		</span>
 	);
 }
