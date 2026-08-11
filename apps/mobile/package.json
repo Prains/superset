@@ -54,8 +54,6 @@
 		"@shopify/flash-list": "2.3.2",
 		"@superset/auth": "workspace:*",
 		"@superset/db": "workspace:*",
-		"@superset/host-client": "workspace:*",
-		"@superset/session-protocol": "workspace:*",
 		"@superset/shared": "workspace:*",
 		"@superset/trpc": "workspace:*",
 		"@tanstack/db": "0.6.17",

@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { GitPullRequestArrow } from "lucide-react-native";
@@ -8,11 +9,17 @@ import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import type { HostWorkspaceItem } from "@/hooks/useHostWorkspaces";
 import { useWorkspaceHost } from "@/hooks/useWorkspaceHost";
+import {
+	buildRelayHostUrl,
+	getHostServiceClientByUrl,
+} from "@/lib/host-service/client";
 import { cn } from "@/lib/utils";
 import { NewChatWidget } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget";
-import { SessionRow } from "@/screens/(authenticated)/(home)/home/components/SessionRow";
-import { useHostAcpSessions } from "@/screens/(authenticated)/(home)/home/hooks/useHostAcpSessions";
-import { buildSessionRows } from "@/screens/(authenticated)/(home)/home/utils/sessionRows";
+import { TerminalRow } from "@/screens/(authenticated)/(home)/home/components/TerminalRow";
+import {
+	getHostTerminalsQueryKey,
+	useHostTerminals,
+} from "@/screens/(authenticated)/(home)/home/hooks/useHostTerminals";
 import { PressableScale } from "@/screens/(authenticated)/components/PressableScale";
 import { useWorkspaceChangeset } from "../hooks/useWorkspaceChangeset";
 import { useWorkspaceHeaderActions } from "../hooks/useWorkspaceHeaderActions";
@@ -39,16 +46,29 @@ export function WorkspaceScreen() {
 	const insets = useSafeAreaInsets();
 
 	const { workspace, host } = useWorkspaceHost(id ?? null);
-	const { sessionsByWorkspace, isReady } = useHostAcpSessions(host);
+	const { terminalsByWorkspace, isReady } = useHostTerminals(host);
 	const { renameWorkspace, deleteWorkspace, copyId, shareWorkspace } =
 		useWorkspaceHeaderActions(workspace, host);
 	const changeset = useWorkspaceChangeset(id ?? null);
 	const pullRequest = useWorkspacePullRequest(id ?? null);
 
-	const sessionRows = useMemo(
-		() => buildSessionRows(id ? (sessionsByWorkspace.get(id) ?? []) : []),
-		[sessionsByWorkspace, id],
+	const terminalRows = useMemo(
+		() => (id ? (terminalsByWorkspace.get(id) ?? []) : []),
+		[terminalsByWorkspace, id],
 	);
+
+	const queryClient = useQueryClient();
+	const killTerminal = (terminalId: string) => {
+		if (!workspace || !host) return;
+		const hostUrl = buildRelayHostUrl(host.organizationId, host.machineId);
+		void getHostServiceClientByUrl(hostUrl)
+			.terminal.killSession.mutate({ terminalId, workspaceId: workspace.id })
+			.finally(() => {
+				void queryClient.invalidateQueries({
+					queryKey: getHostTerminalsQueryKey(host.machineId),
+				});
+			});
+	};
 
 	const widgetWorkspaces = useMemo<HostWorkspaceItem[]>(
 		() => (workspace ? [{ ...workspace, hostReachable: true }] : []),
@@ -116,24 +136,25 @@ export function WorkspaceScreen() {
 				}}
 				keyboardDismissMode="interactive"
 			>
-				{sessionRows.map((row, index) => (
-					<View key={row.id}>
+				{terminalRows.map((row, index) => (
+					<View key={row.terminalId}>
 						{index > 0 && <View className="border-border/40 ml-12 border-t" />}
-						<SessionRow
+						<TerminalRow
 							row={row}
 							className="px-4 py-3"
 							onPress={() =>
 								router.push(
-									`/(authenticated)/workspace/${id}/chat/acp/${row.id}`,
+									`/(authenticated)/workspace/${id}/terminal/${row.terminalId}`,
 								)
 							}
+							onKill={() => killTerminal(row.terminalId)}
 						/>
 					</View>
 				))}
-				{sessionRows.length === 0 && isReady && (
+				{terminalRows.length === 0 && isReady && (
 					<View className="items-center py-20">
 						<Text className="text-muted-foreground text-sm">
-							No chats in this workspace yet.
+							No terminals in this workspace yet.
 						</Text>
 					</View>
 				)}

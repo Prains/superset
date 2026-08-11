@@ -35,7 +35,6 @@ config.resolver.unstable_enablePackageExports = true;
 config.resolver.extraNodeModules = {
 	"@superset/alert-prompt": path.resolve(projectRoot, "modules/alert-prompt"),
 	"@superset/composer": path.resolve(projectRoot, "modules/composer"),
-	"@superset/tab-bar": path.resolve(projectRoot, "modules/tab-bar"),
 };
 
 // Worklets Bundle Mode (react-native-streamdown): resolves the generated

@@ -14,6 +14,10 @@ import {
 	type HostWorkspaceItem,
 	useHostWorkspaces,
 } from "@/hooks/useHostWorkspaces";
+import {
+	buildRelayHostUrl,
+	getHostServiceClientByUrl,
+} from "@/lib/host-service/client";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useSelectedHost } from "@/screens/(authenticated)/(home)/hooks/useSelectedHost";
@@ -23,15 +27,17 @@ import { HostOfflineView } from "./components/HostOfflineView";
 import { NewChatWidget } from "./components/NewChatWidget";
 import { OrganizationHeaderButton } from "./components/OrganizationHeaderButton";
 import { OrganizationSwitcherSheet } from "./components/OrganizationSwitcherSheet";
-import { SessionRow } from "./components/SessionRow";
+import { TerminalRow } from "./components/TerminalRow";
 import { WorkspaceRow } from "./components/WorkspaceRow";
-import { useHostAcpSessions } from "./hooks/useHostAcpSessions";
-import { useHostTerminalAgents } from "./hooks/useHostTerminalAgents";
+import {
+	getHostTerminalsQueryKey,
+	type TerminalRowData,
+	useHostTerminals,
+} from "./hooks/useHostTerminals";
 import { useVisibleDiffStats } from "./hooks/useVisibleDiffStats";
 import { useWorkspacesFilterStore } from "./stores/workspacesFilterStore";
 import { activityDateGroup } from "./utils/activityDateGroup";
 import { prStateFor } from "./utils/prStateFor";
-import { buildSessionRows, type SessionRowData } from "./utils/sessionRows";
 
 const VIEWABILITY_CONFIG = {
 	itemVisiblePercentThreshold: 50,
@@ -46,9 +52,9 @@ type HomeListItem =
 	| { kind: "dateHeader"; label: string }
 	| { kind: "workspace"; workspace: HostWorkspaceItem }
 	| {
-			kind: "session";
+			kind: "terminal";
 			workspaceId: string;
-			row: SessionRowData;
+			row: TerminalRowData;
 			groupFirst: boolean;
 			groupLast: boolean;
 	  };
@@ -59,8 +65,8 @@ function homeListItemKey(item: HomeListItem): string {
 			return `date:${item.label}`;
 		case "workspace":
 			return `ws:${item.workspace.id}`;
-		case "session":
-			return `session:${item.row.id}`;
+		case "terminal":
+			return `terminal:${item.row.terminalId}`;
 	}
 }
 
@@ -87,7 +93,8 @@ export function HomeScreen() {
 
 	const selectedHost = useSelectedHost();
 	const { workspaces, isReady, cache } = useHostWorkspaces(selectedHost);
-	const attentionByWorkspace = useHostTerminalAgents(selectedHost);
+	const { terminalsByWorkspace, attentionByWorkspace } =
+		useHostTerminals(selectedHost);
 
 	// Projects are fully local — served by the selected host, not Electric.
 	const { projects } = useHostProjects(selectedHost);
@@ -95,7 +102,6 @@ export function HomeScreen() {
 		(q) => q.from({ githubPullRequests: collections.githubPullRequests }),
 		[collections],
 	);
-	const { sessionsByWorkspace } = useHostAcpSessions(selectedHost);
 
 	const sortedProjects = useMemo(
 		() => [...projects].sort((a, b) => a.name.localeCompare(b.name)),
@@ -109,33 +115,25 @@ export function HomeScreen() {
 		[projects],
 	);
 
-	const sessionRowsByWorkspace = useMemo(() => {
-		const rowsByWorkspace = new Map<string, SessionRowData[]>();
-		for (const [workspaceId, sessions] of sessionsByWorkspace) {
-			rowsByWorkspace.set(workspaceId, buildSessionRows(sessions));
-		}
-		return rowsByWorkspace;
-	}, [sessionsByWorkspace]);
-
 	// Recency ranks a group by its latest activity — the newest of the
-	// workspace's own update and its sessions' updates.
+	// workspace's own update and its terminals' activity.
 	const activityTs = useCallback(
 		(workspace: HostWorkspaceItem) => {
 			const workspaceTs = new Date(workspace[sort]).getTime();
 			if (sort !== "updatedAt") return workspaceTs;
-			const sessionTs = (sessionRowsByWorkspace.get(workspace.id) ?? []).reduce(
+			const terminalTs = (terminalsByWorkspace.get(workspace.id) ?? []).reduce(
 				(newest, row) => Math.max(newest, row.ts),
 				0,
 			);
-			return Math.max(workspaceTs, sessionTs);
+			return Math.max(workspaceTs, terminalTs);
 		},
-		[sort, sessionRowsByWorkspace],
+		[sort, terminalsByWorkspace],
 	);
 
 	const visibleWorkspaces = useMemo<HostWorkspaceItem[]>(() => {
 		const needle = searchQuery.trim().toLowerCase();
 		const sessionsMatch = (workspaceId: string) =>
-			(sessionRowsByWorkspace.get(workspaceId) ?? []).some((row) =>
+			(terminalsByWorkspace.get(workspaceId) ?? []).some((row) =>
 				row.title.toLowerCase().includes(needle),
 			);
 		// A record whose worktree folder is gone from the host's disk is a
@@ -169,7 +167,7 @@ export function HomeScreen() {
 		selectedHost,
 		searchQuery,
 		projectNamesById,
-		sessionRowsByWorkspace,
+		terminalsByWorkspace,
 		activityTs,
 	]);
 
@@ -183,10 +181,10 @@ export function HomeScreen() {
 				lastGroup = group;
 			}
 			items.push({ kind: "workspace", workspace });
-			const rows = sessionRowsByWorkspace.get(workspace.id) ?? [];
+			const rows = terminalsByWorkspace.get(workspace.id) ?? [];
 			rows.forEach((row, rowIndex) => {
 				items.push({
-					kind: "session",
+					kind: "terminal",
 					workspaceId: workspace.id,
 					row,
 					groupFirst: rowIndex === 0,
@@ -195,7 +193,7 @@ export function HomeScreen() {
 			});
 		}
 		return items;
-	}, [visibleWorkspaces, sessionRowsByWorkspace, activityTs]);
+	}, [visibleWorkspaces, terminalsByWorkspace, activityTs]);
 
 	const workspacesById = useMemo(
 		() => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -256,7 +254,9 @@ export function HomeScreen() {
 		void queryClient.invalidateQueries({
 			queryKey: ["host-service", "workspaces", "list"],
 		});
-		void queryClient.invalidateQueries({ queryKey: ["acp-sessions", "list"] });
+		void queryClient.invalidateQueries({
+			queryKey: ["host-terminals", "list"],
+		});
 		void queryClient.invalidateQueries({ queryKey: ["diff-stats"] });
 	}, [queryClient]);
 
@@ -270,6 +270,27 @@ export function HomeScreen() {
 		void queryClient.invalidateQueries({ queryKey: ["diff-stats"] });
 		setRefreshing(false);
 	}, [queryClient]);
+
+	const killTerminal = useCallback(
+		(row: TerminalRowData) => {
+			if (!selectedHost) return;
+			const hostUrl = buildRelayHostUrl(
+				selectedHost.organizationId,
+				selectedHost.machineId,
+			);
+			void getHostServiceClientByUrl(hostUrl)
+				.terminal.killSession.mutate({
+					terminalId: row.terminalId,
+					workspaceId: row.workspaceId,
+				})
+				.finally(() => {
+					void queryClient.invalidateQueries({
+						queryKey: getHostTerminalsQueryKey(selectedHost.machineId),
+					});
+				});
+		},
+		[selectedHost, queryClient],
+	);
 
 	// Projects are fully local: PR rows are matched by repo coordinates
 	// parsed from the PR URL (cloud repo UUIDs aren't known host-side).
@@ -321,7 +342,7 @@ export function HomeScreen() {
 						/>
 					);
 				}
-				case "session":
+				case "terminal":
 					return (
 						<View className={cn("ml-7", item.groupLast && "mb-2")}>
 							<View
@@ -331,14 +352,15 @@ export function HomeScreen() {
 									item.groupLast ? "bottom-3" : "bottom-0",
 								)}
 							/>
-							<SessionRow
+							<TerminalRow
 								row={item.row}
 								className="gap-2.5 py-2 pr-4 pl-4"
 								onPress={() =>
 									router.push(
-										`/(authenticated)/workspace/${item.workspaceId}/chat/acp/${item.row.id}`,
+										`/(authenticated)/workspace/${item.workspaceId}/terminal/${item.row.terminalId}`,
 									)
 								}
+								onKill={() => killTerminal(item.row)}
 							/>
 						</View>
 					);
@@ -351,6 +373,7 @@ export function HomeScreen() {
 			cache,
 			router,
 			attentionByWorkspace,
+			killTerminal,
 		],
 	);
 

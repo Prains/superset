@@ -1,14 +1,10 @@
 import { prompt } from "@superset/alert-prompt";
 import type { SelectV2Host } from "@superset/db/schema";
-import { buildHostRoutingKey } from "@superset/shared/host-routing";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
-import * as Crypto from "expo-crypto";
 import { useRouter } from "expo-router";
-import { useState } from "react";
 import { Alert, Share } from "react-native";
 import type { HostWorkspaceRow } from "@/hooks/useHostWorkspaces";
-import { createAcpSession } from "@/lib/host/client";
 import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
@@ -21,37 +17,6 @@ export function useWorkspaceHeaderActions(
 ) {
 	const router = useRouter();
 	const queryClient = useQueryClient();
-	const [creatingChat, setCreatingChat] = useState(false);
-
-	const startNewChat = async () => {
-		if (!workspace || !host || creatingChat) return;
-		setCreatingChat(true);
-		try {
-			const routingKey = buildHostRoutingKey(
-				host.organizationId,
-				host.machineId,
-			);
-			const sessionId = Crypto.randomUUID();
-			await createAcpSession(routingKey, {
-				sessionId,
-				workspaceId: workspace.id,
-			});
-			void queryClient.invalidateQueries({
-				queryKey: ["acp-sessions", "list"],
-			});
-			router.push(
-				`/(authenticated)/workspace/${workspace.id}/chat/acp/${sessionId}`,
-			);
-		} catch (cause) {
-			Alert.alert(
-				"Could not start chat",
-				cause instanceof Error ? cause.message : String(cause),
-			);
-		} finally {
-			setCreatingChat(false);
-		}
-	};
-
 	const renameWorkspace = async () => {
 		if (!workspace) return;
 		if (!host) {
@@ -153,11 +118,9 @@ export function useWorkspaceHeaderActions(
 	};
 
 	return {
-		startNewChat,
 		renameWorkspace,
 		deleteWorkspace,
 		copyId,
 		shareWorkspace,
-		creatingChat,
 	};
 }

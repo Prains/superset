@@ -57,14 +57,6 @@ export default function AuthenticatedLayout() {
 						options={settingsScreenOptions("Billing")}
 					/>
 					<Stack.Screen
-						name="workspace/[id]/chat/[sessionId]"
-						options={{ ...glassHeaderOptions, title: "Chat" }}
-					/>
-					<Stack.Screen
-						name="workspace/[id]/chat/acp/[sessionId]"
-						options={{ ...glassHeaderOptions, title: "Chat" }}
-					/>
-					<Stack.Screen
 						name="workspace/[id]/terminal/[terminalId]"
 						options={{
 							// Solid themed header: the terminal grid starts at the top edge

@@ -65,9 +65,9 @@ import {
 } from "../../stores/chatTargetStore";
 import { VoiceControl } from "./components/VoiceControl";
 import { FOREGROUND, MUTED } from "./constants";
-import { useCreateChatWorkspace } from "./hooks/useCreateChatWorkspace";
+import { useCreateTerminalWorkspace } from "./hooks/useCreateTerminalWorkspace";
 import { useNewChatTargets } from "./hooks/useNewChatTargets";
-import { useStartWorkspaceChat } from "./hooks/useStartWorkspaceChat";
+import { useStartWorkspaceTerminal } from "./hooks/useStartWorkspaceTerminal";
 import { useVoiceDictation } from "./hooks/useVoiceDictation";
 import { useNewChatPreferencesStore } from "./stores/newChatPreferencesStore";
 
@@ -131,7 +131,7 @@ export function NewChatWidget({
 		},
 	});
 
-	const createChatWorkspace = useCreateChatWorkspace();
+	const createTerminalWorkspace = useCreateTerminalWorkspace();
 	const selectedModel = SUPERSET_CHAT_MODELS.find(
 		(model) => model.id === modelId,
 	);
@@ -148,7 +148,7 @@ export function NewChatWidget({
 	const storeTarget = useChatTargetStore((state) => state.target);
 	const clearChatTarget = useChatTargetStore((state) => state.clearTarget);
 	const chatTarget = fixedTarget ?? storeTarget;
-	const startWorkspaceChat = useStartWorkspaceChat(workspaces);
+	const startWorkspaceTerminal = useStartWorkspaceTerminal(workspaces);
 
 	// Collapse whenever the keyboard is away — a draft just clamps to one line.
 	// A picked workspace target keeps the composer open so its chip stays
@@ -184,7 +184,7 @@ export function NewChatWidget({
 	});
 	const voiceActive = dictation.status !== "idle";
 	const isSending =
-		createChatWorkspace.isPending || startWorkspaceChat.isPending;
+		createTerminalWorkspace.isPending || startWorkspaceTerminal.isPending;
 	const showSend = (hasDraft || isSending) && !voiceActive;
 
 	const dismiss = () => {
@@ -226,8 +226,12 @@ export function NewChatWidget({
 		const attachments = controller.attachments.attachments;
 		if (text.trim().length === 0 && attachments.length === 0) return;
 		if (chatTarget) {
-			startWorkspaceChat
-				.mutateAsync({ target: chatTarget, message: { text, attachments } })
+			startWorkspaceTerminal
+				.mutateAsync({
+					target: chatTarget,
+					message: { text, attachments },
+					modelId,
+				})
 				.then(() => {
 					clearChatTarget();
 					clearComposer();
@@ -239,7 +243,7 @@ export function NewChatWidget({
 			Alert.alert("No project on an online host");
 			return;
 		}
-		createChatWorkspace
+		createTerminalWorkspace
 			.mutateAsync({
 				target: selectedTarget,
 				baseBranch,
