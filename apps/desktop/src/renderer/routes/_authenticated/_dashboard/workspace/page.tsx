@@ -1,6 +1,7 @@
 import { Spinner } from "@superset/ui/spinner";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useIsV2CloudEnabled } from "renderer/hooks/useIsV2CloudEnabled";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/workspace/")({
@@ -17,13 +18,23 @@ function LoadingSpinner() {
 
 function WorkspaceIndexPage() {
 	const navigate = useNavigate();
+	const isV2CloudEnabled = useIsV2CloudEnabled();
 	const { data: workspaces, isLoading } =
-		electronTrpc.workspaces.getAllGrouped.useQuery();
+		electronTrpc.workspaces.getAllGrouped.useQuery(undefined, {
+			enabled: !isV2CloudEnabled,
+		});
 
 	const allWorkspaces = workspaces?.flatMap((group) => group.workspaces) ?? [];
 	const hasNoWorkspaces = !isLoading && allWorkspaces.length === 0;
 
 	useEffect(() => {
+		// v2 users must never be routed by the v1 restore logic below — a
+		// stale lastViewedWorkspaceId lands them on a v1 workspace route the
+		// dashboard immediately redirects away from (SUPER-1814).
+		if (isV2CloudEnabled) {
+			navigate({ to: "/new-workspace", replace: true });
+			return;
+		}
 		if (isLoading || !workspaces) return;
 
 		if (allWorkspaces.length === 0) {
@@ -45,7 +56,7 @@ function WorkspaceIndexPage() {
 				replace: true,
 			});
 		}
-	}, [workspaces, isLoading, navigate, allWorkspaces]);
+	}, [workspaces, isLoading, navigate, allWorkspaces, isV2CloudEnabled]);
 
 	if (hasNoWorkspaces) {
 		return <LoadingSpinner />;
