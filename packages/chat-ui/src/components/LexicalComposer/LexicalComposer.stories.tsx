@@ -611,70 +611,7 @@ function ChatScreen() {
 	);
 }
 
-function AutomationForm() {
-	const [payloads, setPayloads] = useState<string[]>([]);
-	const [providers] = useState<ComposerMentionProvider[]>(() => [
-		skillsProvider(0),
-		fileSearchProvider(1),
-	]);
-	return (
-		<div className="flex min-h-screen justify-center bg-background px-6 py-14 text-foreground">
-			<div className="w-full max-w-2xl">
-				<h1 className="mb-6 font-semibold text-xl">New automation</h1>
-				<div className="flex flex-col gap-5 rounded-2xl bg-card p-6 ring-1 ring-border">
-					<label className="flex flex-col gap-1.5">
-						<span className="text-sm text-muted-foreground">Title</span>
-						<input
-							className="rounded-lg bg-secondary px-3 py-2 text-sm outline-none ring-border focus:ring-1"
-							placeholder="Morning triage"
-						/>
-					</label>
-					<div className="flex flex-col gap-1.5">
-						<span className="text-sm text-muted-foreground">Prompt</span>
-						<LexicalComposer
-							placeholder="Describe what the agent should do"
-							mentionProviders={providers}
-							commands={COMMANDS}
-							placement="bottom"
-							onSubmit={({ text, mentions }) =>
-								setPayloads((previous) => [
-									...previous,
-									JSON.stringify({ text, mentions }),
-								])
-							}
-						/>
-					</div>
-					<div className="flex items-center justify-between">
-						<span className="text-sm text-muted-foreground">
-							Every weekday at 9:00
-						</span>
-						<button
-							type="button"
-							className="cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground"
-						>
-							Save automation
-						</button>
-					</div>
-				</div>
-				{payloads.map((payload, index) => (
-					<pre
-						key={`${index}-${payload.slice(0, 12)}`}
-						className="mt-3 overflow-x-auto rounded-lg bg-secondary px-3 py-2 text-xs text-secondary-foreground"
-					>
-						{payload}
-					</pre>
-				))}
-			</div>
-		</div>
-	);
-}
-
 export const ChatScreenExample: Story = {
 	args: { mentionProviders: [], commands: COMMANDS },
 	render: () => <ChatScreen />,
-};
-
-export const AutomationFormExample: Story = {
-	args: { mentionProviders: [], commands: COMMANDS },
-	render: () => <AutomationForm />,
 };
