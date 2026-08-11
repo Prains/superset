@@ -25,6 +25,18 @@ import {
 	type SessionMeta,
 } from "@superset/pty-daemon/protocol";
 
+/**
+ * The daemon didn't answer (request timeout, socket dropped) — distinct from
+ * the daemon answering with an error. Callers treat this as transient: the
+ * supervisor respawns stalled daemons and clients are expected to retry.
+ */
+export class DaemonUnavailableError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "DaemonUnavailableError";
+	}
+}
+
 export interface OpenResult {
 	id: string;
 	pid: number;
@@ -300,12 +312,12 @@ export class DaemonClient {
 					settle(m);
 			});
 			const offDisc = this.onDisconnect((err) =>
-				fail(err ?? new Error("daemon disconnected")),
+				fail(new DaemonUnavailableError(err?.message ?? "daemon disconnected")),
 			);
 			const timer = setTimeout(
 				() =>
 					fail(
-						new Error(
+						new DaemonUnavailableError(
 							`daemon ${req.type} ${id}: timed out after ${timeoutMs}ms`,
 						),
 					),
@@ -351,11 +363,15 @@ export class DaemonClient {
 				if (m.type === "error" && m.id === undefined) settle(m);
 			});
 			const offDisc = this.onDisconnect((err) =>
-				fail(err ?? new Error("daemon disconnected")),
+				fail(new DaemonUnavailableError(err?.message ?? "daemon disconnected")),
 			);
 			const timer = setTimeout(
 				() =>
-					fail(new Error(`daemon ${req.type}: timed out after ${timeoutMs}ms`)),
+					fail(
+						new DaemonUnavailableError(
+							`daemon ${req.type}: timed out after ${timeoutMs}ms`,
+						),
+					),
 				timeoutMs,
 			);
 			const cleanup = () => {

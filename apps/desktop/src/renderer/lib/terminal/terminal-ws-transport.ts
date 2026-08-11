@@ -685,6 +685,24 @@ function attachSocketListeners(
 		}
 
 		if (message.type === "error") {
+			// Transient host-side attach failure (pty-daemon stalled/restarting).
+			// Don't mark terminated: the server closes the socket and partysocket's
+			// capped-backoff loop keeps re-dialing the same create-on-attach URL, so
+			// the pane becomes a live shell once the daemon recovers (host-side
+			// inflight dedupe + already-exists adoption keep the retry idempotent).
+			if (message.code === "attach-retryable") {
+				if (
+					!isWindowHidden() &&
+					(transport._socket?.retryCount ?? 0) < DIAGNOSE_AFTER_ATTEMPTS
+				) {
+					pushLog(
+						transport,
+						"warn",
+						`Terminal not ready: ${message.message} Retrying automatically.`,
+					);
+				}
+				return;
+			}
 			transport.lastDiagnosis = {
 				category: "unknown",
 				message: message.message,
