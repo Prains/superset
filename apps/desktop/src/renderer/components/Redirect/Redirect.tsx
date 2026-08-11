@@ -24,8 +24,14 @@ export function Redirect(props: NavigateOptions) {
 
 	useEffect(() => {
 		if (lastHrefRef.current === href) return;
+		navigate(propsRef.current).catch((error) => {
+			// A route-load/guard failure would otherwise be an unhandled
+			// rejection. Clear the marker so a later render can retry the
+			// same target rather than treating it as permanently done.
+			lastHrefRef.current = null;
+			console.error("[Redirect] navigation failed", { href, error });
+		});
 		lastHrefRef.current = href;
-		void navigate(propsRef.current);
 	}, [href, navigate]);
 
 	return null;

@@ -239,7 +239,9 @@ function DashboardLayout() {
 							// app, which reads as Superset restarting itself
 							// (SUPER-1814). Resets on navigation.
 							<CatchBoundary
-								getResetKey={() => location.pathname}
+								// Full href, not just pathname: a same-path search/hash
+								// change (filter, tab) must also clear a stuck error pane.
+								getResetKey={() => location.href}
 								errorComponent={DashboardContentError}
 							>
 								<Outlet />

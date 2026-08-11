@@ -20,7 +20,14 @@ export function DashboardContentError({ error }: ErrorComponentProps) {
 		console.error("[dashboard] Content route error caught:", error);
 		void import("@sentry/electron/renderer")
 			.then((Sentry) => Sentry.captureException(error))
-			.catch(() => {});
+			.catch((reportError) => {
+				// Don't let a telemetry failure vanish silently — the fallback UI
+				// still renders, but we want the reporting gap to be observable.
+				console.error(
+					"[dashboard] failed to report content error to Sentry",
+					reportError,
+				);
+			});
 	}, [error]);
 
 	return (
@@ -30,7 +37,7 @@ export function DashboardContentError({ error }: ErrorComponentProps) {
 			</div>
 			<div className="flex flex-col items-center gap-1 text-center">
 				<h2 className="text-base font-semibold">This view hit an error</h2>
-				<p className="max-w-md text-sm text-muted-foreground select-text cursor-text">
+				<p className="max-w-md text-sm text-muted-foreground select-text cursor-text break-words">
 					{message}
 				</p>
 			</div>
