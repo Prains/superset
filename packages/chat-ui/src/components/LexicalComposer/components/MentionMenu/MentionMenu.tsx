@@ -36,7 +36,6 @@ export function MentionMenu({
 			role="listbox"
 			className="relative z-50 w-full rounded-2xl bg-popover/95 p-1.5 shadow-xl ring-1 ring-border backdrop-blur-sm"
 		>
-			{/* Fade only the scrolling content so the card chrome stays crisp. */}
 			<div className="scroll-fade max-h-96 overflow-y-auto">
 				{sections.map((section) => (
 					<div key={section.providerId}>
