@@ -61,6 +61,10 @@ export function HeroSection() {
 										segments={HERO_COPY.segments}
 										speed={40}
 										delay={600}
+										// Caret matches the corner-bracket box height (1.22em) for the
+										// whole animation; drawn via scale-y so its layout height stays
+										// 0.72em and can't inflate the line box
+										cursorClassName="inline-block ml-0.5 w-3 -mr-3.5 h-[0.72em] origin-bottom scale-y-[1.694] translate-y-[0.229em] bg-brand"
 									/>
 								</span>
 							</h1>

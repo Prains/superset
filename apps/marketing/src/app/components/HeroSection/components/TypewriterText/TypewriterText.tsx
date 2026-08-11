@@ -8,6 +8,8 @@ interface TextSegment {
 	className?: string;
 	style?: React.CSSProperties;
 	render?: (visibleText: string) => React.ReactNode;
+	/** Overrides the caret style while this segment is being typed */
+	cursorClassName?: string;
 }
 
 interface TypewriterTextProps {
@@ -18,6 +20,7 @@ interface TypewriterTextProps {
 	speed?: number;
 	delay?: number;
 	showCursor?: boolean;
+	cursorClassName?: string;
 }
 
 export function TypewriterText({
@@ -28,6 +31,7 @@ export function TypewriterText({
 	speed = 50,
 	delay = 500,
 	showCursor = true,
+	cursorClassName,
 }: TypewriterTextProps) {
 	const fullText = segments
 		? segments.map((s) => s.text).join("")
@@ -57,13 +61,18 @@ export function TypewriterText({
 
 	const isTypingComplete = isTyping && displayedText.length === fullText.length;
 
-	const cursor = showCursor ? (
-		<motion.span
-			className="inline-block ml-0.5 w-3 -mr-3.5 h-[0.72em] bg-brand"
-			animate={isTypingComplete ? { opacity: 0 } : { opacity: 1 }}
-			transition={isTypingComplete ? { duration: 0.25, delay: 0.5 } : {}}
-		/>
-	) : null;
+	const renderCursor = (override?: string) =>
+		showCursor ? (
+			<motion.span
+				className={
+					override ??
+					cursorClassName ??
+					"inline-block ml-0.5 w-3 -mr-3.5 h-[0.72em] bg-brand"
+				}
+				animate={isTypingComplete ? { opacity: 0 } : { opacity: 1 }}
+				transition={isTypingComplete ? { duration: 0.25, delay: 0.5 } : {}}
+			/>
+		) : null;
 
 	const renderText = () => {
 		if (!segments) return displayedText;
@@ -90,7 +99,7 @@ export function TypewriterText({
 					style={segment.style}
 				>
 					{segment.render ? segment.render(visibleText) : visibleText}
-					{holdsCursor && cursor}
+					{holdsCursor && renderCursor(segment.cursorClassName)}
 				</span>
 			);
 		});
@@ -99,7 +108,7 @@ export function TypewriterText({
 	return (
 		<span className={className} style={style}>
 			{renderText()}
-			{(!segments || displayedText.length === 0) && cursor}
+			{(!segments || displayedText.length === 0) && renderCursor()}
 		</span>
 	);
 }
