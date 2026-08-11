@@ -1,6 +1,7 @@
 "use client";
 
 import { type RefObject, useEffect, useRef, useState } from "react";
+import type { LexicalComposerDictationError } from "../../types";
 
 const BAR_SPACING = 4;
 const BAR_WIDTH = 2;
@@ -9,27 +10,78 @@ const AMPLITUDE_SCALE = 10;
 const SILENCE_FLOOR = 0.0025;
 const SILENCE_ALPHA = 0.35;
 
-export type DictationStatus = "idle" | "recording" | "transcribing";
+export type DictationStatus = "idle" | "recording" | "transcribing" | "error";
 
 export type UseDictationOptions = {
 	transcribe: (audio: Blob) => Promise<string> | string;
 	onTranscript: (text: string) => void;
+	onError?: (error: LexicalComposerDictationError) => void;
 };
 
 export type Dictation = {
 	status: DictationStatus;
 	seconds: number;
+	error: LexicalComposerDictationError | null;
 	canvasRef: RefObject<HTMLCanvasElement | null>;
 	start: () => Promise<void>;
 	finish: () => Promise<void>;
+	retry: () => Promise<void>;
+	discard: () => void;
 };
+
+function describeStartError(error: unknown): LexicalComposerDictationError {
+	const name = error instanceof Error ? error.name : null;
+	if (name === "NotAllowedError" || name === "SecurityError")
+		return {
+			message: "Allow microphone access to use dictation",
+			canRetry: false,
+		};
+	if (
+		name === "NotFoundError" ||
+		name === "DevicesNotFoundError" ||
+		name === "OverconstrainedError"
+	)
+		return {
+			message: "Connect a microphone to use dictation",
+			canRetry: false,
+		};
+	if (name === "NotReadableError" || name === "TrackStartError")
+		return {
+			message: "Close other apps using the microphone",
+			canRetry: false,
+		};
+	if (name === "NotSupportedError" || name === "TypeError")
+		return {
+			message: "Dictation is not available on this device",
+			canRetry: false,
+		};
+	return { message: "Unable to start dictation", canRetry: false };
+}
+
+function describeTranscribeError(
+	error: unknown,
+): LexicalComposerDictationError {
+	const text = error instanceof Error ? error.message.toLowerCase() : "";
+	if (
+		text.includes("fetch failed") ||
+		text.includes("failed to fetch") ||
+		text.includes("network")
+	)
+		return { message: "Check your connection and try again", canRetry: true };
+	return { message: "Unable to transcribe audio", canRetry: true };
+}
 
 export function useDictation({
 	transcribe,
 	onTranscript,
+	onError,
 }: UseDictationOptions): Dictation {
 	const [status, setStatus] = useState<DictationStatus>("idle");
 	const [seconds, setSeconds] = useState(0);
+	const [error, setError] = useState<LexicalComposerDictationError | null>(
+		null,
+	);
+	const retryAudioRef = useRef<Blob | null>(null);
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
 	const sessionRef = useRef<{
 		stream: MediaStream;
@@ -100,8 +152,17 @@ export function useDictation({
 
 	const start = async () => {
 		if (sessionRef.current) return;
-		const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-		const recorder = new MediaRecorder(stream);
+		setError(null);
+		retryAudioRef.current = null;
+		let stream: MediaStream;
+		let recorder: MediaRecorder;
+		try {
+			stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			recorder = new MediaRecorder(stream);
+		} catch (cause) {
+			onError?.(describeStartError(cause));
+			return;
+		}
 		const chunks: Blob[] = [];
 		recorder.ondataavailable = (event) => {
 			if (event.data.size > 0) chunks.push(event.data);
@@ -151,6 +212,24 @@ export function useDictation({
 		};
 	};
 
+	const runTranscription = async (audio: Blob) => {
+		setStatus("transcribing");
+		try {
+			const text = await Promise.resolve(transcribe(audio));
+			if (text) onTranscript(text);
+			retryAudioRef.current = null;
+			setError(null);
+			setStatus("idle");
+		} catch (cause) {
+			// Keep the recording so a retry never loses the user's speech.
+			const described = describeTranscribeError(cause);
+			retryAudioRef.current = audio;
+			setError(described);
+			setStatus("error");
+			onError?.(described);
+		}
+	};
+
 	const finish = async () => {
 		const session = sessionRef.current;
 		if (!session) return;
@@ -163,14 +242,20 @@ export function useDictation({
 		});
 		for (const track of session.stream.getTracks()) track.stop();
 		session.audioContext.close().catch(() => {});
-		setStatus("transcribing");
-		try {
-			const text = await Promise.resolve(transcribe(audio));
-			if (text) onTranscript(text);
-		} finally {
-			setStatus("idle");
-		}
+		await runTranscription(audio);
 	};
 
-	return { status, seconds, canvasRef, start, finish };
+	const retry = async () => {
+		const audio = retryAudioRef.current;
+		if (!audio) return;
+		await runTranscription(audio);
+	};
+
+	const discard = () => {
+		retryAudioRef.current = null;
+		setError(null);
+		setStatus("idle");
+	};
+
+	return { status, seconds, error, canvasRef, start, finish, retry, discard };
 }

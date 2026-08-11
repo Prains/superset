@@ -27,7 +27,13 @@ import {
 	type LexicalNode,
 	PASTE_COMMAND,
 } from "lexical";
-import { ArrowUpIcon, MicIcon, SquareIcon } from "lucide-react";
+import {
+	ArrowUpIcon,
+	MicIcon,
+	RefreshCcwIcon,
+	SquareIcon,
+	XIcon,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useComposerDropZone } from "../../../ComposerDropZone";
@@ -272,6 +278,7 @@ export function ComposerBody({
 
 	const dictationSession = useDictation({
 		transcribe: (audio) => dictation?.transcribe(audio) ?? "",
+		onError: (dictationError) => dictation?.onError?.(dictationError),
 		onTranscript: (text) => {
 			editor.update(() => {
 				$getRoot().selectEnd();
@@ -663,7 +670,37 @@ export function ComposerBody({
 						event.target.value = "";
 					}}
 				/>
-				{dictationSession.status !== "idle" ? (
+				{dictationSession.status === "error" ? (
+					<>
+						<span className="min-w-0 flex-1 truncate pl-1 text-sm text-muted-foreground">
+							{dictationSession.error?.message}
+						</span>
+						<button
+							type="button"
+							aria-label="Retry dictation"
+							onClick={() => void dictationSession.retry()}
+							className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80"
+						>
+							<RefreshCcwIcon className="size-4" />
+						</button>
+						<button
+							type="button"
+							aria-label="Discard recording"
+							onClick={dictationSession.discard}
+							className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						>
+							<XIcon className="size-4" />
+						</button>
+						<button
+							type="button"
+							aria-label="Send message"
+							disabled
+							className="flex size-8 shrink-0 cursor-not-allowed items-center justify-center rounded-lg bg-secondary text-muted-foreground"
+						>
+							<ArrowUpIcon className="size-4.5" />
+						</button>
+					</>
+				) : dictationSession.status !== "idle" ? (
 					<>
 						<DictationBar
 							canvasRef={dictationSession.canvasRef}

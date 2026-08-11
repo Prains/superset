@@ -81,8 +81,16 @@ export type LexicalComposerSubmitPayload = {
 	mentions: ComposerChip[];
 };
 
+export type LexicalComposerDictationError = {
+	message: string;
+	canRetry: boolean;
+};
+
 export type LexicalComposerDictation = {
 	transcribe(audio: Blob): Promise<string> | string;
+	// Surfaced for app-owned toasts; retryable failures also keep the
+	// recording and show retry controls in the composer row.
+	onError?(error: LexicalComposerDictationError): void;
 };
 
 export type LexicalComposerProps = {

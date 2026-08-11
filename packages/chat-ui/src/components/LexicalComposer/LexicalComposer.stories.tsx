@@ -25,8 +25,9 @@ import {
 	SplitIcon,
 	ZapIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ComposerDropZone } from "../ComposerDropZone";
+import { ScrollToBottomButton } from "../ScrollToBottomButton";
 import { LexicalComposer } from "./LexicalComposer";
 import type {
 	ComposerMentionEntry,
@@ -472,9 +473,12 @@ function ChatScreen() {
 		fileSearchProvider(5),
 	]);
 
+	const noticeTimerRef = useRef<number | null>(null);
 	const showNotice = (text: string) => {
 		setFileNotice(text);
-		window.setTimeout(() => setFileNotice(null), 2500);
+		if (noticeTimerRef.current != null)
+			window.clearTimeout(noticeTimerRef.current);
+		noticeTimerRef.current = window.setTimeout(() => setFileNotice(null), 2500);
 	};
 
 	const commands: LexicalComposerCommand[] = [
@@ -608,7 +612,10 @@ function ChatScreen() {
 							)}
 						</MessageScroller.Content>
 					</MessageScroller.Viewport>
-					<div className="mx-auto w-full max-w-3xl px-6 pb-[18px]">
+					<div className="relative mx-auto w-full max-w-3xl px-6 pb-[18px]">
+						<div className="pointer-events-none absolute inset-x-0 -top-12 flex justify-center">
+							<ScrollToBottomButton />
+						</div>
 						{fileNotice && (
 							<p className="pb-2 text-xs text-muted-foreground">{fileNotice}</p>
 						)}
@@ -619,8 +626,13 @@ function ChatScreen() {
 							dictation={{
 								transcribe: async () => {
 									await new Promise((resolve) => setTimeout(resolve, 900));
+									if (
+										(window as { __failTranscribe?: boolean }).__failTranscribe
+									)
+										throw new Error("fetch failed");
 									return "Tighten the composer spacing and ship it.";
 								},
+								onError: (error) => showNotice(error.message),
 							}}
 							status={streaming ? "streaming" : "ready"}
 							toolbar={<DemoToolbar planMode={planMode} model={model} />}
