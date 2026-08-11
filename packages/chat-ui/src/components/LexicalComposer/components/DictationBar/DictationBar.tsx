@@ -14,7 +14,7 @@ function formatElapsed(seconds: number): string {
 
 export function DictationBar({ canvasRef, seconds }: DictationBarProps) {
 	return (
-		<div className="flex min-w-0 flex-1 items-center gap-3 pl-2">
+		<div className="flex min-w-0 flex-1 items-center gap-3">
 			<canvas
 				ref={canvasRef}
 				className="h-7 min-w-0 flex-1 text-muted-foreground"
