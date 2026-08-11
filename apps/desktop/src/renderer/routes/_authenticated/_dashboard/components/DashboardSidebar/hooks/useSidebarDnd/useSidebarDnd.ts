@@ -4,9 +4,12 @@ import {
 	type DragEndEvent,
 	type DragOverEvent,
 	type DragStartEvent,
+	getFirstCollision,
 	KeyboardSensor,
 	MeasuringStrategy,
 	MouseSensor,
+	pointerWithin,
+	rectIntersection,
 	TouchSensor,
 	type UniqueIdentifier,
 	useSensor,
@@ -506,37 +509,90 @@ export function useSidebarDnd({
 	// while dragging a workspace. Restrict targets by drag kind: projects sort
 	// among projects, sections within their project, and a workspace may only
 	// target the Pinned section or its home container.
+	//
+	// Workspace drags additionally must NOT use bare closestCenter: their two
+	// allowed containers (Pinned at the top, home lower down) can sit far
+	// apart, and in the gap between them "closest" flips on sub-pixel movement
+	// — and on the layout shift a container transfer itself causes, which
+	// re-measures and flips it again with the pointer stationary. That
+	// feedback loop transfers the row back and forth until React aborts with
+	// "Maximum update depth exceeded". Use dnd-kit's multi-container strategy
+	// instead: pointer containment first, then rect intersection, then the
+	// cached last hit — plus a one-frame freeze right after each transfer so
+	// the post-transfer re-measure can't immediately re-trigger.
+
+	const lastOverIdRef = useRef<UniqueIdentifier | null>(null);
+	const recentlyMovedToNewContainerRef = useRef(false);
+
+	useEffect(() => {
+		requestAnimationFrame(() => {
+			recentlyMovedToNewContainerRef.current = false;
+		});
+	}, []);
 
 	const collisionDetection = useCallback<CollisionDetection>(
 		(args) => {
 			const type = typeOf(args.active.id);
-			let isAllowed: ((id: UniqueIdentifier) => boolean) | null = null;
 
 			if (type === "project") {
-				isAllowed = (id) => projectIds.has(String(id));
-			} else if (type === "section") {
+				return closestCenter({
+					...args,
+					droppableContainers: args.droppableContainers.filter((container) =>
+						projectIds.has(String(container.id)),
+					),
+				});
+			}
+
+			if (type === "section") {
 				const container = containerByIdRef.current.get(args.active.id);
-				isAllowed = (id) =>
-					container != null && containerByIdRef.current.get(id) === container;
-			} else if (type === "workspace") {
+				return closestCenter({
+					...args,
+					droppableContainers: args.droppableContainers.filter(
+						(candidate) =>
+							container != null &&
+							containerByIdRef.current.get(candidate.id) === container,
+					),
+				});
+			}
+
+			if (type === "workspace") {
+				if (recentlyMovedToNewContainerRef.current) {
+					lastOverIdRef.current = args.active.id;
+					return [{ id: args.active.id }];
+				}
+
 				const parsed = parseId(args.active.id);
 				const ws = parsed ? workspacesById.get(parsed.realId) : null;
 				const home = ws ? (ws.projectId ?? SESSIONS_CONTAINER) : null;
-				isAllowed = (id) => {
-					const container =
-						parseDropZoneId(id) ?? containerByIdRef.current.get(id);
-					return container === PINNED_CONTAINER || container === home;
-				};
+				const droppableContainers = args.droppableContainers.filter(
+					(candidate) => {
+						const container =
+							parseDropZoneId(candidate.id) ??
+							containerByIdRef.current.get(candidate.id);
+						return container === PINNED_CONTAINER || container === home;
+					},
+				);
+
+				const pointerCollisions = pointerWithin({
+					...args,
+					droppableContainers,
+				});
+				const collisions =
+					pointerCollisions.length > 0
+						? pointerCollisions
+						: rectIntersection({ ...args, droppableContainers });
+				const overId = getFirstCollision(collisions, "id");
+				if (overId != null) {
+					lastOverIdRef.current = overId;
+					return collisions;
+				}
+				// Pointer is over disallowed territory (another project's rows, the
+				// gap between containers): hold the last real hit instead of
+				// snapping to whichever allowed target happens to be "closest".
+				return lastOverIdRef.current ? [{ id: lastOverIdRef.current }] : [];
 			}
 
-			if (!isAllowed) return closestCenter(args);
-			const allowed = isAllowed;
-			return closestCenter({
-				...args,
-				droppableContainers: args.droppableContainers.filter((container) =>
-					allowed(container.id),
-				),
-			});
+			return closestCenter(args);
 		},
 		[typeOf, projectIds, workspacesById],
 	);
@@ -619,6 +675,8 @@ export function useSidebarDnd({
 
 	const onDragStart = useCallback(({ active }: DragStartEvent) => {
 		activeIdRef.current = active.id;
+		lastOverIdRef.current = null;
+		recentlyMovedToNewContainerRef.current = false;
 		setActiveId(active.id);
 		clonedRef.current = itemsRef.current;
 	}, []);
@@ -660,6 +718,7 @@ export function useSidebarDnd({
 				newIndex = overIndex + (isBelowOverItem ? 1 : 0);
 			}
 			target.splice(newIndex, 0, active.id);
+			recentlyMovedToNewContainerRef.current = true;
 			commitDragItems(
 				withContainerList(
 					withContainerList(current, sourceContainer, source),
