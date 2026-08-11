@@ -88,7 +88,7 @@ export function AttachmentPills({
 									className="size-full object-cover"
 									onError={() => onPreviewError?.(attachment.id)}
 								/>
-								<span className="pointer-events-none absolute inset-0 bg-foreground/[0.04] opacity-0 transition-opacity duration-150 group-hover/attachment:opacity-100" />
+								<span className="pointer-events-none absolute inset-0 bg-foreground/[0.02] opacity-0 transition-opacity duration-150 group-hover/attachment:opacity-100" />
 							</button>
 							<RemoveButton onClick={() => onRemove(attachment.id)} />
 						</div>
@@ -101,7 +101,7 @@ export function AttachmentPills({
 							onClick={() => onAttachmentClick?.(attachment)}
 							className="group/attachment relative flex h-16 w-[200px] cursor-pointer items-center gap-2.5 overflow-hidden rounded-xl border-[0.5px] border-border bg-foreground/[0.03] px-2.5 text-left"
 						>
-							<span className="pointer-events-none absolute inset-0 bg-foreground/[0.04] opacity-0 transition-opacity duration-150 group-hover/attachment:opacity-100" />
+							<span className="pointer-events-none absolute inset-0 bg-foreground/[0.02] opacity-0 transition-opacity duration-150 group-hover/attachment:opacity-100" />
 							<div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06]">
 								{fileTypeIcon(extension)}
 							</div>
