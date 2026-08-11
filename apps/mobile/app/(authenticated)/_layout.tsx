@@ -63,6 +63,19 @@ export default function AuthenticatedLayout() {
 						options={{ ...glassHeaderOptions, title: "Chat" }}
 					/>
 					<Stack.Screen
+						name="workspace/[id]/terminal/[terminalId]"
+						options={{
+							// Solid themed header: the terminal grid starts at the top edge
+							// and must not render under glass.
+							headerShown: true,
+							headerBackButtonDisplayMode: "minimal",
+							headerShadowVisible: false,
+							title: "Terminal",
+							// Horizontal swipes belong to the terminal — back stays edge-only.
+							fullScreenGestureEnabled: false,
+						}}
+					/>
+					<Stack.Screen
 						name="workspace/[id]/diff"
 						options={{ ...glassHeaderOptions, title: "Changes" }}
 					/>
