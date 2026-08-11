@@ -57,6 +57,26 @@ export function TypewriterText({
 
 	const isTypingComplete = isTyping && displayedText.length === fullText.length;
 
+	const cursor = showCursor ? (
+		<motion.span
+			className="inline-block ml-0.5 w-3 -mr-3.5 h-[1em] bg-brand translate-y-0.5"
+			animate={
+				isTypingComplete
+					? { opacity: [1, 1, 0, 0, 1, 1, 0, 0] }
+					: { opacity: 1 }
+			}
+			transition={
+				isTypingComplete
+					? {
+							duration: 1.6,
+							times: [0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1],
+							ease: "linear",
+						}
+					: {}
+			}
+		/>
+	) : null;
+
 	const renderText = () => {
 		if (!segments) return displayedText;
 
@@ -71,18 +91,9 @@ export function TypewriterText({
 				0,
 				Math.min(segment.text.length, displayedText.length - segStart),
 			);
-
-			if (segment.render) {
-				return (
-					<span
-						key={segment.text}
-						className={segment.className}
-						style={segment.style}
-					>
-						{segment.render(visibleText)}
-					</span>
-				);
-			}
+			// The caret lives inside the segment being typed so decorated
+			// segments (e.g. corner-brackets) keep it within their box
+			const holdsCursor = displayedText.length <= charIndex;
 
 			return (
 				<span
@@ -90,7 +101,8 @@ export function TypewriterText({
 					className={segment.className}
 					style={segment.style}
 				>
-					{visibleText}
+					{segment.render ? segment.render(visibleText) : visibleText}
+					{holdsCursor && cursor}
 				</span>
 			);
 		});
@@ -99,25 +111,7 @@ export function TypewriterText({
 	return (
 		<span className={className} style={style}>
 			{renderText()}
-			{showCursor && (
-				<motion.span
-					className="inline-block ml-0.5 w-3 -mr-3.5 h-[1em] bg-brand translate-y-0.5"
-					animate={
-						isTypingComplete
-							? { opacity: [1, 1, 0, 0, 1, 1, 0, 0] }
-							: { opacity: 1 }
-					}
-					transition={
-						isTypingComplete
-							? {
-									duration: 1.6,
-									times: [0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1],
-									ease: "linear",
-								}
-							: {}
-					}
-				/>
-			)}
+			{(!segments || displayedText.length === 0) && cursor}
 		</span>
 	);
 }
