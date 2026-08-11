@@ -633,6 +633,8 @@ function ComposerOnly() {
 						},
 					}}
 					onSubmit={() => {}}
+					onAttachmentClick={() => {}}
+					onChipClick={() => {}}
 				/>
 			</div>
 		</div>
