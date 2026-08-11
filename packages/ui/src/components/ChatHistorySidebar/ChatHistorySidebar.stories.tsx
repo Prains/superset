@@ -90,7 +90,6 @@ const fewMessages = toMessages(EXCHANGES.slice(0, 5));
 const belowMinimum = toMessages(EXCHANGES.slice(0, 3));
 
 const meta = {
-	title: "Components/ChatHistorySidebar",
 	component: ChatHistorySidebar,
 	parameters: { layout: "fullscreen" },
 } satisfies Meta<typeof ChatHistorySidebar>;

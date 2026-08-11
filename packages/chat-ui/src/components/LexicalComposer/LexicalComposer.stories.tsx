@@ -419,7 +419,6 @@ function DemoToolbar({
 }
 
 const meta = {
-	title: "ChatUI/LexicalComposer",
 	component: LexicalComposer,
 	parameters: { layout: "fullscreen" },
 } satisfies Meta<typeof LexicalComposer>;

@@ -2,9 +2,13 @@ import type { StorybookConfig } from "@storybook/react-vite";
 import tailwindcss from "@tailwindcss/vite";
 
 const config: StorybookConfig = {
+	// Titles derive from each story file's path under these directories.
 	stories: [
-		"../src/**/*.stories.@(ts|tsx)",
-		"../../chat-ui/src/**/*.stories.@(ts|tsx)",
+		{ directory: "../src/components", files: "**/*.stories.@(ts|tsx)" },
+		{
+			directory: "../../chat-ui/src/components",
+			files: "**/*.stories.@(ts|tsx)",
+		},
 	],
 	framework: "@storybook/react-vite",
 	viteFinal: (viteConfig) => {
