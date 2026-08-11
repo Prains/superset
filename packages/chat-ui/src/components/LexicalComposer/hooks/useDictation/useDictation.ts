@@ -26,7 +26,7 @@ export type Dictation = {
 	start: () => Promise<void>;
 	finish: () => Promise<void>;
 	retry: () => Promise<void>;
-	discard: () => void;
+	cancel: () => void;
 };
 
 function describeStartError(error: unknown): LexicalComposerDictationError {
@@ -251,11 +251,21 @@ export function useDictation({
 		await runTranscription(audio);
 	};
 
-	const discard = () => {
+	// Abort without transcribing: tears down a live recording or clears the
+	// error state.
+	const cancel = () => {
+		const session = sessionRef.current;
+		if (session) {
+			sessionRef.current = null;
+			cancelAnimationFrame(session.frame);
+			session.recorder.stop();
+			for (const track of session.stream.getTracks()) track.stop();
+			session.audioContext.close().catch(() => {});
+		}
 		retryAudioRef.current = null;
 		setError(null);
 		setStatus("idle");
 	};
 
-	return { status, seconds, error, canvasRef, start, finish, retry, discard };
+	return { status, seconds, error, canvasRef, start, finish, retry, cancel };
 }

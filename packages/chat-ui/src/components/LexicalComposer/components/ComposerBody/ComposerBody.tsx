@@ -423,6 +423,25 @@ export function ComposerBody({
 		void entry.select(actionContextRef.current);
 	};
 
+	// Escape aborts dictation without transcribing; it outranks every other
+	// Escape behavior while a recording or failed transcription is active.
+	useEffect(() => {
+		if (
+			dictationSession.status !== "recording" &&
+			dictationSession.status !== "error"
+		)
+			return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") return;
+			event.preventDefault();
+			event.stopPropagation();
+			dictationSession.cancel();
+		};
+		window.addEventListener("keydown", onKeyDown, { capture: true });
+		return () =>
+			window.removeEventListener("keydown", onKeyDown, { capture: true });
+	});
+
 	// Browse-mode keyboard: the editor may not be focused, so listen globally.
 	useEffect(() => {
 		if (!browseOpen) return;
@@ -686,7 +705,7 @@ export function ComposerBody({
 						<button
 							type="button"
 							aria-label="Discard recording"
-							onClick={dictationSession.discard}
+							onClick={dictationSession.cancel}
 							className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						>
 							<XIcon className="size-4" />
@@ -732,7 +751,10 @@ export function ComposerBody({
 							<button
 								type="button"
 								aria-label="Dictate"
-								onClick={() => void dictationSession.start()}
+								onClick={() => {
+									setBrowseOpen(false);
+									void dictationSession.start();
+								}}
 								className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 							>
 								<MicIcon className="size-4.5" />
