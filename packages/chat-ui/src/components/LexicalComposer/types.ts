@@ -4,6 +4,8 @@ export type ComposerChip = {
 	label: string;
 	serialized: string;
 	brandColor?: string;
+	// Icon as a URL string so chips stay serializable data.
+	iconUrl?: string;
 	data?: unknown;
 };
 

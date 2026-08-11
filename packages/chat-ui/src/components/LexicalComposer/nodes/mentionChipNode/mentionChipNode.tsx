@@ -12,10 +12,12 @@ function MentionChipComponent({
 	nodeKey,
 	label,
 	brandColor,
+	iconUrl,
 }: {
 	nodeKey: NodeKey;
 	label: string;
 	brandColor: string | null;
+	iconUrl: string | null;
 }) {
 	const [isSelected] = useLexicalNodeSelection(nodeKey);
 	return (
@@ -29,7 +31,12 @@ function MentionChipComponent({
 					: undefined
 			}
 		>
-			{label}
+			{iconUrl && (
+				<span className="lexical-composer-chip-icon">
+					<img src={iconUrl} alt="" draggable={false} />
+				</span>
+			)}
+			<span className="lexical-composer-chip-label">{label}</span>
 		</span>
 	);
 }
@@ -39,6 +46,7 @@ export type SerializedMentionChipNode = Spread<
 		label: string;
 		serialized: string;
 		brandColor: string | null;
+		iconUrl: string | null;
 		dataJson: string | null;
 	},
 	SerializedLexicalNode
@@ -48,6 +56,7 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 	__label: string;
 	__serialized: string;
 	__brandColor: string | null;
+	__iconUrl: string | null;
 	__dataJson: string | null;
 
 	static getType(): string {
@@ -59,6 +68,7 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 			node.__label,
 			node.__serialized,
 			node.__brandColor,
+			node.__iconUrl,
 			node.__dataJson,
 			node.__key,
 		);
@@ -68,6 +78,7 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 		label: string,
 		serialized: string,
 		brandColor: string | null,
+		iconUrl: string | null,
 		dataJson: string | null,
 		key?: NodeKey,
 	) {
@@ -75,6 +86,7 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 		this.__label = label;
 		this.__serialized = serialized;
 		this.__brandColor = brandColor;
+		this.__iconUrl = iconUrl;
 		this.__dataJson = dataJson;
 	}
 
@@ -83,6 +95,7 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 			chip.label,
 			chip.serialized,
 			chip.brandColor ?? null,
+			chip.iconUrl ?? null,
 			chip.data === undefined ? null : JSON.stringify(chip.data),
 		);
 	}
@@ -92,6 +105,7 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 			label: this.__label,
 			serialized: this.__serialized,
 			brandColor: this.__brandColor ?? undefined,
+			iconUrl: this.__iconUrl ?? undefined,
 			data: this.__dataJson == null ? undefined : JSON.parse(this.__dataJson),
 		};
 	}
@@ -101,6 +115,7 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 			serialized.label,
 			serialized.serialized,
 			serialized.brandColor,
+			serialized.iconUrl,
 			serialized.dataJson,
 		);
 	}
@@ -112,6 +127,7 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 			label: this.__label,
 			serialized: this.__serialized,
 			brandColor: this.__brandColor,
+			iconUrl: this.__iconUrl,
 			dataJson: this.__dataJson,
 		};
 	}
@@ -138,6 +154,7 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 				nodeKey={this.__key}
 				label={this.__label}
 				brandColor={this.__brandColor}
+				iconUrl={this.__iconUrl}
 			/>
 		);
 	}

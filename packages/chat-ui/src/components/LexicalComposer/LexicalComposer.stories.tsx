@@ -179,6 +179,7 @@ function pluginsProvider(priority: number): ComposerMentionProvider {
 						ctx.insertChip({
 							label: plugin.label,
 							serialized: `plugin://${plugin.id}`,
+							iconUrl: `https://www.google.com/s2/favicons?domain=${plugin.domain}&sz=64`,
 							data: { plugin: plugin.id },
 						}),
 				})),
@@ -273,6 +274,7 @@ function workspacesProvider(priority: number): ComposerMentionProvider {
 						ctx.insertChip({
 							label: name,
 							serialized: `workspace://${name}`,
+							iconUrl: getPresetIcon("superset", true),
 							data: { workspace: name },
 						}),
 				}));
@@ -300,6 +302,7 @@ function conversationsProvider(priority: number): ComposerMentionProvider {
 						ctx.insertChip({
 							label: conversation.title,
 							serialized: `conversation://${conversation.id}`,
+							iconUrl: getPresetIcon(conversation.agent, true),
 							data: {
 								conversationId: conversation.id,
 								agent: conversation.agent,
