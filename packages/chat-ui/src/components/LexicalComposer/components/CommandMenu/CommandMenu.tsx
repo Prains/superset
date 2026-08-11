@@ -23,7 +23,7 @@ export function CommandMenu({
 	return (
 		<div
 			role="listbox"
-			className="relative z-50 max-h-96 w-full overflow-y-auto rounded-2xl bg-popover/95 p-1.5 shadow-xl ring-1 ring-border backdrop-blur-sm"
+			className="scroll-fade relative z-50 max-h-96 w-full overflow-y-auto rounded-2xl bg-popover/95 p-1.5 shadow-xl ring-1 ring-border backdrop-blur-sm"
 		>
 			{commands.map((command, index) => {
 				const group = command.group ?? null;
