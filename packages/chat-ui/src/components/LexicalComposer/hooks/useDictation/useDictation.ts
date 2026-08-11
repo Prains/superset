@@ -70,23 +70,31 @@ export function useDictation({
 		context.clearRect(0, 0, width, height);
 		context.fillStyle = getComputedStyle(canvas).color;
 		const barCount = Math.max(1, Math.floor(width / BAR_SPACING));
-		const bars = historyRef.current.slice(-barCount);
-		const firstVoiced = bars.findIndex((value) => value > SILENCE_FLOOR);
+		const recorded = historyRef.current.slice(-barCount);
+		// Left-pad with silence so the full track shows from the first frame;
+		// new bars enter at the right edge and scroll left.
+		const padCount = barCount - recorded.length;
+		const firstVoiced = recorded.findIndex((value) => value > SILENCE_FLOOR);
 		const midline = height / 2;
-		bars.forEach((value, index) => {
+		for (let index = 0; index < barCount; index += 1) {
+			const value =
+				index < padCount ? SILENCE_FLOOR : recorded[index - padCount];
 			const radius = Math.max(
 				0.75,
-				Math.min(midline - 1, value * AMPLITUDE_SCALE * midline),
+				Math.min(
+					midline - 1,
+					(value ?? SILENCE_FLOOR) * AMPLITUDE_SCALE * midline,
+				),
 			);
-			context.globalAlpha =
-				firstVoiced === -1 || index < firstVoiced ? SILENCE_ALPHA : 1;
+			const voiced = firstVoiced !== -1 && index - padCount >= firstVoiced;
+			context.globalAlpha = voiced ? 1 : SILENCE_ALPHA;
 			context.fillRect(
 				index * BAR_SPACING,
 				midline - radius,
 				BAR_WIDTH,
 				radius * 2,
 			);
-		});
+		}
 		context.globalAlpha = 1;
 	};
 
@@ -118,12 +126,17 @@ export function useDictation({
 			const rms = Math.sqrt(sum / samples.length);
 			bucketPeakRef.current = Math.max(bucketPeakRef.current, rms);
 			const now = performance.now();
+			// A stalled frame can span several bar intervals; every missed bar
+			// gets the measured peak so gaps never read as sudden silence.
+			const peak = Math.max(SILENCE_FLOOR, bucketPeakRef.current);
+			let pushed = false;
 			while (now >= nextBarAtRef.current) {
-				historyRef.current.push(Math.max(SILENCE_FLOOR, bucketPeakRef.current));
+				historyRef.current.push(peak);
 				if (historyRef.current.length > 4096) historyRef.current.shift();
-				bucketPeakRef.current = 0;
 				nextBarAtRef.current += BAR_INTERVAL_MS;
+				pushed = true;
 			}
+			if (pushed) bucketPeakRef.current = 0;
 			setSeconds(Math.floor((now - startedAtRef.current) / 1000));
 			draw();
 			const session = sessionRef.current;
