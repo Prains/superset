@@ -27,10 +27,11 @@ import {
 	type LexicalNode,
 	PASTE_COMMAND,
 } from "lexical";
-import { ArrowUpIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, MicIcon, SquareIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useComposerDropZone } from "../../../ComposerDropZone";
+import { useDictation } from "../../hooks/useDictation";
 import { useMentionSources } from "../../hooks/useMentionSources";
 import { MentionChipNode } from "../../nodes/mentionChipNode";
 import type {
@@ -51,6 +52,7 @@ import { AttachmentPills } from "../AttachmentPills";
 import { CommandMenu } from "../CommandMenu";
 import { ComposerPanel } from "../ComposerPanel";
 import { ContextButton } from "../ContextButton";
+import { DictationBar } from "../DictationBar";
 import { MentionMenu } from "../MentionMenu";
 
 // Slash commands only trigger while the "/token" is the entire message.
@@ -71,6 +73,7 @@ export type ComposerBodyProps = Required<
 		LexicalComposerProps,
 		| "mentionProviders"
 		| "commands"
+		| "dictation"
 		| "toolbar"
 		| "onSubmit"
 		| "onStop"
@@ -112,6 +115,7 @@ export function ComposerBody({
 	placeholder,
 	mentionProviders,
 	commands,
+	dictation,
 	status,
 	placement,
 	toolbar,
@@ -129,6 +133,7 @@ export function ComposerBody({
 	const [dragging, setDragging] = useState(false);
 	const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 	const [commandQuery, setCommandQuery] = useState<string | null>(null);
+	const [commandDismissed, setCommandDismissed] = useState(false);
 	const [panel, setPanel] = useState<ComposerPanelContent | null>(null);
 	const [menuSlot, setMenuSlot] = useState<HTMLDivElement | null>(null);
 	const [browseOpen, setBrowseOpen] = useState(false);
@@ -188,6 +193,10 @@ export function ComposerBody({
 		// The two menu modes are mutually exclusive: typing "@" replaces browse.
 		if (mentionQuery != null) setBrowseOpen(false);
 	}, [mentionQuery]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset dismissal whenever the token changes
+	useEffect(() => {
+		setCommandDismissed(false);
+	}, [commandQuery]);
 	const mentionOptions = useMemo(
 		() =>
 			sections.flatMap((section) =>
@@ -260,6 +269,24 @@ export function ComposerBody({
 	};
 	const submitRef = useRef(submit);
 	submitRef.current = submit;
+
+	const dictationSession = useDictation({
+		transcribe: (audio) => dictation?.transcribe(audio) ?? "",
+		onTranscript: (text) => {
+			editor.update(() => {
+				$getRoot().selectEnd();
+				const selection = $getSelection();
+				if (!$isRangeSelection(selection)) return;
+				const anchorNode = selection.anchor.getNode();
+				const offset = selection.anchor.offset;
+				const previousChar = $isTextNode(anchorNode)
+					? anchorNode.getTextContent()[offset - 1]
+					: undefined;
+				const needsSpace = previousChar != null && !/\s/.test(previousChar);
+				selection.insertText(needsSpace ? ` ${text}` : text);
+			});
+		},
+	});
 
 	useEffect(() => {
 		const unregisterText = editor.registerTextContentListener((text) =>
@@ -434,6 +461,7 @@ export function ComposerBody({
 			}
 			setBrowseOpen(false);
 			setTypeaheadDismissed(true);
+			setCommandDismissed(true);
 		};
 		document.addEventListener("pointerdown", onPointerDown);
 		return () => document.removeEventListener("pointerdown", onPointerDown);
@@ -598,7 +626,10 @@ export function ComposerBody({
 						anchorElementRef,
 						{ selectedIndex, selectOptionAndCleanUp, setHighlightedIndex },
 					) =>
-						anchorElementRef.current && menuSlot && rankedCommands.length > 0
+						anchorElementRef.current &&
+						menuSlot &&
+						!commandDismissed &&
+						rankedCommands.length > 0
 							? createPortal(
 									<CommandMenu
 										commands={rankedCommands}
@@ -618,7 +649,10 @@ export function ComposerBody({
 				/>
 			</div>
 			<div className="flex min-h-12 items-center gap-1 px-3 pb-2.5">
-				<ContextButton onClick={toggleBrowseMenu} />
+				<ContextButton
+					onClick={toggleBrowseMenu}
+					disabled={dictationSession.status !== "idle"}
+				/>
 				<input
 					ref={fileInputRef}
 					type="file"
@@ -629,32 +663,70 @@ export function ComposerBody({
 						event.target.value = "";
 					}}
 				/>
-				{toolbar}
-				<div className="flex-1" />
-				{status === "streaming" ? (
-					<button
-						type="button"
-						aria-label="Stop response"
-						onClick={onStop}
-						className="flex size-8 cursor-pointer items-center justify-center rounded-lg bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80"
-					>
-						<SquareIcon className="size-3.5 fill-current" />
-					</button>
+				{dictationSession.status !== "idle" ? (
+					<>
+						<DictationBar
+							canvasRef={dictationSession.canvasRef}
+							seconds={dictationSession.seconds}
+						/>
+						<button
+							type="button"
+							aria-label="Stop dictation"
+							disabled={dictationSession.status === "transcribing"}
+							onClick={() => void dictationSession.finish()}
+							className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80 disabled:cursor-default disabled:opacity-50"
+						>
+							<SquareIcon className="size-3.5 fill-current" />
+						</button>
+						<button
+							type="button"
+							aria-label="Send message"
+							disabled
+							className="flex size-8 shrink-0 cursor-not-allowed items-center justify-center rounded-lg bg-secondary text-muted-foreground"
+						>
+							<ArrowUpIcon className="size-4.5" />
+						</button>
+					</>
 				) : (
-					<button
-						type="button"
-						aria-label="Send message"
-						disabled={!canSend}
-						onClick={submit}
-						className={cn(
-							"flex size-8 items-center justify-center rounded-lg transition-colors",
-							canSend
-								? "cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
-								: "cursor-not-allowed bg-secondary text-muted-foreground",
+					<>
+						{toolbar}
+						<div className="flex-1" />
+						{dictation && status !== "streaming" && (
+							<button
+								type="button"
+								aria-label="Dictate"
+								onClick={() => void dictationSession.start()}
+								className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							>
+								<MicIcon className="size-4.5" />
+							</button>
 						)}
-					>
-						<ArrowUpIcon className="size-4.5" />
-					</button>
+						{status === "streaming" ? (
+							<button
+								type="button"
+								aria-label="Stop response"
+								onClick={onStop}
+								className="flex size-8 cursor-pointer items-center justify-center rounded-lg bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80"
+							>
+								<SquareIcon className="size-3.5 fill-current" />
+							</button>
+						) : (
+							<button
+								type="button"
+								aria-label="Send message"
+								disabled={!canSend}
+								onClick={submit}
+								className={cn(
+									"flex size-8 items-center justify-center rounded-lg transition-colors",
+									canSend
+										? "cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
+										: "cursor-not-allowed bg-secondary text-muted-foreground",
+								)}
+							>
+								<ArrowUpIcon className="size-4.5" />
+							</button>
+						)}
+					</>
 				)}
 			</div>
 		</div>

@@ -19,6 +19,7 @@ export type {
 	ComposerPanelContent,
 	LexicalComposerAttachment,
 	LexicalComposerCommand,
+	LexicalComposerDictation,
 	LexicalComposerProps,
 	LexicalComposerSubmitPayload,
 } from "./types";
@@ -27,6 +28,7 @@ export function LexicalComposer({
 	placeholder = "Do anything",
 	mentionProviders,
 	commands,
+	dictation,
 	status = "ready",
 	placement = "top",
 	toolbar,
@@ -52,6 +54,7 @@ export function LexicalComposer({
 					placeholder={placeholder}
 					mentionProviders={mentionProviders}
 					commands={commands}
+					dictation={dictation}
 					status={status}
 					placement={placement}
 					toolbar={toolbar}

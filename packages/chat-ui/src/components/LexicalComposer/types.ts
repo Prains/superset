@@ -81,12 +81,18 @@ export type LexicalComposerSubmitPayload = {
 	mentions: ComposerChip[];
 };
 
+export type LexicalComposerDictation = {
+	transcribe(audio: Blob): Promise<string> | string;
+};
+
 export type LexicalComposerProps = {
 	placeholder?: string;
 	mentionProviders: ComposerMentionProvider[];
 	commands: LexicalComposerCommand[];
 	status?: "ready" | "streaming";
 	placement?: "top" | "bottom";
+	// Enables the mic button; the app owns speech-to-text.
+	dictation?: LexicalComposerDictation;
 	toolbar?: ReactNode;
 	onSubmit?: (payload: LexicalComposerSubmitPayload) => void;
 	onStop?: () => void;

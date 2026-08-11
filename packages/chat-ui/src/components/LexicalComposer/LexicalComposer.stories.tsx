@@ -569,6 +569,12 @@ function ChatScreen() {
 							placeholder="Ask to make changes, @mention files, run /commands"
 							mentionProviders={providers}
 							commands={commands}
+							dictation={{
+								transcribe: async () => {
+									await new Promise((resolve) => setTimeout(resolve, 900));
+									return "Tighten the composer spacing and ship it.";
+								},
+							}}
 							status={streaming ? "streaming" : "ready"}
 							toolbar={<DemoToolbar planMode={planMode} model={model} />}
 							onStop={() => setStreaming(false)}
