@@ -1,7 +1,9 @@
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Stack } from "expo-router";
+import { useEffect } from "react";
 import { PromptInputProvider } from "@/components/ai-elements/prompt-input";
 import { useDevicePresence } from "@/hooks/useDevicePresence";
+import { primeRelayUrl } from "@/lib/host/client";
 import { CollectionsProvider } from "@/screens/(authenticated)/providers/CollectionsProvider";
 
 const settingsScreenOptions = (title: string) => ({
@@ -25,6 +27,11 @@ const glassHeaderOptions = {
 
 export default function AuthenticatedLayout() {
 	useDevicePresence();
+
+	// Resolve which relay this user's host is on, once inside the authed area.
+	useEffect(() => {
+		void primeRelayUrl();
+	}, []);
 
 	return (
 		<CollectionsProvider>
