@@ -8,10 +8,10 @@ import {
 	FileTextIcon,
 	ImageIcon,
 	Music2Icon,
-	XIcon,
 } from "lucide-react";
 import type { JSX } from "react";
 import type { PromptInputAttachment } from "../../types";
+import { RemoveButton } from "./components/RemoveButton";
 
 export type AttachmentPillsProps = {
 	attachments: PromptInputAttachment[];
@@ -52,19 +52,6 @@ function fileTypeIcon(mediaType: string, extension: string): JSX.Element {
 	if (ARCHIVE_EXTENSIONS.has(lowered))
 		return <FileArchiveIcon className="size-5 text-muted-foreground" />;
 	return <FileTextIcon className="size-5 text-muted-foreground" />;
-}
-
-function RemoveButton({ onClick }: { onClick: () => void }) {
-	return (
-		<button
-			type="button"
-			aria-label="Remove attachment"
-			className="absolute top-1 right-1 z-10 flex size-5 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
-			onClick={onClick}
-		>
-			<XIcon className="size-3" />
-		</button>
-	);
 }
 
 export function AttachmentPills({
