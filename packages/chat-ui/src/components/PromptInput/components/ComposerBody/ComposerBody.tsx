@@ -157,9 +157,10 @@ export function ComposerBody({
 			...incoming.map((file) => ({
 				id: crypto.randomUUID(),
 				file,
-				previewUrl: file.type.startsWith("image/")
-					? URL.createObjectURL(file)
-					: undefined,
+				previewUrl:
+					file.type.startsWith("image/") || file.type.startsWith("video/")
+						? URL.createObjectURL(file)
+						: undefined,
 			})),
 		]);
 	};

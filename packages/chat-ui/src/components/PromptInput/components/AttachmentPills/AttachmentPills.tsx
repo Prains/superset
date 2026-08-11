@@ -6,6 +6,8 @@ import {
 	FileCode2Icon,
 	FileJson2Icon,
 	FileTextIcon,
+	ImageIcon,
+	Music2Icon,
 	XIcon,
 } from "lucide-react";
 import type { JSX } from "react";
@@ -35,7 +37,13 @@ const CODE_EXTENSIONS = new Set([
 const DATA_EXTENSIONS = new Set(["json", "yaml", "yml", "toml", "lock"]);
 const ARCHIVE_EXTENSIONS = new Set(["zip", "tar", "gz", "tgz", "7z", "rar"]);
 
-function fileTypeIcon(extension: string): JSX.Element {
+// Mime type first (audio, images demoted after a failed preview), then
+// extension for the text-ish formats mime can't distinguish.
+function fileTypeIcon(mediaType: string, extension: string): JSX.Element {
+	if (mediaType.startsWith("audio/"))
+		return <Music2Icon className="size-5 text-muted-foreground" />;
+	if (mediaType.startsWith("image/"))
+		return <ImageIcon className="size-5 text-muted-foreground" />;
 	const lowered = extension.toLowerCase();
 	if (CODE_EXTENSIONS.has(lowered))
 		return <FileCode2Icon className="size-5 text-muted-foreground" />;
@@ -82,12 +90,21 @@ export function AttachmentPills({
 								className="group/attachment relative block size-16 cursor-pointer overflow-hidden rounded-xl border-[0.5px] border-border bg-foreground/[0.04]"
 								onClick={() => onAttachmentClick?.(attachment)}
 							>
-								<img
-									src={attachment.previewUrl}
-									alt={filename}
-									className="size-full object-cover"
-									onError={() => onPreviewError?.(attachment.id)}
-								/>
+								{attachment.file.type.startsWith("video/") ? (
+									<video
+										src={attachment.previewUrl}
+										muted
+										className="size-full object-cover"
+										onError={() => onPreviewError?.(attachment.id)}
+									/>
+								) : (
+									<img
+										src={attachment.previewUrl}
+										alt={filename}
+										className="size-full object-cover"
+										onError={() => onPreviewError?.(attachment.id)}
+									/>
+								)}
 								<span className="pointer-events-none absolute inset-0 bg-foreground/[0.02] opacity-0 transition-opacity duration-150 group-hover/attachment:opacity-100" />
 							</button>
 							<RemoveButton onClick={() => onRemove(attachment.id)} />
@@ -103,7 +120,7 @@ export function AttachmentPills({
 						>
 							<span className="pointer-events-none absolute inset-0 bg-foreground/[0.02] opacity-0 transition-opacity duration-150 group-hover/attachment:opacity-100" />
 							<div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06]">
-								{fileTypeIcon(extension)}
+								{fileTypeIcon(attachment.file.type, extension)}
 							</div>
 							<div className="min-w-0 flex-1 pr-3">
 								<div className="truncate text-xs text-foreground">
