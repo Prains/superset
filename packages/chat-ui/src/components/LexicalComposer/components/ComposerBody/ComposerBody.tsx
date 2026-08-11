@@ -8,14 +8,21 @@ import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { LexicalTypeaheadMenuPlugin } from "@lexical/react/LexicalTypeaheadMenuPlugin";
 import { cn } from "@superset/ui/utils";
 import {
+	$createNodeSelection,
 	$createTextNode,
+	$getNearestNodeFromDOMNode,
 	$getRoot,
 	$getSelection,
+	$isNodeSelection,
 	$isRangeSelection,
 	$isTextNode,
+	$setSelection,
+	CLICK_COMMAND,
 	COMMAND_PRIORITY_HIGH,
 	COMMAND_PRIORITY_LOW,
 	DROP_COMMAND,
+	KEY_BACKSPACE_COMMAND,
+	KEY_DELETE_COMMAND,
 	KEY_ENTER_COMMAND,
 	type LexicalNode,
 	PASTE_COMMAND,
@@ -69,6 +76,7 @@ export type ComposerBodyProps = Required<
 		| "onStop"
 		| "onMentionHighlight"
 		| "onAttachmentClick"
+		| "onChipClick"
 	>;
 
 function $insertChipAtSelection(chip: ComposerChip) {
@@ -111,6 +119,7 @@ export function ComposerBody({
 	onStop,
 	onMentionHighlight,
 	onAttachmentClick,
+	onChipClick,
 }: ComposerBodyProps) {
 	const [editor] = useLexicalComposerContext();
 	const [attachments, setAttachments] = useState<LexicalComposerAttachment[]>(
@@ -128,8 +137,8 @@ export function ComposerBody({
 	const rootRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	// Lexical command listeners register once; this ref bridges them to live React state.
-	const stateRef = useRef({ attachments, onSubmit, status });
-	stateRef.current = { attachments, onSubmit, status };
+	const stateRef = useRef({ attachments, onChipClick, onSubmit, status });
+	stateRef.current = { attachments, onChipClick, onSubmit, status };
 
 	const addFiles = (files: FileList | File[]) => {
 		const incoming = Array.from(files);
@@ -294,11 +303,56 @@ export function ComposerBody({
 			},
 			COMMAND_PRIORITY_HIGH,
 		);
+		// Chips are decorator nodes: clicks select them as a node selection (and
+		// notify the app), and Backspace/Delete remove the selected chips.
+		const unregisterClick = editor.registerCommand<MouseEvent>(
+			CLICK_COMMAND,
+			(event) => {
+				const target = event.target;
+				if (!(target instanceof Element)) return false;
+				const chipElement = target.closest("[data-mention-chip]");
+				if (!chipElement) return false;
+				const node = $getNearestNodeFromDOMNode(chipElement);
+				if (!(node instanceof MentionChipNode)) return false;
+				const selection = $createNodeSelection();
+				selection.add(node.getKey());
+				$setSelection(selection);
+				stateRef.current.onChipClick?.(node.toChip());
+				return true;
+			},
+			COMMAND_PRIORITY_LOW,
+		);
+		const removeSelectedChips = (event: KeyboardEvent | null) => {
+			const selection = $getSelection();
+			if (!$isNodeSelection(selection)) return false;
+			const nodes = selection.getNodes();
+			if (
+				nodes.length === 0 ||
+				!nodes.every((node) => node instanceof MentionChipNode)
+			)
+				return false;
+			event?.preventDefault();
+			for (const node of nodes) node.remove();
+			return true;
+		};
+		const unregisterBackspace = editor.registerCommand<KeyboardEvent | null>(
+			KEY_BACKSPACE_COMMAND,
+			removeSelectedChips,
+			COMMAND_PRIORITY_LOW,
+		);
+		const unregisterDelete = editor.registerCommand<KeyboardEvent | null>(
+			KEY_DELETE_COMMAND,
+			removeSelectedChips,
+			COMMAND_PRIORITY_LOW,
+		);
 		return () => {
 			unregisterText();
 			unregisterEnter();
 			unregisterDrop();
 			unregisterPaste();
+			unregisterClick();
+			unregisterBackspace();
+			unregisterDelete();
 		};
 	}, [editor]);
 

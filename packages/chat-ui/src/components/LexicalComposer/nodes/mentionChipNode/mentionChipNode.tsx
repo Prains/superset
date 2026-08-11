@@ -1,3 +1,4 @@
+import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import {
 	DecoratorNode,
 	type NodeKey,
@@ -6,6 +7,32 @@ import {
 } from "lexical";
 import type { JSX } from "react";
 import type { ComposerChip } from "../../types";
+
+function MentionChipComponent({
+	nodeKey,
+	label,
+	brandColor,
+}: {
+	nodeKey: NodeKey;
+	label: string;
+	brandColor: string | null;
+}) {
+	const [isSelected] = useLexicalNodeSelection(nodeKey);
+	return (
+		<span
+			className="lexical-composer-chip"
+			data-mention-chip="true"
+			data-selected={isSelected || undefined}
+			style={
+				brandColor
+					? ({ "--chip-color": brandColor } as React.CSSProperties)
+					: undefined
+			}
+		>
+			{label}
+		</span>
+	);
+}
 
 export type SerializedMentionChipNode = Spread<
 	{
@@ -107,17 +134,11 @@ export class MentionChipNode extends DecoratorNode<JSX.Element> {
 
 	decorate(): JSX.Element {
 		return (
-			<span
-				className="lexical-composer-chip"
-				data-mention-chip="true"
-				style={
-					this.__brandColor
-						? ({ "--chip-color": this.__brandColor } as React.CSSProperties)
-						: undefined
-				}
-			>
-				{this.__label}
-			</span>
+			<MentionChipComponent
+				nodeKey={this.__key}
+				label={this.__label}
+				brandColor={this.__brandColor}
+			/>
 		);
 	}
 }

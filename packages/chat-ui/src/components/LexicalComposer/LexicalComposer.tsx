@@ -34,6 +34,7 @@ export function LexicalComposer({
 	onStop,
 	onMentionHighlight,
 	onAttachmentClick,
+	onChipClick,
 	className,
 }: LexicalComposerProps) {
 	const [initialConfig] = useState<InitialConfigType>(() => ({
@@ -58,6 +59,7 @@ export function LexicalComposer({
 					onStop={onStop}
 					onMentionHighlight={onMentionHighlight}
 					onAttachmentClick={onAttachmentClick}
+					onChipClick={onChipClick}
 				/>
 			</LexicalComposerProvider>
 		</div>

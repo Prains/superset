@@ -579,6 +579,7 @@ function ChatScreen() {
 									);
 								}
 							}}
+							onChipClick={(chip) => showNotice(`Would open ${chip.label}`)}
 						/>
 					</div>
 				</MessageScroller.Root>

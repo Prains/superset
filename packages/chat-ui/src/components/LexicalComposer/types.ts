@@ -90,5 +90,6 @@ export type LexicalComposerProps = {
 	onStop?: () => void;
 	onMentionHighlight?: (entry: ComposerMentionEntry | null) => void;
 	onAttachmentClick?: (attachment: LexicalComposerAttachment) => void;
+	onChipClick?: (chip: ComposerChip) => void;
 	className?: string;
 };

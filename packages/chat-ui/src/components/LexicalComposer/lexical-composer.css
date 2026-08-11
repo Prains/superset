@@ -3,10 +3,17 @@
 	align-items: center;
 	gap: 3px;
 	padding: 0 2px;
+	border-radius: 4px;
 	font-weight: 500;
 	color: var(--chip-color, var(--primary));
 	vertical-align: bottom;
 	white-space: nowrap;
+	user-select: none;
+	cursor: pointer;
+}
+
+.lexical-composer-chip[data-selected="true"] {
+	background: var(--accent);
 }
 
 .lexical-composer-editor {
