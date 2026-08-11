@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ExternalIdePopup } from "./components/ExternalIdePopup";
 import { LeftSidebar } from "./components/LeftSidebar";
 import { MainPanel } from "./components/MainPanel";
 import { RightSidebar } from "./components/RightSidebar";
@@ -15,7 +14,9 @@ export type { ActiveDemo } from "./types";
 const DESIGN_WIDTH = 1280;
 const DESIGN_HEIGHT = 800;
 
-export function AppMockup({ activeDemo = "Use Any Agents" }: AppMockupProps) {
+export function AppMockup({
+	activeDemo = "Orchestrate Parallel Agents",
+}: AppMockupProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [scale, setScale] = useState(0.72);
 
@@ -57,8 +58,6 @@ export function AppMockup({ activeDemo = "Use Any Agents" }: AppMockupProps) {
 					</div>
 					<RightSidebar activeDemo={activeDemo} />
 				</div>
-
-				<ExternalIdePopup activeDemo={activeDemo} />
 			</div>
 		</div>
 	);

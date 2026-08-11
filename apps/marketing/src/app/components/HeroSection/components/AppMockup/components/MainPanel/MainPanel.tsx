@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { LuGitPullRequest } from "react-icons/lu";
-import { SETUP_STEPS } from "../../constants";
+import { AUTOMATIONS } from "../../constants";
 import type { ActiveDemo } from "../../types";
 import { AsciiSpinner } from "../AsciiSpinner";
 
@@ -20,7 +20,9 @@ interface MainPanelProps {
 }
 
 export function MainPanel({ activeDemo }: MainPanelProps) {
-	const isSetup = activeDemo === "Create Parallel Branches";
+	const isAutomate = activeDemo === "Automate Tasks";
+	const isRemote = activeDemo === "Remote Workspaces";
+	const isDefault = !isAutomate && !isRemote;
 
 	return (
 		<div className="flex min-w-0 flex-1 flex-col bg-background">
@@ -28,7 +30,7 @@ export function MainPanel({ activeDemo }: MainPanelProps) {
 				<motion.div
 					className="flex h-full flex-col"
 					initial={{ opacity: 1 }}
-					animate={{ opacity: isSetup ? 0 : 1 }}
+					animate={{ opacity: isDefault ? 1 : 0 }}
 					transition={{ duration: 0.2 }}
 				>
 					<div>
@@ -131,32 +133,90 @@ export function MainPanel({ activeDemo }: MainPanelProps) {
 					</div>
 				</motion.div>
 
+				{/* Automate Tasks: scheduled agents running on their own */}
 				<motion.div
 					className="absolute inset-0 p-5 font-mono text-[11px] leading-relaxed"
 					initial={{ opacity: 0 }}
-					animate={{ opacity: isSetup ? 1 : 0 }}
+					animate={{ opacity: isAutomate ? 1 : 0 }}
 					transition={{ duration: 0.3, ease: "easeOut" }}
-					style={{ pointerEvents: isSetup ? "auto" : "none" }}
+					style={{ pointerEvents: isAutomate ? "auto" : "none" }}
+				>
+					<div className="mb-5 text-foreground">
+						<span className="text-muted-foreground/55">❯</span>{" "}
+						<TokenChip>
+							<span className="text-brand-light">superset automations</span>
+						</TokenChip>
+					</div>
+					<div className="grid max-w-[380px] grid-cols-[1fr_auto_auto] gap-x-8 gap-y-2">
+						<div className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground/65">
+							Name
+						</div>
+						<div className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground/65">
+							Schedule
+						</div>
+						<div className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground/65">
+							Last run
+						</div>
+						{AUTOMATIONS.map((automation) => (
+							<div key={automation.name} className="contents">
+								<div className="text-foreground/90">{automation.name}</div>
+								<div className="text-muted-foreground/65">
+									{automation.schedule}
+								</div>
+								{automation.running ? (
+									<div className="flex items-center gap-1.5">
+										<AsciiSpinner
+											className="text-[10px]"
+											toneClassName="text-brand-light"
+										/>
+										<span className="text-brand-light">running</span>
+									</div>
+								) : (
+									<div className="text-muted-foreground/55">
+										{automation.lastRun}
+									</div>
+								)}
+							</div>
+						))}
+					</div>
+				</motion.div>
+
+				{/* Remote Workspaces: same workspace model, on a box that isn't yours */}
+				<motion.div
+					className="absolute inset-0 p-5 font-mono text-[11px] leading-relaxed"
+					initial={{ opacity: 0 }}
+					animate={{ opacity: isRemote ? 1 : 0 }}
+					transition={{ duration: 0.3, ease: "easeOut" }}
+					style={{ pointerEvents: isRemote ? "auto" : "none" }}
 				>
 					<div className="mb-3 text-foreground">
 						<span className="text-muted-foreground/55">❯</span>{" "}
 						<TokenChip>
-							<span className="text-brand-light">superset new</span>
+							<span className="text-brand-light">superset connect gpu-box</span>
 						</TokenChip>
 					</div>
 					<div className="space-y-1.5 text-muted-foreground">
-						<div className="flex items-center gap-2">
+						<div>
+							<span className="text-emerald-400/85">✓</span> connected · us-east
+							· 64 cores · 128 GB
+						</div>
+						<div className="text-muted-foreground/55">
+							workspaces stay running when you close your laptop
+						</div>
+						<div className="mt-4 flex items-center gap-2">
 							<AsciiSpinner
 								className="text-[11px]"
 								toneClassName="text-brand-light"
 							/>
-							<span>Setting up new parallel environment...</span>
+							<span>
+								nightly evals · claude working on{" "}
+								<TokenChip>
+									<span className="text-muted-foreground/70">
+										nightly-evals
+									</span>
+								</TokenChip>
+							</span>
 						</div>
-						{SETUP_STEPS.map((step) => (
-							<div key={step} className="ml-5 text-muted-foreground/55">
-								{step}
-							</div>
-						))}
 					</div>
 				</motion.div>
 			</div>

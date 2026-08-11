@@ -10,17 +10,17 @@ import { BoidsBackground } from "./components/BoidsBackground";
 import { ProductDemo } from "./components/ProductDemo";
 import { TypewriterText } from "./components/TypewriterText";
 
-const PIXEL_FONT_STYLE = {
-	fontFamily: "var(--font-geist-pixel-grid)",
-} satisfies React.CSSProperties;
-
 const HERO_COPY = {
 	segments: [
 		{ text: "The Code Editor for " },
-		{ text: "AI Agents.", style: PIXEL_FONT_STYLE },
+		{
+			text: "AI Agents.",
+			className:
+				"corner-brackets inline-block px-[0.2em] py-[0.06em] whitespace-nowrap",
+		},
 	],
 	subheadline:
-		"Orchestrate 100+ coding agents in parallel. Works for any agents. Built for the AI era.",
+		"Orchestrate 100+ parallel coding agents, automate recurring tasks, and run workspaces anywhere.",
 };
 
 export function HeroSection() {
@@ -46,11 +46,11 @@ export function HeroSection() {
 							</span>
 						</Link>
 						<div className="space-y-4 sm:space-y-6">
-							<h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight leading-[1.1] text-foreground relative max-w-6xl mx-auto">
-								{/* Sizer must mirror the visible segments' fonts so wrapping matches */}
+							<h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight leading-[1.1] [word-spacing:0.15em] text-foreground relative max-w-6xl mx-auto">
+								{/* Sizer must mirror the visible segments' styling so wrapping matches */}
 								<span className="invisible" aria-hidden="true">
 									{HERO_COPY.segments.map((segment) => (
-										<span key={segment.text} style={segment.style}>
+										<span key={segment.text} className={segment.className}>
 											{segment.text}
 										</span>
 									))}

@@ -14,6 +14,7 @@ interface WorkspaceItemProps {
 	pr?: string;
 	isActive?: boolean;
 	status?: WorkspaceStatus;
+	icon?: "cloud" | "branch";
 }
 
 export function WorkspaceItem({
@@ -22,9 +23,10 @@ export function WorkspaceItem({
 	del,
 	isActive,
 	status,
+	icon,
 }: WorkspaceItemProps) {
-	const isCloud = name === "see changes";
-	const isBranch = name === "forward ports";
+	const isCloud = icon === "cloud";
+	const isBranch = icon === "branch";
 	return (
 		<div
 			className={`relative flex h-7 cursor-pointer items-center gap-2.5 pl-4 pr-3 text-[11px] ${
