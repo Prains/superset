@@ -46,12 +46,7 @@ export function HeroSection() {
 							</span>
 						</Link>
 						<div className="space-y-4 sm:space-y-6">
-							<h1
-								className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight leading-[1.1] text-foreground relative max-w-6xl mx-auto"
-								style={{
-									fontFamily: "var(--font-ibm-plex-mono), monospace",
-								}}
-							>
+							<h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight leading-[1.1] text-foreground relative max-w-6xl mx-auto">
 								{/* Sizer must mirror the visible segments' fonts so wrapping matches */}
 								<span className="invisible" aria-hidden="true">
 									{HERO_COPY.segments.map((segment) => (
