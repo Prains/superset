@@ -625,11 +625,10 @@ function ChatScreen() {
 							commands={commands}
 							dictation={{
 								transcribe: async () => {
+									const shouldFail = (window as { __failTranscribe?: boolean })
+										.__failTranscribe;
 									await new Promise((resolve) => setTimeout(resolve, 900));
-									if (
-										(window as { __failTranscribe?: boolean }).__failTranscribe
-									)
-										throw new Error("fetch failed");
+									if (shouldFail) throw new Error("fetch failed");
 									return "Tighten the composer spacing and ship it.";
 								},
 								onError: (error) => showNotice(error.message),
@@ -687,7 +686,10 @@ function ComposerOnly() {
 					commands={COMMANDS}
 					dictation={{
 						transcribe: async () => {
+							const shouldFail = (window as { __failTranscribe?: boolean })
+								.__failTranscribe;
 							await new Promise((resolve) => setTimeout(resolve, 900));
+							if (shouldFail) throw new Error("fetch failed");
 							return "Tighten the composer spacing and ship it.";
 						},
 					}}
@@ -734,6 +736,27 @@ export const Recording: Story = {
 		canvasElement
 			.querySelector<HTMLButtonElement>('[aria-label="Dictate"]')
 			?.click();
+	},
+};
+
+export const DictationError: Story = {
+	args: { mentionProviders: [], commands: COMMANDS },
+	render: () => <ComposerOnly />,
+	play: async ({ canvasElement }) => {
+		stubMicrophone();
+		const flags = window as { __failTranscribe?: boolean };
+		flags.__failTranscribe = true;
+		canvasElement
+			.querySelector<HTMLButtonElement>('[aria-label="Dictate"]')
+			?.click();
+		await new Promise((resolve) => setTimeout(resolve, 1200));
+		canvasElement
+			.querySelector<HTMLButtonElement>('[aria-label="Stop dictation"]')
+			?.click();
+		// Let the failing transcription land, then "restore the connection"
+		// so the retry button succeeds.
+		await new Promise((resolve) => setTimeout(resolve, 2000));
+		flags.__failTranscribe = false;
 	},
 };
 
