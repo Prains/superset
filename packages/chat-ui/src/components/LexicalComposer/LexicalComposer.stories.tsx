@@ -611,7 +611,114 @@ function ChatScreen() {
 	);
 }
 
-export const ChatScreenExample: Story = {
+function ComposerOnly() {
+	const [providers] = useState<ComposerMentionProvider[]>(() => [
+		pluginsProvider(0),
+		skillsProvider(1),
+		workspacesProvider(2),
+		conversationsProvider(3),
+		fileSearchProvider(4),
+	]);
+	return (
+		<div className="flex min-h-screen items-end justify-center bg-background px-6 pb-10 text-foreground">
+			<div className="w-full max-w-3xl">
+				<LexicalComposer
+					placeholder="Ask to make changes, @mention files, run /commands"
+					mentionProviders={providers}
+					commands={COMMANDS}
+					dictation={{
+						transcribe: async () => {
+							await new Promise((resolve) => setTimeout(resolve, 900));
+							return "Tighten the composer spacing and ship it.";
+						},
+					}}
+					onSubmit={() => {}}
+				/>
+			</div>
+		</div>
+	);
+}
+
+// Speech-like synthetic mic input so the story needs no permission prompt.
+function stubMicrophone() {
+	const context = new AudioContext();
+	const oscillator = context.createOscillator();
+	const gain = context.createGain();
+	const burst = context.createOscillator();
+	const burstDepth = context.createGain();
+	const destination = context.createMediaStreamDestination();
+	oscillator.frequency.value = 220;
+	gain.gain.value = 0.4;
+	burst.frequency.value = 1.6;
+	burstDepth.gain.value = 0.4;
+	burst.connect(burstDepth);
+	burstDepth.connect(gain.gain);
+	oscillator.connect(gain);
+	gain.connect(destination);
+	oscillator.start();
+	burst.start();
+	navigator.mediaDevices.getUserMedia = async () => destination.stream;
+}
+
+export const Default: Story = {
 	args: { mentionProviders: [], commands: COMMANDS },
 	render: () => <ChatScreen />,
+};
+
+export const Recording: Story = {
+	args: { mentionProviders: [], commands: COMMANDS },
+	render: () => <ComposerOnly />,
+	play: async ({ canvasElement }) => {
+		stubMicrophone();
+		canvasElement
+			.querySelector<HTMLButtonElement>('[aria-label="Dictate"]')
+			?.click();
+	},
+};
+
+export const BrowseMenu: Story = {
+	args: { mentionProviders: [], commands: COMMANDS },
+	render: () => <ComposerOnly />,
+	play: async ({ canvasElement }) => {
+		canvasElement
+			.querySelector<HTMLButtonElement>(
+				'[aria-label="Add files, apps, and more"]',
+			)
+			?.click();
+	},
+};
+
+export const WithAttachments: Story = {
+	args: { mentionProviders: [], commands: COMMANDS },
+	render: () => <ComposerOnly />,
+	play: async ({ canvasElement }) => {
+		const canvas = document.createElement("canvas");
+		canvas.width = 64;
+		canvas.height = 64;
+		const context = canvas.getContext("2d");
+		if (context) {
+			context.fillStyle = "#0ea5e9";
+			context.fillRect(0, 0, 64, 64);
+			context.fillStyle = "#f59e0b";
+			context.beginPath();
+			context.arc(32, 32, 18, 0, Math.PI * 2);
+			context.fill();
+		}
+		const blob = await new Promise<Blob | null>((resolve) =>
+			canvas.toBlob(resolve, "image/png"),
+		);
+		const transfer = new DataTransfer();
+		if (blob)
+			transfer.items.add(
+				new File([blob], "screenshot.png", { type: "image/png" }),
+			);
+		transfer.items.add(new File(["{}"], "bun.lock", { type: "" }));
+		canvasElement.querySelector(".lexical-composer-editor")?.dispatchEvent(
+			new DragEvent("drop", {
+				bubbles: true,
+				cancelable: true,
+				dataTransfer: transfer,
+			}),
+		);
+	},
 };
