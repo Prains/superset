@@ -75,8 +75,15 @@ export function ProductDemo() {
 							: undefined
 					}
 				>
-					{/* Large diffuse back-shadow */}
-					<div className="absolute inset-x-[15%] top-[30%] bottom-0 rounded-3xl bg-white/[0.04] blur-[80px] pointer-events-none" />
+					{/* Stage lighting: soft ember-tinted glow behind the top of the
+					    window, falling off to the page black at the edges */}
+					<div
+						className="pointer-events-none absolute -inset-x-[25%] -top-[30%] bottom-0"
+						style={{
+							background:
+								"radial-gradient(ellipse 42% 38% at 50% 22%, rgba(232,128,74,0.06), rgba(232,128,74,0.02) 55%, transparent 78%)",
+						}}
+					/>
 					<div className="relative overflow-x-auto scrollbar-hide">
 						<AppMockup activeDemo={activeOption} />
 					</div>

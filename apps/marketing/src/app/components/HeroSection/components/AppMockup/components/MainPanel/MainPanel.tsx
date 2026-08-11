@@ -1,9 +1,19 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
+import { LuGitPullRequest } from "react-icons/lu";
 import { SETUP_STEPS } from "../../constants";
 import type { ActiveDemo } from "../../types";
 import { AsciiSpinner } from "../AsciiSpinner";
+
+function TokenChip({ children }: { children: React.ReactNode }) {
+	return (
+		<span className="rounded-sm bg-foreground/[0.07] px-1 py-px">
+			{children}
+		</span>
+	);
+}
 
 interface MainPanelProps {
 	activeDemo: ActiveDemo;
@@ -44,7 +54,9 @@ export function MainPanel({ activeDemo }: MainPanelProps) {
 
 						<div className="mb-5 text-foreground">
 							<span className="text-muted-foreground/55">❯</span>{" "}
-							<span className="text-brand-light">/mcp</span>
+							<TokenChip>
+								<span className="text-brand-light">/mcp</span>
+							</TokenChip>
 						</div>
 
 						<div className="space-y-2.5 border-t border-border/60 pt-4">
@@ -64,8 +76,47 @@ export function MainPanel({ activeDemo }: MainPanelProps) {
 
 							<div className="text-muted-foreground/65">
 								config:{" "}
-								<span className="text-muted-foreground/50">.mcp.json</span>
+								<TokenChip>
+									<span className="text-muted-foreground/70">.mcp.json</span>
+								</TokenChip>
 							</div>
+						</div>
+					</div>
+
+					{/* Elevated agent card: the story moment, floating like Linear's
+					    agent panel */}
+					<div className="absolute bottom-16 right-4 z-10 w-[290px] rounded-lg border border-white/[0.08] bg-card font-sans shadow-[0_1px_1px_rgba(0,0,0,0.4),0_16px_50px_-12px_rgba(0,0,0,0.7)]">
+						<div className="pointer-events-none absolute inset-0 rounded-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
+						<div className="flex items-center gap-2 px-3 pt-2.5">
+							<Image
+								src="/app-icons/claude.svg"
+								alt="Claude"
+								width={12}
+								height={12}
+							/>
+							<span className="text-[11px] font-medium text-foreground/95">
+								claude
+							</span>
+							<span className="text-[10px] text-muted-foreground/55">
+								finished · worked for 7s
+							</span>
+						</div>
+						<div className="px-3 pt-1.5 pb-2.5 text-[11px] leading-relaxed text-muted-foreground">
+							Pushed and opened a draft PR.
+						</div>
+						<div className="flex items-center justify-between border-t border-border/60 px-3 py-2">
+							<div className="flex items-center gap-1.5 font-mono text-[10px] tabular-nums">
+								<LuGitPullRequest className="size-2.5 text-muted-foreground/55" />
+								<span className="text-muted-foreground/75">2 files</span>
+								<span className="text-emerald-400/85">+46</span>
+								<span className="text-rose-400/75">−1</span>
+							</div>
+							<button
+								type="button"
+								className="rounded-full border border-white/[0.08] px-2.5 py-0.5 text-[10px] text-foreground/90 hover:bg-foreground/[0.05]"
+							>
+								Preview
+							</button>
 						</div>
 					</div>
 
@@ -89,7 +140,9 @@ export function MainPanel({ activeDemo }: MainPanelProps) {
 				>
 					<div className="mb-3 text-foreground">
 						<span className="text-muted-foreground/55">❯</span>{" "}
-						<span className="text-brand-light">superset new</span>
+						<TokenChip>
+							<span className="text-brand-light">superset new</span>
+						</TokenChip>
 					</div>
 					<div className="space-y-1.5 text-muted-foreground">
 						<div className="flex items-center gap-2">

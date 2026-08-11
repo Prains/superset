@@ -69,7 +69,9 @@ export function RightSidebar({ activeDemo }: RightSidebarProps) {
 					<span className="text-muted-foreground/45">·</span>
 					<span className="flex items-center gap-1">
 						<LuArrowRight className="size-2.5" />
-						main
+						<span className="rounded-sm bg-foreground/[0.07] px-1 py-px">
+							main
+						</span>
 					</span>
 				</div>
 			</div>
