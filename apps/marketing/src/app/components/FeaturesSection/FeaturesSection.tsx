@@ -1,6 +1,7 @@
 "use client";
 
 import { AutomationsDemo } from "./components/AutomationsDemo";
+import { CliDemo } from "./components/CliDemo";
 import { FeatureDemo } from "./components/FeatureDemo";
 import { IsolationDemo } from "./components/IsolationDemo";
 import { OpenInDemo } from "./components/OpenInDemo";
@@ -16,6 +17,7 @@ const DEMO_COMPONENTS = [
 	OpenInDemo,
 	AutomationsDemo,
 	RemoteWorkspacesDemo,
+	CliDemo,
 ];
 
 export function FeaturesSection() {

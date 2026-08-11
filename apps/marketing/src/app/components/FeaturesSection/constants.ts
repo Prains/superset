@@ -39,6 +39,12 @@ export const FEATURES: Feature[] = [
 		tag: "Remote Workspaces",
 		title: "Run workspaces anywhere",
 		description:
-			"Connect any machine over SSH. Workspaces keep running when your laptop sleeps, and you can check in from wherever you are.",
+			"Add any machine as a host, on every plan. Workspaces keep running when your laptop sleeps, and you can check in from wherever you are.",
+	},
+	{
+		tag: "CLI & SDK",
+		title: "Drive it from the terminal",
+		description:
+			"Everything is scriptable. Spawn workspaces and agents from the CLI, wire Superset into CI with the SDK, or let your agent drive it over MCP.",
 	},
 ];
