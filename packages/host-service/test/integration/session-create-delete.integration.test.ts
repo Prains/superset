@@ -158,7 +158,6 @@ describe("workspaces.createSession + delete integration", () => {
 		});
 		expect(destroyed?.success).toBe(true);
 		expect(destroyed?.worktreeRemoved).toBe(true);
-		expect(destroyed?.cloudDeleted).toBe(false);
 		expect(destroyed?.warnings).toEqual([]);
 		expect(existsSync(row?.worktreePath ?? "")).toBe(false);
 
