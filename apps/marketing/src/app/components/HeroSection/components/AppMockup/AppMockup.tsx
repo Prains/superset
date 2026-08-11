@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LeftSidebar } from "./components/LeftSidebar";
 import { MainPanel } from "./components/MainPanel";
+import { RemoteSessionPopup } from "./components/RemoteSessionPopup";
 import { RightSidebar } from "./components/RightSidebar";
 import { TabBar } from "./components/TabBar";
 import type { AppMockupProps } from "./types";
@@ -40,7 +41,7 @@ export function AppMockup({
 			<div className="pointer-events-none absolute inset-0 z-20 rounded-xl ring-1 ring-inset ring-white/[0.05] shadow-[inset_0_1px_0_rgba(255,255,255,0.09)]" />
 			{/* Bottom dissolve: the window fades into the page instead of ending
 			    on a hard border */}
-			<div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 h-[14%] bg-gradient-to-b from-transparent to-background" />
+			<div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 h-[10%] bg-gradient-to-b from-transparent to-background" />
 
 			<div
 				className="absolute left-0 top-0 origin-top-left"
@@ -58,6 +59,8 @@ export function AppMockup({
 					</div>
 					<RightSidebar activeDemo={activeDemo} />
 				</div>
+
+				<RemoteSessionPopup activeDemo={activeDemo} />
 			</div>
 		</div>
 	);

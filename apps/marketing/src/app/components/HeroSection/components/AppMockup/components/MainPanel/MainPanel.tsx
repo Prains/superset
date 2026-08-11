@@ -200,23 +200,6 @@ export function MainPanel({ activeDemo }: MainPanelProps) {
 							<span className="text-emerald-400/85">✓</span> connected · us-east
 							· 64 cores · 128 GB
 						</div>
-						<div className="text-muted-foreground/55">
-							workspaces stay running when you close your laptop
-						</div>
-						<div className="mt-4 flex items-center gap-2">
-							<AsciiSpinner
-								className="text-[11px]"
-								toneClassName="text-brand-light"
-							/>
-							<span>
-								nightly evals · claude working on{" "}
-								<TokenChip>
-									<span className="text-muted-foreground/70">
-										nightly-evals
-									</span>
-								</TokenChip>
-							</span>
-						</div>
 					</div>
 				</motion.div>
 			</div>
