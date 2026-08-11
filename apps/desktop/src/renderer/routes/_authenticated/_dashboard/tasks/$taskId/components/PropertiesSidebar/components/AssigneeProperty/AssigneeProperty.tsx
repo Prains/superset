@@ -8,7 +8,7 @@ import {
 import { useMemo, useState } from "react";
 import { HiOutlineUserCircle } from "react-icons/hi2";
 import { cloudTrpc } from "renderer/lib/cloud-trpc";
-import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
+import { useOptimisticActions } from "renderer/routes/_authenticated/hooks/useOptimisticActions";
 import type { TaskWithStatus } from "../../../../../components/TasksView/hooks/useTasksTable";
 
 interface AssigneePropertyProps {
@@ -16,7 +16,7 @@ interface AssigneePropertyProps {
 }
 
 export function AssigneeProperty({ task }: AssigneePropertyProps) {
-	const { tasks: taskActions } = useOptimisticCollectionActions();
+	const { tasks: taskActions } = useOptimisticActions();
 	const [open, setOpen] = useState(false);
 
 	const { data: members } = cloudTrpc.organization.listMembers.useQuery(

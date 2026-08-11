@@ -12,7 +12,7 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { SelectTaskStatus } from "@superset/db/schema";
 import { useCallback, useMemo, useState } from "react";
-import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
+import { useOptimisticActions } from "renderer/routes/_authenticated/hooks/useOptimisticActions";
 import type { TaskWithStatus } from "../../hooks/useTasksData";
 import { compareStatusesForDropdown } from "../../utils/sorting";
 import { KanbanCard } from "./components/KanbanCard";
@@ -29,7 +29,7 @@ export function TasksBoardView({
 	allStatuses,
 	onTaskClick,
 }: TasksBoardViewProps) {
-	const { tasks: taskActions } = useOptimisticCollectionActions();
+	const { tasks: taskActions } = useOptimisticActions();
 	const [activeTask, setActiveTask] = useState<TaskWithStatus | null>(null);
 
 	const sensors = useSensors(

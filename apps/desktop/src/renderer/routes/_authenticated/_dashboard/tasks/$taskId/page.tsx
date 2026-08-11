@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { MarkdownEditor } from "renderer/components/MarkdownEditor";
 import { cloudTrpc } from "renderer/lib/cloud-trpc";
 import { resolveProjectFilterParams } from "renderer/routes/_authenticated/_dashboard/components/ProjectFilter/project-filter-utils";
-import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
+import { useOptimisticActions } from "renderer/routes/_authenticated/hooks/useOptimisticActions";
 import type { TaskAssignee } from "../components/TasksView/hooks/useTasksData";
 import { TASK_LIST_REFETCH_INTERVAL } from "../components/TasksView/hooks/useTasksData";
 import { Route as TasksLayoutRoute } from "../layout";
@@ -42,7 +42,7 @@ function TaskDetailPage() {
 		state,
 	} = TasksLayoutRoute.useSearch();
 	const navigate = useNavigate();
-	const { tasks: taskActions } = useOptimisticCollectionActions();
+	const { tasks: taskActions } = useOptimisticActions();
 
 	const backSearch = useMemo(() => {
 		return tasksSearchFromFilters({

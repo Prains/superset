@@ -9,7 +9,7 @@ import type { CellContext } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { HiOutlineUserCircle } from "react-icons/hi2";
 import { cloudTrpc } from "renderer/lib/cloud-trpc";
-import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
+import { useOptimisticActions } from "renderer/routes/_authenticated/hooks/useOptimisticActions";
 import type { TaskWithStatus } from "../../useTasksTable";
 
 interface AssigneeCellProps {
@@ -17,7 +17,7 @@ interface AssigneeCellProps {
 }
 
 export function AssigneeCell({ info }: AssigneeCellProps) {
-	const { tasks: taskActions } = useOptimisticCollectionActions();
+	const { tasks: taskActions } = useOptimisticActions();
 	const [open, setOpen] = useState(false);
 
 	const task = info.row.original;

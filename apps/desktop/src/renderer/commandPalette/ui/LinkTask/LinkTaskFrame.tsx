@@ -13,7 +13,7 @@ import {
 } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/components/shared/StatusIcon";
 import { useHybridSearch } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/hooks/useHybridSearch";
 import { TASK_PICKER_INPUT } from "renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/hooks/useTasksData";
-import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions/useOptimisticCollectionActions";
+import { useOptimisticActions } from "renderer/routes/_authenticated/hooks/useOptimisticActions/useOptimisticActions";
 import { useFrameStackStore } from "../../core/frames";
 import { useCommandPaletteQuery } from "../CommandPalette/CommandPalette";
 
@@ -44,7 +44,7 @@ export function LinkTaskFrame({ workspaceId }: LinkTaskFrameProps) {
 	const query = useCommandPaletteQuery();
 	const deferredQuery = useDeferredValue(query);
 	const setOpen = useFrameStackStore((s) => s.setOpen);
-	const { v2Workspaces } = useOptimisticCollectionActions();
+	const { v2Workspaces } = useOptimisticActions();
 
 	const { data: taskPage } =
 		cloudTrpc.task.listPage.useQuery(TASK_PICKER_INPUT);

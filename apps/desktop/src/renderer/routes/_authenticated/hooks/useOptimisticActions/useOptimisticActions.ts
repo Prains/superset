@@ -201,7 +201,7 @@ function useTaskCachePatcher() {
 	);
 }
 
-export function useOptimisticCollectionActions() {
+export function useOptimisticActions() {
 	const { workspaces: hostWorkspaces, cache: hostWorkspacesCache } =
 		useHostWorkspaces();
 	const runMutation = useOptimisticMutationRunner();

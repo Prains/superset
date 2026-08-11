@@ -8,7 +8,7 @@ import {
 	resolveDesktopChatOrganizationId,
 } from "renderer/lib/dev-chat";
 import { posthog } from "renderer/lib/posthog";
-import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
+import { useOptimisticActions } from "renderer/routes/_authenticated/hooks/useOptimisticActions";
 
 interface SessionSelectorItem {
 	sessionId: string;
@@ -61,7 +61,7 @@ export function useWorkspaceChatController({
 		session?.session?.activeOrganizationId,
 	);
 	const endSessionMutation = workspaceTrpc.chat.endSession.useMutation();
-	const { chatSessions: chatSessionActions } = useOptimisticCollectionActions();
+	const { chatSessions: chatSessionActions } = useOptimisticActions();
 
 	const { data: workspace } = workspaceTrpc.workspace.get.useQuery(
 		{ id: workspaceId },

@@ -17,7 +17,7 @@ import {
 } from "react-icons/hi2";
 import { useCopyToClipboard } from "renderer/hooks/useCopyToClipboard";
 import { cloudTrpc } from "renderer/lib/cloud-trpc";
-import { useOptimisticCollectionActions } from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
+import { useOptimisticActions } from "renderer/routes/_authenticated/hooks/useOptimisticActions";
 import type { TaskWithStatus } from "../../../../hooks/useTasksTable";
 import { compareStatusesForDropdown } from "../../../../utils/sorting";
 import { AssigneeMenuItems } from "../../../shared/AssigneeMenuItems";
@@ -37,7 +37,7 @@ export function TaskContextMenu({
 	task,
 	onDelete,
 }: TaskContextMenuProps) {
-	const { tasks: taskActions } = useOptimisticCollectionActions();
+	const { tasks: taskActions } = useOptimisticActions();
 	const [open, setOpen] = useState(false);
 
 	const { data: allStatuses } = cloudTrpc.task.statuses.list.useQuery(

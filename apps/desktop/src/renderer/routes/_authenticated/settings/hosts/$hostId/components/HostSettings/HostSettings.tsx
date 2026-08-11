@@ -6,8 +6,8 @@ import { authClient } from "renderer/lib/auth-client";
 import { cloudTrpc } from "renderer/lib/cloud-trpc";
 import {
 	type PersistableTransaction,
-	useOptimisticCollectionActions,
-} from "renderer/routes/_authenticated/hooks/useOptimisticCollectionActions";
+	useOptimisticActions,
+} from "renderer/routes/_authenticated/hooks/useOptimisticActions";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 import { HighlightText } from "renderer/routes/_authenticated/settings/components/HighlightText";
 import { useSettingsSearchQuery } from "renderer/stores/settings-state";
@@ -37,7 +37,7 @@ export function HostSettings({ hostId }: HostSettingsProps) {
 	const searchQuery = useSettingsSearchQuery();
 	const { data: session } = authClient.useSession();
 	const currentUserId = session?.user?.id ?? null;
-	const actions = useOptimisticCollectionActions();
+	const actions = useOptimisticActions();
 	const { machineId } = useLocalHostService();
 	const hostUrl = useHostUrl(hostId);
 
