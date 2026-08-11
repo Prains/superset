@@ -1,17 +1,11 @@
+import { ComposerBar, type ComposerQuickKey } from "@superset/composer";
 import { buildHostRoutingKey } from "@superset/shared/host-routing";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import {
-	ActivityIndicator,
-	KeyboardAvoidingView,
-	Platform,
-	Pressable,
-	View,
-} from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useWorkspaceHost } from "@/hooks/useWorkspaceHost";
-import { QuickKeysRow } from "./components/QuickKeysRow";
 import {
 	type TerminalConnectionState,
 	type TerminalControlMessage,
@@ -25,10 +19,33 @@ const STATE_BANNERS: Partial<Record<TerminalConnectionState, string>> = {
 	denied: "You don't have access to this terminal.",
 };
 
+const QUICK_KEYS: ComposerQuickKey[] = [
+	{ id: "esc", label: "esc" },
+	{ id: "tab", label: "tab" },
+	{ id: "shift-tab", label: "⇧tab" },
+	{ id: "up", symbol: "arrow.up" },
+	{ id: "down", symbol: "arrow.down" },
+	{ id: "left", symbol: "arrow.left" },
+	{ id: "right", symbol: "arrow.right" },
+	{ id: "ctrl-c", label: "^C" },
+];
+
+const QUICK_KEY_BYTES: Record<string, string> = {
+	esc: "\u001b",
+	tab: "\t",
+	"shift-tab": "\u001b[Z",
+	up: "\u001b[A",
+	down: "\u001b[B",
+	left: "\u001b[D",
+	right: "\u001b[C",
+	"ctrl-c": "\u0003",
+};
+
 /**
  * Live terminal attached over the relay. The xterm page owns the socket
- * (see TerminalWebView); this screen owns chrome: title, connection banner,
- * quick keys, and the session-ended overlay.
+ * (see TerminalWebView); the native ComposerBar owns input and keyboard
+ * tracking; this screen owns chrome: title, connection banner, and the
+ * session-ended overlay.
  */
 export function TerminalScreen() {
 	const params = useLocalSearchParams<{ id: string; terminalId: string }>();
@@ -46,6 +63,7 @@ export function TerminalScreen() {
 		useState<TerminalConnectionState>("connecting");
 	const [title, setTitle] = useState<string | null>(null);
 	const [exitCode, setExitCode] = useState<number | null>(null);
+	const [occludedHeight, setOccludedHeight] = useState(0);
 
 	const handleControl = useCallback((message: TerminalControlMessage) => {
 		if (message.type === "title") {
@@ -55,13 +73,20 @@ export function TerminalScreen() {
 		}
 	}, []);
 
+	const handleSubmit = useCallback((text: string) => {
+		// Multi-line input rides a bracketed paste so TUIs treat it as one
+		// prompt (same framing the host applies in terminal.send).
+		const framed = text.includes("\n")
+			? `\u001b[200~${text}\u001b[201~\r`
+			: `${text}\r`;
+		terminalRef.current?.sendInput(framed);
+	}, []);
+
 	const banner = STATE_BANNERS[connectionState];
+	const showComposer = routingKey !== null && exitCode === null;
 
 	return (
-		<KeyboardAvoidingView
-			className="bg-background flex-1"
-			behavior={Platform.OS === "ios" ? "padding" : undefined}
-		>
+		<View className="bg-background flex-1">
 			<Stack.Screen options={{ title: title ?? "Terminal" }} />
 			{banner ? (
 				<View className="bg-muted px-3 py-1.5">
@@ -80,7 +105,7 @@ export function TerminalScreen() {
 					</Pressable>
 				</View>
 			) : null}
-			<View className="flex-1">
+			<View className="flex-1" style={{ paddingBottom: occludedHeight }}>
 				{!workspaceId || !terminalId ? (
 					<Centered>
 						<Text className="text-muted-foreground text-sm">
@@ -126,10 +151,19 @@ export function TerminalScreen() {
 					</View>
 				) : null}
 			</View>
-			{routingKey && exitCode === null ? (
-				<QuickKeysRow onKey={(data) => terminalRef.current?.sendInput(data)} />
+			{showComposer ? (
+				<ComposerBar
+					placeholder="Send input"
+					quickKeys={QUICK_KEYS}
+					onSubmitText={handleSubmit}
+					onQuickKey={(id) => {
+						const bytes = QUICK_KEY_BYTES[id];
+						if (bytes) terminalRef.current?.sendInput(bytes);
+					}}
+					onBarMetrics={setOccludedHeight}
+				/>
 			) : null}
-		</KeyboardAvoidingView>
+		</View>
 	);
 }
 

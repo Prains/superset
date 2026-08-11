@@ -6,6 +6,7 @@
 		"paths": {
 			"@/*": ["./*"],
 			"@superset/alert-prompt": ["./modules/alert-prompt/src/index.ts"],
+			"@superset/composer": ["./modules/composer/src/index.ts"],
 			"@superset/tab-bar": ["./modules/tab-bar/src/index.tsx"]
 		}
 	},
