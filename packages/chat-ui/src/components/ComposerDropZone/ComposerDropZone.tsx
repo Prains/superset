@@ -81,6 +81,7 @@ export function ComposerDropZone({
 
 	return (
 		<ComposerDropZoneContext.Provider value={contextValue}>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop target; keyboard users attach via the composer's file picker */}
 			<div
 				className={cn("relative", className)}
 				onDragOver={(event) => {

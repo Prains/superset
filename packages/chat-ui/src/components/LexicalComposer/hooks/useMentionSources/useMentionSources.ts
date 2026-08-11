@@ -41,6 +41,7 @@ export function useMentionSources(
 
 	// Load static sources at mount and refresh them each time the menu opens;
 	// cached entries stay visible while fresh ones load.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: staticEntries gates the initial mount load only
 	useEffect(() => {
 		if (!menuOpen && Object.keys(staticEntries).length > 0) return;
 		const controller = new AbortController();
@@ -57,8 +58,6 @@ export function useMentionSources(
 				.catch(() => {});
 		}
 		return () => controller.abort();
-		// staticEntries intentionally omitted: it gates the initial mount load only.
-		// biome-ignore lint/correctness/useExhaustiveDependencies: see above
 	}, [menuOpen]);
 
 	// Search sources fire per keystroke; aborting the previous request replaces

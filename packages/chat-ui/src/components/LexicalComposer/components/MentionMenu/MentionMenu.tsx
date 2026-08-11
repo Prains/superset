@@ -22,12 +22,11 @@ export function MentionMenu({
 }: MentionMenuProps) {
 	const flatEntries = sections.flatMap((section) => section.entries);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: flatEntries identity churns per render; selection identity is (index, length)
 	useEffect(() => {
 		onSelectionChange?.(
 			selectedIndex == null ? null : (flatEntries[selectedIndex] ?? null),
 		);
-		// flatEntries identity churns per render; selection identity is (index, length)
-		// biome-ignore lint/correctness/useExhaustiveDependencies: see above
 	}, [selectedIndex, flatEntries.length]);
 
 	if (sections.length === 0) return null;

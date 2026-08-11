@@ -57,8 +57,13 @@ export type ComposerMentionProvider = {
 
 export type LexicalComposerCommand = {
 	id: string;
-	label: string;
+	title: string;
 	description?: string;
+	icon?: ReactNode;
+	rightIcon?: ReactNode;
+	group?: string;
+	searchAliases?: string[];
+	onSelect(ctx: ComposerActionContext): void | Promise<void>;
 };
 
 export type LexicalComposerAttachment = {

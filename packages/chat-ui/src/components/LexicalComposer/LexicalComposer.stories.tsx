@@ -6,12 +6,15 @@ import {
 } from "@superset/ui/chat-history-sidebar";
 import { getPresetIcon } from "@superset/ui/icons/preset-icons";
 import {
+	BoxIcon,
 	ChartNoAxesColumnIcon,
+	CircleDashedIcon,
 	DatabaseIcon,
 	FileCode2Icon,
 	FolderIcon,
 	GitPullRequestArrowIcon,
 	LightbulbIcon,
+	MessageSquarePlusIcon,
 	PaperclipIcon,
 	ShieldCheckIcon,
 	SparklesIcon,
@@ -23,6 +26,7 @@ import type {
 	ComposerMentionEntry,
 	ComposerMentionProvider,
 	LexicalComposerAttachment,
+	LexicalComposerCommand,
 	LexicalComposerSubmitPayload,
 } from "./types";
 
@@ -336,13 +340,49 @@ function addProvider(
 	};
 }
 
-const COMMANDS = [
-	{ id: "plan", label: "plan", description: "Draft a plan before coding" },
-	{ id: "review", label: "review", description: "Review the current diff" },
-	{ id: "test", label: "test", description: "Write or run tests" },
+const SKILL_COMMANDS = SKILLS.map(
+	(skill): LexicalComposerCommand => ({
+		id: `skill:${skill.id}`,
+		title: skill.label,
+		description: skill.description,
+		icon: skill.icon,
+		group: "Skills",
+		onSelect: (ctx) =>
+			ctx.insertChip({
+				label: skill.label,
+				serialized: `$${skill.label}`,
+				brandColor: skill.color,
+			}),
+	}),
+);
+
+const COMMANDS: LexicalComposerCommand[] = [
+	{
+		id: "compact",
+		title: "Compact",
+		description: "Compact this conversation's context",
+		icon: <CircleDashedIcon className="size-4.5" />,
+		searchAliases: ["summarize"],
+		onSelect: () => {},
+	},
+	{
+		id: "new-chat",
+		title: "New chat",
+		description: "Start a blank chat in this workspace",
+		icon: <MessageSquarePlusIcon className="size-4.5" />,
+		searchAliases: ["blank"],
+		onSelect: () => {},
+	},
+	...SKILL_COMMANDS,
 ];
 
-function DemoToolbar({ planMode }: { planMode: boolean }) {
+function DemoToolbar({
+	planMode,
+	model,
+}: {
+	planMode: boolean;
+	model: string;
+}) {
 	return (
 		<>
 			<button
@@ -350,7 +390,7 @@ function DemoToolbar({ planMode }: { planMode: boolean }) {
 				className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 			>
 				<SparklesIcon className="size-4" />
-				Sonnet 5
+				{model}
 			</button>
 			<button
 				type="button"
@@ -408,6 +448,7 @@ function ChatScreen() {
 		useState<ChatHistorySidebarMessage[]>(SEED_MESSAGES);
 	const [streaming, setStreaming] = useState(false);
 	const [planMode, setPlanMode] = useState(false);
+	const [model, setModel] = useState("Sonnet 5");
 	// App-owned attachment click handling: images get a lightbox here; a real
 	// surface might open files in the editor instead.
 	const [preview, setPreview] = useState<LexicalComposerAttachment | null>(
@@ -422,6 +463,50 @@ function ChatScreen() {
 		conversationsProvider(4),
 		fileSearchProvider(5),
 	]);
+
+	const showNotice = (text: string) => {
+		setFileNotice(text);
+		window.setTimeout(() => setFileNotice(null), 2500);
+	};
+
+	const commands: LexicalComposerCommand[] = [
+		{
+			id: "plan",
+			title: "Plan",
+			description: planMode
+				? "Turn off plan mode"
+				: "Plan before making changes",
+			icon: <LightbulbIcon className="size-4.5" />,
+			onSelect: () => setPlanMode((previous) => !previous),
+		},
+		{
+			id: "model",
+			title: "Model",
+			description: model,
+			icon: <BoxIcon className="size-4.5" />,
+			onSelect: () =>
+				setModel((previous) =>
+					previous === "Sonnet 5" ? "Opus 5" : "Sonnet 5",
+				),
+		},
+		{
+			id: "compact",
+			title: "Compact",
+			description: "Compact this conversation's context",
+			icon: <CircleDashedIcon className="size-4.5" />,
+			searchAliases: ["summarize"],
+			onSelect: () => showNotice("Compacted the conversation context"),
+		},
+		{
+			id: "new-chat",
+			title: "New chat",
+			description: "Start a blank chat in this workspace",
+			icon: <MessageSquarePlusIcon className="size-4.5" />,
+			searchAliases: ["blank"],
+			onSelect: () => showNotice("Would start a new chat"),
+		},
+		...SKILL_COMMANDS,
+	];
 
 	const handleSubmit = ({ text, mentions }: LexicalComposerSubmitPayload) => {
 		setMessages((previous) => [
@@ -480,19 +565,18 @@ function ChatScreen() {
 						<LexicalComposer
 							placeholder="Ask to make changes, @mention files, run /commands"
 							mentionProviders={providers}
-							commands={COMMANDS}
+							commands={commands}
 							status={streaming ? "streaming" : "ready"}
-							toolbar={<DemoToolbar planMode={planMode} />}
+							toolbar={<DemoToolbar planMode={planMode} model={model} />}
 							onStop={() => setStreaming(false)}
 							onSubmit={handleSubmit}
 							onAttachmentClick={(attachment) => {
 								if (attachment.previewUrl) {
 									setPreview(attachment);
 								} else {
-									setFileNotice(
+									showNotice(
 										`Would open ${attachment.file.name} in your editor`,
 									);
-									window.setTimeout(() => setFileNotice(null), 2500);
 								}
 							}}
 						/>

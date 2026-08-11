@@ -20,7 +20,7 @@ import {
 	type LexicalNode,
 	PASTE_COMMAND,
 } from "lexical";
-import { ArrowUpIcon, SlashSquareIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useComposerDropZone } from "../../../ComposerDropZone";
@@ -35,17 +35,27 @@ import type {
 	LexicalComposerProps,
 } from "../../types";
 import { matchToken } from "../../utils/matchToken";
+import { rankCommands } from "../../utils/rankCommands";
 import {
 	CommandTypeaheadOption,
 	MentionTypeaheadOption,
 } from "../../utils/typeaheadOptions";
 import { AttachmentPills } from "../AttachmentPills";
+import { CommandMenu } from "../CommandMenu";
 import { ComposerPanel } from "../ComposerPanel";
 import { ContextButton } from "../ContextButton";
 import { MentionMenu } from "../MentionMenu";
-import { SuggestionListbox } from "../SuggestionListbox";
 
-const MAX_COMMAND_SUGGESTIONS = 8;
+// Slash commands only trigger while the "/token" is the entire message.
+function matchCommandToken(text: string) {
+	const match = /^\/([^/\r\n]*)$/.exec(text);
+	if (!match) return null;
+	return {
+		leadOffset: 0,
+		matchingString: match[1] ?? "",
+		replaceableString: match[0],
+	};
+}
 
 export type ComposerBodyProps = Required<
 	Pick<LexicalComposerProps, "placeholder" | "status" | "placement">
@@ -177,17 +187,13 @@ export function ComposerBody({
 		[sections],
 	);
 
-	const commandOptions = useMemo(
-		() =>
-			(commands ?? [])
-				.filter((command) =>
-					command.label
-						.toLowerCase()
-						.includes((commandQuery ?? "").toLowerCase()),
-				)
-				.slice(0, MAX_COMMAND_SUGGESTIONS)
-				.map((command) => new CommandTypeaheadOption(command)),
+	const rankedCommands = useMemo(
+		() => rankCommands(commands ?? [], commandQuery ?? ""),
 		[commands, commandQuery],
+	);
+	const commandOptions = useMemo(
+		() => rankedCommands.map((command) => new CommandTypeaheadOption(command)),
+		[rankedCommands],
 	);
 
 	const selectMentionEntry = (
@@ -382,6 +388,7 @@ export function ComposerBody({
 	const canSend = !isEmpty || attachments.length > 0;
 
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop target; keyboard users attach via the file picker button
 		<div
 			ref={rootRef}
 			className={cn(
@@ -495,7 +502,7 @@ export function ComposerBody({
 						selectMentionEntry(option.entry, nodeToReplace, closeMenu)
 					}
 					options={mentionOptions}
-					triggerFn={(text) => matchToken(text, "@", false)}
+					triggerFn={(text) => matchToken(text, "@")}
 					commandPriority={COMMAND_PRIORITY_HIGH}
 					onClose={() => setMentionQuery(null)}
 					menuRenderFn={(
@@ -525,41 +532,30 @@ export function ComposerBody({
 					onQueryChange={setCommandQuery}
 					onSelectOption={(option, nodeToReplace, closeMenu) => {
 						editor.update(() => {
-							const text = $createTextNode(`/${option.command.label} `);
-							if (nodeToReplace) {
-								nodeToReplace.replace(text);
-							}
-							text.select(text.getTextContentSize(), text.getTextContentSize());
+							nodeToReplace?.remove();
 							closeMenu();
 						});
+						void option.command.onSelect(actionContextRef.current);
 					}}
 					options={commandOptions}
-					triggerFn={(text) => matchToken(text, "/", true)}
+					triggerFn={(text) => matchCommandToken(text)}
 					commandPriority={COMMAND_PRIORITY_HIGH}
 					menuRenderFn={(
 						anchorElementRef,
 						{ selectedIndex, selectOptionAndCleanUp, setHighlightedIndex },
 					) =>
-						anchorElementRef.current && menuSlot && commandOptions.length > 0
+						anchorElementRef.current && menuSlot && rankedCommands.length > 0
 							? createPortal(
-									<SuggestionListbox
-										options={commandOptions}
+									<CommandMenu
+										commands={rankedCommands}
 										selectedIndex={selectedIndex}
 										onHighlight={setHighlightedIndex}
-										onSelect={selectOptionAndCleanUp}
-										renderRow={(option) => (
-											<>
-												<SlashSquareIcon className="size-4 shrink-0 text-muted-foreground" />
-												<span className="min-w-0 truncate">
-													/{option.command.label}
-												</span>
-												{option.command.description && (
-													<span className="ml-auto min-w-0 shrink-[2] truncate text-xs text-muted-foreground">
-														{option.command.description}
-													</span>
-												)}
-											</>
-										)}
+										onSelect={(command) => {
+											const option = commandOptions.find(
+												(candidate) => candidate.command.id === command.id,
+											);
+											if (option) selectOptionAndCleanUp(option);
+										}}
 									/>,
 									menuSlot,
 								)
