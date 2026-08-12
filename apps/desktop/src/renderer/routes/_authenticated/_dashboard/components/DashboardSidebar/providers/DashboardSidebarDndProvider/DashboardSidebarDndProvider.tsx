@@ -66,24 +66,44 @@ export function DashboardSidebarDndProvider({
 	// drag's duration; dnd-kit pairs every start with exactly one end/cancel.
 	const { beginHoverCardSuppression, endHoverCardSuppression, forceClose } =
 		useDashboardSidebarHover();
+	// try/finally throughout: a throwing drag handler (e.g. a persistence
+	// write) must not leak the counted suppression, or hover cards stay dead
+	// until the sidebar remounts.
 	const handleDragStart = useCallback(
 		(event: DragStartEvent) => {
 			forceClose();
 			beginHoverCardSuppression();
-			handlers.onDragStart(event);
+			try {
+				handlers.onDragStart(event);
+			} catch (error) {
+				// dnd-kit won't fire end/cancel for a start that threw.
+				endHoverCardSuppression();
+				throw error;
+			}
 		},
-		[forceClose, beginHoverCardSuppression, handlers.onDragStart],
+		[
+			forceClose,
+			beginHoverCardSuppression,
+			endHoverCardSuppression,
+			handlers.onDragStart,
+		],
 	);
 	const handleDragEnd = useCallback(
 		(event: DragEndEvent) => {
-			handlers.onDragEnd(event);
-			endHoverCardSuppression();
+			try {
+				handlers.onDragEnd(event);
+			} finally {
+				endHoverCardSuppression();
+			}
 		},
 		[endHoverCardSuppression, handlers.onDragEnd],
 	);
 	const handleDragCancel = useCallback(() => {
-		handlers.onDragCancel();
-		endHoverCardSuppression();
+		try {
+			handlers.onDragCancel();
+		} finally {
+			endHoverCardSuppression();
+		}
 	}, [endHoverCardSuppression, handlers.onDragCancel]);
 
 	return (

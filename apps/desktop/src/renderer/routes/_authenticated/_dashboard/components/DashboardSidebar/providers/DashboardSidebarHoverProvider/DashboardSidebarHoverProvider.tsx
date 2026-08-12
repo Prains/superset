@@ -232,8 +232,11 @@ export function DashboardSidebarHoverProvider({
 			}
 			clearOpenTimer();
 			openTimerRef.current = setTimeout(() => {
-				setState({ hoveredId: id, anchorElement: anchor, payload });
 				openTimerRef.current = null;
+				// Re-check at fire time: suppression may have begun (chip popover,
+				// drag start) while this open was waiting out OPEN_DELAY_MS.
+				if (suppressionCountRef.current > 0) return;
+				setState({ hoveredId: id, anchorElement: anchor, payload });
 			}, OPEN_DELAY_MS);
 		},
 		[clearCloseTimer, clearOpenTimer, stopSafeTriangleTracking],

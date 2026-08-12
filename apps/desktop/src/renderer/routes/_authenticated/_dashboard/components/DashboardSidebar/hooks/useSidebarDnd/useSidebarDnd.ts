@@ -264,6 +264,9 @@ export function useSidebarDnd({
 	// batch faster than React re-renders (especially under main-thread stalls),
 	// so deriving containers from the last *rendered* state mid-drag would work
 	// on stale data — that's how items can get duplicated or misplaced.
+	// commitDragItems is the ONLY writer (every setItems goes through it);
+	// never re-assign these refs during render — an interrupted/discarded
+	// concurrent render pass could roll them back to a pre-transfer snapshot.
 	const itemsRef = useRef(items);
 	const containerByIdRef = useRef(buildContainerMap(items));
 	const commitDragItems = useCallback((next: SidebarDndItems) => {
@@ -272,8 +275,6 @@ export function useSidebarDnd({
 		setItems(next);
 	}, []);
 	const containerById = useMemo(() => buildContainerMap(items), [items]);
-	itemsRef.current = items;
-	containerByIdRef.current = containerById;
 
 	const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
 	// Synchronous mirror of activeId: guards the data-sync effect against
@@ -523,8 +524,13 @@ export function useSidebarDnd({
 
 	const lastOverIdRef = useRef<UniqueIdentifier | null>(null);
 	const recentlyMovedToNewContainerRef = useRef(false);
-
-	useEffect(() => {
+	// Freeze collisions for one frame after a transfer, then re-arm. Scheduled
+	// at the set-site (not a deps-only effect): rAF fires after the transfer's
+	// render+paint, and there is no dependency array for lint autofixes to
+	// strip — an empty-deps version of this freezes the rest of the drag after
+	// the first transfer.
+	const freezeCollisionsForOneFrame = useCallback(() => {
+		recentlyMovedToNewContainerRef.current = true;
 		requestAnimationFrame(() => {
 			recentlyMovedToNewContainerRef.current = false;
 		});
@@ -718,7 +724,7 @@ export function useSidebarDnd({
 				newIndex = overIndex + (isBelowOverItem ? 1 : 0);
 			}
 			target.splice(newIndex, 0, active.id);
-			recentlyMovedToNewContainerRef.current = true;
+			freezeCollisionsForOneFrame();
 			commitDragItems(
 				withContainerList(
 					withContainerList(current, sourceContainer, source),
@@ -727,7 +733,7 @@ export function useSidebarDnd({
 				),
 			);
 		},
-		[typeOf, commitDragItems],
+		[typeOf, commitDragItems, freezeCollisionsForOneFrame],
 	);
 
 	const onDragEnd = useCallback(
