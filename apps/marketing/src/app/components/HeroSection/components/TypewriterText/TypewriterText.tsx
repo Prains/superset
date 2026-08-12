@@ -61,6 +61,10 @@ export function TypewriterText({
 
 	const isTypingComplete = isTyping && displayedText.length === fullText.length;
 
+	// The caret remounts as it moves between segments; only its very first
+	// appearance (before any text) grows in from a square dot
+	const isFirstAppearance = displayedText.length === 0;
+
 	const renderCursor = (override?: string) =>
 		showCursor ? (
 			<motion.span
@@ -69,8 +73,16 @@ export function TypewriterText({
 					cursorClassName ??
 					"inline-block ml-0.5 w-3 -mr-3.5 h-[0.72em] bg-brand"
 				}
-				animate={isTypingComplete ? { opacity: 0 } : { opacity: 1 }}
-				transition={isTypingComplete ? { duration: 0.25, delay: 0.5 } : {}}
+				style={{ originY: 1 }}
+				initial={isFirstAppearance ? { scaleY: 0.13 } : false}
+				animate={
+					isTypingComplete ? { opacity: 0, scaleY: 1 } : { opacity: 1, scaleY: 1 }
+				}
+				transition={
+					isTypingComplete
+						? { duration: 0.25, delay: 0.5 }
+						: { scaleY: { duration: 0.35, delay: 0.15, ease: "easeOut" } }
+				}
 			/>
 		) : null;
 
