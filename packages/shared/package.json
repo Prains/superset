@@ -187,8 +187,8 @@
 		"zod": "4.4.3"
 	},
 	"devDependencies": {
-		"@types/culori": "4.0.1",
 		"@superset/typescript": "workspace:*",
+		"@types/culori": "4.0.1",
 		"@types/friendly-words": "1.2.2",
 		"@types/semver": "7.7.1",
 		"@xterm/xterm": "6.1.0-beta.289",
