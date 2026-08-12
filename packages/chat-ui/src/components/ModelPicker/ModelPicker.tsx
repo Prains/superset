@@ -21,6 +21,9 @@ export type ModelPickerHarness = {
 	name: string;
 	iconUrl: string;
 	models: ModelPickerModel[];
+	// Reason the harness can't serve models right now (signed out, missing
+	// CLI); shown in place of its model list and excluded from search.
+	unavailable?: string;
 };
 
 export type ModelPickerValue = {
@@ -65,24 +68,26 @@ export function ModelPicker({
 	// Searching escapes the active tab and matches across every harness.
 	const rows = useMemo<ModelRow[]>(() => {
 		if (trimmed.length > 0) {
-			return harnesses.flatMap((harness) =>
-				harness.models
-					.filter(
-						(model) =>
-							model.name.toLowerCase().includes(trimmed) ||
-							harness.name.toLowerCase().includes(trimmed),
-					)
-					.map((model) => ({ harness, model })),
-			);
+			return harnesses
+				.filter((harness) => !harness.unavailable)
+				.flatMap((harness) =>
+					harness.models
+						.filter(
+							(model) =>
+								model.name.toLowerCase().includes(trimmed) ||
+								harness.name.toLowerCase().includes(trimmed),
+						)
+						.map((model) => ({ harness, model })),
+				);
 		}
-		if (!activeTab) return [];
+		if (!activeTab || activeTab.unavailable) return [];
 		return activeTab.models
 			.filter((model) => !model.legacy || legacyExpanded)
 			.map((model) => ({ harness: activeTab, model }));
 	}, [harnesses, activeTab, trimmed, legacyExpanded]);
 
 	const legacyCount =
-		trimmed.length === 0
+		trimmed.length === 0 && !activeTab?.unavailable
 			? (activeTab?.models.filter((model) => model.legacy).length ?? 0)
 			: 0;
 
@@ -135,6 +140,7 @@ export function ModelPicker({
 						<button
 							key={harness.id}
 							type="button"
+							title={harness.unavailable}
 							className={cn(
 								"flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors",
 								harness.id === activeTab?.id && trimmed.length === 0
@@ -184,11 +190,20 @@ export function ModelPicker({
 					/>
 				</div>
 				<div className="scroll-fade max-h-72 overflow-y-auto pt-1">
-					{rows.length === 0 && (
+					{trimmed.length === 0 && activeTab?.unavailable ? (
+						<div className="px-3 py-4">
+							<p className="text-[15px] text-foreground">
+								{activeTab.name} is unavailable
+							</p>
+							<p className="pt-0.5 text-[15px] text-muted-foreground">
+								{activeTab.unavailable}
+							</p>
+						</div>
+					) : rows.length === 0 ? (
 						<p className="px-3 py-2 text-[15px] text-muted-foreground/60">
 							No models found
 						</p>
-					)}
+					) : null}
 					{rows.map((row, index) => {
 						const isSelected =
 							row.harness.id === value.harnessId &&

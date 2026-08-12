@@ -844,6 +844,43 @@ export const DictationError: Story = {
 	},
 };
 
+function UnavailableHarnessDemo() {
+	const [value, setValue] = useState<ModelPickerValue>({
+		harnessId: "claude",
+		modelId: "sonnet-5",
+	});
+	const [harnesses] = useState<ModelPickerHarness[]>(() => [
+		...HARNESSES.filter((harness) => harness.id === "claude"),
+		{
+			...(HARNESSES.find(
+				(harness) => harness.id === "codex",
+			) as ModelPickerHarness),
+			unavailable:
+				"Codex CLI is not authenticated. Run `codex login` and try again.",
+		},
+	]);
+	return (
+		<div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+			<ModelPicker harnesses={harnesses} value={value} onSelect={setValue} />
+		</div>
+	);
+}
+
+export const ModelPickerUnavailable: Story = {
+	args: { mentionProviders: [], commands: COMMANDS },
+	render: () => <UnavailableHarnessDemo />,
+	play: async ({ canvasElement }) => {
+		canvasElement
+			.querySelector<HTMLButtonElement>("[data-slot='popover-trigger']")
+			?.click();
+		await new Promise((resolve) => setTimeout(resolve, 400));
+		const codexTab = [...document.querySelectorAll("button")].find(
+			(button) => button.textContent?.trim() === "Codex",
+		);
+		codexTab?.click();
+	},
+};
+
 export const ModelPickerOpen: Story = {
 	args: { mentionProviders: [], commands: COMMANDS },
 	render: () => <ChatScreen />,
