@@ -93,7 +93,12 @@ function makeDaemonPty(
 	return {
 		pid,
 		write(data) {
-			daemon.input(sessionId, Buffer.from(data, "utf8"));
+			try {
+				daemon.input(sessionId, Buffer.from(data, "utf8"));
+			} catch {
+				// Daemon socket died before the disconnect sweep ran; a throw
+				// here would escape the WS input handler uncaught.
+			}
 		},
 		resize(cols, rows) {
 			try {

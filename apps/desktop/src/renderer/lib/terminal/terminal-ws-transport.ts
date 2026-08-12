@@ -8,10 +8,12 @@ import { ensureFreshJwt } from "renderer/lib/auth-client";
 import { posthog } from "renderer/lib/posthog";
 import {
 	type AttachRetryState,
+	clearAttachRetryableMessage,
 	createAttachRetryState,
 	DIAGNOSE_AFTER_ATTEMPTS,
 	effectiveFailureCount,
-	recordAttachRetryableFailure,
+	noteAttachRetryableMessage,
+	recordFailedConnection,
 	resetAttachRetryState,
 	shouldSurfaceDiagnosis,
 } from "./attach-retry-diagnosis";
@@ -120,6 +122,12 @@ export interface TerminalTransport {
 	 * threshold for that outage (see attach-retry-diagnosis.ts).
 	 */
 	_attachRetry: AttachRetryState;
+	/** Internal: the current connection delivered `attached` — its close is a
+	 * disconnect, not a failed attempt. Reset in the close handler. */
+	_connAttached: boolean;
+	/** Internal: the current connection got an attach-retryable error frame
+	 * (already logged); its guaranteed follow-up close skips the generic log. */
+	_connHadRetryableError: boolean;
 	/** Internal: last `_whoowns` preflight probe, used to classify a failure. */
 	_lastProbe: RelayAffinityProbe | null;
 	/**
@@ -221,8 +229,10 @@ function maybeSurfaceDiagnosis(
 	}
 
 	// Keep the header diagnosis fresh every cycle; log + emit telemetry once.
-	// A recorded attach-retryable reason (daemon stalled) beats the probe
-	// classification — the connection itself is fine in that outage.
+	// An attach-retryable reason (daemon stalled) beats the probe
+	// classification — the connection itself is fine in that outage. It's
+	// cleared whenever a connection fails some other way, so it always
+	// describes the CURRENT failure mode, never a past blip.
 	const diagnosis: TerminalFailureClassification = transport._attachRetry
 		.lastMessage
 		? { category: "unknown", message: transport._attachRetry.lastMessage }
@@ -355,6 +365,8 @@ export function createTransport(
 		_writeCoalescer: null,
 		_diagnosisLogged: false,
 		_attachRetry: createAttachRetryState(),
+		_connAttached: false,
+		_connHadRetryableError: false,
 		_lastProbe: null,
 		_localToken: null,
 		_terminated: false,
@@ -682,6 +694,7 @@ function attachSocketListeners(
 			transport._diagnosisLogged = false;
 			// Only a real attach ends the failure streak — WS opens don't count
 			// (a wedged daemon serves a successful upgrade every failed cycle).
+			transport._connAttached = true;
 			resetAttachRetryState(transport._attachRetry);
 			// A successful attach means the session exists again (re-created or
 			// respawned under the same id) — its scrollback is worth keeping.
@@ -722,9 +735,12 @@ function attachSocketListeners(
 			// the pane becomes a live shell once the daemon recovers (host-side
 			// inflight dedupe + already-exists adoption keep the retry idempotent).
 			if (message.code === "attach-retryable") {
-				// Counted here (not in the close handler) because each cycle's WS
-				// stays open long enough to reset partysocket's retryCount.
-				recordAttachRetryableFailure(transport._attachRetry, message.message);
+				// The failure is COUNTED by the close handler (every connection
+				// that never attached counts once); here we just record the
+				// server's reason and log it. The guaranteed follow-up close
+				// carries the 1013 into the diagnosis + telemetry.
+				noteAttachRetryableMessage(transport._attachRetry, message.message);
+				transport._connHadRetryableError = true;
 				if (
 					!isWindowHidden() &&
 					effectiveFailureCount(
@@ -738,7 +754,6 @@ function attachSocketListeners(
 						`Terminal not ready: ${message.message} Retrying automatically.`,
 					);
 				}
-				maybeSurfaceDiagnosis(transport, null);
 				return;
 			}
 			transport.lastDiagnosis = {
@@ -789,16 +804,36 @@ function attachSocketListeners(
 		// attach's `synced` re-arms counting.
 		transport._seqCounting = false;
 		setConnectionState(transport, "closed");
+		// Per-connection outcome flags; consumed once per close.
+		const connAttached = transport._connAttached;
+		const hadRetryableError = transport._connHadRetryableError;
+		transport._connAttached = false;
+		transport._connHadRetryableError = false;
 		// Deliberate/terminal closes (PTY exit, fatal error, cleanup) don't
 		// reconnect — partysocket won't re-dial after close(). Synthetic
 		// dial-error closes carry a string code and are logged via the error
-		// handler; the diagnosis itself is driven off retryCount either way.
+		// handler; they still fall through to the failure counting below.
 		if (transport._terminated || closeEvent.code === 1000) return;
+
+		// Every connection that ends without ever attaching is one failed
+		// attempt — attach-retryable cycles, silent >5s-held closes (host died
+		// mid-attach, proxy idle-timeout), and failed dials alike. This is the
+		// counter partysocket's minUptime reset can't erase. A non-retryable
+		// failure mode drops the stored daemon reason so the diagnosis
+		// classifies from the live probe instead.
+		if (!connAttached) {
+			recordFailedConnection(transport._attachRetry);
+			if (!hadRetryableError) {
+				clearAttachRetryableMessage(transport._attachRetry);
+			}
+		}
 
 		// Log real server closes (numeric code) below the threshold; past it the
 		// header diagnosis conveys the state, and a hidden window shouldn't spam.
+		// Attach-retryable closes were already logged from the error frame.
 		if (
 			typeof closeEvent.code === "number" &&
+			!hadRetryableError &&
 			!isWindowHidden() &&
 			effectiveFailureCount(
 				transport._attachRetry,
