@@ -143,7 +143,7 @@ export function WorkspaceRow({
 					</View>
 				) : null}
 				<Button
-					accessibilityLabel={`New chat in ${workspace.name}`}
+					accessibilityLabel={`New agent in ${workspace.name}`}
 					variant="ghost"
 					size="icon"
 					disabled={!canChat}

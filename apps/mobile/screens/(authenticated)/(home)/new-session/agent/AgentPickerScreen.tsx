@@ -2,14 +2,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { SquareTerminal } from "lucide-react-native";
-import { Pressable, ScrollView } from "react-native";
+import { Image, Pressable, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/hooks/useTheme";
+import { agentIconSource } from "@/lib/agent-icons";
 import { getHostServiceClientByUrl } from "@/lib/host-service/client";
-import { ClaudeLogo } from "@/screens/(authenticated)/(home)/components/ClaudeLogo";
 import { useNewChatTargets } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/hooks/useNewChatTargets";
 import { useNewSessionPreferencesStore } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/stores/newSessionPreferencesStore";
-import { OpenAILogo } from "./components/OpenAILogo";
 
 export function AgentMark({
 	agentId,
@@ -20,9 +19,14 @@ export function AgentMark({
 	size: number;
 	color: string;
 }) {
-	if (agentId === "claude") return <ClaudeLogo size={size} />;
-	if (agentId === "codex") return <OpenAILogo size={size} color={color} />;
-	return <SquareTerminal size={size} color={color} />;
+	const source = agentIconSource(agentId);
+	if (source === undefined) return <SquareTerminal size={size} color={color} />;
+	return (
+		<Image
+			source={source}
+			style={{ width: size, height: size, resizeMode: "contain" }}
+		/>
+	);
 }
 
 /**

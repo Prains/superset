@@ -65,6 +65,7 @@
 		"diff": "8.0.3",
 		"dotenv": "17.3.1",
 		"expo": "56.0.9",
+		"expo-asset": "~56.0.16",
 		"expo-application": "56.0.3",
 		"expo-blur": "~56.0.3",
 		"expo-clipboard": "56.0.4",

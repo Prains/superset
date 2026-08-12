@@ -64,6 +64,7 @@ import {
 } from "../../stores/chatTargetStore";
 import { VoiceControl } from "./components/VoiceControl";
 import { FOREGROUND, MUTED } from "./constants";
+import { useAgentIconUri } from "./hooks/useAgentIconUri";
 import { useCreateTerminalWorkspace } from "./hooks/useCreateTerminalWorkspace";
 import { useNewChatTargets } from "./hooks/useNewChatTargets";
 import { useStartWorkspaceTerminal } from "./hooks/useStartWorkspaceTerminal";
@@ -146,6 +147,7 @@ export function NewChatWidget({
 	const selectedAgent = agentConfigs?.find(
 		(config) => config.presetId === agentId,
 	);
+	const agentIconUri = useAgentIconUri(selectedAgent?.iconId ?? agentId);
 	const branchLabel = baseBranch ?? branchData?.defaultBranch ?? "default";
 	const draftRef = useRef("");
 	const [hasText, setHasText] = useState(false);
@@ -420,7 +422,7 @@ export function NewChatWidget({
 										clipped(),
 									]}
 								>
-									<Text modifiers={[foregroundStyle(MUTED)]}>New chat in</Text>
+									<Text modifiers={[foregroundStyle(MUTED)]}>New agent in</Text>
 									<Text
 										modifiers={[
 											bold(),
@@ -620,7 +622,17 @@ export function NewChatWidget({
 										}}
 										modifiers={[buttonStyle("borderless"), tint(FOREGROUND)]}
 									>
-										<HStack spacing={4}>
+										<HStack spacing={5}>
+											{agentIconUri ? (
+												<Image
+													uiImage={agentIconUri}
+													modifiers={[
+														resizable(),
+														aspectRatio({ contentMode: "fit" }),
+														frame({ width: 15, height: 15 }),
+													]}
+												/>
+											) : null}
 											<Text>{selectedAgent?.label ?? "Claude"}</Text>
 											<Image systemName="chevron.down" size={11} />
 										</HStack>
