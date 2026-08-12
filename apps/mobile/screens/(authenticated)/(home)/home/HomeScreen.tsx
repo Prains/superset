@@ -12,10 +12,6 @@ import {
 	type HostWorkspaceItem,
 	useHostWorkspaces,
 } from "@/hooks/useHostWorkspaces";
-import {
-	buildRelayHostUrl,
-	getHostServiceClientByUrl,
-} from "@/lib/host-service/client";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useSelectedHost } from "@/screens/(authenticated)/(home)/hooks/useSelectedHost";
@@ -28,13 +24,8 @@ import { HostOfflineView } from "./components/HostOfflineView";
 import { NewChatWidget } from "./components/NewChatWidget";
 import { OrganizationHeaderButton } from "./components/OrganizationHeaderButton";
 import { OrganizationSwitcherSheet } from "./components/OrganizationSwitcherSheet";
-import { TerminalRow } from "./components/TerminalRow";
 import { WorkspaceRow } from "./components/WorkspaceRow";
-import {
-	getHostTerminalsQueryKey,
-	type TerminalRowData,
-	useHostTerminals,
-} from "./hooks/useHostTerminals";
+import { useHostTerminals } from "./hooks/useHostTerminals";
 import { useVisibleDiffStats } from "./hooks/useVisibleDiffStats";
 import { useWorkspacesFilterStore } from "./stores/workspacesFilterStore";
 import { activityDateGroup } from "./utils/activityDateGroup";
@@ -51,24 +42,12 @@ const NAVIGATION_BAR_HEIGHT = 44;
 
 type HomeListItem =
 	| { kind: "dateHeader"; label: string }
-	| { kind: "workspace"; workspace: HostWorkspaceItem }
-	| {
-			kind: "terminal";
-			workspaceId: string;
-			row: TerminalRowData;
-			groupFirst: boolean;
-			groupLast: boolean;
-	  };
+	| { kind: "workspace"; workspace: HostWorkspaceItem };
 
 function homeListItemKey(item: HomeListItem): string {
-	switch (item.kind) {
-		case "dateHeader":
-			return `date:${item.label}`;
-		case "workspace":
-			return `ws:${item.workspace.id}`;
-		case "terminal":
-			return `terminal:${item.row.terminalId}`;
-	}
+	return item.kind === "dateHeader"
+		? `date:${item.label}`
+		: `ws:${item.workspace.id}`;
 }
 
 export function HomeScreen() {
@@ -191,19 +170,9 @@ export function HomeScreen() {
 				lastGroup = group;
 			}
 			items.push({ kind: "workspace", workspace });
-			const rows = terminalsByWorkspace.get(workspace.id) ?? [];
-			rows.forEach((row, rowIndex) => {
-				items.push({
-					kind: "terminal",
-					workspaceId: workspace.id,
-					row,
-					groupFirst: rowIndex === 0,
-					groupLast: rowIndex === rows.length - 1,
-				});
-			});
 		}
 		return items;
-	}, [visibleWorkspaces, terminalsByWorkspace, activityTs]);
+	}, [visibleWorkspaces, activityTs]);
 
 	const workspacesById = useMemo(
 		() => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -282,27 +251,6 @@ export function HomeScreen() {
 		setRefreshing(false);
 	}, [queryClient]);
 
-	const killTerminal = useCallback(
-		(row: TerminalRowData) => {
-			if (!selectedHost) return;
-			const hostUrl = buildRelayHostUrl(
-				selectedHost.organizationId,
-				selectedHost.machineId,
-			);
-			void getHostServiceClientByUrl(hostUrl)
-				.terminal.killSession.mutate({
-					terminalId: row.terminalId,
-					workspaceId: row.workspaceId,
-				})
-				.finally(() => {
-					void queryClient.invalidateQueries({
-						queryKey: getHostTerminalsQueryKey(selectedHost.machineId),
-					});
-				});
-		},
-		[selectedHost, queryClient],
-	);
-
 	// Projects are fully local: PR rows are matched by repo coordinates
 	// parsed from the PR URL (cloud repo UUIDs aren't known host-side).
 	const repoPrefixesByProject = useMemo(
@@ -320,71 +268,46 @@ export function HomeScreen() {
 
 	const renderItem = useCallback(
 		({ item, index }: { item: HomeListItem; index: number }) => {
-			switch (item.kind) {
-				case "dateHeader":
-					return (
-						<Text
-							className={cn(
-								"text-muted-foreground px-4 pb-1 font-semibold text-xs",
-								index === 0 ? undefined : "mt-6",
-							)}
-						>
-							{item.label}
-						</Text>
-					);
-				case "workspace": {
-					const { workspace } = item;
-					const repoPrefix = workspace.projectId
-						? repoPrefixesByProject.get(workspace.projectId)
-						: undefined;
-					return (
-						<WorkspaceRow
-							workspace={workspace}
-							pullRequest={
-								repoPrefix
-									? pullRequestsByRepoBranch.get(
-											`${repoPrefix}::${workspace.branch}`,
-										)
-									: undefined
-							}
-							diffStats={diffStats.get(workspace.id) ?? null}
-							cache={cache}
-							attention={attentionByWorkspace.get(workspace.id) ?? null}
-						/>
-					);
-				}
-				case "terminal":
-					return (
-						<View className={cn("ml-7", item.groupLast && "mb-2")}>
-							<View
-								className={cn(
-									"bg-border absolute left-0 w-[1.5px] rounded-full",
-									item.groupFirst ? "top-1" : "top-0",
-									item.groupLast ? "bottom-3" : "bottom-0",
-								)}
-							/>
-							<TerminalRow
-								row={item.row}
-								className="gap-2.5 py-2 pr-4 pl-4"
-								onPress={() =>
-									router.push(
-										`/(authenticated)/workspace/${item.workspaceId}?tab=${item.row.terminalId}`,
-									)
-								}
-								onKill={() => killTerminal(item.row)}
-							/>
-						</View>
-					);
+			if (item.kind === "dateHeader") {
+				return (
+					<Text
+						className={cn(
+							"text-muted-foreground px-4 pb-1 font-semibold text-xs",
+							index === 0 ? undefined : "mt-6",
+						)}
+					>
+						{item.label}
+					</Text>
+				);
 			}
+			const { workspace } = item;
+			const repoPrefix = workspace.projectId
+				? repoPrefixesByProject.get(workspace.projectId)
+				: undefined;
+			return (
+				<WorkspaceRow
+					workspace={workspace}
+					pullRequest={
+						repoPrefix
+							? pullRequestsByRepoBranch.get(
+									`${repoPrefix}::${workspace.branch}`,
+								)
+							: undefined
+					}
+					diffStats={diffStats.get(workspace.id) ?? null}
+					cache={cache}
+					attention={attentionByWorkspace.get(workspace.id) ?? null}
+					sessions={terminalsByWorkspace.get(workspace.id) ?? []}
+				/>
+			);
 		},
 		[
 			pullRequestsByRepoBranch,
 			repoPrefixesByProject,
 			diffStats,
 			cache,
-			router,
 			attentionByWorkspace,
-			killTerminal,
+			terminalsByWorkspace,
 		],
 	);
 

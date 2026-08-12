@@ -15,8 +15,11 @@ import type {
 	HostWorkspaceItem,
 	HostWorkspacesCacheOps,
 } from "@/hooks/useHostWorkspaces";
+import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
+import { AgentMark } from "@/screens/(authenticated)/(home)/new-session/agent";
 import { PressableScale } from "@/screens/(authenticated)/components/PressableScale";
+import type { TerminalRowData } from "../../hooks/useHostTerminals";
 import type { DiffStats } from "../../hooks/useVisibleDiffStats";
 import { useChatTargetStore } from "../../stores/chatTargetStore";
 import { type PrBadgeState, prStateFor } from "../../utils/prStateFor";
@@ -34,20 +37,25 @@ const PR_ICON_CONFIG: Record<
 	open: { icon: GitPullRequest, iconClassName: "text-emerald-500" },
 };
 
+const MAX_SESSION_MARKS = 4;
+
 export function WorkspaceRow({
 	workspace,
 	pullRequest,
 	diffStats,
 	cache,
 	attention,
+	sessions,
 }: {
 	workspace: HostWorkspaceItem;
 	pullRequest?: SelectGithubPullRequest;
 	diffStats: DiffStats | null;
 	cache: HostWorkspacesCacheOps;
 	attention?: "permission" | "working" | null;
+	sessions: TerminalRowData[];
 }) {
 	const router = useRouter();
+	const theme = useTheme();
 	const prIcon = pullRequest ? PR_ICON_CONFIG[prStateFor(pullRequest)] : null;
 	const setTarget = useChatTargetStore((state) => state.setTarget);
 	const targeted = useChatTargetStore(
@@ -117,6 +125,23 @@ export function WorkspaceRow({
 						) : null}
 					</View>
 				</View>
+				{sessions.length > 0 ? (
+					<View className="flex-row items-center gap-1.5">
+						{sessions.slice(0, MAX_SESSION_MARKS).map((session) => (
+							<AgentMark
+								key={session.terminalId}
+								agentId={session.agentId ?? ""}
+								size={14}
+								color={theme.mutedForeground}
+							/>
+						))}
+						{sessions.length > MAX_SESSION_MARKS ? (
+							<Text className="text-muted-foreground text-xs">
+								+{sessions.length - MAX_SESSION_MARKS}
+							</Text>
+						) : null}
+					</View>
+				) : null}
 				<Button
 					accessibilityLabel={`New chat in ${workspace.name}`}
 					variant="ghost"
