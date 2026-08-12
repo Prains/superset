@@ -90,10 +90,10 @@ export function NewSessionSheet() {
 	return (
 		<ScrollView
 			className="bg-background flex-1"
-			contentContainerClassName="px-5"
+			contentContainerClassName="px-5 pt-4"
 			contentInsetAdjustmentBehavior="automatic"
 		>
-			<View className="border-border border-b pb-4 pt-1">
+			<View className="border-border border-b pb-4">
 				<Text className="text-xl font-semibold">New session</Text>
 				{workspace ? (
 					<Text
