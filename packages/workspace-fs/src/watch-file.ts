@@ -1,0 +1,147 @@
+import { type FSWatcher, watch } from "node:fs";
+import { stat } from "node:fs/promises";
+import type { FsWatchEvent } from "./types";
+
+const DEBOUNCE_MS = 75;
+const RECREATION_POLL_MS = 2_000;
+
+export interface WatchSingleFileOptions {
+	debounceMs?: number;
+	/** How often to poll for the file to (re)appear while it's absent. */
+	pollMs?: number;
+}
+
+/**
+ * Targeted watch on one file, for paths the recursive workspace watcher
+ * can't see (inside pruned subtrees like node_modules or gitignored build
+ * dirs). Port of VS Code's per-resource fallback for visible editors
+ * (editorService.ts `activeOutOfWorkspaceWatchers`).
+ *
+ * `node:fs.watch` on a file follows the inode, so after an atomic save
+ * (write-temp + rename — most editors) the old watch is deaf. Every settled
+ * event therefore re-installs the watch at the path. While the file is
+ * absent the watch can't exist at all; a slow poll waits for recreation and
+ * emits `create` when it lands.
+ */
+export function watchSingleFile(
+	absolutePath: string,
+	onEvent: (event: FsWatchEvent) => void,
+	options: WatchSingleFileOptions = {},
+): () => void {
+	const debounceMs = options.debounceMs ?? DEBOUNCE_MS;
+	const pollMs = options.pollMs ?? RECREATION_POLL_MS;
+
+	let disposed = false;
+	let watcher: FSWatcher | null = null;
+	let exists = false;
+	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	let pollTimer: ReturnType<typeof setInterval> | null = null;
+	let settling = false;
+	let settleQueued = false;
+
+	const emit = (kind: "create" | "update" | "delete", isDirectory: boolean) => {
+		onEvent({ kind, absolutePath, isDirectory });
+	};
+
+	const closeWatcher = () => {
+		watcher?.close();
+		watcher = null;
+	};
+
+	const startPolling = () => {
+		if (pollTimer || disposed) return;
+		const timer = setInterval(() => void settle(), pollMs);
+		timer.unref?.();
+		pollTimer = timer;
+	};
+
+	const stopPolling = () => {
+		if (pollTimer) {
+			clearInterval(pollTimer);
+			pollTimer = null;
+		}
+	};
+
+	const installWatcher = (): boolean => {
+		closeWatcher();
+		try {
+			watcher = watch(absolutePath, () => scheduleSettle());
+			watcher.on("error", () => scheduleSettle());
+			return true;
+		} catch {
+			watcher = null;
+			return false;
+		}
+	};
+
+	const scheduleSettle = () => {
+		if (disposed || debounceTimer) return;
+		const timer = setTimeout(() => {
+			debounceTimer = null;
+			void settle();
+		}, debounceMs);
+		timer.unref?.();
+		debounceTimer = timer;
+	};
+
+	/** Re-derive state from disk and emit the transition, if any. */
+	const settle = async (): Promise<void> => {
+		if (disposed) return;
+		if (settling) {
+			// An event landed mid-settle — its transition must not be lost.
+			settleQueued = true;
+			return;
+		}
+		settling = true;
+		try {
+			const stats = await stat(absolutePath).catch(() => null);
+			if (disposed) return;
+			if (stats) {
+				const existed = exists;
+				exists = true;
+				stopPolling();
+				// Re-install unconditionally: the previous watch may be following
+				// a replaced inode (atomic save) and would never fire again.
+				if (!installWatcher()) {
+					startPolling();
+				}
+				emit(existed ? "update" : "create", stats.isDirectory());
+			} else {
+				const existed = exists;
+				exists = false;
+				closeWatcher();
+				startPolling();
+				if (existed) {
+					emit("delete", false);
+				}
+			}
+		} finally {
+			settling = false;
+		}
+		if (settleQueued) {
+			settleQueued = false;
+			scheduleSettle();
+		}
+	};
+
+	// Initial attach: no emit — the caller already has the file's current
+	// state (or its absence). Just start watching/polling from it.
+	void (async () => {
+		const stats = await stat(absolutePath).catch(() => null);
+		if (disposed) return;
+		exists = stats !== null;
+		if (!exists || !installWatcher()) {
+			startPolling();
+		}
+	})();
+
+	return () => {
+		disposed = true;
+		if (debounceTimer) {
+			clearTimeout(debounceTimer);
+			debounceTimer = null;
+		}
+		stopPolling();
+		closeWatcher();
+	};
+}
