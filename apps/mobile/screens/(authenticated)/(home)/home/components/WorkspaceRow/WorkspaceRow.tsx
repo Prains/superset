@@ -64,13 +64,12 @@ export function WorkspaceRow({
 
 	return (
 		<WorkspaceRowMenu workspace={workspace} cache={cache}>
-			{/* Highlight-only feedback, like a UITableView cell — a press scale
-			    here fights the system context-menu lift, which owns the entire
-			    hold animation. */}
+			{/* Default press behavior on purpose: the system context-menu lift
+			    owns the hold animation, and custom press feedback fights it. */}
 			<Pressable
 				className={cn(
 					"flex-row items-center gap-3 rounded-xl px-4 py-2.5",
-					targeted ? "bg-foreground/5" : "bg-background active:bg-foreground/5",
+					targeted ? "bg-foreground/5" : "bg-background",
 				)}
 				onPress={() =>
 					router.push(`/(authenticated)/workspace/${workspace.id}`)
@@ -137,8 +136,8 @@ export function WorkspaceRow({
 							<View
 								key={session.terminalId}
 								className={cn(
-									"bg-secondary border-background size-6 items-center justify-center rounded-full border-2",
-									index > 0 && "-ml-2.5",
+									"bg-secondary size-6 items-center justify-center rounded-full",
+									index > 0 && "-ml-2",
 								)}
 							>
 								<AgentMark
