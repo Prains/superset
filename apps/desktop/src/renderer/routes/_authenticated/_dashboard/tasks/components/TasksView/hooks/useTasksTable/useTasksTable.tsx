@@ -86,6 +86,7 @@ export function useTasksTable({
 		fetchNextTasksPage,
 		hasNextTasksPage,
 		isFetchingNextTasksPage,
+		isLoadingTasks,
 	} = useTasksJoinedWithStatuses();
 
 	const projectScopedData = useMemo(() => {
@@ -326,5 +327,6 @@ export function useTasksTable({
 		fetchNextTasksPage,
 		hasNextTasksPage,
 		isFetchingNextTasksPage,
+		isLoadingTasks,
 	};
 }

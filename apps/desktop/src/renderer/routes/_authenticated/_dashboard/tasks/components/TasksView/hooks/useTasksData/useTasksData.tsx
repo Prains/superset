@@ -29,6 +29,7 @@ export interface TasksPagination {
 	fetchNextTasksPage: () => void;
 	hasNextTasksPage: boolean;
 	isFetchingNextTasksPage: boolean;
+	isLoadingTasks: boolean;
 }
 
 interface UseTasksDataParams {
@@ -42,7 +43,7 @@ export function useTasksJoinedWithStatuses(): TasksPagination & {
 	tasks: TaskWithStatus[];
 	statuses: SelectTaskStatus[];
 } {
-	const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+	const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
 		cloudTrpc.task.listPage.useInfiniteQuery(
 			{ limit: TASK_PAGE_SIZE },
 			{
@@ -50,10 +51,10 @@ export function useTasksJoinedWithStatuses(): TasksPagination & {
 				refetchInterval: TASK_LIST_REFETCH_INTERVAL,
 			},
 		);
-	const { data: statusRows } = cloudTrpc.task.statuses.list.useQuery(
-		undefined,
-		{ refetchInterval: TASK_LIST_REFETCH_INTERVAL },
-	);
+	const { data: statusRows, isLoading: isLoadingStatuses } =
+		cloudTrpc.task.statuses.list.useQuery(undefined, {
+			refetchInterval: TASK_LIST_REFETCH_INTERVAL,
+		});
 
 	const statuses = useMemo(() => statusRows ?? [], [statusRows]);
 
@@ -84,6 +85,7 @@ export function useTasksJoinedWithStatuses(): TasksPagination & {
 		fetchNextTasksPage,
 		hasNextTasksPage: hasNextPage,
 		isFetchingNextTasksPage: isFetchingNextPage,
+		isLoadingTasks: isLoading || isLoadingStatuses,
 	};
 }
 
@@ -102,6 +104,7 @@ export function useTasksData({
 		fetchNextTasksPage,
 		hasNextTasksPage,
 		isFetchingNextTasksPage,
+		isLoadingTasks,
 	} = useTasksJoinedWithStatuses();
 
 	const { search } = useHybridSearch(sortedData);
@@ -150,5 +153,6 @@ export function useTasksData({
 		fetchNextTasksPage,
 		hasNextTasksPage,
 		isFetchingNextTasksPage,
+		isLoadingTasks,
 	};
 }

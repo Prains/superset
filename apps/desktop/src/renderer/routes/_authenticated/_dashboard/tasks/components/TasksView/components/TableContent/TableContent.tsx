@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { HiCheckCircle } from "react-icons/hi2";
+import { useAutoLoadEmptyPages } from "../../hooks/useAutoLoadEmptyPages";
 import type { TaskWithStatus } from "../../hooks/useTasksData";
 import { useTasksTable } from "../../hooks/useTasksTable";
-import { LoadMoreTasksButton } from "../LoadMoreTasksButton";
 import { TasksTableView } from "../TasksTableView";
 import type { TabValue } from "../TasksTopBar";
 import { getSelectedTasks } from "./utils/getSelectedTasks";
@@ -35,11 +35,23 @@ export function TableContent({
 		fetchNextTasksPage,
 		hasNextTasksPage,
 		isFetchingNextTasksPage,
+		isLoadingTasks,
 	} = useTasksTable({
 		filterTab,
 		searchQuery,
 		assigneeFilter,
 		linearProjectFilter,
+	});
+
+	const rows = table.getRowModel().rows;
+
+	useAutoLoadEmptyPages({
+		isEmpty: rows.length === 0,
+		isLoading: isLoadingTasks,
+		filterKey: `${filterTab}\0${searchQuery}\0${assigneeFilter ?? ""}\0${linearProjectFilter ?? ""}`,
+		hasNextPage: hasNextTasksPage,
+		isFetchingNextPage: isFetchingNextTasksPage,
+		onLoadMore: fetchNextTasksPage,
 	});
 
 	const selectedTasks = useMemo(() => {
@@ -54,22 +66,14 @@ export function TableContent({
 		onSelectionChange?.(selectedTasks, clearSelection);
 	}, [selectedTasks, clearSelection, onSelectionChange]);
 
-	if (table.getRowModel().rows.length === 0) {
+	if (rows.length === 0) {
 		return (
-			<>
-				<div className="flex-1 flex items-center justify-center">
-					<div className="flex flex-col items-center gap-2 text-muted-foreground">
-						<HiCheckCircle className="h-8 w-8" />
-						<span className="text-sm">No tasks found</span>
-					</div>
+			<div className="flex-1 flex items-center justify-center">
+				<div className="flex flex-col items-center gap-2 text-muted-foreground">
+					<HiCheckCircle className="h-8 w-8" />
+					<span className="text-sm">No tasks found</span>
 				</div>
-				{hasNextTasksPage && (
-					<LoadMoreTasksButton
-						onLoadMore={fetchNextTasksPage}
-						isLoading={isFetchingNextTasksPage}
-					/>
-				)}
-			</>
+			</div>
 		);
 	}
 

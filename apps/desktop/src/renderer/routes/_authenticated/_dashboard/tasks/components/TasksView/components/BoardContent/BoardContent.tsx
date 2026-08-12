@@ -1,7 +1,8 @@
 import { HiCheckCircle } from "react-icons/hi2";
+import { LuRefreshCw } from "react-icons/lu";
+import { useAutoLoadEmptyPages } from "../../hooks/useAutoLoadEmptyPages";
 import type { TaskWithStatus } from "../../hooks/useTasksData";
 import { useTasksData } from "../../hooks/useTasksData";
-import { LoadMoreTasksButton } from "../LoadMoreTasksButton";
 import { TasksBoardView } from "../TasksBoardView";
 import type { TabValue } from "../TasksTopBar";
 
@@ -26,6 +27,7 @@ export function BoardContent({
 		fetchNextTasksPage,
 		hasNextTasksPage,
 		isFetchingNextTasksPage,
+		isLoadingTasks,
 	} = useTasksData({
 		filterTab,
 		searchQuery,
@@ -33,24 +35,23 @@ export function BoardContent({
 		linearProjectFilter,
 	});
 
-	const loadMore = hasNextTasksPage ? (
-		<LoadMoreTasksButton
-			onLoadMore={fetchNextTasksPage}
-			isLoading={isFetchingNextTasksPage}
-		/>
-	) : null;
+	useAutoLoadEmptyPages({
+		isEmpty: data.length === 0,
+		isLoading: isLoadingTasks,
+		filterKey: `${filterTab}\0${searchQuery}\0${assigneeFilter ?? ""}\0${linearProjectFilter ?? ""}`,
+		hasNextPage: hasNextTasksPage,
+		isFetchingNextPage: isFetchingNextTasksPage,
+		onLoadMore: fetchNextTasksPage,
+	});
 
 	if (data.length === 0) {
 		return (
-			<>
-				<div className="flex-1 flex items-center justify-center">
-					<div className="flex flex-col items-center gap-2 text-muted-foreground">
-						<HiCheckCircle className="h-8 w-8" />
-						<span className="text-sm">No tasks found</span>
-					</div>
+			<div className="flex-1 flex items-center justify-center">
+				<div className="flex flex-col items-center gap-2 text-muted-foreground">
+					<HiCheckCircle className="h-8 w-8" />
+					<span className="text-sm">No tasks found</span>
 				</div>
-				{loadMore}
-			</>
+			</div>
 		);
 	}
 
@@ -60,8 +61,16 @@ export function BoardContent({
 				data={data}
 				allStatuses={allStatuses}
 				onTaskClick={onTaskClick}
+				hasNextPage={hasNextTasksPage}
+				isFetchingNextPage={isFetchingNextTasksPage}
+				onLoadMore={fetchNextTasksPage}
 			/>
-			{loadMore}
+			{isFetchingNextTasksPage && (
+				<div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+					<LuRefreshCw className="size-3.5 animate-spin motion-reduce:animate-none" />
+					<span>Loading more…</span>
+				</div>
+			)}
 		</>
 	);
 }
