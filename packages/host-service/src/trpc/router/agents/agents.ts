@@ -440,6 +440,12 @@ export async function runAgentInWorkspace(
 				message: `${SUPERSET_AGENT_LABEL} does not support resuming a session by id. Omit resumeSessionId to start a new session.`,
 			});
 		}
+		if (input.prompt.length === 0) {
+			throw new TRPCError({
+				code: "BAD_REQUEST",
+				message: `${SUPERSET_AGENT_LABEL} requires a prompt to start a session.`,
+			});
+		}
 		return runChatAgent(ctx, input, SUPERSET_AGENT_LABEL);
 	}
 	return runTerminalAgent(ctx, input);
@@ -452,22 +458,15 @@ export const agentsRouter = router({
 				.object({
 					workspaceId: z.string().uuid(),
 					agent: z.string().min(1),
-					// A resume-only launch has no prompt; the refine below still
-					// rejects promptless launches that aren't resuming.
+					// Optional for terminal agents: an empty prompt launches the bare
+					// agent (the builder drops promptArgs). Chat agents still require
+					// one — enforced in runAgentInWorkspace where the branch is known.
 					prompt: z.string().default(""),
 					attachmentIds: z.array(z.string().uuid()).optional(),
 					model: z.string().min(1).optional(),
 					effort: z.string().min(1).optional(),
 					resumeSessionId: z.string().min(1).optional(),
-				})
-				.refine(
-					(input) =>
-						input.prompt.length > 0 || input.resumeSessionId !== undefined,
-					{
-						message: "prompt is required unless resumeSessionId is provided",
-						path: ["prompt"],
-					},
-				),
+				}),
 		)
 		.mutation(async ({ ctx, input }) => runAgentInWorkspace(ctx, input)),
 });
