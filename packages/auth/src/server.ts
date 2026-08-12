@@ -139,10 +139,6 @@ export const auth = betterAuth({
 			clientId: env.GOOGLE_CLIENT_ID,
 			clientSecret: env.GOOGLE_CLIENT_SECRET,
 		},
-		// Native Sign in with Apple: mobile sends the identity token from
-		// AuthenticationServices and the server verifies it against Apple's
-		// JWKS with the app bundle id as the audience. clientId/clientSecret
-		// only matter for a future web-based Apple flow.
 		apple: {
 			clientId: env.APPLE_CLIENT_ID,
 			clientSecret: env.APPLE_CLIENT_SECRET,
