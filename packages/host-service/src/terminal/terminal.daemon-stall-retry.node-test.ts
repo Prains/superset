@@ -14,6 +14,7 @@
 import { strict as assert } from "node:assert";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
+import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import { after, before, test } from "node:test";
@@ -21,6 +22,11 @@ import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { Server } from "@superset/pty-daemon";
+import {
+	CURRENT_PROTOCOL_VERSION,
+	encodeFrame,
+	FrameDecoder,
+} from "@superset/pty-daemon/protocol";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb, type HostDb } from "../db/index.ts";
@@ -51,7 +57,11 @@ type FirstResult =
 	| { kind: "attached" }
 	| { kind: "error"; message: string; code?: string };
 
-function dial(terminalId: string, query: string): Promise<FirstResult> {
+function dial(
+	terminalId: string,
+	query: string,
+	timeoutMs = 15_000,
+): Promise<FirstResult> {
 	return new Promise((resolve, reject) => {
 		const ws = new WebSocket(
 			`ws://127.0.0.1:${httpPort}/terminal/${terminalId}${query}`,
@@ -60,7 +70,7 @@ function dial(terminalId: string, query: string): Promise<FirstResult> {
 		const timer = setTimeout(() => {
 			ws.close();
 			reject(new Error("attach timeout"));
-		}, 15_000);
+		}, timeoutMs);
 		const done = (result: FirstResult) => {
 			clearTimeout(timer);
 			ws.close();
@@ -185,7 +195,97 @@ test("existing active session with daemon down fails attach-retryable, not sessi
 	assert.equal(row?.status, "active");
 });
 
+// The headline outage: the daemon socket ACCEPTS and handshakes but never
+// answers `open` (SIGSTOP-style wedge) — distinct from the refused-connect
+// tests above. The attach must fail through the daemon-open timeout and
+// still classify attach-retryable.
+test("unresponsive daemon (accepts, never replies to open) times out attach-retryable", async () => {
+	const stallSock = path.join(
+		os.tmpdir(),
+		`host-svc-stallretry-wedge-${process.pid}.sock`,
+	);
+	const stallServer = net.createServer((socket) => {
+		const decoder = new FrameDecoder();
+		socket.on("data", (chunk) => {
+			decoder.push(chunk);
+			for (const frame of decoder.drain()) {
+				if ((frame.message as { type: string }).type === "hello") {
+					socket.write(
+						encodeFrame({
+							type: "hello-ack",
+							protocol: CURRENT_PROTOCOL_VERSION,
+							daemonVersion: "0.0.0-wedged",
+						}),
+					);
+				}
+				// open/list/close: swallow silently, like a SIGSTOPped daemon
+				// whose socket buffer still accepts writes.
+			}
+		});
+	});
+	await new Promise<void>((resolve) => stallServer.listen(stallSock, resolve));
+	await disposeDaemonClient();
+	process.env.SUPERSET_PTY_DAEMON_SOCKET = stallSock;
+
+	const tid = `stall-wedge-${randomUUID().slice(0, 8)}`;
+	// The daemon-open timeout is 15s; give the dial margin past it.
+	const result = await dial(
+		tid,
+		`?workspaceId=${workspaceId}&create=1`,
+		25_000,
+	);
+	assert.equal(result.kind, "error");
+	if (result.kind === "error") {
+		assert.equal(result.code, "attach-retryable");
+		assert.match(result.message, /timed out/);
+	}
+	assert.ok(!isLiveTerminalSession(tid));
+
+	await disposeDaemonClient();
+	await new Promise<void>((resolve) => stallServer.close(() => resolve()));
+});
+
+// A daemon that REJECTS the handshake is reachable and saying no — that's a
+// permanent failure and must NOT invite the renderer's retry loop.
+test("handshake-rejecting daemon yields a permanent error, not attach-retryable", async () => {
+	const rejectSock = path.join(
+		os.tmpdir(),
+		`host-svc-stallretry-reject-${process.pid}.sock`,
+	);
+	const rejectServer = net.createServer((socket) => {
+		const decoder = new FrameDecoder();
+		socket.on("data", (chunk) => {
+			decoder.push(chunk);
+			for (const frame of decoder.drain()) {
+				if ((frame.message as { type: string }).type === "hello") {
+					socket.write(
+						encodeFrame({ type: "error", message: "unsupported protocol" }),
+					);
+				}
+			}
+		});
+	});
+	await new Promise<void>((resolve) =>
+		rejectServer.listen(rejectSock, resolve),
+	);
+	await disposeDaemonClient();
+	process.env.SUPERSET_PTY_DAEMON_SOCKET = rejectSock;
+
+	const tid = `stall-reject-${randomUUID().slice(0, 8)}`;
+	const result = await dial(tid, `?workspaceId=${workspaceId}&create=1`);
+	assert.equal(result.kind, "error");
+	if (result.kind === "error") {
+		assert.equal(result.code, undefined);
+	}
+	assert.ok(!isLiveTerminalSession(tid));
+
+	await disposeDaemonClient();
+	await new Promise<void>((resolve) => rejectServer.close(() => resolve()));
+});
+
 test("retrying the same ids after the daemon recovers attaches exactly once", async () => {
+	await disposeDaemonClient();
+	process.env.SUPERSET_PTY_DAEMON_SOCKET = SOCK;
 	server = new Server({
 		socketPath: SOCK,
 		daemonVersion: "0.0.0-stallretry-test",

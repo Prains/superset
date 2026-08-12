@@ -7,6 +7,15 @@ import type { Terminal as XTerm } from "@xterm/xterm";
 import { ensureFreshJwt } from "renderer/lib/auth-client";
 import { posthog } from "renderer/lib/posthog";
 import {
+	type AttachRetryState,
+	createAttachRetryState,
+	DIAGNOSE_AFTER_ATTEMPTS,
+	effectiveFailureCount,
+	recordAttachRetryableFailure,
+	resetAttachRetryState,
+	shouldSurfaceDiagnosis,
+} from "./attach-retry-diagnosis";
+import {
 	classifyTerminalFailure,
 	type TerminalFailureClassification,
 } from "./terminalConnectionDiagnostics";
@@ -103,6 +112,14 @@ export interface TerminalTransport {
 	 * read live from the socket's `retryCount` (see maybeSurfaceDiagnosis).
 	 */
 	_diagnosisLogged: boolean;
+	/**
+	 * Consecutive attach-retryable failures + the server's latest reason.
+	 * partysocket's retryCount resets after 5s of uptime, and a wedged-daemon
+	 * cycle keeps the WS open ~15s before failing — so this counter, reset
+	 * only on a real `attached`, is what actually reaches the diagnosis
+	 * threshold for that outage (see attach-retry-diagnosis.ts).
+	 */
+	_attachRetry: AttachRetryState;
 	/** Internal: last `_whoowns` preflight probe, used to classify a failure. */
 	_lastProbe: RelayAffinityProbe | null;
 	/**
@@ -172,26 +189,19 @@ let logIdCounter = 0;
 
 const BASE_RECONNECT_DELAY = 500;
 const MAX_RECONNECT_DELAY = 10_000;
-// How many consecutive failed dials (partysocket `retryCount`) before the header
-// shows *why* the terminal is down. Below this the socket is quietly (and
-// quickly) retrying — a network blip or host-service restart usually recovers
-// inside the window (retryCount resets after a stable connection). The socket
-// keeps retrying forever regardless; this only gates the user-facing diagnosis.
-const DIAGNOSE_AFTER_ATTEMPTS = 10;
 
 function isWindowHidden(): boolean {
 	return typeof document !== "undefined" && document.hidden;
 }
 
 // Once partysocket has failed DIAGNOSE_AFTER_ATTEMPTS consecutive dials, surface
-// why the terminal is down. Driven off partysocket's `retryCount` — the
-// authoritative per-attempt counter that increments on every failed dial and
-// resets after a stable connection — rather than counting close events: dial
-// failures (host unreachable, upgrade rejected) arrive as synthetic string-code
-// closes + error events that a hand-rolled close-counter misses, so a purely
-// close-counting gate would leave a genuinely-offline terminal retrying
-// silently with no header explanation. The socket keeps retrying forever
-// regardless; this only decides when (and whether) the header explains it.
+// why the terminal is down. Driven off the max of partysocket's `retryCount`
+// (per-dial counter — covers dial failures that arrive as synthetic
+// string-code closes + error events a close-counter would miss) and our own
+// attach-retryable streak (covers the wedged-daemon cycle, where each failed
+// attempt holds the WS open past partysocket's 5s minUptime and retryCount
+// keeps resetting to 0). The socket keeps retrying forever regardless; this
+// only decides when (and whether) the header explains it.
 function maybeSurfaceDiagnosis(
 	transport: TerminalTransport,
 	closeEvent: { code?: unknown; reason?: unknown } | null,
@@ -201,13 +211,25 @@ function maybeSurfaceDiagnosis(
 	// looking at — its failures may be a suspend artifact. The socket keeps
 	// retrying; the resume listener force-redials the moment it's back.
 	if (isWindowHidden()) return;
-	if ((transport._socket?.retryCount ?? 0) < DIAGNOSE_AFTER_ATTEMPTS) return;
+	if (
+		!shouldSurfaceDiagnosis(
+			transport._attachRetry,
+			transport._socket?.retryCount ?? 0,
+		)
+	) {
+		return;
+	}
 
 	// Keep the header diagnosis fresh every cycle; log + emit telemetry once.
-	const diagnosis = classifyTerminalFailure(
-		transport._lastProbe,
-		isRelayHostUrl(transport.currentUrl),
-	);
+	// A recorded attach-retryable reason (daemon stalled) beats the probe
+	// classification — the connection itself is fine in that outage.
+	const diagnosis: TerminalFailureClassification = transport._attachRetry
+		.lastMessage
+		? { category: "unknown", message: transport._attachRetry.lastMessage }
+		: classifyTerminalFailure(
+				transport._lastProbe,
+				isRelayHostUrl(transport.currentUrl),
+			);
 	transport.lastDiagnosis = diagnosis;
 	if (transport._diagnosisLogged) return;
 	transport._diagnosisLogged = true;
@@ -228,7 +250,10 @@ function maybeSurfaceDiagnosis(
 				: undefined,
 		preflight_status: transport._lastProbe?.status ?? null,
 		tunnel_region: transport._lastProbe?.region ?? null,
-		reconnect_attempts: transport._socket?.retryCount ?? 0,
+		reconnect_attempts: effectiveFailureCount(
+			transport._attachRetry,
+			transport._socket?.retryCount ?? 0,
+		),
 		category: diagnosis.category,
 	});
 }
@@ -329,6 +354,7 @@ export function createTransport(
 		_titleNotifyTimer: null,
 		_writeCoalescer: null,
 		_diagnosisLogged: false,
+		_attachRetry: createAttachRetryState(),
 		_lastProbe: null,
 		_localToken: null,
 		_terminated: false,
@@ -364,6 +390,7 @@ function forceReconnect(transport: TerminalTransport) {
 	if (!socket) return;
 	transport._diagnosisLogged = false;
 	transport.lastDiagnosis = null;
+	resetAttachRetryState(transport._attachRetry);
 	setConnectionState(transport, "connecting");
 	// reconnect() also resets partysocket's retryCount, so the diagnosis budget
 	// starts fresh.
@@ -531,6 +558,7 @@ export function connect(
 	transport._terminated = false;
 	transport._diagnosisLogged = false;
 	transport.lastDiagnosis = null;
+	resetAttachRetryState(transport._attachRetry);
 	// Recreate per connect so the coalescer always targets the current terminal;
 	// dispose flushes anything the previous socket left pending.
 	transport._writeCoalescer?.dispose();
@@ -652,6 +680,9 @@ function attachSocketListeners(
 		if (message.type === "attached") {
 			transport.lastDiagnosis = null;
 			transport._diagnosisLogged = false;
+			// Only a real attach ends the failure streak — WS opens don't count
+			// (a wedged daemon serves a successful upgrade every failed cycle).
+			resetAttachRetryState(transport._attachRetry);
 			// A successful attach means the session exists again (re-created or
 			// respawned under the same id) — its scrollback is worth keeping.
 			transport.sessionEnded = false;
@@ -691,9 +722,15 @@ function attachSocketListeners(
 			// the pane becomes a live shell once the daemon recovers (host-side
 			// inflight dedupe + already-exists adoption keep the retry idempotent).
 			if (message.code === "attach-retryable") {
+				// Counted here (not in the close handler) because each cycle's WS
+				// stays open long enough to reset partysocket's retryCount.
+				recordAttachRetryableFailure(transport._attachRetry, message.message);
 				if (
 					!isWindowHidden() &&
-					(transport._socket?.retryCount ?? 0) < DIAGNOSE_AFTER_ATTEMPTS
+					effectiveFailureCount(
+						transport._attachRetry,
+						transport._socket?.retryCount ?? 0,
+					) < DIAGNOSE_AFTER_ATTEMPTS
 				) {
 					pushLog(
 						transport,
@@ -701,6 +738,7 @@ function attachSocketListeners(
 						`Terminal not ready: ${message.message} Retrying automatically.`,
 					);
 				}
+				maybeSurfaceDiagnosis(transport, null);
 				return;
 			}
 			transport.lastDiagnosis = {
@@ -762,12 +800,15 @@ function attachSocketListeners(
 		if (
 			typeof closeEvent.code === "number" &&
 			!isWindowHidden() &&
-			(transport._socket?.retryCount ?? 0) < DIAGNOSE_AFTER_ATTEMPTS
+			effectiveFailureCount(
+				transport._attachRetry,
+				transport._socket?.retryCount ?? 0,
+			) < DIAGNOSE_AFTER_ATTEMPTS
 		) {
 			pushLog(
 				transport,
 				"warn",
-				`WebSocket closed while connected to ${formatWsEndpoint(transport.currentUrl)} (${formatCloseDetails(closeEvent)}). Reconnecting (attempt ${transport._socket?.retryCount ?? 0}/${DIAGNOSE_AFTER_ATTEMPTS})...`,
+				`WebSocket closed while connected to ${formatWsEndpoint(transport.currentUrl)} (${formatCloseDetails(closeEvent)}). Reconnecting (attempt ${effectiveFailureCount(transport._attachRetry, transport._socket?.retryCount ?? 0)}/${DIAGNOSE_AFTER_ATTEMPTS})...`,
 			);
 		}
 		maybeSurfaceDiagnosis(transport, closeEvent);
@@ -781,7 +822,10 @@ function attachSocketListeners(
 		// error every retry cycle. A hidden window stays quiet.
 		if (
 			!isWindowHidden() &&
-			(transport._socket?.retryCount ?? 0) < DIAGNOSE_AFTER_ATTEMPTS
+			effectiveFailureCount(
+				transport._attachRetry,
+				transport._socket?.retryCount ?? 0,
+			) < DIAGNOSE_AFTER_ATTEMPTS
 		) {
 			pushLog(
 				transport,
@@ -812,6 +856,7 @@ export function reconnect(transport: TerminalTransport) {
 	transport._terminated = false;
 	transport._diagnosisLogged = false;
 	transport.lastDiagnosis = null;
+	resetAttachRetryState(transport._attachRetry);
 	setConnectionState(transport, "connecting");
 	// reconnect() also resets partysocket's retryCount → fresh diagnosis budget.
 	transport._socket.reconnect();
@@ -834,6 +879,7 @@ export function disconnect(transport: TerminalTransport) {
 	transport._diagnosisLogged = false;
 	transport._terminated = false;
 	transport.lastDiagnosis = null;
+	resetAttachRetryState(transport._attachRetry);
 	setTerminalTitle(transport, undefined);
 	setConnectionState(transport, "disconnected");
 }
@@ -909,6 +955,7 @@ export function disposeTransport(transport: TerminalTransport) {
 	transport.sessionEnded = false;
 	transport._onSessionEnded = null;
 	transport.lastDiagnosis = null;
+	resetAttachRetryState(transport._attachRetry);
 	setTerminalTitle(transport, undefined);
 	transport.stateListeners.clear();
 	if (transport._titleNotifyTimer !== null) {

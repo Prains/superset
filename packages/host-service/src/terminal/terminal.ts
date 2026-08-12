@@ -49,6 +49,7 @@ import {
 	type ModeTracker,
 	type TerminalSnapshot,
 } from "./terminal-mode-tracker.ts";
+import { toWsCloseReason } from "./ws-close-reason.ts";
 
 /**
  * Thin adapter exposing approximately the IPty surface that the rest of
@@ -1850,11 +1851,15 @@ export async function createTerminalSessionInternal({
 	try {
 		daemon = await getDaemonClient();
 	} catch (error) {
-		// Can't even reach the daemon socket — always retryable.
+		// Transient only for connection-level failures (DaemonClient's typed
+		// taxonomy): the supervisor heals those. Bootstrap failures (missing
+		// daemon binary, no socket path, crash circuit open, handshake
+		// rejection) are permanent — surfacing them beats silently retrying
+		// a bootstrap that will fail the same way forever.
 		return {
 			error:
 				error instanceof Error ? error.message : "Failed to start terminal",
-			transient: true,
+			transient: error instanceof DaemonUnavailableError,
 		};
 	}
 	let openResult: { pid: number };
@@ -2391,13 +2396,7 @@ export function registerWorkspaceTerminalRoute({
 							});
 							// 1013 "try again later" for transient failures; the renderer
 							// keys off the JSON code, the close code is for log readers.
-							// ws caps close reasons at 123 UTF-8 bytes — longer throws.
-							ws.close(
-								transient ? 1013 : 1011,
-								Buffer.byteLength(session.error) <= 123
-									? session.error
-									: `${Buffer.from(session.error).subarray(0, 119).toString()}...`,
-							);
+							ws.close(transient ? 1013 : 1011, toWsCloseReason(session.error));
 							return;
 						}
 						if (ws.readyState !== SOCKET_OPEN) return;
