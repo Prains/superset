@@ -1,11 +1,11 @@
-import type { SelectV2Host } from "@superset/db/schema";
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { useHostsPresence } from "@/hooks/useHostsPresence";
 import {
 	getHostWorkspacesQueryKey,
 	type HostWorkspaceRow,
 } from "@/hooks/useHostWorkspaces";
-import { useOnlineHosts } from "@/hooks/useOnlineHosts";
+import { NO_HOSTS, type OrgHost, useOrgHostsQuery } from "@/hooks/useOrgHosts";
 import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
@@ -13,7 +13,7 @@ import {
 
 export interface WorkspaceHostResult {
 	workspace: HostWorkspaceRow | null;
-	host: SelectV2Host | null;
+	host: OrgHost | null;
 	/** True while no host has answered yet. */
 	isResolving: boolean;
 }
@@ -26,17 +26,23 @@ export interface WorkspaceHostResult {
 export function useWorkspaceHost(
 	workspaceId: string | null,
 ): WorkspaceHostResult {
-	const hosts = useOnlineHosts();
+	const hostsQuery = useOrgHostsQuery();
+	const hosts = hostsQuery.data ?? NO_HOSTS;
+	const presence = useHostsPresence(hosts);
 
 	const targets = useMemo(
 		() =>
 			hosts
+				.map((host) => ({
+					...host,
+					isOnline: presence?.get(host.machineId) ?? host.isOnline,
+				}))
 				.filter((host) => host.isOnline)
 				.map((host) => ({
 					host,
 					hostUrl: buildRelayHostUrl(host.organizationId, host.machineId),
 				})),
-		[hosts],
+		[hosts, presence],
 	);
 
 	const queries = useQueries({
@@ -53,7 +59,7 @@ export function useWorkspaceHost(
 
 	return useMemo(() => {
 		let workspace: HostWorkspaceRow | null = null;
-		let host: SelectV2Host | null = null;
+		let host: OrgHost | null = null;
 		targets.forEach(({ host: target }, index) => {
 			if (workspace) return;
 			const match = queries[index]?.data?.find((row) => row.id === workspaceId);
@@ -62,7 +68,9 @@ export function useWorkspaceHost(
 				host = target;
 			}
 		});
-		const isResolving = !workspace && queries.some((query) => query.isLoading);
+		const isResolving =
+			!workspace &&
+			(hostsQuery.isLoading || queries.some((query) => query.isLoading));
 		return { workspace, host, isResolving };
-	}, [targets, queries, workspaceId]);
+	}, [targets, queries, workspaceId, hostsQuery.isLoading]);
 }

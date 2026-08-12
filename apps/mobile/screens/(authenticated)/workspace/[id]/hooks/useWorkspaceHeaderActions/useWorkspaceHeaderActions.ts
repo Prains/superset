@@ -1,10 +1,10 @@
 import { prompt } from "@superset/alert-prompt";
-import type { SelectV2Host } from "@superset/db/schema";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { Alert, Share } from "react-native";
 import type { HostWorkspaceRow } from "@/hooks/useHostWorkspaces";
+import type { OrgHost } from "@/hooks/useOrgHosts";
 import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
@@ -13,7 +13,7 @@ import { isTrpcErrorWithData } from "@/lib/host-service/errors";
 
 export function useWorkspaceHeaderActions(
 	workspace: HostWorkspaceRow | null,
-	host: SelectV2Host | null,
+	host: OrgHost | null,
 ) {
 	const router = useRouter();
 	const queryClient = useQueryClient();

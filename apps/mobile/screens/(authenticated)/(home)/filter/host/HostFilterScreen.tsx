@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import { ScrollView } from "react-native";
-import { useOnlineHosts } from "@/hooks/useOnlineHosts";
+import { useHostsPresence } from "@/hooks/useHostsPresence";
+import { useOrgHosts } from "@/hooks/useOrgHosts";
 import { useWorkspacesFilterStore } from "@/screens/(authenticated)/(home)/home/stores/workspacesFilterStore";
 import { useSelectedHost } from "@/screens/(authenticated)/(home)/hooks/useSelectedHost";
 import { HostStatusDot } from "@/screens/(authenticated)/components/HostStatusDot";
@@ -10,16 +11,23 @@ import { ListRowCheck } from "@/screens/(authenticated)/components/ListRowCheck"
 
 export function HostFilterScreen() {
 	const router = useRouter();
+	const hosts = useOrgHosts();
 	const selectedHost = useSelectedHost();
 	const setHostFilter = useWorkspacesFilterStore(
 		(store) => store.setHostFilter,
 	);
 
-	const hosts = useOnlineHosts();
+	const presence = useHostsPresence(hosts);
 
 	const sortedHosts = useMemo(
-		() => [...hosts].sort((a, b) => a.name.localeCompare(b.name)),
-		[hosts],
+		() =>
+			hosts
+				.map((host) => ({
+					...host,
+					isOnline: presence?.get(host.machineId) ?? host.isOnline,
+				}))
+				.sort((a, b) => a.name.localeCompare(b.name)),
+		[hosts, presence],
 	);
 
 	const selectHost = (machineId: string) => {

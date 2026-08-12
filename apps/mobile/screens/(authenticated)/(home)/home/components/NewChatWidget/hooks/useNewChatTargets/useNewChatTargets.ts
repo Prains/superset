@@ -2,8 +2,9 @@ import { useQueries } from "@tanstack/react-query";
 import { compareDesc } from "date-fns";
 import { useMemo } from "react";
 import { toHostProjectItem } from "@/hooks/useHostProjects";
+import { useHostsPresence } from "@/hooks/useHostsPresence";
 import type { HostWorkspaceItem } from "@/hooks/useHostWorkspaces";
-import { useOnlineHosts } from "@/hooks/useOnlineHosts";
+import { useOrgHosts } from "@/hooks/useOrgHosts";
 import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
@@ -35,6 +36,7 @@ export function useNewChatTargets(workspaces: HostWorkspaceItem[] = []): {
 	targets: NewChatTarget[];
 	defaultTarget: NewChatTarget | null;
 } {
+	const hosts = useOrgHosts();
 	const persistedTargetKey = useNewChatPreferencesStore(
 		(state) => state.targetKey,
 	);
@@ -42,17 +44,17 @@ export function useNewChatTargets(workspaces: HostWorkspaceItem[] = []): {
 		(state) => state.projectFilter,
 	);
 
-	const hosts = useOnlineHosts();
+	const presence = useHostsPresence(hosts);
 	const onlineHosts = useMemo(
 		() =>
 			hosts
-				.filter((host) => host.isOnline)
+				.filter((host) => presence?.get(host.machineId) ?? host.isOnline)
 				.map((host) => ({
 					machineId: host.machineId,
 					name: host.name,
 					hostUrl: buildRelayHostUrl(host.organizationId, host.machineId),
 				})),
-		[hosts],
+		[hosts, presence],
 	);
 
 	const projectListQueries = useQueries({
@@ -70,8 +72,6 @@ export function useNewChatTargets(workspaces: HostWorkspaceItem[] = []): {
 		const result: NewChatTarget[] = [];
 		onlineHosts.forEach((host, index) => {
 			for (const row of projectListQueries[index]?.data ?? []) {
-				// Projects are fully local — the host row is the identity
-				// (the frozen Electric lookup dropped local-first projects).
 				const project = toHostProjectItem(row);
 				result.push({
 					key: targetKeyFor(project.id, host.machineId),
