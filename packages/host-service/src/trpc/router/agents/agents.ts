@@ -454,19 +454,18 @@ export async function runAgentInWorkspace(
 export const agentsRouter = router({
 	run: protectedProcedure
 		.input(
-			z
-				.object({
-					workspaceId: z.string().uuid(),
-					agent: z.string().min(1),
-					// Optional for terminal agents: an empty prompt launches the bare
-					// agent (the builder drops promptArgs). Chat agents still require
-					// one — enforced in runAgentInWorkspace where the branch is known.
-					prompt: z.string().default(""),
-					attachmentIds: z.array(z.string().uuid()).optional(),
-					model: z.string().min(1).optional(),
-					effort: z.string().min(1).optional(),
-					resumeSessionId: z.string().min(1).optional(),
-				}),
+			z.object({
+				workspaceId: z.string().uuid(),
+				agent: z.string().min(1),
+				// Optional for terminal agents: an empty prompt launches the bare
+				// agent (the builder drops promptArgs). Chat agents still require
+				// one — enforced in runAgentInWorkspace where the branch is known.
+				prompt: z.string().default(""),
+				attachmentIds: z.array(z.string().uuid()).optional(),
+				model: z.string().min(1).optional(),
+				effort: z.string().min(1).optional(),
+				resumeSessionId: z.string().min(1).optional(),
+			}),
 		)
 		.mutation(async ({ ctx, input }) => runAgentInWorkspace(ctx, input)),
 });
