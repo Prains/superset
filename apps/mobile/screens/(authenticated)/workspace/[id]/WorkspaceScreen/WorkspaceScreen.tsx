@@ -1,13 +1,11 @@
 import { buildHostRoutingKey } from "@superset/shared/host-routing";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronDown } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-	ActionSheetIOS,
 	ActivityIndicator,
-	Alert,
 	Keyboard,
 	LayoutAnimation,
 	Pressable,
@@ -99,19 +97,11 @@ export function WorkspaceScreen() {
 		? buildHostRoutingKey(host.organizationId, host.machineId)
 		: null;
 
-	// Host agent presets for the + menu (Claude Code / Codex / … / Shell).
-	const presetsQuery = useQuery({
-		queryKey: ["host-agent-configs", host?.machineId ?? null],
-		enabled: hostUrl !== null,
-		staleTime: 60_000,
-		networkMode: "always" as const,
-		queryFn: async () => {
-			if (!hostUrl) return [];
-			return getHostServiceClientByUrl(
-				hostUrl,
-			).settings.agentConfigs.list.query();
-		},
-	});
+	// The + sheet lands back here via dismissTo with the new session in
+	// ?tab= — adopt it over any manual pick so the fresh tab activates.
+	useEffect(() => {
+		if (params.tab) setPickedTerminalId(params.tab);
+	}, [params.tab]);
 
 	const invalidateTerminals = useCallback(() => {
 		if (!host) return;
@@ -120,55 +110,9 @@ export function WorkspaceScreen() {
 		});
 	}, [host, queryClient]);
 
-	const launchPreset = useCallback(
-		async (agentId: string | null) => {
-			if (!workspace || !hostUrl) return;
-			try {
-				const client = getHostServiceClientByUrl(hostUrl);
-				if (agentId === null) {
-					const created = await client.terminal.createSession.mutate({
-						workspaceId: workspace.id,
-					});
-					setPickedTerminalId(created.terminalId);
-				} else {
-					const result = await client.agents.run.mutate({
-						workspaceId: workspace.id,
-						agent: agentId,
-						prompt: "",
-					});
-					if (result.kind === "terminal") setPickedTerminalId(result.sessionId);
-				}
-				invalidateTerminals();
-			} catch (error) {
-				Alert.alert(
-					"Could not start session",
-					error instanceof Error ? error.message : String(error),
-				);
-			}
-		},
-		[workspace, hostUrl, invalidateTerminals],
-	);
-
 	const openAddMenu = useCallback(() => {
-		const presets = presetsQuery.data ?? [];
-		const options = [
-			...presets.map((preset) => preset.label),
-			"Shell",
-			"Cancel",
-		];
-		ActionSheetIOS.showActionSheetWithOptions(
-			{
-				title: "New session",
-				options,
-				cancelButtonIndex: options.length - 1,
-			},
-			(index) => {
-				if (index === options.length - 1) return;
-				const preset = presets[index];
-				void launchPreset(preset ? preset.id : null);
-			},
-		);
-	}, [presetsQuery.data, launchPreset]);
+		router.push(`/(authenticated)/workspace/${id}/new-session`);
+	}, [router, id]);
 
 	const killTerminal = useCallback(
 		(terminalId: string) => {
