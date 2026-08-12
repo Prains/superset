@@ -205,7 +205,15 @@ const runtimeJs = /* js */ `
 		reconnectTimer = setTimeout(connect, delay);
 	}
 
+	// iOS wheel events from touch scrolling can carry undefined coordinates,
+	// making xterm emit mouse reports with literal "NaN" cells — malformed
+	// sequences the TUI's parser leaks into the input line as typed text.
+	var MALFORMED_MOUSE_REPORT = /\\u001b\\[<[0-9;]*NaN[0-9;aN]*[Mm]/g;
 	function sendInput(data) {
+		if (data.indexOf("NaN") !== -1) {
+			data = data.replace(MALFORMED_MOUSE_REPORT, "");
+			if (!data) return;
+		}
 		if (ws && ws.readyState === 1) {
 			ws.send(JSON.stringify({ type: "input", data: data }));
 		}
@@ -301,7 +309,7 @@ export const TERMINAL_HTML: string = ${JSON.stringify(html)};
 
 const outputPath = join(
 	mobileRoot,
-	"screens/(authenticated)/workspace/[id]/terminal/[terminalId]/components/TerminalWebView/terminalHtml.generated.ts",
+	"screens/(authenticated)/workspace/[id]/components/TerminalWebView/terminalHtml.generated.ts",
 );
 writeFileSync(outputPath, output);
 console.log(
