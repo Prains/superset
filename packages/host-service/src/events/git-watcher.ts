@@ -348,8 +348,21 @@ export class GitWatcher {
 					if (swapped) this.markGitDirDirty(workspaceId);
 				}
 			})
+			.catch((error) => {
+				console.error("[git-watcher] ignored-dir refresh failed", {
+					workspaceId,
+					error,
+				});
+			})
 			.finally(() => {
 				state.refreshing = false;
+				// Rules changed again while this refresh ran (e.g. a branch
+				// switch rewriting .gitignore twice): the listing we just stored
+				// is stale and the emit that flagged it was swallowed by the
+				// `refreshing` guard — run once more.
+				if (state.rulesChanged && !this.closed) {
+					this.refreshIgnoredDirs(workspaceId, worktreePath, true);
+				}
 			});
 	}
 

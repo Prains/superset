@@ -674,27 +674,42 @@ export class FsWatcherManager {
 			// State changed while the providers ran.
 			return false;
 		}
+		// Detach the old stream BEFORE attaching the new one. Keeping both
+		// alive briefly buys nothing (the generation bump discards old events
+		// anyway) and inotify tears down watch descriptors shared across
+		// coexisting parcel backends on the same dir, leaving the fresh
+		// subscription deaf. The swap gap is covered by the caller's follow-up
+		// broad refresh and the search-index invalidation below.
 		const oldSubscription = state.subscription;
-		try {
-			await this.attachNativeSubscription(state);
-		} catch (error) {
-			// Old subscription is still installed and valid — keep it.
-			console.error("[workspace-fs/watch] ignore refresh re-attach failed", {
-				absolutePath: state.absolutePath,
-				error: toErrorMessage(error),
-			});
-			return false;
-		}
+		state.subscription = null;
+		state.generation += 1;
 		await unsubscribeQuietly(oldSubscription);
-		// Disposal or root-deletion recovery may have raced the swap; the fresh
-		// subscription is then an orphan neither path knows to release.
+		// Disposal or root-deletion recovery may have raced the detach.
 		if (
 			this.watchers.get(state.absolutePath) !== state ||
 			state.recoveryTimer
 		) {
-			const orphaned = state.subscription;
-			state.subscription = null;
-			await unsubscribeQuietly(orphaned);
+			return false;
+		}
+		try {
+			await this.attachNativeSubscription(state);
+		} catch (error) {
+			// The root is now unwatched; a transient failure must not leave it
+			// that way silently. Reuse the root-recovery poll, which re-attaches,
+			// verifies liveness, and emits a root create so consumers refetch.
+			console.error(
+				"[workspace-fs/watch] ignore refresh re-attach failed — entering recovery",
+				{
+					absolutePath: state.absolutePath,
+					error: toErrorMessage(error),
+				},
+			);
+			const timer = setInterval(
+				() => void this.tryRecover(state),
+				this.recoveryPollMs,
+			);
+			timer.unref?.();
+			state.recoveryTimer = timer;
 			return false;
 		}
 		// Events during the swap gap may have been missed.

@@ -462,11 +462,17 @@ export class EventBus {
 		}
 
 		const dispose = watchSingleFile(absolutePath, (event: FsWatchEvent) => {
-			sendMessage(socket, {
-				type: "fs:events",
-				workspaceId,
-				events: [event],
-			});
+			// A dead socket must not throw into the watcher's settle loop; the
+			// close handler disposes every file watch for this client.
+			try {
+				sendMessage(socket, {
+					type: "fs:events",
+					workspaceId,
+					events: [event],
+				});
+			} catch (error) {
+				console.error("[event-bus] file-watch send failed", { error });
+			}
 		});
 		state.fileWatches.set(key, dispose);
 	}

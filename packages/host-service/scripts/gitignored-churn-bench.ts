@@ -114,8 +114,18 @@ async function writeTextFile(path: string, contents: string): Promise<void> {
 	await writeFile(path, contents);
 }
 
+/** Marker so the destructive reset below can never run on a real repo. */
+const BENCH_MARKER = ".superset-bench-repo";
+
 async function ensureRepo(options: Options): Promise<void> {
-	if (existsSync(join(options.repoPath, ".git"))) return;
+	if (existsSync(join(options.repoPath, ".git"))) {
+		if (!existsSync(join(options.repoPath, BENCH_MARKER))) {
+			throw new Error(
+				`${options.repoPath} exists but is not a bench fixture (missing ${BENCH_MARKER}); refusing to reset it`,
+			);
+		}
+		return;
+	}
 	console.log(
 		`Creating bench repo (${options.files} files): ${options.repoPath}`,
 	);
@@ -135,6 +145,7 @@ async function ensureRepo(options: Options): Promise<void> {
 		);
 	}
 	await writeTextFile(join(options.repoPath, ".gitignore"), "buildout/\n");
+	await writeTextFile(join(options.repoPath, BENCH_MARKER), "bench fixture\n");
 	await run("git", ["add", "-A"], options.repoPath);
 	await run("git", ["commit", "-m", "seed"], options.repoPath);
 }

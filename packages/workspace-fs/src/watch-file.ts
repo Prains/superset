@@ -36,6 +36,8 @@ export function watchSingleFile(
 	let exists = false;
 	/** Inode behind the current watch; a change means the watch is deaf. */
 	let watchedIno: bigint | number | null = null;
+	/** mtime last observed while the path is a directory (poll dedupe). */
+	let dirMtimeMs: number | null = null;
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
 	let settling = false;
@@ -114,11 +116,20 @@ export function watchSingleFile(
 					// own deletion (VS Code skips their folder-delete test on
 					// darwin for this reason) — a watch here would go silently
 					// deaf. Poll instead until the path is a plain file again.
+					// Emit only on transition or mtime change; a poll tick with
+					// nothing new must stay silent or consumers reload forever.
 					closeWatcher();
 					startPolling();
-					emit(existed ? "update" : "create", true);
+					if (!existed) {
+						emit("create", true);
+					} else if (dirMtimeMs === null || stats.mtimeMs !== dirMtimeMs) {
+						// First observation as a dir (file→dir swap) or real change.
+						emit("update", true);
+					}
+					dirMtimeMs = stats.mtimeMs;
 					return;
 				}
+				dirMtimeMs = null;
 				stopPolling();
 				// Re-install only when the inode behind the path changed (atomic
 				// save replaced it — the old watch follows the dead inode). A
