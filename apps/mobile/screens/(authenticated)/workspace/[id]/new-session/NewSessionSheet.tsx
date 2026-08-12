@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { SquareTerminal } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, View } from "react-native";
@@ -90,20 +90,16 @@ export function NewSessionSheet() {
 	return (
 		<ScrollView
 			className="bg-background flex-1"
-			contentContainerClassName="px-5 pt-4"
+			contentContainerClassName="px-5 pb-8"
 			contentInsetAdjustmentBehavior="automatic"
 		>
-			<View className="border-border border-b pb-4">
-				<Text className="text-xl font-semibold">New session</Text>
-				{workspace ? (
-					<Text
-						className="text-muted-foreground mt-0.5 font-mono text-xs"
-						numberOfLines={1}
-					>
-						{workspace.name}
-					</Text>
-				) : null}
-			</View>
+			<Stack.Toolbar placement="left">
+				<Stack.Toolbar.Button
+					icon="xmark"
+					accessibilityLabel="Close"
+					onPress={() => router.back()}
+				/>
+			</Stack.Toolbar>
 			{presets.length === 0 ? (
 				<View className="items-center py-8">
 					{presetsQuery.isError ? (
