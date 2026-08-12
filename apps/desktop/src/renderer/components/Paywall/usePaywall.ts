@@ -40,7 +40,8 @@ export function usePaywall() {
 				sessionPlan,
 				subscriptionsLoaded: true,
 			});
-		} catch {
+		} catch (error) {
+			console.warn("[paywall] Failed to fetch active plan:", error);
 			return resolveCurrentPlan({
 				subscriptionPlan: undefined,
 				sessionPlan,

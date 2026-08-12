@@ -48,15 +48,25 @@ export function useKnownHosts(): {
 		refetchInterval: 30_000,
 		refetchIntervalInBackground: true,
 	});
-	const liveReady = hostsQuery.data !== undefined;
+	// The query key carries no org (the server scopes by active org), so right
+	// after a switch this cache entry still holds the prior org's rows. Rows
+	// carry their owning org: a non-empty response with no row for the active
+	// org is a foreign read, not an answer for this org.
+	const hostRows = hostsQuery.data;
+	const liveReady =
+		hostRows !== undefined &&
+		(hostRows.length === 0 ||
+			hostRows.some((host) => host.organizationId === organizationId));
 	const liveRows = useMemo<KnownHostRow[]>(
 		() =>
-			(hostsQuery.data ?? []).map((host) => ({
-				organizationId: host.organizationId,
-				machineId: host.machineId,
-				isOnline: host.isOnline,
-			})),
-		[hostsQuery.data],
+			(hostRows ?? [])
+				.filter((host) => host.organizationId === organizationId)
+				.map((host) => ({
+					organizationId: host.organizationId,
+					machineId: host.machineId,
+					isOnline: host.isOnline,
+				})),
+		[hostRows, organizationId],
 	);
 
 	// The snapshot carries its owning org so a prior org's rows can never be
@@ -79,11 +89,13 @@ export function useKnownHosts(): {
 
 	// Persist only once the query has answered: a pre-response empty list must
 	// not overwrite the snapshot, and an answered empty list must (so deleting
-	// the org's last host doesn't leave a ghost on the next boot).
+	// the org's last host doesn't leave a ghost on the next boot). The org is
+	// part of the fingerprint so two orgs that both answer empty each get their
+	// own write instead of the second being deduped away.
 	const lastPersistedRef = useRef<string | null>(null);
 	useEffect(() => {
 		if (!organizationId || !liveReady) return;
-		const fingerprint = JSON.stringify(liveRows);
+		const fingerprint = `${organizationId}:${JSON.stringify(liveRows)}`;
 		if (lastPersistedRef.current === fingerprint) return;
 		lastPersistedRef.current = fingerprint;
 		saveKnownHostsSnapshot(organizationId, liveRows);

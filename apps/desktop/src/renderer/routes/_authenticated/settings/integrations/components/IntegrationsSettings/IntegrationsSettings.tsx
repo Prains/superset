@@ -36,10 +36,11 @@ export function IntegrationsSettings({
 	const activeOrganizationId = session?.session?.activeOrganizationId;
 	const searchQuery = useSettingsSearchQuery();
 
-	const { data: integrations } = cloudTrpc.integration.list.useQuery(
-		{ organizationId: activeOrganizationId ?? "" },
-		{ enabled: !!activeOrganizationId },
-	);
+	const { data: integrations, isPending: isIntegrationsPending } =
+		cloudTrpc.integration.list.useQuery(
+			{ organizationId: activeOrganizationId ?? "" },
+			{ enabled: !!activeOrganizationId },
+		);
 
 	const [githubInstallation, setGithubInstallation] =
 		useState<GithubInstallation | null>(null);
@@ -125,6 +126,7 @@ export function IntegrationsSettings({
 						icon={<SiLinear className="size-5" />}
 						isConnected={isLinearConnected}
 						connectedOrgName={linearConnection?.externalOrgName}
+						isLoading={isIntegrationsPending}
 						onManage={() => handleOpenWeb("/integrations/linear")}
 					/>
 				)}
@@ -148,6 +150,7 @@ export function IntegrationsSettings({
 						icon={<FaSlack className="size-5" />}
 						isConnected={isSlackConnected}
 						connectedOrgName={slackConnection?.externalOrgName}
+						isLoading={isIntegrationsPending}
 						onManage={() => handleOpenWeb("/integrations/slack")}
 					/>
 				)}

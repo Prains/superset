@@ -44,6 +44,7 @@ import {
 	LuSearchX,
 	LuSparkles,
 	LuTerminal,
+	LuTriangleAlert,
 	LuX,
 } from "react-icons/lu";
 import { useRecentProjects } from "renderer/hooks/host-projects/useRecentProjects";
@@ -200,6 +201,8 @@ function AutomationsPage() {
 		},
 	});
 
+	const utils = cloudTrpc.useUtils();
+
 	const setEnabledMutation = useMutation({
 		mutationFn: ({
 			id,
@@ -209,8 +212,11 @@ function AutomationsPage() {
 			enabled: boolean;
 			name: string;
 		}) => apiTrpcClient.automation.setEnabled.mutate({ id, enabled }),
-		onSuccess: (_, { enabled, name }) =>
-			toast.success(enabled ? `"${name}" resumed` : `"${name}" paused`),
+		onSuccess: (_, { id, enabled, name }) => {
+			void utils.automation.list.invalidate();
+			void utils.automation.get.invalidate({ id });
+			toast.success(enabled ? `"${name}" resumed` : `"${name}" paused`);
+		},
 		onError: (error) =>
 			toast.error(
 				error instanceof Error ? error.message : "Failed to update automation",
@@ -221,6 +227,7 @@ function AutomationsPage() {
 		mutationFn: ({ id }: { id: string; name: string }) =>
 			apiTrpcClient.automation.delete.mutate({ id }),
 		onSuccess: (_, { name }) => {
+			void utils.automation.list.invalidate();
 			setPendingDelete(null);
 			toast.success(`"${name}" deleted`);
 		},
@@ -230,10 +237,15 @@ function AutomationsPage() {
 			),
 	});
 
-	const { data: automations = [], isPending: automationsPending } =
-		cloudTrpc.automation.list.useQuery(undefined, {
-			refetchInterval: 15_000,
-		});
+	const {
+		data: automations = [],
+		isPending: automationsPending,
+		isError: automationsFailed,
+		error: automationsError,
+		refetch: refetchAutomations,
+	} = cloudTrpc.automation.list.useQuery(undefined, {
+		refetchInterval: 15_000,
+	});
 
 	const { data: memberRows = [] } = cloudTrpc.organization.listMembers.useQuery(
 		undefined,
@@ -448,9 +460,14 @@ function AutomationsPage() {
 	const statusWidth = scope === "team" ? "w-[12%]" : "w-[13%]";
 	const columnCount = scope === "team" ? 6 : 5;
 	const showAutomationLoading = automationsPending && tabVisible.length === 0;
+	// A failed read has no rows either, but it is not an empty org — it must not
+	// strip the page chrome or claim the org has no automations.
+	const showAutomationError = automationsFailed && automations.length === 0;
 	// True first run: nothing in the org — stats/tabs/search are noise.
-	const orgEmpty = !automationsPending && automations.length === 0;
-	const tabEmpty = !automationsPending && tabVisible.length === 0;
+	const orgEmpty =
+		!automationsPending && !showAutomationError && automations.length === 0;
+	const tabEmpty =
+		!automationsPending && !showAutomationError && tabVisible.length === 0;
 	const showMineEmptyState = tabEmpty && scope === "mine";
 	const showTeamEmptyState = tabEmpty && scope === "team";
 
@@ -656,6 +673,33 @@ function AutomationsPage() {
 									<Skeleton key={key} className="h-10 w-full" />
 								))}
 							</div>
+						) : showAutomationError ? (
+							<Empty className="rounded-xl border border-border py-16">
+								<EmptyHeader>
+									<EmptyMedia
+										variant="icon"
+										className="size-14 [&_svg:not([class*='size-'])]:size-7"
+									>
+										<LuTriangleAlert />
+									</EmptyMedia>
+									<EmptyTitle>Couldn't load automations</EmptyTitle>
+									<EmptyDescription className="select-text cursor-text">
+										{automationsError instanceof Error
+											? automationsError.message
+											: "The request failed."}
+									</EmptyDescription>
+								</EmptyHeader>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										void refetchAutomations();
+									}}
+								>
+									<LuRotateCw className="size-4" />
+									<span>Try again</span>
+								</Button>
+							</Empty>
 						) : showMineEmptyState ? (
 							<div className="flex flex-1 flex-col py-6">
 								<AutomationsEmptyState

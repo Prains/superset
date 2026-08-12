@@ -250,7 +250,7 @@ export function TeamDetailSettings({ teamId }: TeamDetailSettingsProps) {
 							)}
 						</div>
 
-						{isPending && members.length === 0 ? (
+						{isPending ? (
 							<div className="space-y-2 border rounded-lg">
 								{[1, 2, 3].map((i) => (
 									<div key={i} className="flex items-center gap-4 p-4">

@@ -5,7 +5,7 @@ import {
 	getHostWorkspacesQueryKey,
 	type HostWorkspaceRow,
 } from "@/hooks/useHostWorkspaces";
-import { type OrgHost, useOrgHosts } from "@/hooks/useOrgHosts";
+import { NO_HOSTS, type OrgHost, useOrgHostsQuery } from "@/hooks/useOrgHosts";
 import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
@@ -26,7 +26,8 @@ export interface WorkspaceHostResult {
 export function useWorkspaceHost(
 	workspaceId: string | null,
 ): WorkspaceHostResult {
-	const hosts = useOrgHosts();
+	const hostsQuery = useOrgHostsQuery();
+	const hosts = hostsQuery.data ?? NO_HOSTS;
 	const presence = useHostsPresence(hosts);
 
 	const targets = useMemo(
@@ -67,7 +68,9 @@ export function useWorkspaceHost(
 				host = target;
 			}
 		});
-		const isResolving = !workspace && queries.some((query) => query.isLoading);
+		const isResolving =
+			!workspace &&
+			(hostsQuery.isLoading || queries.some((query) => query.isLoading));
 		return { workspace, host, isResolving };
-	}, [targets, queries, workspaceId]);
+	}, [targets, queries, workspaceId, hostsQuery.isLoading]);
 }

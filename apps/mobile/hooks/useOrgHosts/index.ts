@@ -1,1 +1,6 @@
-export { ORG_HOSTS_QUERY_KEY, type OrgHost, useOrgHosts } from "./useOrgHosts";
+export {
+	NO_HOSTS,
+	type OrgHost,
+	useOrgHosts,
+	useOrgHostsQuery,
+} from "./useOrgHosts";

@@ -1,6 +1,7 @@
 import type { SelectV2Workspace } from "@superset/db/schema";
 import { buildHostRoutingKey } from "@superset/shared/host-routing";
 import type { WorkspaceSnapshotPayload } from "@superset/workspace-client";
+import { get as idbGet, set as idbSet } from "idb-keyval";
 
 /**
  * The frozen cloud row shape, widened for host-only capabilities the cloud
@@ -117,6 +118,42 @@ export function deriveHostWorkspacesQueryTargets({
 	}
 
 	return targets;
+}
+
+const SNAPSHOT_KEY_PREFIX = "host-workspaces:v1";
+
+function snapshotKey(organizationId: string, machineId: string): string {
+	return `${SNAPSHOT_KEY_PREFIX}:${organizationId}:${machineId}`;
+}
+
+/**
+ * Last-seen per-host snapshots in IndexedDB. Dates survive the structured
+ * clone, so rows round-trip as-is. Only affects offline visibility of
+ * remote hosts — the local host answers live even offline. Persistence
+ * failures are deliberately swallowed: the snapshot is a best-effort cache
+ * and every failure mode degrades to "fetch live next time".
+ */
+export async function loadHostWorkspacesSnapshot(
+	organizationId: string,
+	machineId: string,
+): Promise<HostWorkspaceRow[] | undefined> {
+	if (!organizationId) return undefined;
+	try {
+		return await idbGet<HostWorkspaceRow[]>(
+			snapshotKey(organizationId, machineId),
+		);
+	} catch {
+		return undefined;
+	}
+}
+
+export function saveHostWorkspacesSnapshot(
+	organizationId: string,
+	machineId: string,
+	rows: HostWorkspaceRow[],
+): void {
+	if (!organizationId) return;
+	void idbSet(snapshotKey(organizationId, machineId), rows).catch(() => {});
 }
 
 /**

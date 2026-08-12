@@ -2,6 +2,7 @@ import { alert } from "@superset/ui/atoms/Alert";
 import { toast } from "@superset/ui/sonner";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { TRPCClientError } from "@trpc/client";
 import { useMemo, useState } from "react";
 import { apiTrpcClient } from "renderer/lib/api-trpc-client";
 import { authClient } from "renderer/lib/auth-client";
@@ -46,7 +47,7 @@ function AutomationDetailPage() {
 	);
 	const promptQuery = cloudTrpc.automation.getPrompt.useQuery(
 		{ id: automationId },
-		{ staleTime: 30_000 },
+		{ refetchInterval: 15_000, staleTime: 30_000 },
 	);
 	const automation = useMemo(() => {
 		if (!automationQuery.data || !promptQuery.data) return undefined;
@@ -68,9 +69,15 @@ function AutomationDetailPage() {
 	)?.user;
 	const ownerName = owner?.name ?? owner?.email ?? null;
 
+	const utils = cloudTrpc.useUtils();
+
 	const setEnabledMutation = useMutation({
 		mutationFn: (enabled: boolean) =>
 			apiTrpcClient.automation.setEnabled.mutate({ id: automationId, enabled }),
+		onSuccess: () => {
+			void utils.automation.get.invalidate({ id: automationId });
+			void utils.automation.list.invalidate();
+		},
 		onError: (error) =>
 			toast.error(
 				error instanceof Error ? error.message : "Failed to update automation",
@@ -98,14 +105,25 @@ function AutomationDetailPage() {
 	const deleteMutation = useMutation({
 		mutationFn: () =>
 			apiTrpcClient.automation.delete.mutate({ id: automationId }),
-		onSuccess: () => navigate({ to: "/automations" }),
+		onSuccess: () => {
+			void utils.automation.list.invalidate();
+			navigate({ to: "/automations" });
+		},
 	});
 
 	if (!automation) {
 		if (automationQuery.isPending || promptQuery.isPending) return null;
+		// A deleted automation is a NOT_FOUND from the server; anything else is a
+		// failed read and must not be reported as a missing automation.
+		const loadError = automationQuery.error ?? promptQuery.error;
+		const isMissing =
+			loadError instanceof TRPCClientError &&
+			loadError.data?.code === "NOT_FOUND";
 		return (
 			<div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground select-text cursor-text">
-				Automation not found.
+				{loadError && !isMissing
+					? `Couldn't load automation: ${loadError.message}`
+					: "Automation not found."}
 			</div>
 		);
 	}

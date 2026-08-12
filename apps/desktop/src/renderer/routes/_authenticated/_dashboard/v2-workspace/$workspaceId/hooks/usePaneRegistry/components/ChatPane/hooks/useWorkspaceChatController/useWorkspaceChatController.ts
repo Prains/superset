@@ -62,6 +62,7 @@ export function useWorkspaceChatController({
 	);
 	const endSessionMutation = workspaceTrpc.chat.endSession.useMutation();
 	const { chatSessions: chatSessionActions } = useOptimisticActions();
+	const utils = cloudTrpc.useUtils();
 
 	const { data: workspace } = workspaceTrpc.workspace.get.useQuery(
 		{ id: workspaceId },
@@ -119,6 +120,20 @@ export function useWorkspaceChatController({
 		],
 	);
 
+	// The selector reads from `chat.listSessions`, so a freshly created session
+	// stays invisible (and is re-created on every send) until that cache is
+	// refreshed.
+	const createAndSyncSession = useCallback(
+		async (nextSessionId: string): Promise<void> => {
+			await createSessionRecord({
+				sessionId: nextSessionId,
+				v2WorkspaceId: workspaceId,
+			});
+			await utils.chat.listSessions.invalidate();
+		},
+		[utils, workspaceId],
+	);
+
 	const getOrCreateSession = useCallback(async (): Promise<string> => {
 		if (!organizationId) {
 			throw new Error("No active organization selected");
@@ -129,18 +144,12 @@ export function useWorkspaceChatController({
 				return sessionId;
 			}
 
-			await createSessionRecord({
-				sessionId,
-				v2WorkspaceId: workspaceId,
-			});
+			await createAndSyncSession(sessionId);
 			return sessionId;
 		}
 
 		const nextSessionId = crypto.randomUUID();
-		await createSessionRecord({
-			sessionId: nextSessionId,
-			v2WorkspaceId: workspaceId,
-		});
+		await createAndSyncSession(nextSessionId);
 		onSessionIdChange(nextSessionId);
 		posthog.capture("chat_session_created", {
 			workspace_id: workspaceId,
@@ -148,7 +157,14 @@ export function useWorkspaceChatController({
 			organization_id: organizationId,
 		});
 		return nextSessionId;
-	}, [onSessionIdChange, organizationId, sessionId, sessions, workspaceId]);
+	}, [
+		createAndSyncSession,
+		onSessionIdChange,
+		organizationId,
+		sessionId,
+		sessions,
+		workspaceId,
+	]);
 
 	const sessionItems = useMemo(() => {
 		const nextItems = sessions.map((item) => toSessionSelectorItem(item));

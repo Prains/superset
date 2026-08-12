@@ -11,7 +11,7 @@ import { Resend } from "resend";
 import { z } from "zod";
 import { env } from "../../env";
 import { posthog } from "../../lib/analytics";
-import { jwtProcedure } from "../../trpc";
+import { jwtProcedure, protectedProcedure } from "../../trpc";
 
 const resend = new Resend(env.RESEND_API_KEY);
 const ACTIVATION_EVENT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -141,6 +141,48 @@ export const v2WorkspaceRouter = {
 
 			return { ok: true };
 		}),
+
+	setTask: protectedProcedure
+		.input(
+			z.object({
+				workspaceId: z.string().uuid(),
+				taskId: z.string().uuid().nullable(),
+			}),
+		)
+		.mutation(async () => ({ success: true as const, txid: null })),
+
+	update: protectedProcedure
+		.input(
+			z.object({
+				id: z.string().uuid(),
+				name: z.string().min(1).optional(),
+				branch: z.string().min(1).optional(),
+				hostId: z.string().min(1).optional(),
+				taskId: z.string().uuid().nullable().optional(),
+			}),
+		)
+		.mutation(
+			async ({
+				ctx,
+				input,
+			}): Promise<SelectV2Workspace & { txid: string | null }> => {
+				const now = new Date();
+				return {
+					id: input.id,
+					organizationId: ctx.activeOrganizationId ?? "",
+					projectId: "",
+					hostId: input.hostId ?? "",
+					name: input.name ?? "",
+					branch: input.branch ?? "",
+					type: "worktree",
+					createdByUserId: ctx.session.user.id,
+					taskId: input.taskId ?? null,
+					createdAt: now,
+					updatedAt: now,
+					txid: null,
+				};
+			},
+		),
 
 	getFromHost: jwtProcedure
 		.input(

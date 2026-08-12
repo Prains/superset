@@ -82,6 +82,8 @@ export function useChatPaneController({
 		{ enabled: Boolean(workspaceId) },
 	);
 
+	const utils = cloudTrpc.useUtils();
+
 	// Already ordered by lastActiveAt desc server-side.
 	const { data: allSessions = [] } =
 		cloudTrpc.chat.listSessions.useQuery(undefined);
@@ -151,6 +153,7 @@ export function useChatPaneController({
 				await apiTrpcClient.chat.deleteSession.mutate({
 					sessionId: sessionIdToDelete,
 				});
+				void utils.chat.listSessions.invalidate();
 				posthog.capture("chat_session_deleted", {
 					workspace_id: workspaceId,
 					session_id: sessionIdToDelete,
@@ -172,7 +175,7 @@ export function useChatPaneController({
 				throw error;
 			}
 		},
-		[organizationId, paneId, sessionId, switchChatSession, workspaceId],
+		[organizationId, paneId, sessionId, switchChatSession, utils, workspaceId],
 	);
 
 	const ensureCurrentSessionRecord = useCallback(async (): Promise<boolean> => {

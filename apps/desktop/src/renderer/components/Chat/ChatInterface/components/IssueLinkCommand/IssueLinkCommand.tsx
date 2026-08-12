@@ -113,6 +113,9 @@ export function IssueLinkCommand({
 
 	const filteredTasks = useMemo(() => {
 		if (!allTasks?.length) return [];
+		// An empty status map makes every task read as open, so the open-only
+		// list would show closed issues until the statuses land.
+		if (!showClosed && !allStatuses) return [];
 		const visibleTasks = allTasks.filter((task) => {
 			if (showClosed) return true;
 			const status = task.statusId ? statusMap.get(task.statusId) : undefined;
@@ -129,7 +132,7 @@ export function IssueLinkCommand({
 		return taskFuse
 			.search(searchQuery, { limit: MAX_RESULTS })
 			.map((r) => r.item);
-	}, [allTasks, searchQuery, showClosed, statusMap, taskFuse]);
+	}, [allStatuses, allTasks, searchQuery, showClosed, statusMap, taskFuse]);
 
 	const handleSelect = (
 		slug: string,

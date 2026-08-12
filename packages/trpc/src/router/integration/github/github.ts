@@ -188,6 +188,7 @@ export const githubRouter = {
 			return db.query.githubPullRequests.findMany({
 				where: eq(githubPullRequests.organizationId, input.organizationId),
 				orderBy: [desc(githubPullRequests.updatedAt)],
+				limit: 100,
 			});
 		}),
 

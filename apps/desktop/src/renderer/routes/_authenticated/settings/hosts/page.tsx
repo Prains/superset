@@ -17,9 +17,7 @@ function HostsIndexPage() {
 
 	const firstHostId = useMemo(() => {
 		const sorted = [...hosts].sort((a, b) => a.name.localeCompare(b.name));
-		const online = sorted.find(
-			(h) => presence?.get(h.machineId) ?? h.isOnline,
-		);
+		const online = sorted.find((h) => presence?.get(h.machineId) ?? h.isOnline);
 		return (online ?? sorted[0])?.machineId ?? null;
 	}, [hosts, presence]);
 

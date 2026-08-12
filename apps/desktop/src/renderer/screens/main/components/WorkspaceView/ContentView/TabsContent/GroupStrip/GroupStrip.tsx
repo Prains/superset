@@ -145,15 +145,10 @@ export function GroupStrip() {
 	const shouldSyncChatTitles =
 		Boolean(activeWorkspaceId) && targetSessionIds.length > 0;
 
-	const { data: allChatSessions = [] } = cloudTrpc.chat.listSessions.useQuery(
+	const { data: chatSessions = [] } = cloudTrpc.chat.listSessions.useQuery(
 		{ sessionIds: targetSessionIds },
 		{ refetchInterval: 30_000, enabled: shouldSyncChatTitles },
 	);
-	const chatSessions = useMemo(() => {
-		if (!shouldSyncChatTitles) return [];
-		const targetIds = new Set(targetSessionIds);
-		return allChatSessions.filter((session) => targetIds.has(session.id));
-	}, [allChatSessions, shouldSyncChatTitles, targetSessionIds]);
 
 	useEffect(() => {
 		if (!shouldSyncChatTitles) return;

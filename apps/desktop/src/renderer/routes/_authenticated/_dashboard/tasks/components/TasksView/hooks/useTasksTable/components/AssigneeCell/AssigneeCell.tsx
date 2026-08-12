@@ -23,10 +23,8 @@ export function AssigneeCell({ info }: AssigneeCellProps) {
 	const task = info.row.original;
 	const assigneeId = info.getValue();
 
-	const { data: members } = cloudTrpc.organization.listMembers.useQuery(
-		undefined,
-		{ enabled: open },
-	);
+	const { data: members, isLoading: isLoadingMembers } =
+		cloudTrpc.organization.listMembers.useQuery(undefined, { enabled: open });
 
 	const users = useMemo(
 		() => (members ?? []).map((member) => member.user),
@@ -86,6 +84,11 @@ export function AssigneeCell({ info }: AssigneeCellProps) {
 							<span className="ml-auto text-xs text-muted-foreground">✓</span>
 						)}
 					</DropdownMenuItem>
+					{isLoadingMembers && (
+						<div className="px-2 py-1.5 text-sm text-muted-foreground">
+							Loading members...
+						</div>
+					)}
 					{users.map((user) => (
 						<DropdownMenuItem
 							key={user.id}

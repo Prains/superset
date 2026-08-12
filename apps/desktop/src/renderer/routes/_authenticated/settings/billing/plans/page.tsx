@@ -223,10 +223,11 @@ function PlansPage() {
 	// An unresolved query must not read as "free": that renders a live Upgrade
 	// action for an org that may already be paying. Session plan fills in
 	// until it arrives.
+	const planResolved = activePlan !== undefined;
 	const currentPlan: PlanTier = resolveCurrentPlan({
 		subscriptionPlan: activePlan?.plan,
 		sessionPlan: session?.session?.plan,
-		subscriptionsLoaded: activePlan !== undefined,
+		subscriptionsLoaded: planResolved,
 	});
 	const cancelAt = activePlan?.cancelAt;
 
@@ -441,8 +442,11 @@ function PlansPage() {
 											},
 										];
 									} else if (isCurrent && plan.id === "pro") {
+										// Before the plan resolves the billing interval is unknown,
+										// so an interval-change action here would be a guess the
+										// user can act on. Hold at "Current plan" until it lands.
 										const intervalMatches = isYearly === !!isCurrentlyYearly;
-										if (intervalMatches) {
+										if (!planResolved || intervalMatches) {
 											planActions = [
 												{
 													label: "Current plan",

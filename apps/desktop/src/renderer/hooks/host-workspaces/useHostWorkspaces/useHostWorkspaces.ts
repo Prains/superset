@@ -1,6 +1,6 @@
 import { getEventBus } from "@superset/workspace-client";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useKnownHosts } from "renderer/hooks/known-hosts/useKnownHosts";
 import { useRelayUrl } from "renderer/hooks/useRelayUrl";
 import { getHostServiceWsToken } from "renderer/lib/host-service-auth";
@@ -12,7 +12,9 @@ import {
 	getHostWorkspacesQueryKey,
 	type HostWorkspaceItem,
 	type HostWorkspaceRow,
+	loadHostWorkspacesSnapshot,
 	mergeHostWorkspaces,
+	saveHostWorkspacesSnapshot,
 } from "./useHostWorkspaces.utils";
 
 export type { HostWorkspaceItem } from "./useHostWorkspaces.utils";
@@ -37,8 +39,8 @@ export interface HostWorkspacesCacheOps {
 export interface UseHostWorkspacesResult {
 	workspaces: HostWorkspaceItem[];
 	/**
-	 * True once every host answered or failed. Gates empty states only —
-	 * existing rows always render (cache-first rule).
+	 * True once every host answered, failed, or served a snapshot. Gates
+	 * empty states only — existing rows always render (cache-first rule).
 	 */
 	isReady: boolean;
 	cache: HostWorkspacesCacheOps;
@@ -47,7 +49,9 @@ export interface UseHostWorkspacesResult {
 /**
  * The workspace read path: `workspace.list` per host (local direct, remote
  * via relay), merged and live-updated from each host's `workspace:changed`
- * events. A host contributes nothing until it answers.
+ * events, with last-seen lists persisted per host to IndexedDB so remote
+ * machines still render offline. A host that has neither answered nor got a
+ * snapshot contributes nothing.
  *
  * Unscoped (`scopedHostId` omitted): fans out to every known host — runs
  * once inside HostWorkspacesProvider; consumers read the shared result via
@@ -98,6 +102,32 @@ export function useHostWorkspacesSource(
 		scopedHostId,
 	]);
 
+	// Last-seen snapshots hydrate once per (org, host); live data always wins.
+	const [snapshots, setSnapshots] = useState<Map<string, HostWorkspaceRow[]>>(
+		() => new Map(),
+	);
+	useEffect(() => {
+		let cancelled = false;
+		for (const target of targets) {
+			if (snapshots.has(target.machineId)) continue;
+			void loadHostWorkspacesSnapshot(
+				target.organizationId,
+				target.machineId,
+			).then((rows) => {
+				if (cancelled || !rows) return;
+				setSnapshots((prev) => {
+					if (prev.has(target.machineId)) return prev;
+					const next = new Map(prev);
+					next.set(target.machineId, rows);
+					return next;
+				});
+			});
+		}
+		return () => {
+			cancelled = true;
+		};
+	}, [targets, snapshots]);
+
 	const queries = useQueries({
 		queries: targets.map((target) => ({
 			queryKey: getHostWorkspacesQueryKey(target),
@@ -118,13 +148,20 @@ export function useHostWorkspacesSource(
 			queryFn: async (): Promise<HostWorkspaceRow[]> => {
 				if (!target.hostUrl) return [];
 				const client = getHostServiceClientByUrl(target.hostUrl);
-				return (await client.workspace.list.query()) as HostWorkspaceRow[];
+				const rows =
+					(await client.workspace.list.query()) as HostWorkspaceRow[];
+				saveHostWorkspacesSnapshot(
+					target.organizationId,
+					target.machineId,
+					rows,
+				);
+				return rows;
 			},
 		})),
 	});
 
-	// Archived tombstones, opt-in, own query key: the shared live list must
-	// never contain archived rows.
+	// Archived tombstones, opt-in, own query key: the shared live list (and
+	// its persisted snapshots) must never contain archived rows.
 	const archivedQueries = useQueries({
 		queries: targets.map((target) => ({
 			queryKey: [
@@ -162,8 +199,8 @@ export function useHostWorkspacesSource(
 				(workspaceId, event) => {
 					queryClient.setQueryData<HostWorkspaceRow[] | undefined>(
 						getHostWorkspacesQueryKey(target),
-						(rows) =>
-							applyWorkspaceChangedEvent(
+						(rows) => {
+							const next = applyWorkspaceChangedEvent(
 								rows,
 								event,
 								{
@@ -171,7 +208,16 @@ export function useHostWorkspacesSource(
 									machineId: target.machineId,
 								},
 								workspaceId,
-							),
+							);
+							if (next && next !== rows) {
+								saveHostWorkspacesSnapshot(
+									target.organizationId,
+									target.machineId,
+									next,
+								);
+							}
+							return next;
+						},
 					);
 					// Archive state flips arrive as deleted/created events; the
 					// tombstone list has no patch payload, so refetch it.
@@ -206,7 +252,7 @@ export function useHostWorkspacesSource(
 				const live = query?.data;
 				return {
 					target,
-					rows: live,
+					rows: live ?? snapshots.get(target.machineId),
 					reachable: live !== undefined && !query?.isError,
 				};
 			}),
@@ -228,7 +274,7 @@ export function useHostWorkspacesSource(
 				}));
 		});
 		return [...merged, ...archived];
-	}, [targets, queries, includeArchived, archivedQueries]);
+	}, [targets, queries, includeArchived, archivedQueries, snapshots]);
 
 	// Readiness reflects host-query settlement only. A scoped host that
 	// hasn't resolved to a target yet is still loading. Known-hosts
@@ -236,13 +282,17 @@ export function useHostWorkspacesSource(
 	// the fan-out covers only the local host — every query answering then
 	// means "the hosts we know of answered", not "every host answered".
 	// Reporting ready off that would flash not-found for remote workspaces
-	// right after an org switch.
+	// right after an org switch (offline stays fine: a prior session's
+	// snapshot settles the host without a live answer).
 	const isReady =
 		knownHostsSettled &&
 		(scopedHostId === undefined || targets.length > 0) &&
 		queries.every(
 			(query, index) =>
-				query.isSuccess || query.isError || targets[index]?.hostUrl === null,
+				query.isSuccess ||
+				query.isError ||
+				targets[index]?.hostUrl === null ||
+				snapshots.has(targets[index]?.machineId ?? ""),
 		) &&
 		// Tombstones count toward settlement too: an archived-only host must
 		// not read as a settled empty view while its archived query loads.
