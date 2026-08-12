@@ -1,7 +1,6 @@
 "use client";
 
 import { buildHostRoutingKey } from "@superset/shared/host-routing";
-import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import { trpcClient } from "../../../trpc/client";
 import {
@@ -178,12 +177,6 @@ export default function WorkspaceTerminalPage({
 				className="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-sm"
 				style={{ borderColor: "#2a2827", backgroundColor: "#1a1716" }}
 			>
-				<Link
-					href="/workspaces"
-					className="text-[#a8a5a3] hover:text-[#eae8e6]"
-				>
-					← Workspaces
-				</Link>
 				<select
 					value={activeTerminalId ?? ""}
 					onChange={(event) =>
