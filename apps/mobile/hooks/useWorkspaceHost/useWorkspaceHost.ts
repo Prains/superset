@@ -1,16 +1,15 @@
 import type { SelectV2Host } from "@superset/db/schema";
-import { useLiveQuery } from "@tanstack/react-db";
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import {
 	getHostWorkspacesQueryKey,
 	type HostWorkspaceRow,
 } from "@/hooks/useHostWorkspaces";
+import { useOnlineHosts } from "@/hooks/useOnlineHosts";
 import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
 } from "@/lib/host-service/client";
-import { useCollections } from "@/screens/(authenticated)/providers/CollectionsProvider";
 
 export interface WorkspaceHostResult {
 	workspace: HostWorkspaceRow | null;
@@ -27,16 +26,11 @@ export interface WorkspaceHostResult {
 export function useWorkspaceHost(
 	workspaceId: string | null,
 ): WorkspaceHostResult {
-	const collections = useCollections();
-
-	const { data: hosts } = useLiveQuery(
-		(q) => q.from({ v2Hosts: collections.v2Hosts }),
-		[collections],
-	);
+	const hosts = useOnlineHosts();
 
 	const targets = useMemo(
 		() =>
-			(hosts ?? [])
+			hosts
 				.filter((host) => host.isOnline)
 				.map((host) => ({
 					host,

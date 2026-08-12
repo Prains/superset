@@ -1,14 +1,13 @@
-import { useLiveQuery } from "@tanstack/react-db";
 import { useQueries } from "@tanstack/react-query";
 import { compareDesc } from "date-fns";
 import { useMemo } from "react";
 import { toHostProjectItem } from "@/hooks/useHostProjects";
 import type { HostWorkspaceItem } from "@/hooks/useHostWorkspaces";
+import { useOnlineHosts } from "@/hooks/useOnlineHosts";
 import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
 } from "@/lib/host-service/client";
-import { useCollections } from "@/screens/(authenticated)/providers/CollectionsProvider";
 import { useWorkspacesFilterStore } from "../../../../stores/workspacesFilterStore";
 import { useNewChatPreferencesStore } from "../../stores/newChatPreferencesStore";
 
@@ -36,7 +35,6 @@ export function useNewChatTargets(workspaces: HostWorkspaceItem[] = []): {
 	targets: NewChatTarget[];
 	defaultTarget: NewChatTarget | null;
 } {
-	const collections = useCollections();
 	const persistedTargetKey = useNewChatPreferencesStore(
 		(state) => state.targetKey,
 	);
@@ -44,13 +42,10 @@ export function useNewChatTargets(workspaces: HostWorkspaceItem[] = []): {
 		(state) => state.projectFilter,
 	);
 
-	const { data: hosts } = useLiveQuery(
-		(q) => q.from({ v2Hosts: collections.v2Hosts }),
-		[collections],
-	);
+	const hosts = useOnlineHosts();
 	const onlineHosts = useMemo(
 		() =>
-			(hosts ?? [])
+			hosts
 				.filter((host) => host.isOnline)
 				.map((host) => ({
 					machineId: host.machineId,

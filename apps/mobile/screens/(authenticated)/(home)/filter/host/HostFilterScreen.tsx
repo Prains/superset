@@ -1,29 +1,24 @@
-import { useLiveQuery } from "@tanstack/react-db";
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import { ScrollView } from "react-native";
+import { useOnlineHosts } from "@/hooks/useOnlineHosts";
 import { useWorkspacesFilterStore } from "@/screens/(authenticated)/(home)/home/stores/workspacesFilterStore";
 import { useSelectedHost } from "@/screens/(authenticated)/(home)/hooks/useSelectedHost";
 import { HostStatusDot } from "@/screens/(authenticated)/components/HostStatusDot";
 import { ListRow } from "@/screens/(authenticated)/components/ListRow";
 import { ListRowCheck } from "@/screens/(authenticated)/components/ListRowCheck";
-import { useCollections } from "@/screens/(authenticated)/providers/CollectionsProvider";
 
 export function HostFilterScreen() {
 	const router = useRouter();
-	const collections = useCollections();
 	const selectedHost = useSelectedHost();
 	const setHostFilter = useWorkspacesFilterStore(
 		(store) => store.setHostFilter,
 	);
 
-	const { data: hosts } = useLiveQuery(
-		(q) => q.from({ v2Hosts: collections.v2Hosts }),
-		[collections],
-	);
+	const hosts = useOnlineHosts();
 
 	const sortedHosts = useMemo(
-		() => [...(hosts ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+		() => [...hosts].sort((a, b) => a.name.localeCompare(b.name)),
 		[hosts],
 	);
 

@@ -1,23 +1,17 @@
-import { useLiveQuery } from "@tanstack/react-db";
 import { formatDistanceToNow } from "date-fns";
 import { useMemo } from "react";
 import { ScrollView, Text } from "react-native";
+import { useOnlineHosts } from "@/hooks/useOnlineHosts";
 import { useTheme } from "@/hooks/useTheme";
 import { HostStatusDot } from "@/screens/(authenticated)/components/HostStatusDot";
 import { ListRow } from "@/screens/(authenticated)/components/ListRow";
-import { useCollections } from "@/screens/(authenticated)/providers/CollectionsProvider";
 
 export function HostsSettingsScreen() {
 	const theme = useTheme();
-	const collections = useCollections();
-
-	const { data: hosts } = useLiveQuery(
-		(q) => q.from({ v2Hosts: collections.v2Hosts }),
-		[collections],
-	);
+	const hosts = useOnlineHosts();
 
 	const hostRows = useMemo(
-		() => [...(hosts ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+		() => [...hosts].sort((a, b) => a.name.localeCompare(b.name)),
 		[hosts],
 	);
 
