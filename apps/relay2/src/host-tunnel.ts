@@ -326,19 +326,17 @@ export class HostTunnel extends Server<RelayEnv> {
 			return;
 		}
 
-		const lastSeen =
-			(await this.ctx.storage.get<number>("lastHostSeenAt")) ?? 0;
-		if (Date.now() - lastSeen > HOST_STALE_MS) {
+		const [lastSeen, session] = await Promise.all([
+			this.ctx.storage.get<number>("lastHostSeenAt"),
+			this.ctx.storage.get<{ hostId: string; token: string }>("session"),
+		]);
+		if (Date.now() - (lastSeen ?? 0) > HOST_STALE_MS) {
 			const state = host.state as ConnState | undefined;
 			const hostId = state?.kind === "host" ? state.hostId : this.name;
 			console.log(`[relay2] host stale, closing: ${hostId}`);
 			// closeQuietly alone is not enough: a server-initiated close on a
 			// dead peer never completes, so tear presence down here instead of
 			// relying on the close handler.
-			const session = await this.ctx.storage.get<{
-				hostId: string;
-				token: string;
-			}>("session");
 			await this.ctx.storage.put("presenceOnline", false);
 			closeQuietly(host, 1011, "No keepalive from host");
 			if (session) {
@@ -347,6 +345,13 @@ export class HostTunnel extends Server<RelayEnv> {
 			return;
 		}
 
+		// Presence writes race (an offline write can land after the reconnect's
+		// online write and stick), so a live host's row is re-asserted every
+		// sweep rather than trusting the connect-time write to have won.
+		if (session) {
+			await this.ctx.storage.put("presenceOnline", true);
+			this.ctx.waitUntil(this.presence(session.hostId, session.token, true));
+		}
 		await this.ctx.storage.setAlarm(Date.now() + LIVENESS_SWEEP_MS);
 	}
 
