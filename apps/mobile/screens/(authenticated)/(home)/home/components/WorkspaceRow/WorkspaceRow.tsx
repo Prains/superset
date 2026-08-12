@@ -7,7 +7,7 @@ import {
 	GitPullRequestDraft,
 	Plus,
 } from "lucide-react-native";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
@@ -18,7 +18,6 @@ import type {
 import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 import { AgentMark } from "@/screens/(authenticated)/(home)/new-session/agent";
-import { PressableScale } from "@/screens/(authenticated)/components/PressableScale";
 import type { TerminalRowData } from "../../hooks/useHostTerminals";
 import type { DiffStats } from "../../hooks/useVisibleDiffStats";
 import { useChatTargetStore } from "../../stores/chatTargetStore";
@@ -65,10 +64,13 @@ export function WorkspaceRow({
 
 	return (
 		<WorkspaceRowMenu workspace={workspace} cache={cache}>
-			<PressableScale
+			{/* Highlight-only feedback, like a UITableView cell — a press scale
+			    here fights the system context-menu lift, which owns the entire
+			    hold animation. */}
+			<Pressable
 				className={cn(
 					"flex-row items-center gap-3 rounded-xl px-4 py-2.5",
-					targeted ? "bg-foreground/5" : "bg-background",
+					targeted ? "bg-foreground/5" : "bg-background active:bg-foreground/5",
 				)}
 				onPress={() =>
 					router.push(`/(authenticated)/workspace/${workspace.id}`)
@@ -169,7 +171,7 @@ export function WorkspaceRow({
 				>
 					<Icon as={Plus} className="text-muted-foreground size-5" />
 				</Button>
-			</PressableScale>
+			</Pressable>
 		</WorkspaceRowMenu>
 	);
 }
