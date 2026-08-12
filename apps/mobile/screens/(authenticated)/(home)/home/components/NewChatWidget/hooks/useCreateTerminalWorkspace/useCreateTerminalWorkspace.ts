@@ -12,7 +12,7 @@ const FALLBACK_MEDIA_TYPE = "application/octet-stream";
 interface CreateTerminalWorkspaceArgs {
 	target: NewChatTarget;
 	baseBranch: string | null;
-	modelId: string;
+	agentId: string;
 	message: PromptInputMessage;
 }
 
@@ -29,7 +29,7 @@ export function useCreateTerminalWorkspace() {
 		mutationFn: async ({
 			target,
 			baseBranch,
-			modelId,
+			agentId,
 			message,
 		}: CreateTerminalWorkspaceArgs) => {
 			const client = getHostServiceClientByUrl(target.hostUrl);
@@ -52,10 +52,9 @@ export function useCreateTerminalWorkspace() {
 				baseBranch: baseBranch ?? undefined,
 				agents: [
 					{
-						agent: "claude",
+						agent: agentId,
 						prompt: message.text.trim(),
 						attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
-						model: modelId,
 					},
 				],
 			});
@@ -68,7 +67,7 @@ export function useCreateTerminalWorkspace() {
 			const agentResult = result.agents[0];
 			if (agentResult?.ok && agentResult.kind === "terminal") {
 				router.push(
-					`/(authenticated)/workspace/${workspaceId}/terminal/${agentResult.sessionId}`,
+					`/(authenticated)/workspace/${workspaceId}?tab=${agentResult.sessionId}`,
 				);
 				return;
 			}

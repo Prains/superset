@@ -9,7 +9,7 @@ import { Text } from "@/components/ui/text";
 import { useTheme } from "@/hooks/useTheme";
 import { getHostServiceClientByUrl } from "@/lib/host-service/client";
 import { useNewChatTargets } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/hooks/useNewChatTargets";
-import { useNewChatPreferencesStore } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/stores/newChatPreferencesStore";
+import { useNewSessionPreferencesStore } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/stores/newSessionPreferencesStore";
 
 function BranchRow({
 	name,
@@ -42,9 +42,9 @@ export function BranchPickerScreen() {
 	const theme = useTheme();
 	const [query, setQuery] = useState("");
 	const { targets, defaultTarget } = useNewChatTargets();
-	const targetKey = useNewChatPreferencesStore((state) => state.targetKey);
-	const baseBranch = useNewChatPreferencesStore((state) => state.baseBranch);
-	const setBaseBranch = useNewChatPreferencesStore(
+	const targetKey = useNewSessionPreferencesStore((state) => state.targetKey);
+	const baseBranch = useNewSessionPreferencesStore((state) => state.baseBranch);
+	const setBaseBranch = useNewSessionPreferencesStore(
 		(state) => state.setBaseBranch,
 	);
 

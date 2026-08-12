@@ -35,7 +35,6 @@ import {
 	tint,
 	truncationMode,
 } from "@expo/ui/swift-ui/modifiers";
-import { SUPERSET_CHAT_MODELS } from "@superset/shared/agent-models";
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -69,7 +68,7 @@ import { useCreateTerminalWorkspace } from "./hooks/useCreateTerminalWorkspace";
 import { useNewChatTargets } from "./hooks/useNewChatTargets";
 import { useStartWorkspaceTerminal } from "./hooks/useStartWorkspaceTerminal";
 import { useVoiceDictation } from "./hooks/useVoiceDictation";
-import { useNewChatPreferencesStore } from "./stores/newChatPreferencesStore";
+import { useNewSessionPreferencesStore } from "./stores/newSessionPreferencesStore";
 
 const PILL_RADIUS = 26;
 
@@ -98,10 +97,10 @@ export function NewChatWidget({
 
 	const [focused, setFocused] = useState(false);
 
-	const modelId = useNewChatPreferencesStore((state) => state.modelId);
-	const targetKey = useNewChatPreferencesStore((state) => state.targetKey);
-	const baseBranch = useNewChatPreferencesStore((state) => state.baseBranch);
-	const setBaseBranch = useNewChatPreferencesStore(
+	const agentId = useNewSessionPreferencesStore((state) => state.agentId);
+	const targetKey = useNewSessionPreferencesStore((state) => state.targetKey);
+	const baseBranch = useNewSessionPreferencesStore((state) => state.baseBranch);
+	const setBaseBranch = useNewSessionPreferencesStore(
 		(state) => state.setBaseBranch,
 	);
 
@@ -132,8 +131,20 @@ export function NewChatWidget({
 	});
 
 	const createTerminalWorkspace = useCreateTerminalWorkspace();
-	const selectedModel = SUPERSET_CHAT_MODELS.find(
-		(model) => model.id === modelId,
+	const { data: agentConfigs } = useQuery({
+		queryKey: ["host-agent-configs", selectedTarget?.machineId ?? null],
+		enabled: selectedTarget !== null,
+		staleTime: 60_000,
+		networkMode: "always" as const,
+		queryFn: async () => {
+			if (!selectedTarget) return [];
+			return getHostServiceClientByUrl(
+				selectedTarget.hostUrl,
+			).settings.agentConfigs.list.query();
+		},
+	});
+	const selectedAgent = agentConfigs?.find(
+		(config) => config.presetId === agentId,
 	);
 	const branchLabel = baseBranch ?? branchData?.defaultBranch ?? "default";
 	const draftRef = useRef("");
@@ -230,7 +241,7 @@ export function NewChatWidget({
 				.mutateAsync({
 					target: chatTarget,
 					message: { text, attachments },
-					modelId,
+					agentId,
 				})
 				.then(() => {
 					clearChatTarget();
@@ -247,7 +258,7 @@ export function NewChatWidget({
 			.mutateAsync({
 				target: selectedTarget,
 				baseBranch,
-				modelId,
+				agentId,
 				message: { text, attachments },
 			})
 			.then((result) => {
@@ -444,7 +455,9 @@ export function NewChatWidget({
 											void Haptics.impactAsync(
 												Haptics.ImpactFeedbackStyle.Light,
 											);
-											router.push("/(authenticated)/(home)/new-chat/project");
+											router.push(
+												"/(authenticated)/(home)/new-session/project",
+											);
 										}}
 										modifiers={[
 											buttonStyle("borderless"),
@@ -457,7 +470,7 @@ export function NewChatWidget({
 											void Haptics.impactAsync(
 												Haptics.ImpactFeedbackStyle.Light,
 											);
-											router.push("/(authenticated)/(home)/new-chat/branch");
+											router.push("/(authenticated)/(home)/new-session/branch");
 										}}
 										modifiers={[
 											buttonStyle("borderless"),
@@ -603,12 +616,12 @@ export function NewChatWidget({
 											void Haptics.impactAsync(
 												Haptics.ImpactFeedbackStyle.Light,
 											);
-											router.push("/(authenticated)/(home)/new-chat/model");
+											router.push("/(authenticated)/(home)/new-session/agent");
 										}}
 										modifiers={[buttonStyle("borderless"), tint(FOREGROUND)]}
 									>
 										<HStack spacing={4}>
-											<Text>{selectedModel?.label ?? "Model"}</Text>
+											<Text>{selectedAgent?.label ?? "Claude"}</Text>
 											<Image systemName="chevron.down" size={11} />
 										</HStack>
 									</Button>

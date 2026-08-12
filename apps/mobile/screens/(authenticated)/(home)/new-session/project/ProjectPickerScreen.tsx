@@ -5,14 +5,14 @@ import { Text } from "@/components/ui/text";
 import { useTheme } from "@/hooks/useTheme";
 import { ProjectAvatar } from "@/screens/(authenticated)/(home)/filter/components/ProjectAvatar";
 import { useNewChatTargets } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/hooks/useNewChatTargets";
-import { useNewChatPreferencesStore } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/stores/newChatPreferencesStore";
+import { useNewSessionPreferencesStore } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/stores/newSessionPreferencesStore";
 
 export function ProjectPickerScreen() {
 	const router = useRouter();
 	const theme = useTheme();
 	const { targets, defaultTarget } = useNewChatTargets();
-	const targetKey = useNewChatPreferencesStore((state) => state.targetKey);
-	const setTargetKey = useNewChatPreferencesStore(
+	const targetKey = useNewSessionPreferencesStore((state) => state.targetKey);
+	const setTargetKey = useNewSessionPreferencesStore(
 		(state) => state.setTargetKey,
 	);
 

@@ -1,3 +1,12 @@
-import { TerminalScreen } from "@/screens/(authenticated)/workspace/[id]/terminal/[terminalId]";
+import { Redirect, useLocalSearchParams } from "expo-router";
 
-export default TerminalScreen;
+// Terminal deep links resolve into the workspace shell with the tab active.
+export default function TerminalRedirect() {
+	const { id, terminalId } = useLocalSearchParams<{
+		id: string;
+		terminalId: string;
+	}>();
+	return (
+		<Redirect href={`/(authenticated)/workspace/${id}?tab=${terminalId}`} />
+	);
+}

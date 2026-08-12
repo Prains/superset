@@ -10,7 +10,7 @@ import {
 	getHostServiceClientByUrl,
 } from "@/lib/host-service/client";
 import { useStartWorkspaceTerminal } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/hooks/useStartWorkspaceTerminal";
-import { useNewChatPreferencesStore } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/stores/newChatPreferencesStore";
+import { useNewSessionPreferencesStore } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget/stores/newSessionPreferencesStore";
 import {
 	getHostTerminalsQueryKey,
 	useHostTerminals,
@@ -59,7 +59,7 @@ export function FinishReviewSheet() {
 		[workspace],
 	);
 	const startWorkspaceTerminal = useStartWorkspaceTerminal(widgetWorkspaces);
-	const modelId = useNewChatPreferencesStore((state) => state.modelId);
+	const agentId = useNewSessionPreferencesStore((state) => state.agentId);
 
 	const terminalRows = useMemo(
 		() => (workspaceId ? (terminalsByWorkspace.get(workspaceId) ?? []) : []),
@@ -85,7 +85,7 @@ export function FinishReviewSheet() {
 							hostId: workspace.hostId,
 						},
 						message: { text: prompt, attachments: [] },
-						modelId,
+						agentId,
 					},
 					{ onSuccess: () => clearWorkspace(workspaceId) },
 				);
@@ -103,9 +103,7 @@ export function FinishReviewSheet() {
 				queryKey: getHostTerminalsQueryKey(host.machineId),
 			});
 			router.back();
-			router.push(
-				`/(authenticated)/workspace/${workspaceId}/terminal/${target}`,
-			);
+			router.push(`/(authenticated)/workspace/${workspaceId}?tab=${target}`);
 		} catch (cause) {
 			Alert.alert(
 				"Could not send review",

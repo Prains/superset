@@ -1,3 +1,7 @@
+import {
+	BUILTIN_AGENT_IDS,
+	type BuiltinAgentId,
+} from "@superset/shared/agent-catalog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { Alert } from "react-native";
@@ -24,11 +28,11 @@ export function useStartWorkspaceTerminal(workspaces: HostWorkspaceItem[]) {
 		mutationFn: async ({
 			target,
 			message,
-			modelId,
+			agentId,
 		}: {
 			target: ChatTarget;
 			message: PromptInputMessage;
-			modelId: string;
+			agentId: string;
 		}) => {
 			const workspace = workspaces.find(
 				(item) => item.id === target.workspaceId,
@@ -46,10 +50,19 @@ export function useStartWorkspaceTerminal(workspaces: HostWorkspaceItem[]) {
 			const client = getHostServiceClientByUrl(hostUrl);
 			const text = message.text.trim();
 
-			const active = await client.terminalAgents.findActive.query({
-				workspaceId: target.workspaceId,
-				agentId: "claude",
-			});
+			// Reuse only works for builtin terminal agents — custom presets have
+			// no binding to find, so they always launch fresh.
+			const builtinAgentId = (BUILTIN_AGENT_IDS as readonly string[]).includes(
+				agentId,
+			)
+				? (agentId as BuiltinAgentId)
+				: null;
+			const active = builtinAgentId
+				? await client.terminalAgents.findActive.query({
+						workspaceId: target.workspaceId,
+						agentId: builtinAgentId,
+					})
+				: null;
 			if (active) {
 				await client.terminal.send.mutate({
 					terminalId: active.terminalId,
@@ -65,9 +78,8 @@ export function useStartWorkspaceTerminal(workspaces: HostWorkspaceItem[]) {
 
 			const result = await client.agents.run.mutate({
 				workspaceId: target.workspaceId,
-				agent: "claude",
+				agent: agentId,
 				prompt: text,
-				model: modelId,
 			});
 			if (result.kind !== "terminal") {
 				throw new Error(`${result.label} did not start a terminal session`);
@@ -83,7 +95,7 @@ export function useStartWorkspaceTerminal(workspaces: HostWorkspaceItem[]) {
 				queryKey: getHostTerminalsQueryKey(hostId),
 			});
 			router.push(
-				`/(authenticated)/workspace/${workspaceId}/terminal/${terminalId}`,
+				`/(authenticated)/workspace/${workspaceId}?tab=${terminalId}`,
 			);
 		},
 		onError: (error) => {

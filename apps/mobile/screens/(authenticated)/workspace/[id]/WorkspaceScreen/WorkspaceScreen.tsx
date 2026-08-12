@@ -1,80 +1,242 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { buildHostRoutingKey } from "@superset/shared/host-routing";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronDown } from "lucide-react-native";
-import { useMemo } from "react";
-import { ScrollView, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	ActionSheetIOS,
+	ActivityIndicator,
+	Alert,
+	Keyboard,
+	LayoutAnimation,
+	Pressable,
+	View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
-import type { HostWorkspaceItem } from "@/hooks/useHostWorkspaces";
 import { useWorkspaceHost } from "@/hooks/useWorkspaceHost";
 import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
 } from "@/lib/host-service/client";
 import { cn } from "@/lib/utils";
-import { NewChatWidget } from "@/screens/(authenticated)/(home)/home/components/NewChatWidget";
-import { TerminalRow } from "@/screens/(authenticated)/(home)/home/components/TerminalRow";
 import {
 	getHostTerminalsQueryKey,
 	useHostTerminals,
 } from "@/screens/(authenticated)/(home)/home/hooks/useHostTerminals";
 import { PressableScale } from "@/screens/(authenticated)/components/PressableScale";
+import {
+	TerminalComposer,
+	type TerminalQuickKey,
+} from "../components/TerminalComposer";
+import { TerminalTabs } from "../components/TerminalTabs";
+import {
+	type TerminalConnectionState,
+	type TerminalControlMessage,
+	TerminalWebView,
+	type TerminalWebViewHandle,
+} from "../components/TerminalWebView";
 import { useWorkspaceChangeset } from "../hooks/useWorkspaceChangeset";
 
 const GLASS = isLiquidGlassAvailable();
 
-const NAVIGATION_BAR_HEIGHT = 44;
-
-const glassHeaderOptions = {
+// Solid themed header: the tab strip sits flush under it and must not
+// render beneath glass.
+const headerOptions = {
 	headerShown: true,
-	headerTransparent: true,
-	headerLargeTitle: false,
 	headerBackButtonDisplayMode: "minimal",
 	headerShadowVisible: false,
-	...(GLASS ? {} : { headerBlurEffect: "systemUltraThinMaterial" as const }),
-	headerStyle: { backgroundColor: "transparent" },
+	// Horizontal swipes belong to the terminal — back stays edge-only.
+	fullScreenGestureEnabled: false,
 } as const;
 
-export function WorkspaceScreen() {
-	const { id } = useLocalSearchParams<{ id: string }>();
-	const router = useRouter();
-	const { height: windowHeight } = useWindowDimensions();
-	const insets = useSafeAreaInsets();
+const STATE_BANNERS: Partial<Record<TerminalConnectionState, string>> = {
+	connecting: "Connecting…",
+	reconnecting: "Reconnecting…",
+	denied: "You don't have access to this terminal.",
+};
 
-	const { workspace, host } = useWorkspaceHost(id ?? null);
+/**
+ * The workspace IS the terminal: sessions render as tabs (agent mark + name),
+ * the active tab is the one live attached stream, and the + menu launches a
+ * new session from the host's agent presets (or a plain shell). Chrome: the
+ * compact header (name → action sheet, Review pill) and the terminal composer.
+ */
+export function WorkspaceScreen() {
+	const params = useLocalSearchParams<{ id: string; tab?: string }>();
+	const id = params.id;
+	const router = useRouter();
+	const insets = useSafeAreaInsets();
+	const queryClient = useQueryClient();
+
+	const { workspace, host, isResolving } = useWorkspaceHost(id ?? null);
 	const { terminalsByWorkspace, isReady } = useHostTerminals(host);
 	const changeset = useWorkspaceChangeset(id ?? null);
 
-	const terminalRows = useMemo(
+	const rows = useMemo(
 		() => (id ? (terminalsByWorkspace.get(id) ?? []) : []),
 		[terminalsByWorkspace, id],
 	);
 
-	const queryClient = useQueryClient();
-	const killTerminal = (terminalId: string) => {
-		if (!workspace || !host) return;
-		const hostUrl = buildRelayHostUrl(host.organizationId, host.machineId);
-		void getHostServiceClientByUrl(hostUrl)
-			.terminal.killSession.mutate({ terminalId, workspaceId: workspace.id })
-			.finally(() => {
-				void queryClient.invalidateQueries({
-					queryKey: getHostTerminalsQueryKey(host.machineId),
-				});
-			});
-	};
+	// Active tab: the deep-linked ?tab= until the user switches, else the
+	// first session. Falls back gracefully when the active terminal dies.
+	const [pickedTerminalId, setPickedTerminalId] = useState<string | null>(null);
+	const activeTerminalId = useMemo(() => {
+		for (const candidate of [pickedTerminalId, params.tab]) {
+			if (candidate && rows.some((row) => row.terminalId === candidate)) {
+				return candidate;
+			}
+		}
+		return rows[0]?.terminalId ?? null;
+	}, [pickedTerminalId, params.tab, rows]);
 
-	const widgetWorkspaces = useMemo<HostWorkspaceItem[]>(
-		() => (workspace ? [{ ...workspace, hostReachable: true }] : []),
-		[workspace],
+	const hostUrl = host
+		? buildRelayHostUrl(host.organizationId, host.machineId)
+		: null;
+	const routingKey = host
+		? buildHostRoutingKey(host.organizationId, host.machineId)
+		: null;
+
+	// Host agent presets for the + menu (Claude Code / Codex / … / Shell).
+	const presetsQuery = useQuery({
+		queryKey: ["host-agent-configs", host?.machineId ?? null],
+		enabled: hostUrl !== null,
+		staleTime: 60_000,
+		networkMode: "always" as const,
+		queryFn: async () => {
+			if (!hostUrl) return [];
+			return getHostServiceClientByUrl(
+				hostUrl,
+			).settings.agentConfigs.list.query();
+		},
+	});
+
+	const invalidateTerminals = useCallback(() => {
+		if (!host) return;
+		void queryClient.invalidateQueries({
+			queryKey: getHostTerminalsQueryKey(host.machineId),
+		});
+	}, [host, queryClient]);
+
+	const launchPreset = useCallback(
+		async (agentId: string | null) => {
+			if (!workspace || !hostUrl) return;
+			try {
+				const client = getHostServiceClientByUrl(hostUrl);
+				if (agentId === null) {
+					const created = await client.terminal.createSession.mutate({
+						workspaceId: workspace.id,
+					});
+					setPickedTerminalId(created.terminalId);
+				} else {
+					const result = await client.agents.run.mutate({
+						workspaceId: workspace.id,
+						agent: agentId,
+						prompt: "",
+					});
+					if (result.kind === "terminal") setPickedTerminalId(result.sessionId);
+				}
+				invalidateTerminals();
+			} catch (error) {
+				Alert.alert(
+					"Could not start session",
+					error instanceof Error ? error.message : String(error),
+				);
+			}
+		},
+		[workspace, hostUrl, invalidateTerminals],
 	);
 
+	const openAddMenu = useCallback(() => {
+		const presets = presetsQuery.data ?? [];
+		const options = [
+			...presets.map((preset) => preset.label),
+			"Shell",
+			"Cancel",
+		];
+		ActionSheetIOS.showActionSheetWithOptions(
+			{
+				title: "New session",
+				options,
+				cancelButtonIndex: options.length - 1,
+			},
+			(index) => {
+				if (index === options.length - 1) return;
+				const preset = presets[index];
+				void launchPreset(preset ? preset.id : null);
+			},
+		);
+	}, [presetsQuery.data, launchPreset]);
+
+	const killTerminal = useCallback(
+		(terminalId: string) => {
+			if (!workspace || !hostUrl) return;
+			void getHostServiceClientByUrl(hostUrl)
+				.terminal.killSession.mutate({ terminalId, workspaceId: workspace.id })
+				.finally(invalidateTerminals);
+		},
+		[workspace, hostUrl, invalidateTerminals],
+	);
+
+	// --- active terminal connection (one live stream; tabs switch it) ---
+	const terminalRef = useRef<TerminalWebViewHandle>(null);
+	const [connectionState, setConnectionState] =
+		useState<TerminalConnectionState>("connecting");
+	const [composerHeight, setComposerHeight] = useState(0);
+	const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+	useEffect(() => {
+		const show = Keyboard.addListener("keyboardWillShow", (event) => {
+			LayoutAnimation.configureNext({
+				duration: event.duration || 250,
+				update: { type: LayoutAnimation.Types.keyboard },
+			});
+			setKeyboardHeight(event.endCoordinates.height);
+		});
+		const hide = Keyboard.addListener("keyboardWillHide", (event) => {
+			LayoutAnimation.configureNext({
+				duration: event.duration || 250,
+				update: { type: LayoutAnimation.Types.keyboard },
+			});
+			setKeyboardHeight(0);
+		});
+		return () => {
+			show.remove();
+			hide.remove();
+		};
+	}, []);
+
+	const composerBottom = keyboardHeight > 0 ? keyboardHeight : insets.bottom;
+
+	const handleControl = useCallback(
+		(message: TerminalControlMessage) => {
+			// Session ended under us — refresh the tab row; the active tab falls
+			// back to the next session automatically.
+			if (message.type === "exit") invalidateTerminals();
+		},
+		[invalidateTerminals],
+	);
+
+	const handleSubmit = useCallback((text: string) => {
+		const framed = text.includes("\n")
+			? `\u001b[200~${text}\u001b[201~\r`
+			: `${text}\r`;
+		terminalRef.current?.sendInput(framed);
+	}, []);
+
+	const handleQuickKey = useCallback((key: TerminalQuickKey) => {
+		if (key.data) terminalRef.current?.sendInput(key.data);
+	}, []);
+
+	const banner = STATE_BANNERS[connectionState];
 	const hasChanges = changeset.files.length > 0;
+	const showComposer = activeTerminalId !== null && routingKey !== null;
 
 	return (
 		<View className="bg-background flex-1">
-			<Stack.Screen options={{ ...glassHeaderOptions, title: "Workspace" }}>
+			<Stack.Screen options={{ ...headerOptions, title: "Workspace" }}>
 				<Stack.Title asChild>
 					<PressableScale
 						onPress={() =>
@@ -127,53 +289,91 @@ export function WorkspaceScreen() {
 					</Stack.Toolbar>
 				) : null}
 			</Stack.Screen>
-			<ScrollView
+
+			<TerminalTabs
+				rows={rows}
+				activeTerminalId={activeTerminalId}
+				onSelect={setPickedTerminalId}
+				onAdd={openAddMenu}
+				onClose={killTerminal}
+			/>
+
+			{banner && activeTerminalId ? (
+				<View className="bg-muted px-3 py-1.5">
+					<Text className="text-muted-foreground text-center text-xs">
+						{banner}
+					</Text>
+				</View>
+			) : null}
+			{connectionState === "error" && activeTerminalId ? (
+				<View className="bg-muted flex-row items-center justify-center gap-3 px-3 py-1.5">
+					<Text className="text-muted-foreground text-xs">
+						Connection failed.
+					</Text>
+					<Pressable onPress={() => terminalRef.current?.retry()}>
+						<Text className="text-foreground text-xs font-medium">Retry</Text>
+					</Pressable>
+				</View>
+			) : null}
+
+			<View
 				className="flex-1"
-				contentInsetAdjustmentBehavior="automatic"
-				contentContainerStyle={{
-					paddingTop: 4,
-					paddingBottom: 132,
-					// Short content doesn't engage the scroll pan below the last row —
-					// stretch the container to the viewport (same fix as HomeScreen).
-					minHeight:
-						windowHeight - insets.top - NAVIGATION_BAR_HEIGHT - insets.bottom,
+				style={{
+					marginBottom: showComposer ? composerHeight + composerBottom : 0,
 				}}
-				keyboardDismissMode="interactive"
 			>
-				{terminalRows.map((row, index) => (
-					<View key={row.terminalId}>
-						{index > 0 && <View className="border-border/40 ml-12 border-t" />}
-						<TerminalRow
-							row={row}
-							className="px-4 py-3"
-							onPress={() =>
-								router.push(
-									`/(authenticated)/workspace/${id}/terminal/${row.terminalId}`,
-								)
-							}
-							onKill={() => killTerminal(row.terminalId)}
-						/>
-					</View>
-				))}
-				{terminalRows.length === 0 && isReady && (
-					<View className="items-center py-20">
-						<Text className="text-muted-foreground text-sm">
-							No terminals in this workspace yet.
+				{activeTerminalId && routingKey && id ? (
+					<TerminalWebView
+						key={activeTerminalId}
+						ref={terminalRef}
+						workspaceId={id}
+						terminalId={activeTerminalId}
+						routingKey={routingKey}
+						onStateChange={setConnectionState}
+						onControl={handleControl}
+					/>
+				) : isResolving || (!isReady && host) ? (
+					<Centered>
+						<ActivityIndicator />
+					</Centered>
+				) : !host ? (
+					<Centered>
+						<Text className="text-muted-foreground px-8 text-center text-sm">
+							The host that owns this workspace is offline.
 						</Text>
-					</View>
+					</Centered>
+				) : (
+					<Centered>
+						<Text className="text-muted-foreground text-sm">
+							No sessions yet.
+						</Text>
+						<Pressable onPress={openAddMenu} className="mt-3 active:opacity-60">
+							<Text className="text-foreground text-sm font-medium">
+								Start one +
+							</Text>
+						</Pressable>
+					</Centered>
 				)}
-			</ScrollView>
-			{workspace ? (
-				<NewChatWidget
-					workspaces={widgetWorkspaces}
-					fixedTarget={{
-						workspaceId: workspace.id,
-						workspaceName: workspace.name,
-						branch: workspace.branch,
-						hostId: workspace.hostId,
-					}}
-				/>
+			</View>
+
+			{showComposer ? (
+				<View
+					className="absolute inset-x-0"
+					style={{ bottom: composerBottom }}
+					onLayout={(event) =>
+						setComposerHeight(event.nativeEvent.layout.height)
+					}
+				>
+					<TerminalComposer
+						onSubmit={handleSubmit}
+						onQuickKey={handleQuickKey}
+					/>
+				</View>
 			) : null}
 		</View>
 	);
+}
+
+function Centered({ children }: { children: React.ReactNode }) {
+	return <View className="flex-1 items-center justify-center">{children}</View>;
 }

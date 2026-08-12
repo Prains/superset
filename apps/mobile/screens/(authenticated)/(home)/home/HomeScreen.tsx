@@ -368,7 +368,7 @@ export function HomeScreen() {
 								className="gap-2.5 py-2 pr-4 pl-4"
 								onPress={() =>
 									router.push(
-										`/(authenticated)/workspace/${item.workspaceId}/terminal/${item.row.terminalId}`,
+										`/(authenticated)/workspace/${item.workspaceId}?tab=${item.row.terminalId}`,
 									)
 								}
 								onKill={() => killTerminal(item.row)}

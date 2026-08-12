@@ -55,14 +55,18 @@ export default function AuthenticatedLayout() {
 					options={settingsScreenOptions("Billing")}
 				/>
 				<Stack.Screen
-					name="workspace/[id]/terminal/[terminalId]"
+					name="settings/presets"
+					options={settingsScreenOptions("Agent presets")}
+				/>
+				<Stack.Screen
+					name="workspace/[id]/index"
 					options={{
-						// Solid themed header: the terminal grid starts at the top edge
-						// and must not render under glass.
+						// Solid themed header: the tab strip sits flush under it and
+						// must not render under glass.
 						headerShown: true,
 						headerBackButtonDisplayMode: "minimal",
 						headerShadowVisible: false,
-						title: "Terminal",
+						title: "Workspace",
 						// Horizontal swipes belong to the terminal — back stays edge-only.
 						fullScreenGestureEnabled: false,
 					}}
