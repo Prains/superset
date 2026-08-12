@@ -37,7 +37,7 @@ const PR_ICON_CONFIG: Record<
 	open: { icon: GitPullRequest, iconClassName: "text-emerald-500" },
 };
 
-const MAX_SESSION_MARKS = 4;
+const MAX_SESSION_MARKS = 3;
 
 export function WorkspaceRow({
 	workspace,
@@ -126,17 +126,26 @@ export function WorkspaceRow({
 					</View>
 				</View>
 				{sessions.length > 0 ? (
-					<View className="flex-row items-center gap-1.5">
-						{sessions.slice(0, MAX_SESSION_MARKS).map((session) => (
-							<AgentMark
+					// Overlapping avatar-style stack — stays ~fixed-width as sessions
+					// grow instead of eating the row.
+					<View className="flex-row items-center">
+						{sessions.slice(0, MAX_SESSION_MARKS).map((session, index) => (
+							<View
 								key={session.terminalId}
-								agentId={session.agentId ?? ""}
-								size={14}
-								color={theme.mutedForeground}
-							/>
+								className={cn(
+									"bg-secondary border-background size-6 items-center justify-center rounded-full border-2",
+									index > 0 && "-ml-2.5",
+								)}
+							>
+								<AgentMark
+									agentId={session.agentId ?? ""}
+									size={12}
+									color={theme.mutedForeground}
+								/>
+							</View>
 						))}
 						{sessions.length > MAX_SESSION_MARKS ? (
-							<Text className="text-muted-foreground text-xs">
+							<Text className="text-muted-foreground pl-1 text-[11px]">
 								+{sessions.length - MAX_SESSION_MARKS}
 							</Text>
 						) : null}
