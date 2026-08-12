@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { GitPullRequestArrow } from "lucide-react-native";
+import { ChevronDown } from "lucide-react-native";
 import { useMemo } from "react";
 import { ScrollView, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,8 +22,6 @@ import {
 } from "@/screens/(authenticated)/(home)/home/hooks/useHostTerminals";
 import { PressableScale } from "@/screens/(authenticated)/components/PressableScale";
 import { useWorkspaceChangeset } from "../hooks/useWorkspaceChangeset";
-import { useWorkspaceHeaderActions } from "../hooks/useWorkspaceHeaderActions";
-import { useWorkspacePullRequest } from "../hooks/useWorkspacePullRequest";
 
 const GLASS = isLiquidGlassAvailable();
 
@@ -47,10 +45,7 @@ export function WorkspaceScreen() {
 
 	const { workspace, host } = useWorkspaceHost(id ?? null);
 	const { terminalsByWorkspace, isReady } = useHostTerminals(host);
-	const { renameWorkspace, deleteWorkspace, copyId, shareWorkspace } =
-		useWorkspaceHeaderActions(workspace, host);
 	const changeset = useWorkspaceChangeset(id ?? null);
-	const pullRequest = useWorkspacePullRequest(id ?? null);
 
 	const terminalRows = useMemo(
 		() => (id ? (terminalsByWorkspace.get(id) ?? []) : []),
@@ -81,47 +76,56 @@ export function WorkspaceScreen() {
 		<View className="bg-background flex-1">
 			<Stack.Screen options={{ ...glassHeaderOptions, title: "Workspace" }}>
 				<Stack.Title asChild>
-					<View className="max-w-64 items-center">
-						<Text className="font-semibold text-[17px]" numberOfLines={1}>
-							{workspace?.name ?? ""}
-						</Text>
-						{workspace?.branch ? (
-							<Text className="text-muted-foreground text-xs" numberOfLines={1}>
-								{workspace.branch}
-							</Text>
-						) : null}
-					</View>
-				</Stack.Title>
-				<Stack.Toolbar placement="right">
-					<Stack.Toolbar.Menu
-						icon="ellipsis"
-						accessibilityLabel="Workspace options"
-						hidden={!workspace}
+					<PressableScale
+						onPress={() =>
+							router.push(`/(authenticated)/workspace/${id}/actions`)
+						}
+						disabled={!workspace}
 					>
-						<Stack.Toolbar.MenuAction
-							icon="pencil"
-							onPress={() => void renameWorkspace()}
-						>
-							Rename
-						</Stack.Toolbar.MenuAction>
-						{workspace?.type !== "main" ? (
-							<Stack.Toolbar.MenuAction icon="trash" onPress={deleteWorkspace}>
-								Delete
-							</Stack.Toolbar.MenuAction>
-						) : null}
-						<Stack.Toolbar.Menu inline>
-							<Stack.Toolbar.MenuAction icon="doc.on.doc" onPress={copyId}>
-								Copy ID
-							</Stack.Toolbar.MenuAction>
-							<Stack.Toolbar.MenuAction
-								icon="square.and.arrow.up"
-								onPress={shareWorkspace}
+						<View className="max-w-64 flex-row items-center gap-1">
+							<Text className="font-semibold text-[17px]" numberOfLines={1}>
+								{workspace?.name ?? ""}
+							</Text>
+							<Icon
+								as={ChevronDown}
+								className="text-muted-foreground size-3.5"
+								strokeWidth={2.5}
+							/>
+						</View>
+					</PressableScale>
+				</Stack.Title>
+				{hasChanges ? (
+					<Stack.Toolbar placement="right">
+						<Stack.Toolbar.View>
+							<PressableScale
+								onPress={() =>
+									router.push(`/(authenticated)/workspace/${id}/diff`)
+								}
 							>
-								Share
-							</Stack.Toolbar.MenuAction>
-						</Stack.Toolbar.Menu>
-					</Stack.Toolbar.Menu>
-				</Stack.Toolbar>
+								<GlassView
+									colorScheme="dark"
+									glassEffectStyle="regular"
+									style={{ borderRadius: 999, overflow: "hidden" }}
+								>
+									<View
+										className={cn(
+											"flex-row items-center gap-1.5 px-3 py-1.5",
+											!GLASS && "bg-card border-border rounded-full border",
+										)}
+									>
+										<Text className="font-medium text-[13px]">Review</Text>
+										<Text className="text-green-500 font-semibold text-[13px]">
+											+{changeset.additions.toLocaleString()}
+										</Text>
+										<Text className="text-red-500 font-semibold text-[13px]">
+											−{changeset.deletions.toLocaleString()}
+										</Text>
+									</View>
+								</GlassView>
+							</PressableScale>
+						</Stack.Toolbar.View>
+					</Stack.Toolbar>
+				) : null}
 			</Stack.Screen>
 			<ScrollView
 				className="flex-1"
@@ -168,43 +172,6 @@ export function WorkspaceScreen() {
 						branch: workspace.branch,
 						hostId: workspace.hostId,
 					}}
-					above={
-						hasChanges ? (
-							<PressableScale
-								onPress={() =>
-									router.push(`/(authenticated)/workspace/${id}/diff`)
-								}
-							>
-								<GlassView
-									colorScheme="dark"
-									glassEffectStyle="regular"
-									style={{ borderRadius: 999, overflow: "hidden" }}
-								>
-									<View
-										className={cn(
-											"flex-row items-center gap-2 px-4 py-3",
-											!GLASS && "bg-card border-border rounded-full border",
-										)}
-									>
-										<Icon
-											as={GitPullRequestArrow}
-											className="text-foreground size-5"
-											strokeWidth={1.75}
-										/>
-										<Text className="font-medium text-[15px]">
-											{pullRequest ? "View PR" : "View changes"}
-										</Text>
-										<Text className="text-green-500 font-semibold text-[15px]">
-											+{changeset.additions.toLocaleString()}
-										</Text>
-										<Text className="text-red-500 font-semibold text-[15px]">
-											−{changeset.deletions.toLocaleString()}
-										</Text>
-									</View>
-								</GlassView>
-							</PressableScale>
-						) : undefined
-					}
 				/>
 			) : null}
 		</View>

@@ -124,6 +124,15 @@ export default function AuthenticatedLayout() {
 						}}
 					/>
 					<Stack.Screen
+						name="workspace/[id]/actions"
+						options={{
+							presentation: "formSheet",
+							sheetAllowedDetents: [0.5],
+							sheetGrabberVisible: true,
+							headerShown: false,
+						}}
+					/>
+					<Stack.Screen
 						name="workspace/[id]/jump-to-file"
 						options={{
 							presentation: "formSheet",
