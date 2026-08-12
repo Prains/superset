@@ -54,6 +54,13 @@ function runDotColor(run: FactoryLatestRun | undefined): string {
 	return "bg-muted-foreground/40";
 }
 
+const KIND_CHIP: Record<string, string> = {
+	bug: "bg-red-500/10 text-red-600 dark:text-red-400",
+	feature: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+	docs: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+	question: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+};
+
 export function FactoryItemCard({
 	item,
 	latestRun,
@@ -67,12 +74,12 @@ export function FactoryItemCard({
 		<button
 			type="button"
 			onClick={onOpen}
-			className="group flex flex-col gap-1.5 rounded-md border border-border bg-background p-2.5 text-left transition-colors hover:bg-fill-hover"
+			className="group flex flex-col gap-2 rounded-md border border-border bg-background p-3 text-left shadow-sm transition-all hover:border-border/80 hover:bg-fill-hover"
 		>
-			<div className="flex items-start gap-1.5">
+			<div className="flex items-start gap-2">
 				<span
 					className={cn(
-						"mt-1 size-1.5 shrink-0 rounded-full",
+						"mt-[5px] size-1.5 shrink-0 rounded-full",
 						runDotColor(latestRun),
 					)}
 				/>
@@ -80,23 +87,38 @@ export function FactoryItemCard({
 					{item.title}
 				</span>
 			</div>
-			<div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-				<span className="tabular-nums">#{item.externalNumber}</span>
+			<div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+				<span className="tabular-nums text-muted-foreground/80">
+					#{item.externalNumber}
+				</span>
+				{item.authorLogin && (
+					<span className="text-muted-foreground/60">{item.authorLogin}</span>
+				)}
+				{item.kind && (
+					<span
+						className={cn(
+							"rounded px-1.5 py-px font-medium",
+							KIND_CHIP[item.kind] ?? "bg-fill-secondary",
+						)}
+					>
+						{item.kind}
+						{item.confidence != null ? ` ${item.confidence}%` : ""}
+					</span>
+				)}
+				{item.prNumber != null && (
+					<span className="rounded bg-fill-secondary px-1.5 py-px font-medium">
+						PR #{item.prNumber}
+					</span>
+				)}
 				{ageChip && (
 					<span
 						title={`${ageChip.label} in ${item.stage}`}
 						className={cn(
-							"rounded px-1 py-px font-medium tabular-nums",
+							"rounded px-1.5 py-px font-medium tabular-nums",
 							ageChip.className,
 						)}
 					>
 						{ageChip.label}
-					</span>
-				)}
-				{item.kind && (
-					<span className="rounded bg-fill-secondary px-1 py-px">
-						{item.kind}
-						{item.confidence != null ? ` ${item.confidence}%` : ""}
 					</span>
 				)}
 				<span className="flex-1" />
@@ -117,7 +139,7 @@ export function FactoryItemCard({
 				)}
 			</div>
 			{item.blockedReason && (
-				<p className="line-clamp-2 select-text cursor-text text-[11px] text-amber-600 dark:text-amber-400">
+				<p className="line-clamp-2 select-text cursor-text rounded bg-amber-500/10 px-1.5 py-1 text-[11px] leading-snug text-amber-700 dark:text-amber-400">
 					{item.blockedReason}
 				</p>
 			)}
