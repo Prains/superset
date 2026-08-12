@@ -34,6 +34,8 @@ export function watchSingleFile(
 	let disposed = false;
 	let watcher: FSWatcher | null = null;
 	let exists = false;
+	/** Inode behind the current watch; a change means the watch is deaf. */
+	let watchedIno: bigint | number | null = null;
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
 	let settling = false;
@@ -46,6 +48,7 @@ export function watchSingleFile(
 	const closeWatcher = () => {
 		watcher?.close();
 		watcher = null;
+		watchedIno = null;
 	};
 
 	const startPolling = () => {
@@ -62,14 +65,21 @@ export function watchSingleFile(
 		}
 	};
 
-	const installWatcher = (): boolean => {
+	const installWatcher = (ino: bigint | number): boolean => {
 		closeWatcher();
 		try {
-			watcher = watch(absolutePath, () => scheduleSettle());
-			watcher.on("error", () => scheduleSettle());
+			const installed = watch(absolutePath, () => scheduleSettle());
+			installed.on("error", () => {
+				// A dead watch must not be mistaken for a live same-inode one.
+				if (watcher === installed) closeWatcher();
+				scheduleSettle();
+			});
+			watcher = installed;
+			watchedIno = ino;
 			return true;
 		} catch {
 			watcher = null;
+			watchedIno = null;
 			return false;
 		}
 	};
@@ -100,10 +110,15 @@ export function watchSingleFile(
 				const existed = exists;
 				exists = true;
 				stopPolling();
-				// Re-install unconditionally: the previous watch may be following
-				// a replaced inode (atomic save) and would never fire again.
-				if (!installWatcher()) {
-					startPolling();
+				// Re-install only when the inode behind the path changed (atomic
+				// save replaced it — the old watch follows the dead inode). A
+				// same-inode close+reopen is not just wasted work: Bun's kqueue
+				// teardown of the old watch races the new registration and can
+				// leave the fresh watch deaf.
+				if (!watcher || watchedIno !== stats.ino) {
+					if (!installWatcher(stats.ino)) {
+						startPolling();
+					}
 				}
 				emit(existed ? "update" : "create", stats.isDirectory());
 			} else {
@@ -130,7 +145,7 @@ export function watchSingleFile(
 		const stats = await stat(absolutePath).catch(() => null);
 		if (disposed) return;
 		exists = stats !== null;
-		if (!exists || !installWatcher()) {
+		if (!stats || !installWatcher(stats.ino)) {
 			startPolling();
 		}
 	})();

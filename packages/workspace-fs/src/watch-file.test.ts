@@ -97,7 +97,15 @@ describe("watchSingleFile", () => {
 		events.length = 0;
 		await fs.writeFile(file, "again");
 		await waitFor(events, (e) => e.kind === "update");
-	}, 15_000);
+
+		// Second full cycle (VS Code's nodejsWatcher suspend/resume tests run
+		// the delete→recreate loop twice — resumption must not be one-shot).
+		events.length = 0;
+		await fs.rm(file);
+		await waitFor(events, (e) => e.kind === "delete");
+		await fs.writeFile(file, "twice-resurrected");
+		await waitFor(events, (e) => e.kind === "create");
+	}, 20_000);
 
 	it("starts against a missing file and emits create when it lands", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "watch-file-"));

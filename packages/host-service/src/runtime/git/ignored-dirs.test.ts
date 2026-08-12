@@ -54,4 +54,24 @@ describe("listGitIgnoredDirs", () => {
 			await listGitIgnoredDirs("/nonexistent/definitely-not-here"),
 		).toEqual([]);
 	});
+
+	test("never returns a dir containing a negated (re-included) child", async () => {
+		const dir = await createRepo();
+		// `dist/*` + `!dist/keep.txt`: git will not collapse `dist/` because it
+		// holds a non-ignored entry — pruning it would hide keep.txt forever.
+		await writeFile(
+			path.join(dir, ".gitignore"),
+			"dist/*\n!dist/keep.txt\nfully/\n",
+		);
+		await mkdir(path.join(dir, "dist"), { recursive: true });
+		await writeFile(path.join(dir, "dist", "bundle.js"), "x");
+		await writeFile(path.join(dir, "dist", "keep.txt"), "x");
+		await mkdir(path.join(dir, "fully"), { recursive: true });
+		await writeFile(path.join(dir, "fully", "junk.js"), "x");
+
+		const ignored = await listGitIgnoredDirs(dir);
+
+		expect(ignored.some((entry) => entry.startsWith("dist"))).toBe(false);
+		expect(ignored).toContain("fully");
+	});
 });

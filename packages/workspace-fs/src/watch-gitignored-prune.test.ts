@@ -69,6 +69,36 @@ describe("FsWatcherManager gitignored-dir pruning", () => {
 		expect(seen).not.toContain(`create:${path.join(ignoredDir, "module.pyc")}`);
 	}, 20_000);
 
+	it("prunes an ignored dir with a unicode (NFC) name on darwin's NFD filesystem", async () => {
+		const rootPath = await createTempRoot();
+		// "café" in NFC — APFS lookups are normalization-insensitive, and git
+		// (core.precomposeunicode) reports NFC; the glob must still prune.
+		const dirName = "café-out";
+		await fs.mkdir(path.join(rootPath, dirName), { recursive: true });
+
+		const manager = new FsWatcherManager({
+			debounceMs: 50,
+			listGitIgnoredDirs: async () => [dirName],
+		});
+		managers.push(manager);
+
+		const seen: string[] = [];
+		await manager.subscribe({ absolutePath: rootPath }, (batch) => {
+			for (const event of batch.events) {
+				seen.push(`${event.kind}:${event.absolutePath}`);
+			}
+		});
+
+		await fs.writeFile(path.join(rootPath, dirName, "junk.js"), "x");
+		const probeFile = path.join(rootPath, "probe.ts");
+		await fs.writeFile(probeFile, "x");
+
+		await waitFor(seen, `create:${probeFile}`);
+		expect(seen.some((entry) => entry.includes(`${dirName}/junk.js`))).toBe(
+			false,
+		);
+	}, 20_000);
+
 	it("still watches when the provider throws", async () => {
 		const rootPath = await createTempRoot();
 		const manager = new FsWatcherManager({
