@@ -51,7 +51,7 @@ Run 10+ coding agents at once, each in its own git worktree with its own branch,
 
 </td>
 <td width="50%">
-  <a href="https://docs.superset.sh/workspaces"><img src="apps/marketing/public/images/readme/parallel-workspaces.png" alt="Superset sidebar with multiple workspaces running agents in parallel" width="100%" /></a>
+  <a href="https://docs.superset.sh/workspaces"><img src="apps/marketing/public/images/readme/agents-working.gif" alt="Claude streaming a billing migration while other agents run in parallel workspaces" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -136,6 +136,20 @@ Connect another machine and reach its workspaces from anywhere: the desktop app,
 </td>
 <td width="50%">
   <a href="https://docs.superset.sh/remote-workspaces"><img src="apps/docs/public/images/remote-workspaces-hosts-members.png" alt="Hosts and members in organization settings" width="100%" /></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Superset CLI
+
+Script it from any shell: create workspaces, launch agents, read their terminals, and manage automations with a single binary. If an agent can run a command, it can drive Superset.
+
+[Docs →](https://docs.superset.sh/cli/getting-started)
+
+</td>
+<td width="50%">
+  <a href="https://docs.superset.sh/cli/getting-started"><img src="apps/marketing/public/images/readme/cli-demo.gif" alt="Creating a workspace and launching an agent from the Superset CLI" width="100%" /></a>
 </td>
 </tr>
 <tr>
