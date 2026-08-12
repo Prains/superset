@@ -150,6 +150,7 @@ describe("custom themes", () => {
 			},
 		});
 		expect(exportTheme("dark").name).toBe("Dark");
+		expect(exportTheme("dark").isBuiltIn).toBeUndefined();
 		expect(exportTheme("mine").name).toBe("Mine");
 		expect(() => exportTheme("nope")).toThrow(/Unknown theme/);
 	});

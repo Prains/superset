@@ -186,7 +186,9 @@ export function exportTheme(id: string): Theme {
 			"Run: superset settings theme list",
 		);
 	}
-	return theme;
+	// exports are starters for custom themes — don't let them claim isBuiltIn
+	const { isBuiltIn: _isBuiltIn, ...rest } = theme;
+	return rest;
 }
 
 /**
