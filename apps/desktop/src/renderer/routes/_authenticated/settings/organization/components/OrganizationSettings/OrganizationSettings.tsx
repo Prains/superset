@@ -589,9 +589,10 @@ export function OrganizationSettings({
 												Delete {organization.name}?
 											</AlertDialogTitle>
 											<AlertDialogDescription>
-												All of the organization's data will be permanently
-												deleted for every member — this cannot be undone. Type
-												the organization name to confirm.
+												{members.length > 1
+													? `All data will be permanently deleted for all ${members.length} members — this cannot be undone.`
+													: "All of the organization's data will be permanently deleted — this cannot be undone."}{" "}
+												Type the organization name to confirm.
 											</AlertDialogDescription>
 										</AlertDialogHeader>
 										<Input
