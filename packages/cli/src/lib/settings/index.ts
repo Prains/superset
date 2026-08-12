@@ -1,8 +1,9 @@
 export {
-	BUILT_IN_THEMES,
-	type CustomTheme,
+	exportTheme,
+	importThemes,
 	listThemeChoices,
 	readThemeState,
+	removeCustomTheme,
 	requireThemeId,
 	SYSTEM_THEME_ID,
 	type ThemeChoice,

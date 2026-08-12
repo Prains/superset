@@ -1422,6 +1422,61 @@ superset settings theme get
 </Command>
 
 <Command
+	name="superset settings theme export <id>"
+	args={[
+		{ name: "id", required: true, description: "Theme id (built-in or custom)." },
+	]}
+	options={[
+		{ flag: "--out <path>", description: "Write to a file instead of stdout." },
+	]}
+	output="Theme (full definition JSON)"
+>
+Export a theme's full JSON definition — the starting point for creating a
+custom theme: export a built-in, edit the colors, then import it.
+
+```bash
+superset settings theme export dark --out my-theme.json
+```
+</Command>
+
+<Command
+	name="superset settings theme import <file>"
+	args={[
+		{ name: "file", required: true, description: "Path to a theme JSON file (max 256 KB): a single theme, an array, or `{ themes: [...] }`." },
+	]}
+	output={`{
+  imported: string[]; // theme ids
+  issues: string[];   // per-entry validation issues that were skipped
+}`}
+>
+Import custom themes, using the same validation and normalization as the
+desktop's Appearance UI (ids are slugified; missing colors are filled from
+the built-in base theme; reserved ids like `dark` are rejected).
+Re-importing an id replaces that custom theme.
+
+```bash
+superset settings theme export dark --out my-theme.json
+# edit my-theme.json (id, name, ui/terminal/editor colors)
+superset settings theme import my-theme.json
+superset settings theme set my-theme
+```
+</Command>
+
+<Command
+	name="superset settings theme remove <id>"
+	args={[
+		{ name: "id", required: true, description: "Custom theme id. Built-ins can't be removed." },
+	]}
+>
+Remove a custom theme. If it was the active theme (or a system light/dark
+mapping), that reference falls back to the default.
+
+```bash
+superset settings theme remove my-theme
+```
+</Command>
+
+<Command
 	name="superset settings theme set [theme]"
 	args={[
 		{ name: "theme", description: "Theme id, or `system` to follow the OS appearance." },

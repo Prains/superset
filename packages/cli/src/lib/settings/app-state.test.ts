@@ -3,8 +3,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	exportTheme,
+	importThemes,
 	listThemeChoices,
 	readThemeState,
+	removeCustomTheme,
 	requireThemeId,
 	writeThemeState,
 } from "./app-state";
@@ -86,5 +89,84 @@ describe("theme state", () => {
 		expect(() =>
 			requireThemeId(state, "dracula", { allowSystem: true }),
 		).toThrow(/Unknown theme/);
+	});
+});
+
+describe("custom themes", () => {
+	test("import validates, normalizes, and persists a theme file", () => {
+		writeAppState({ themeState: { activeThemeId: "dark", customThemes: [] } });
+		const file = join(homeDir, "midnight.json");
+		writeFileSync(
+			file,
+			JSON.stringify({
+				name: "Midnight Ocean",
+				type: "dark",
+				ui: { background: "#001122" },
+				terminal: { background: "#001122", green: "#33ff99" },
+			}),
+		);
+		const { imported, issues } = importThemes(file);
+		expect(issues).toEqual([]);
+		expect(imported.map((theme) => theme.id)).toEqual(["midnight-ocean"]);
+		// normalized like the desktop importer: base ui colors merged in
+		expect(imported[0]?.ui.background).toBe("#001122");
+		expect(imported[0]?.ui.foreground).toBeDefined();
+		expect(imported[0]?.terminal?.green).toBe("#33ff99");
+
+		const state = readThemeState();
+		expect(state.customThemes).toHaveLength(1);
+		expect(
+			requireThemeId(state, "midnight-ocean", { allowSystem: false }),
+		).toBe("midnight-ocean");
+	});
+
+	test("re-importing the same id replaces the existing custom theme", () => {
+		writeAppState({ themeState: { activeThemeId: "dark", customThemes: [] } });
+		const file = join(homeDir, "t.json");
+		writeFileSync(file, JSON.stringify({ id: "mine", ui: { ring: "#111" } }));
+		importThemes(file);
+		writeFileSync(file, JSON.stringify({ id: "mine", ui: { ring: "#222" } }));
+		importThemes(file);
+		const state = readThemeState();
+		expect(state.customThemes).toHaveLength(1);
+		expect(state.customThemes[0]?.ui.ring).toBe("#222");
+	});
+
+	test("import rejects reserved ids and invalid files", () => {
+		writeAppState({ themeState: { activeThemeId: "dark", customThemes: [] } });
+		const file = join(homeDir, "bad.json");
+		writeFileSync(file, JSON.stringify({ id: "dark" }));
+		expect(() => importThemes(file)).toThrow(/reserved/);
+		writeFileSync(file, "not json");
+		expect(() => importThemes(file)).toThrow(/Invalid JSON/);
+		expect(() => importThemes(join(homeDir, "nope.json"))).toThrow(/not found/);
+	});
+
+	test("export returns built-ins and custom themes, rejects unknown ids", () => {
+		writeAppState({
+			themeState: {
+				activeThemeId: "dark",
+				customThemes: [{ id: "mine", name: "Mine", type: "dark", ui: {} }],
+			},
+		});
+		expect(exportTheme("dark").name).toBe("Dark");
+		expect(exportTheme("mine").name).toBe("Mine");
+		expect(() => exportTheme("nope")).toThrow(/Unknown theme/);
+	});
+
+	test("remove deletes the theme and falls back active/system references", () => {
+		writeAppState({
+			themeState: {
+				activeThemeId: "mine",
+				systemDarkThemeId: "mine",
+				customThemes: [{ id: "mine", name: "Mine", type: "dark", ui: {} }],
+			},
+		});
+		const state = removeCustomTheme("mine");
+		expect(state.customThemes).toEqual([]);
+		expect(state.activeThemeId).toBe("dark");
+		expect(state.systemDarkThemeId).toBe("dark");
+		expect(() => removeCustomTheme("mine")).toThrow(/No custom theme/);
+		expect(() => removeCustomTheme("dark")).toThrow(/No custom theme/);
 	});
 });

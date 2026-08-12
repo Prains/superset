@@ -3,40 +3,38 @@ import {
 	existsSync,
 	readFileSync,
 	renameSync,
+	statSync,
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { CLIError } from "@superset/cli-framework";
+import {
+	builtInThemes,
+	DEFAULT_THEME_ID,
+	parseThemeConfigFile,
+	type Theme,
+} from "@superset/shared/themes";
+
 import { getAppStatePath, getSupersetHomeDir } from "./paths";
 
 export const SYSTEM_THEME_ID = "system";
 
-// Mirrors apps/desktop/src/shared/themes/built-in.
-export const BUILT_IN_THEMES = [
-	{ id: "dark", name: "Dark", type: "dark" },
-	{ id: "light", name: "Light", type: "light" },
-	{ id: "monokai", name: "Monokai", type: "dark" },
-] as const;
-
-export interface CustomTheme {
-	id: string;
-	name?: string;
-	type?: string;
-}
+// Mirrors the desktop UI's import limit (ThemeSection MAX_THEME_FILE_SIZE).
+const MAX_THEME_FILE_SIZE = 256 * 1024;
 
 export interface ThemeState {
 	activeThemeId: string;
-	customThemes: CustomTheme[];
+	customThemes: Theme[];
 	systemLightThemeId?: string;
 	systemDarkThemeId?: string;
 }
 
 const DEFAULT_THEME_STATE: ThemeState = {
-	activeThemeId: "dark",
+	activeThemeId: DEFAULT_THEME_ID,
 	customThemes: [],
 	systemLightThemeId: "light",
-	systemDarkThemeId: "dark",
+	systemDarkThemeId: DEFAULT_THEME_ID,
 };
 
 type AppState = Record<string, unknown> & { themeState?: Partial<ThemeState> };
@@ -62,7 +60,7 @@ export function readThemeState(): ThemeState {
 		...DEFAULT_THEME_STATE,
 		...state,
 		customThemes: Array.isArray(state?.customThemes)
-			? (state.customThemes as CustomTheme[])
+			? (state.customThemes as Theme[])
 			: [],
 	};
 }
@@ -71,7 +69,7 @@ export function readThemeState(): ThemeState {
  * Merge a patch into themeState, preserving every other field in
  * app-state.json (tabs, hotkeys, ...). The desktop app only reads this file
  * at startup and overwrites it while running, so callers must tell the user
- * to restart (and ideally quit first).
+ * to restart (and ideally quit cleanly first).
  */
 export function writeThemeState(patch: Partial<ThemeState>): ThemeState {
 	const appState = readAppState();
@@ -115,8 +113,10 @@ export function listThemeChoices(themeState: ThemeState): ThemeChoice[] {
 			type: "auto",
 			source: "system",
 		},
-		...BUILT_IN_THEMES.map((theme) => ({
-			...theme,
+		...builtInThemes.map((theme) => ({
+			id: theme.id,
+			name: theme.name,
+			type: theme.type,
 			source: "built-in" as const,
 		})),
 		...themeState.customThemes.map((theme) => ({
@@ -143,4 +143,76 @@ export function requireThemeId(
 		);
 	}
 	return id;
+}
+
+/**
+ * Import themes from a JSON file using the same parser and normalization as
+ * the desktop's Appearance UI (single theme, array, or `{ themes: [...] }`).
+ * Re-importing an id replaces the existing custom theme.
+ */
+export function importThemes(filePath: string): {
+	imported: Theme[];
+	issues: string[];
+	themeState: ThemeState;
+} {
+	if (!existsSync(filePath)) {
+		throw new CLIError(`Theme file not found: ${filePath}`);
+	}
+	if (statSync(filePath).size > MAX_THEME_FILE_SIZE) {
+		throw new CLIError("Theme file too large", "Maximum size is 256 KB.");
+	}
+	const result = parseThemeConfigFile(readFileSync(filePath, "utf-8"));
+	if (!result.ok) {
+		throw new CLIError(`Could not import themes: ${result.error}`);
+	}
+	const state = readThemeState();
+	const importedIds = new Set(result.themes.map((theme) => theme.id));
+	const customThemes = [
+		...state.customThemes.filter((theme) => !importedIds.has(theme.id)),
+		...result.themes,
+	];
+	const themeState = writeThemeState({ customThemes });
+	return { imported: result.themes, issues: result.issues, themeState };
+}
+
+/** Export a theme definition (built-in or custom) as pretty JSON. */
+export function exportTheme(id: string): Theme {
+	const theme =
+		builtInThemes.find((candidate) => candidate.id === id) ??
+		readThemeState().customThemes.find((candidate) => candidate.id === id);
+	if (!theme) {
+		throw new CLIError(
+			`Unknown theme: ${id}`,
+			"Run: superset settings theme list",
+		);
+	}
+	return theme;
+}
+
+/**
+ * Remove a custom theme. Falls back to the default theme (or default system
+ * mappings) anywhere the removed theme was referenced.
+ */
+export function removeCustomTheme(id: string): ThemeState {
+	const state = readThemeState();
+	if (!state.customThemes.some((theme) => theme.id === id)) {
+		const customIds = state.customThemes.map((theme) => theme.id);
+		throw new CLIError(
+			`No custom theme with id: ${id}`,
+			customIds.length
+				? `Custom themes: ${customIds.join(", ")} (built-ins can't be removed)`
+				: "There are no custom themes installed.",
+		);
+	}
+	return writeThemeState({
+		customThemes: state.customThemes.filter((theme) => theme.id !== id),
+		activeThemeId:
+			state.activeThemeId === id ? DEFAULT_THEME_ID : state.activeThemeId,
+		systemLightThemeId:
+			state.systemLightThemeId === id ? "light" : state.systemLightThemeId,
+		systemDarkThemeId:
+			state.systemDarkThemeId === id
+				? DEFAULT_THEME_ID
+				: state.systemDarkThemeId,
+	});
 }

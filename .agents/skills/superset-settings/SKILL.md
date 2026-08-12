@@ -21,7 +21,26 @@ superset settings theme list           # system + built-ins + imported custom th
 superset settings theme get
 superset settings theme set <id>       # e.g. dark | light | monokai | system | <custom id>
 superset settings theme set system --system-light light --system-dark monokai
+
+superset settings theme export <id> [--out <file>]  # dump full theme JSON (starter)
+superset settings theme import <file>               # add/replace custom themes (validated)
+superset settings theme remove <id>                 # delete a custom theme
 ```
+
+**Create a custom theme**: export a built-in as a starter, edit it, import it,
+set it — then restart the app:
+
+```bash
+superset settings theme export dark --out my-theme.json
+# edit id/name + ui/terminal/editor colors in my-theme.json
+superset settings theme import my-theme.json
+superset settings theme set my-theme
+```
+
+Import uses the desktop's own parser: ids are slugified, missing colors fill
+from the base theme, reserved ids (`dark`, `light`, `monokai`, `system`) are
+rejected, max file size 256 KB. A file can hold one theme, an array, or
+`{ "themes": [...] }`.
 
 Prefer `--json` (auto-on in agent environments) and `superset settings list`
 to discover keys and allowed values instead of guessing.
