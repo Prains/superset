@@ -44,8 +44,10 @@ function runDotColor(run: FactoryLatestRun | undefined): string {
 	if (!run) return "bg-muted-foreground/40";
 	if (run.status === "dispatch_failed" || run.status === "skipped_offline")
 		return "bg-red-500";
-	if (run.status === "dispatching" || run.status === "dispatched")
-		return "bg-blue-500 animate-pulse";
+	// Queued (not yet on a host) and running must not look alike.
+	if (run.status === "dispatching")
+		return "bg-muted-foreground/60 animate-pulse";
+	if (run.status === "dispatched") return "bg-blue-500 animate-pulse";
 	if (run.outcome === "success") return "bg-green-500";
 	if (run.outcome === "blocked" || run.outcome === "flawed")
 		return "bg-amber-500";

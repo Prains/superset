@@ -489,6 +489,113 @@ export const factoryRouter = {
 			return { active, blocked, done7d, done30d, outcomes7d };
 		}),
 
+	/**
+	 * Metrics sub-view (Mastra-style): 30d delivery flow, cycle time
+	 * p50/p90, automation coverage per stage, intake mix. Queue health is
+	 * computed client-side from listItems (live, not windowed).
+	 */
+	metrics: protectedProcedure
+		.input(z.object({ factoryId: z.string().uuid() }))
+		.query(async ({ ctx, input }) => {
+			const organizationId = await requireActiveOrgMembership(ctx);
+			await getFactoryForOrg(organizationId, input.factoryId);
+			const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+			const doneItems = await db
+				.select({
+					createdAt: factoryItems.createdAt,
+					doneAt: factoryItems.stageEnteredAt,
+					source: factoryItems.source,
+				})
+				.from(factoryItems)
+				.where(
+					and(
+						eq(factoryItems.factoryId, input.factoryId),
+						eq(factoryItems.stage, "done"),
+						gte(factoryItems.stageEnteredAt, since),
+					),
+				);
+
+			const dailyDone = new Map<string, number>();
+			const cycleHours: number[] = [];
+			for (const item of doneItems) {
+				const day = item.doneAt.toISOString().slice(0, 10);
+				dailyDone.set(day, (dailyDone.get(day) ?? 0) + 1);
+				cycleHours.push(
+					(item.doneAt.getTime() - item.createdAt.getTime()) / 3_600_000,
+				);
+			}
+			cycleHours.sort((a, b) => a - b);
+			const quantile = (q: number) =>
+				cycleHours.length === 0
+					? null
+					: cycleHours[
+							Math.min(cycleHours.length - 1, Math.floor(q * cycleHours.length))
+						];
+
+			const runs = await db
+				.select({
+					stage: factoryRuns.stage,
+					outcome: factoryRuns.outcome,
+				})
+				.from(factoryRuns)
+				.where(
+					and(
+						eq(factoryRuns.factoryId, input.factoryId),
+						eq(factoryRuns.status, "reported"),
+						gte(factoryRuns.reportedAt, since),
+					),
+				);
+			const coverage: Record<
+				string,
+				{
+					agent: number;
+					manual: number;
+					success: number;
+					flawed: number;
+					blocked: number;
+				}
+			> = {};
+			for (const run of runs) {
+				let entry = coverage[run.stage];
+				if (!entry) {
+					entry = { agent: 0, manual: 0, success: 0, flawed: 0, blocked: 0 };
+					coverage[run.stage] = entry;
+				}
+				if (run.outcome === "manual") entry.manual += 1;
+				else {
+					entry.agent += 1;
+					if (run.outcome === "success") entry.success += 1;
+					if (run.outcome === "flawed") entry.flawed += 1;
+					if (run.outcome === "blocked") entry.blocked += 1;
+				}
+			}
+
+			const intakeRows = await db
+				.select({ source: factoryItems.source, n: count() })
+				.from(factoryItems)
+				.where(
+					and(
+						eq(factoryItems.factoryId, input.factoryId),
+						gte(factoryItems.createdAt, since),
+					),
+				)
+				.groupBy(factoryItems.source);
+			const intakeMix: Record<string, number> = {};
+			for (const row of intakeRows) intakeMix[row.source] = row.n;
+
+			return {
+				dailyDone: Object.fromEntries(dailyDone),
+				cycle: {
+					p50Hours: quantile(0.5),
+					p90Hours: quantile(0.9),
+					samples: cycleHours.length,
+				},
+				coverage,
+				intakeMix,
+			};
+		}),
+
 	/** Per-stage learning signal + recent improve runs, for the settings UI. */
 	improveStatus: protectedProcedure
 		.input(z.object({ factoryId: z.string().uuid() }))

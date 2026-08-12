@@ -17,6 +17,7 @@ import { AddIssuesDialog } from "./components/AddIssuesDialog";
 import { CreateFactoryDialog } from "./components/CreateFactoryDialog";
 import { FactoryBoard } from "./components/FactoryBoard";
 import { FactoryItemSheet } from "./components/FactoryItemSheet";
+import { FactoryMetricsView } from "./components/FactoryMetricsView";
 import { FactoryStatCards } from "./components/FactoryStatCards";
 import { NeedsAttentionStrip } from "./components/NeedsAttentionStrip";
 import { StageSettingsSheet } from "./components/StageSettingsSheet";
@@ -52,6 +53,7 @@ function FactoryPage() {
 	const [createOpen, setCreateOpen] = useState(false);
 	const [addIssuesOpen, setAddIssuesOpen] = useState(false);
 	const [stageSettingsOpen, setStageSettingsOpen] = useState(false);
+	const [view, setView] = useState<"board" | "metrics">("board");
 
 	const runStage = useMutation({
 		mutationFn: (input: { itemId: string; expectedRevision: number }) =>
@@ -90,6 +92,23 @@ function FactoryPage() {
 							<span className="text-xs text-muted-foreground">
 								{factory?.repoFullName}
 							</span>
+							<div className="ml-2 flex rounded-md border border-border p-0.5">
+								{(["board", "metrics"] as const).map((v) => (
+									<button
+										key={v}
+										type="button"
+										onClick={() => setView(v)}
+										aria-pressed={view === v}
+										className={`rounded px-2 py-0.5 text-xs capitalize transition-colors ${
+											view === v
+												? "bg-fill-selected text-foreground"
+												: "text-muted-foreground hover:text-foreground"
+										}`}
+									>
+										{v}
+									</button>
+								))}
+							</div>
 							<div className="flex-1" />
 							<Button
 								size="sm"
@@ -144,9 +163,9 @@ function FactoryPage() {
 					</div>
 				)}
 
-				{factory && <FactoryStatCards stats={stats} />}
+				{factory && view === "board" && <FactoryStatCards stats={stats} />}
 
-				{factory && board && (
+				{factory && board && view === "board" && (
 					<NeedsAttentionStrip
 						items={board.items}
 						latestRuns={board.latestRuns}
@@ -154,7 +173,7 @@ function FactoryPage() {
 					/>
 				)}
 
-				{factory && board && (
+				{factory && board && view === "board" && (
 					<FactoryBoard
 						items={board.items}
 						latestRuns={board.latestRuns}
@@ -167,6 +186,10 @@ function FactoryPage() {
 						}
 						runPending={runStage.isPending}
 					/>
+				)}
+
+				{factory && board && view === "metrics" && (
+					<FactoryMetricsView factoryId={factory.id} items={board.items} />
 				)}
 			</div>
 

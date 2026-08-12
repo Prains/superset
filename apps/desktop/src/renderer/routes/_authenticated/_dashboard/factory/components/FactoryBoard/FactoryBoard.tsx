@@ -92,7 +92,10 @@ export function FactoryBoard({
 							)}
 						</div>
 						<div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
-							{stageItems.map((item) => (
+							{(stage === "done" || stage === "rejected"
+								? stageItems.slice(0, 5)
+								: stageItems
+							).map((item) => (
 								<FactoryItemCard
 									key={item.id}
 									item={item}
@@ -102,6 +105,12 @@ export function FactoryBoard({
 									runPending={runPending}
 								/>
 							))}
+							{(stage === "done" || stage === "rejected") &&
+								stageItems.length > 5 && (
+									<span className="px-1 text-[11px] text-muted-foreground">
+										+{stageItems.length - 5} more
+									</span>
+								)}
 						</div>
 					</div>
 				);
