@@ -18,7 +18,7 @@ export function AccountSettingsScreen() {
 	const handleDeleteAccount = () => {
 		Alert.alert(
 			"Delete account?",
-			`Your account will be deactivated today and permanently deleted after ${ACCOUNT_DELETION_GRACE_DAYS} days, including workspaces, chat history, and organizations where you are the only member. Changed your mind? Sign back in within ${ACCOUNT_DELETION_GRACE_DAYS} days to restore everything.`,
+			`All of your data will be permanently deleted after ${ACCOUNT_DELETION_GRACE_DAYS} days — sign back in before then to restore your account.`,
 			[
 				{ style: "cancel", text: "Cancel" },
 				{
