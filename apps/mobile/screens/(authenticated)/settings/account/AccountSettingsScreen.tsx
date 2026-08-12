@@ -1,15 +1,40 @@
-import { ScrollView, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Alert, ScrollView, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/hooks/useTheme";
 import { useSession } from "@/lib/auth/client";
 import { ListRow } from "@/screens/(authenticated)/components/ListRow";
 import { ListRowValue } from "@/screens/(authenticated)/components/ListRowValue";
 import { UserAvatar } from "../components/UserAvatar";
+import { useDeleteAccount } from "../hooks/useDeleteAccount";
 
 export function AccountSettingsScreen() {
 	const theme = useTheme();
 	const { data: session } = useSession();
 	const user = session?.user;
+	const { deleteAccount, isDeleting } = useDeleteAccount();
+
+	const handleDeleteAccount = () => {
+		Alert.alert(
+			"Delete account?",
+			"This permanently deletes your account, along with any workspaces and data in organizations where you are the only member. This cannot be undone.",
+			[
+				{ style: "cancel", text: "Cancel" },
+				{
+					style: "destructive",
+					text: "Delete account",
+					onPress: () => {
+						deleteAccount().catch(() => {
+							Alert.alert(
+								"Could not delete account",
+								"Something went wrong. Try again, or contact support@superset.sh.",
+							);
+						});
+					},
+				},
+			],
+		);
+	};
 
 	return (
 		<ScrollView
@@ -40,6 +65,16 @@ export function AccountSettingsScreen() {
 			<ListRow
 				label="Email"
 				trailing={<ListRowValue value={user?.email ?? ""} chevron={false} />}
+				isLast
+			/>
+			<View className="my-2 h-px" style={{ backgroundColor: theme.border }} />
+			<ListRow
+				icon={
+					<Ionicons name="trash-outline" size={20} color={theme.destructive} />
+				}
+				label="Delete account"
+				destructive
+				onPress={isDeleting ? undefined : handleDeleteAccount}
 				isLast
 			/>
 		</ScrollView>

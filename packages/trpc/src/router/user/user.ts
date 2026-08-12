@@ -1,7 +1,8 @@
+import { stripeClient } from "@superset/auth/stripe";
 import { db } from "@superset/db/client";
-import { members, users } from "@superset/db/schema";
+import { members, organizations, users } from "@superset/db/schema";
 import { TRPCError, type TRPCRouterRecord } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { generateImagePathname, uploadImage } from "../../lib/upload";
@@ -51,6 +52,44 @@ export const userRouter = {
 				.returning();
 			return updatedUser;
 		}),
+
+	/** Sole-member orgs are deleted too, cancelling their Stripe subscriptions
+	 * first — raw org deletes bypass beforeDeleteOrganization in the auth config. */
+	deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
+		const userId = ctx.session.user.id;
+
+		const memberships = await db.query.members.findMany({
+			where: eq(members.userId, userId),
+		});
+
+		for (const membership of memberships) {
+			const [memberCount] = await db
+				.select({ value: count() })
+				.from(members)
+				.where(eq(members.organizationId, membership.organizationId));
+			if ((memberCount?.value ?? 0) > 1) continue;
+
+			const organization = await db.query.organizations.findFirst({
+				where: eq(organizations.id, membership.organizationId),
+				columns: { id: true, stripeCustomerId: true },
+			});
+			if (organization?.stripeCustomerId) {
+				const activeSubscriptions = await stripeClient.subscriptions.list({
+					customer: organization.stripeCustomerId,
+					status: "active",
+				});
+				for (const subscription of activeSubscriptions.data) {
+					await stripeClient.subscriptions.cancel(subscription.id);
+				}
+			}
+			await db
+				.delete(organizations)
+				.where(eq(organizations.id, membership.organizationId));
+		}
+
+		await db.delete(users).where(eq(users.id, userId));
+		return { success: true };
+	}),
 
 	completeOnboarding: protectedProcedure.mutation(async ({ ctx }) => {
 		const [updatedUser] = await db
