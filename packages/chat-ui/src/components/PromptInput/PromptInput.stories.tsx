@@ -16,18 +16,24 @@ import {
 	GitCompareArrowsIcon,
 	GitPullRequestArrowIcon,
 	LightbulbIcon,
+	LockIcon,
 	MessageSquarePlusIcon,
 	MessagesSquareIcon,
 	PaperclipIcon,
 	ServerIcon,
 	ShieldCheckIcon,
-	SparklesIcon,
 	SplitIcon,
 	ZapIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { ComposerDropZone } from "../ComposerDropZone";
+import {
+	ModelPicker,
+	type ModelPickerHarness,
+	type ModelPickerValue,
+} from "../ModelPicker";
 import { ScrollToBottomButton } from "../ScrollToBottomButton";
+import { ToolbarSelect, type ToolbarSelectOption } from "../ToolbarSelect";
 import { PromptInput } from "./PromptInput";
 import type {
 	ComposerMentionEntry,
@@ -386,38 +392,63 @@ const COMMANDS: PromptInputCommand[] = [
 	...SKILL_COMMANDS,
 ];
 
-function DemoToolbar({
-	planMode,
-	model,
-}: {
-	planMode: boolean;
-	model: string;
-}) {
-	return (
-		<>
-			<button
-				type="button"
-				className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-			>
-				<SparklesIcon className="size-4" />
-				{model}
-			</button>
-			<button
-				type="button"
-				className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-			>
-				<ChartNoAxesColumnIcon className="size-4" />
-				High
-			</button>
-			{planMode && (
-				<span className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-amber-500">
-					<LightbulbIcon className="size-4" />
-					Plan mode
-				</span>
-			)}
-		</>
-	);
-}
+const HARNESSES: ModelPickerHarness[] = [
+	{
+		id: "claude",
+		name: "Claude",
+		iconUrl: getPresetIcon("claude", true) ?? "",
+		models: [
+			{ id: "sonnet-5", name: "Sonnet 5" },
+			{ id: "opus-5", name: "Opus 5" },
+			{ id: "haiku-4-5", name: "Haiku 4.5" },
+			{ id: "sonnet-4-5", name: "Sonnet 4.5", legacy: true },
+			{ id: "opus-4-1", name: "Opus 4.1", legacy: true },
+		],
+	},
+	{
+		id: "codex",
+		name: "Codex",
+		iconUrl: getPresetIcon("codex", true) ?? "",
+		models: [
+			{ id: "gpt-5-5", name: "GPT-5.5" },
+			{ id: "gpt-5-4", name: "GPT-5.4" },
+			{ id: "gpt-5-4-mini", name: "GPT-5.4-Mini" },
+			{ id: "gpt-5-1", name: "GPT-5.1", legacy: true },
+		],
+	},
+];
+
+// Sibling settings are harness-specific and reset when the harness changes.
+type HarnessSettings = {
+	effort: ToolbarSelectOption[];
+	defaultEffort: string;
+	access?: ToolbarSelectOption[];
+};
+const CLAUDE_SETTINGS: HarnessSettings = {
+	effort: [
+		{ id: "low", label: "Low" },
+		{ id: "medium", label: "Medium" },
+		{ id: "high", label: "High" },
+	],
+	defaultEffort: "high",
+};
+const HARNESS_SETTINGS: Record<string, HarnessSettings> = {
+	claude: CLAUDE_SETTINGS,
+	codex: {
+		effort: [
+			{ id: "minimal", label: "Minimal" },
+			{ id: "low", label: "Low" },
+			{ id: "medium", label: "Medium" },
+			{ id: "high", label: "High" },
+		],
+		defaultEffort: "medium",
+		access: [
+			{ id: "read-only", label: "Read only" },
+			{ id: "approvals", label: "Approvals" },
+			{ id: "full-access", label: "Full access" },
+		],
+	},
+};
 
 const meta = {
 	component: PromptInput,
@@ -457,7 +488,19 @@ function ChatScreen() {
 		useState<ChatHistorySidebarMessage[]>(SEED_MESSAGES);
 	const [streaming, setStreaming] = useState(false);
 	const [planMode, setPlanMode] = useState(false);
-	const [model, setModel] = useState("Sonnet 5");
+	const [modelSelection, setModelSelection] = useState<ModelPickerValue>({
+		harnessId: "claude",
+		modelId: "sonnet-5",
+	});
+	const [effort, setEffort] = useState(CLAUDE_SETTINGS.defaultEffort);
+	const [access, setAccess] = useState("full-access");
+	const harnessSettings =
+		HARNESS_SETTINGS[modelSelection.harnessId] ?? CLAUDE_SETTINGS;
+	const activeModelName =
+		HARNESSES.find(
+			(harness) => harness.id === modelSelection.harnessId,
+		)?.models.find((model) => model.id === modelSelection.modelId)?.name ??
+		"Model";
 	// App-owned attachment click handling: images get a lightbox here; a real
 	// surface might open files in the editor instead.
 	const [preview, setPreview] = useState<PromptInputAttachment | null>(null);
@@ -492,12 +535,20 @@ function ChatScreen() {
 		{
 			id: "model",
 			title: "Model",
-			description: model,
+			description: activeModelName,
 			icon: <BoxIcon className="size-4.5" />,
 			onSelect: () =>
-				setModel((previous) =>
-					previous === "Sonnet 5" ? "Opus 5" : "Sonnet 5",
-				),
+				setModelSelection((previous) => {
+					const models =
+						HARNESSES.find(
+							(harness) => harness.id === previous.harnessId,
+						)?.models.filter((model) => !model.legacy) ?? [];
+					const index = models.findIndex(
+						(model) => model.id === previous.modelId,
+					);
+					const next = models[(index + 1) % models.length];
+					return next ? { ...previous, modelId: next.id } : previous;
+				}),
 		},
 		{
 			id: "compact",
@@ -632,7 +683,42 @@ function ChatScreen() {
 								onError: (error) => showNotice(error.message),
 							}}
 							status={streaming ? "streaming" : "ready"}
-							toolbar={<DemoToolbar planMode={planMode} model={model} />}
+							toolbar={
+								<>
+									<ModelPicker
+										harnesses={HARNESSES}
+										value={modelSelection}
+										onSelect={(next) => {
+											setModelSelection(next);
+											if (next.harnessId !== modelSelection.harnessId)
+												setEffort(
+													(HARNESS_SETTINGS[next.harnessId] ?? CLAUDE_SETTINGS)
+														.defaultEffort,
+												);
+										}}
+									/>
+									<ToolbarSelect
+										icon={<ChartNoAxesColumnIcon className="size-4" />}
+										options={harnessSettings.effort}
+										value={effort}
+										onSelect={setEffort}
+									/>
+									{harnessSettings.access && (
+										<ToolbarSelect
+											icon={<LockIcon className="size-4" />}
+											options={harnessSettings.access}
+											value={access}
+											onSelect={setAccess}
+										/>
+									)}
+									{planMode && (
+										<span className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-amber-500">
+											<LightbulbIcon className="size-4" />
+											Plan mode
+										</span>
+									)}
+								</>
+							}
 							onStop={() => setStreaming(false)}
 							onSubmit={handleSubmit}
 							onAttachmentClick={(attachment) => {
@@ -755,6 +841,16 @@ export const DictationError: Story = {
 		// so the retry button succeeds.
 		await new Promise((resolve) => setTimeout(resolve, 2000));
 		flags.__failTranscribe = false;
+	},
+};
+
+export const ModelPickerOpen: Story = {
+	args: { mentionProviders: [], commands: COMMANDS },
+	render: () => <ChatScreen />,
+	play: async ({ canvasElement }) => {
+		canvasElement
+			.querySelectorAll<HTMLButtonElement>("[data-slot='popover-trigger']")[0]
+			?.click();
 	},
 };
 
