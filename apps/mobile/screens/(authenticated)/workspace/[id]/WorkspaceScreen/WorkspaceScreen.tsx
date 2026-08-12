@@ -1,7 +1,6 @@
 import { buildHostRoutingKey } from "@superset/shared/host-routing";
 import { useQueryClient } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronDown } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	ActivityIndicator,
@@ -11,7 +10,6 @@ import {
 	View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { useWorkspaceHost } from "@/hooks/useWorkspaceHost";
 import {
@@ -187,27 +185,22 @@ export function WorkspaceScreen() {
 						{/* Width budget: the back capsule and Review button leave ~210pt
 						    of bar on a 390pt screen — wider and the title collides with
 						    the back button under iOS 26's floating bar items. */}
-						<View className="max-w-52 flex-row items-center gap-1">
+						<View className="max-w-52">
 							<Text className="font-semibold text-[17px]" numberOfLines={1}>
 								{workspace?.name ?? ""}
 							</Text>
-							<Icon
-								as={ChevronDown}
-								className="text-muted-foreground size-3.5"
-								strokeWidth={2.5}
-							/>
 						</View>
 					</PressableScale>
 				</Stack.Title>
 				{hasChanges ? (
 					<Stack.Toolbar placement="right">
 						<Stack.Toolbar.Button
+							icon="plus.forwardslash.minus"
+							accessibilityLabel="Review changes"
 							onPress={() =>
 								router.push(`/(authenticated)/workspace/${id}/diff`)
 							}
-						>
-							Review
-						</Stack.Toolbar.Button>
+						/>
 					</Stack.Toolbar>
 				) : null}
 			</Stack.Screen>
