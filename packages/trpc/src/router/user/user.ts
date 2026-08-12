@@ -1,8 +1,14 @@
-import { stripeClient } from "@superset/auth/stripe";
 import { db } from "@superset/db/client";
-import { members, organizations, users } from "@superset/db/schema";
+import {
+	members,
+	oauthAccessTokens,
+	oauthRefreshTokens,
+	sessions,
+	users,
+} from "@superset/db/schema";
+import { ACCOUNT_DELETION_GRACE_DAYS } from "@superset/shared/constants";
 import { TRPCError, type TRPCRouterRecord } from "@trpc/server";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import { generateImagePathname, uploadImage } from "../../lib/upload";
@@ -53,41 +59,79 @@ export const userRouter = {
 			return updatedUser;
 		}),
 
-	/** Sole-member orgs are deleted too, cancelling their Stripe subscriptions
-	 * first — raw org deletes bypass beforeDeleteOrganization in the auth config. */
+	/** Grace-period deletion: marks the account and revokes every live
+	 * credential (sessions + issued OAuth tokens). Orgs and billing are left
+	 * untouched so reactivation within the window restores everything; purge
+	 * happens later via admin.deleteUser. */
 	deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
 
-		const memberships = await db.query.members.findMany({
-			where: eq(members.userId, userId),
+		const ownerships = await db.query.members.findMany({
+			where: and(eq(members.userId, userId), eq(members.role, "owner")),
 		});
-
-		for (const membership of memberships) {
-			const [memberCount] = await db
+		for (const ownership of ownerships) {
+			const [otherMembers] = await db
 				.select({ value: count() })
 				.from(members)
-				.where(eq(members.organizationId, membership.organizationId));
-			if ((memberCount?.value ?? 0) > 1) continue;
+				.where(
+					and(
+						eq(members.organizationId, ownership.organizationId),
+						ne(members.userId, userId),
+					),
+				);
+			if ((otherMembers?.value ?? 0) === 0) continue;
 
-			const organization = await db.query.organizations.findFirst({
-				where: eq(organizations.id, membership.organizationId),
-				columns: { id: true, stripeCustomerId: true },
-			});
-			if (organization?.stripeCustomerId) {
-				const activeSubscriptions = await stripeClient.subscriptions.list({
-					customer: organization.stripeCustomerId,
-					status: "active",
+			const [otherOwners] = await db
+				.select({ value: count() })
+				.from(members)
+				.where(
+					and(
+						eq(members.organizationId, ownership.organizationId),
+						eq(members.role, "owner"),
+						ne(members.userId, userId),
+					),
+				);
+			if ((otherOwners?.value ?? 0) === 0) {
+				throw new TRPCError({
+					code: "PRECONDITION_FAILED",
+					message:
+						"You are the only owner of an organization that has other members. Transfer ownership or delete the organization first.",
 				});
-				for (const subscription of activeSubscriptions.data) {
-					await stripeClient.subscriptions.cancel(subscription.id);
-				}
 			}
-			await db
-				.delete(organizations)
-				.where(eq(organizations.id, membership.organizationId));
 		}
 
-		await db.delete(users).where(eq(users.id, userId));
+		await db
+			.update(users)
+			.set({ deletedAt: new Date() })
+			.where(eq(users.id, userId));
+		await db.delete(sessions).where(eq(sessions.userId, userId));
+		await db
+			.delete(oauthAccessTokens)
+			.where(eq(oauthAccessTokens.userId, userId));
+		await db
+			.delete(oauthRefreshTokens)
+			.where(eq(oauthRefreshTokens.userId, userId));
+		return { success: true };
+	}),
+
+	reactivateAccount: protectedProcedure.mutation(async ({ ctx }) => {
+		const userId = ctx.session.user.id;
+
+		const user = await db.query.users.findFirst({
+			where: eq(users.id, userId),
+			columns: { deletedAt: true },
+		});
+		if (!user?.deletedAt) return { success: true };
+
+		const graceMs = ACCOUNT_DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+		if (Date.now() - user.deletedAt.getTime() > graceMs) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "The recovery period has ended. Contact support@superset.sh.",
+			});
+		}
+
+		await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId));
 		return { success: true };
 	}),
 

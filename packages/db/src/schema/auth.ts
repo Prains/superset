@@ -23,6 +23,7 @@ export const users = authSchema.table(
 		image: text("image"),
 		organizationIds: uuid("organization_ids").array().default([]).notNull(),
 		onboardedAt: timestamp("onboarded_at"),
+		deletedAt: timestamp("deleted_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()

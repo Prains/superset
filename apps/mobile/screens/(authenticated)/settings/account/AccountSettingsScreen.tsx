@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { ACCOUNT_DELETION_GRACE_DAYS } from "@superset/shared/constants";
 import { Alert, ScrollView, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/hooks/useTheme";
@@ -17,7 +18,7 @@ export function AccountSettingsScreen() {
 	const handleDeleteAccount = () => {
 		Alert.alert(
 			"Delete account?",
-			"This permanently deletes your account, along with any workspaces and data in organizations where you are the only member. This cannot be undone.",
+			`Your account will be deactivated today and permanently deleted after ${ACCOUNT_DELETION_GRACE_DAYS} days, including workspaces, chat history, and organizations where you are the only member. Changed your mind? Sign back in within ${ACCOUNT_DELETION_GRACE_DAYS} days to restore everything.`,
 			[
 				{ style: "cancel", text: "Cancel" },
 				{
