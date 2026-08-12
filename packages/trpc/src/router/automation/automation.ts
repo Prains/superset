@@ -15,7 +15,7 @@ import {
 import { TRPCError, type TRPCRouterRecord } from "@trpc/server";
 import { and, desc, eq, getTableColumns, ilike } from "drizzle-orm";
 import { z } from "zod";
-import { env } from "../../env";
+import { resolveUserRelayUrl } from "../../lib/relay-url";
 import { protectedProcedure } from "../../trpc";
 import { requireActiveOrgMembership } from "../utils/active-org";
 import { dispatchAutomation } from "./dispatch";
@@ -195,7 +195,9 @@ export const automationRouter = {
 				)
 				.limit(1);
 
-			if (!row || row.ownerUserId !== ctx.session.user.id) {
+			// Reads are org-scoped (Team tab links to any member's automation);
+			// mutations stay owner-scoped via getAutomationForUser.
+			if (!row) {
 				throw new TRPCError({
 					code: "NOT_FOUND",
 					message: "Automation not found",
@@ -459,12 +461,23 @@ export const automationRouter = {
 		.input(z.object({ id: z.string().uuid() }))
 		.query(async ({ ctx, input }) => {
 			const organizationId = await requireActiveOrgMembership(ctx);
-			const existing = await getAutomationForUser(
-				ctx.session.user.id,
-				organizationId,
-				input.id,
-			);
-			return { id: existing.id, prompt: existing.prompt };
+			const [existing] = await db
+				.select({ id: automations.id, prompt: automations.prompt })
+				.from(automations)
+				.where(
+					and(
+						eq(automations.id, input.id),
+						eq(automations.organizationId, organizationId),
+					),
+				)
+				.limit(1);
+			if (!existing) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Automation not found",
+				});
+			}
+			return existing;
 		}),
 
 	setPrompt: protectedProcedure
@@ -565,7 +578,7 @@ export const automationRouter = {
 			const outcome = await dispatchAutomation({
 				automation,
 				scheduledFor: new Date(),
-				relayUrl: env.RELAY_URL,
+				relayUrl: await resolveUserRelayUrl(automation.ownerUserId),
 			});
 
 			if (outcome.status === "conflict") {
@@ -607,6 +620,24 @@ export const automationRouter = {
 				.orderBy(desc(automationRuns.createdAt))
 				.limit(input.limit);
 		}),
+
+	/** Most recent run per automation across the caller's active organization. */
+	latestRuns: protectedProcedure.query(async ({ ctx }) => {
+		const organizationId = await requireActiveOrgMembership(ctx);
+
+		return db
+			.selectDistinctOn([automationRuns.automationId], {
+				automationId: automationRuns.automationId,
+				status: automationRuns.status,
+				createdAt: automationRuns.createdAt,
+				v2WorkspaceId: automationRuns.v2WorkspaceId,
+				chatSessionId: automationRuns.chatSessionId,
+				terminalSessionId: automationRuns.terminalSessionId,
+			})
+			.from(automationRuns)
+			.where(eq(automationRuns.organizationId, organizationId))
+			.orderBy(automationRuns.automationId, desc(automationRuns.createdAt));
+	}),
 
 	/** Validate an RRule body + preview its next occurrences. */
 	validateRrule: protectedProcedure

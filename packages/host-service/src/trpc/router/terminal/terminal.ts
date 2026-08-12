@@ -8,7 +8,7 @@ import {
 	disposeSessionAndWait,
 	disposeSessionsByWorkspaceId,
 	disposeSessionsByWorktreePath,
-	listWorkspaceTerminalSessions,
+	listLiveTerminalSessions,
 	parseThemeType,
 	sessionHasRunningProcess,
 	snapshotSession,
@@ -21,6 +21,16 @@ import { protectedProcedure, router } from "../../index";
 function toTerminalIoError(message: string): TRPCError {
 	if (message.includes("belong")) {
 		return new TRPCError({ code: "FORBIDDEN", message });
+	}
+	// A worktree deleted underneath an open terminal is a routine lifecycle
+	// state, not a bug — the runtime reports it as a plain string, so match
+	// the stable prefix here to keep it out of Sentry.
+	if (message.startsWith("Workspace worktree no longer exists")) {
+		return new TRPCError({
+			code: "NOT_FOUND",
+			message,
+			cause: { kind: "WORKTREE_GONE" },
+		});
 	}
 	if (
 		message.includes("not found") ||
@@ -134,34 +144,19 @@ export const terminalRouter = router({
 		)
 		.mutation(createTerminalSessionFromInput),
 
-	listSessions: protectedProcedure
+	list: protectedProcedure
 		.input(
-			z.object({
-				workspaceId: z.string(),
-			}),
+			z
+				.object({
+					workspaceId: z.string().optional(),
+				})
+				.optional(),
 		)
 		.query(async ({ ctx, input }) => ({
-			sessions: await listWorkspaceTerminalSessions(ctx.db, input.workspaceId),
-		})),
-
-	countBackgroundSessions: protectedProcedure
-		.input(
-			z.object({
-				workspaceId: z.string(),
-				attachedTerminalIds: z.array(z.string()).default([]),
+			sessions: await listLiveTerminalSessions(ctx.db, {
+				workspaceId: input?.workspaceId,
 			}),
-		)
-		.query(async ({ ctx, input }) => {
-			const sessions = await listWorkspaceTerminalSessions(
-				ctx.db,
-				input.workspaceId,
-			);
-			const attached = new Set(input.attachedTerminalIds);
-			return {
-				count: sessions.filter((session) => !attached.has(session.terminalId))
-					.length,
-			};
-		}),
+		})),
 
 	hasRunningProcess: protectedProcedure
 		.input(

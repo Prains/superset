@@ -11,18 +11,16 @@ import {
 	isActiveSubscriptionStatus,
 	isPaidPlan,
 } from "@superset/shared/billing";
-import { FEATURE_FLAGS } from "@superset/shared/constants";
-import { parseHostRoutingKey } from "@superset/shared/host-routing";
+import {
+	buildHostRoutingKey,
+	parseHostRoutingKey,
+} from "@superset/shared/host-routing";
 import { TRPCError, type TRPCRouterRecord } from "@trpc/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { env } from "../../env";
-import { posthog } from "../../lib/analytics";
+import { fetchRelayPresence } from "../../lib/relay-presence";
+import { resolveUserRelayUrl } from "../../lib/relay-url";
 import { jwtProcedure, protectedProcedure } from "../../trpc";
-
-interface RelayUrlPayload {
-	url?: string;
-}
 
 export const hostRouter = {
 	/**
@@ -32,19 +30,7 @@ export const hostRouter = {
 	 * silently fell back, which split hosts and clients across two relays.
 	 */
 	relayEndpoint: jwtProcedure.query(async ({ ctx }) => {
-		try {
-			const payload = (await posthog.getFeatureFlagPayload(
-				FEATURE_FLAGS.RELAY_URL_OVERRIDE,
-				ctx.userId,
-			)) as RelayUrlPayload | null | undefined;
-			const override = payload?.url;
-			if (typeof override === "string" && override.length > 0) {
-				return { url: override };
-			}
-		} catch {
-			// Fall through to the default relay.
-		}
-		return { url: env.RELAY_URL };
+		return { url: await resolveUserRelayUrl(ctx.userId) };
 	}),
 
 	list: jwtProcedure
@@ -80,10 +66,26 @@ export const hostRouter = {
 					),
 				);
 
+			// The relay's DOs are the presence authority; the DB flag is only
+			// the fallback for hosts still on the v1 relay, which keeps writing
+			// it. Callers' own bearer token is forwarded for the access checks.
+			const bearer = ctx.headers.get("authorization")?.slice("Bearer ".length);
+			const presence = bearer
+				? await fetchRelayPresence(
+						await resolveUserRelayUrl(ctx.userId),
+						bearer,
+						rows.map((row) =>
+							buildHostRoutingKey(row.organizationId, row.machineId),
+						),
+					)
+				: null;
+
 			return rows.map((row) => ({
 				id: row.machineId,
 				name: row.name,
-				online: row.isOnline,
+				online:
+					presence?.[buildHostRoutingKey(row.organizationId, row.machineId)]
+						?.online ?? row.isOnline,
 				wakeCommand: row.wakeCommand,
 				organizationId: row.organizationId,
 			}));
