@@ -1,11 +1,21 @@
-import { ComposerBar, type ComposerQuickKey } from "@superset/composer";
 import { buildHostRoutingKey } from "@superset/shared/host-routing";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	ActivityIndicator,
+	Keyboard,
+	LayoutAnimation,
+	Pressable,
+	View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useWorkspaceHost } from "@/hooks/useWorkspaceHost";
+import {
+	TerminalComposer,
+	type TerminalQuickKey,
+} from "./components/TerminalComposer";
 import {
 	type TerminalConnectionState,
 	type TerminalControlMessage,
@@ -19,33 +29,16 @@ const STATE_BANNERS: Partial<Record<TerminalConnectionState, string>> = {
 	denied: "You don't have access to this terminal.",
 };
 
-const QUICK_KEYS: ComposerQuickKey[] = [
-	{ id: "esc", label: "esc" },
-	{ id: "tab", label: "tab" },
-	{ id: "shift-tab", label: "⇧tab" },
-	{ id: "up", symbol: "arrow.up" },
-	{ id: "down", symbol: "arrow.down" },
-	{ id: "left", symbol: "arrow.left" },
-	{ id: "right", symbol: "arrow.right" },
-	{ id: "ctrl-c", label: "^C" },
-];
-
-const QUICK_KEY_BYTES: Record<string, string> = {
-	esc: "\u001b",
-	tab: "\t",
-	"shift-tab": "\u001b[Z",
-	up: "\u001b[A",
-	down: "\u001b[B",
-	left: "\u001b[D",
-	right: "\u001b[C",
-	"ctrl-c": "\u0003",
-};
-
 /**
  * Live terminal attached over the relay. The xterm page owns the socket
- * (see TerminalWebView); the native ComposerBar owns input and keyboard
- * tracking; this screen owns chrome: title, connection banner, and the
+ * (see TerminalWebView); the TerminalComposer (home glass composer, ported)
+ * owns input; this screen owns chrome: title, connection banner, and the
  * session-ended overlay.
+ *
+ * Keyboard handling: the composer is an absolute bottom overlay positioned at
+ * the tracked keyboard height, and the WebView insets by composer + keyboard
+ * height so its last rows stay visible above the composer while typing (xterm
+ * reflows to the smaller box).
  */
 export function TerminalScreen() {
 	const params = useLocalSearchParams<{ id: string; terminalId: string }>();
@@ -53,6 +46,7 @@ export function TerminalScreen() {
 	const terminalId = params.terminalId;
 	const router = useRouter();
 
+	const insets = useSafeAreaInsets();
 	const { host, isResolving } = useWorkspaceHost(workspaceId ?? null);
 	const routingKey = host
 		? buildHostRoutingKey(host.organizationId, host.machineId)
@@ -63,7 +57,35 @@ export function TerminalScreen() {
 		useState<TerminalConnectionState>("connecting");
 	const [title, setTitle] = useState<string | null>(null);
 	const [exitCode, setExitCode] = useState<number | null>(null);
-	const [occludedHeight, setOccludedHeight] = useState(0);
+	const [composerHeight, setComposerHeight] = useState(0);
+	const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+	// Position the composer deterministically above the keyboard: a native
+	// header offsets the KeyboardAvoidingView frame, so its own measurement
+	// leaves the bar behind the keyboard. Animating alongside the keyboard's
+	// reported duration keeps the rise smooth.
+	useEffect(() => {
+		const show = Keyboard.addListener("keyboardWillShow", (event) => {
+			LayoutAnimation.configureNext({
+				duration: event.duration || 250,
+				update: { type: LayoutAnimation.Types.keyboard },
+			});
+			setKeyboardHeight(event.endCoordinates.height);
+		});
+		const hide = Keyboard.addListener("keyboardWillHide", (event) => {
+			LayoutAnimation.configureNext({
+				duration: event.duration || 250,
+				update: { type: LayoutAnimation.Types.keyboard },
+			});
+			setKeyboardHeight(0);
+		});
+		return () => {
+			show.remove();
+			hide.remove();
+		};
+	}, []);
+
+	const composerBottom = keyboardHeight > 0 ? keyboardHeight : insets.bottom;
 
 	const handleControl = useCallback((message: TerminalControlMessage) => {
 		if (message.type === "title") {
@@ -80,6 +102,10 @@ export function TerminalScreen() {
 			? `\u001b[200~${text}\u001b[201~\r`
 			: `${text}\r`;
 		terminalRef.current?.sendInput(framed);
+	}, []);
+
+	const handleQuickKey = useCallback((key: TerminalQuickKey) => {
+		if (key.data) terminalRef.current?.sendInput(key.data);
 	}, []);
 
 	const banner = STATE_BANNERS[connectionState];
@@ -105,7 +131,12 @@ export function TerminalScreen() {
 					</Pressable>
 				</View>
 			) : null}
-			<View className="flex-1" style={{ paddingBottom: occludedHeight }}>
+			<View
+				className="flex-1"
+				style={{
+					marginBottom: showComposer ? composerHeight + composerBottom : 0,
+				}}
+			>
 				{!workspaceId || !terminalId ? (
 					<Centered>
 						<Text className="text-muted-foreground text-sm">
@@ -152,16 +183,18 @@ export function TerminalScreen() {
 				) : null}
 			</View>
 			{showComposer ? (
-				<ComposerBar
-					placeholder="Send input"
-					quickKeys={QUICK_KEYS}
-					onSubmitText={handleSubmit}
-					onQuickKey={(id) => {
-						const bytes = QUICK_KEY_BYTES[id];
-						if (bytes) terminalRef.current?.sendInput(bytes);
-					}}
-					onBarMetrics={setOccludedHeight}
-				/>
+				<View
+					className="absolute inset-x-0"
+					style={{ bottom: composerBottom }}
+					onLayout={(event) =>
+						setComposerHeight(event.nativeEvent.layout.height)
+					}
+				>
+					<TerminalComposer
+						onSubmit={handleSubmit}
+						onQuickKey={handleQuickKey}
+					/>
+				</View>
 			) : null}
 		</View>
 	);

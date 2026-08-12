@@ -5,8 +5,7 @@
 		"skipLibCheck": true,
 		"paths": {
 			"@/*": ["./*"],
-			"@superset/alert-prompt": ["./modules/alert-prompt/src/index.ts"],
-			"@superset/composer": ["./modules/composer/src/index.ts"]
+			"@superset/alert-prompt": ["./modules/alert-prompt/src/index.ts"]
 		}
 	},
 	"include": ["**/*.ts", "**/*.tsx", "uniwind-env.d.ts", "uniwind-types.d.ts"],
