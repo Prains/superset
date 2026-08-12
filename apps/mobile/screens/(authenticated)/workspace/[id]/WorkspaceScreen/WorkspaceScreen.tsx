@@ -1,6 +1,6 @@
 import { buildHostRoutingKey } from "@superset/shared/host-routing";
 import { useQueryClient } from "@tanstack/react-query";
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronDown } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -49,6 +49,13 @@ const headerOptions = {
 	// Horizontal swipes belong to the terminal — back stays edge-only.
 	fullScreenGestureEnabled: false,
 } as const;
+
+// The header pill has ~150pt to spend — five-digit counts read as 23.4k.
+function compactCount(count: number): string {
+	if (count < 1000) return String(count);
+	const thousands = (count / 1000).toFixed(count < 10_000 ? 1 : 0);
+	return `${thousands.replace(/\.0$/, "")}k`;
+}
 
 const STATE_BANNERS: Partial<Record<TerminalConnectionState, string>> = {
 	connecting: "Connecting…",
@@ -188,7 +195,10 @@ export function WorkspaceScreen() {
 						}
 						disabled={!workspace}
 					>
-						<View className="max-w-64 flex-row items-center gap-1">
+						{/* Width budget: back capsule + Review pill leave ~180pt of bar
+						    for the title on a 390pt screen — wider and it collides with
+						    the back button under iOS 26's floating bar items. */}
+						<View className="max-w-44 flex-row items-center gap-1">
 							<Text className="font-semibold text-[17px]" numberOfLines={1}>
 								{workspace?.name ?? ""}
 							</Text>
@@ -208,26 +218,24 @@ export function WorkspaceScreen() {
 									router.push(`/(authenticated)/workspace/${id}/diff`)
 								}
 							>
-								<GlassView
-									colorScheme="dark"
-									glassEffectStyle="regular"
-									style={{ borderRadius: 999, overflow: "hidden" }}
+								{/* Bare content: the system already wraps toolbar views in a
+								    glass capsule on iOS 26 — any surface of our own renders
+								    as a pill inside a pill. */}
+								<View
+									className={cn(
+										"flex-row items-center gap-1.5",
+										!GLASS &&
+											"bg-card border-border rounded-full border px-3 py-1.5",
+									)}
 								>
-									<View
-										className={cn(
-											"flex-row items-center gap-1.5 px-3 py-1.5",
-											!GLASS && "bg-card border-border rounded-full border",
-										)}
-									>
-										<Text className="font-medium text-[13px]">Review</Text>
-										<Text className="text-green-500 font-semibold text-[13px]">
-											+{changeset.additions.toLocaleString()}
-										</Text>
-										<Text className="text-red-500 font-semibold text-[13px]">
-											−{changeset.deletions.toLocaleString()}
-										</Text>
-									</View>
-								</GlassView>
+									<Text className="font-medium text-[13px]">Review</Text>
+									<Text className="text-green-500 font-semibold text-[13px]">
+										+{compactCount(changeset.additions)}
+									</Text>
+									<Text className="text-red-500 font-semibold text-[13px]">
+										−{compactCount(changeset.deletions)}
+									</Text>
+								</View>
 							</PressableScale>
 						</Stack.Toolbar.View>
 					</Stack.Toolbar>

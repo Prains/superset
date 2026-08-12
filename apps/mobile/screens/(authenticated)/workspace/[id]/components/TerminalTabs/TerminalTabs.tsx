@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react-native";
 import { Alert, Pressable, ScrollView, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/hooks/useTheme";
@@ -14,9 +15,9 @@ interface TerminalTabsProps {
 }
 
 /**
- * The workspace's sessions as tabs — agent mark + name, active tab raised.
- * No tab count, no per-tab close target: closing is a long-press (per the
- * design's declutter call). The trailing + opens the preset menu.
+ * The workspace's sessions as iOS-style pill chips (Safari tab bar, not
+ * browser tabs): agent mark + name, active chip filled, closing via
+ * long-press. The trailing circular + opens the new-session sheet.
  */
 export function TerminalTabs({
 	rows,
@@ -27,11 +28,11 @@ export function TerminalTabs({
 }: TerminalTabsProps) {
 	const theme = useTheme();
 	return (
-		<View className="border-border/60 flex-row items-center border-b">
+		<View className="flex-row items-center gap-2 px-3 pb-2.5 pt-1.5">
 			<ScrollView
 				horizontal
 				showsHorizontalScrollIndicator={false}
-				contentContainerClassName="px-2 gap-1 items-end"
+				contentContainerClassName="gap-1.5 items-center"
 				className="flex-1"
 			>
 				{rows.map((row) => {
@@ -51,8 +52,8 @@ export function TerminalTabs({
 								])
 							}
 							className={cn(
-								"flex-row items-center gap-1.5 rounded-t-lg px-3 py-2",
-								active ? "bg-secondary/70" : "opacity-60",
+								"flex-row items-center gap-1.5 rounded-full px-3 py-1.5",
+								active ? "bg-secondary" : "bg-secondary/40",
 							)}
 						>
 							<AgentMark
@@ -81,9 +82,9 @@ export function TerminalTabs({
 			<Pressable
 				onPress={onAdd}
 				accessibilityLabel="New session"
-				className="border-border/60 border-l px-3.5 py-2 active:opacity-60"
+				className="bg-secondary/40 size-7 items-center justify-center rounded-full active:opacity-60"
 			>
-				<Text className="text-foreground text-base leading-5">+</Text>
+				<Plus size={15} color={theme.foreground} strokeWidth={2.25} />
 			</Pressable>
 		</View>
 	);
