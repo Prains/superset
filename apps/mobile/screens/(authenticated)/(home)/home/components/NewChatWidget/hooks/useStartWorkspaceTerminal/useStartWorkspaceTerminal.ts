@@ -1,7 +1,3 @@
-import {
-	BUILTIN_AGENT_IDS,
-	type BuiltinAgentId,
-} from "@superset/shared/agent-catalog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { Alert } from "react-native";
@@ -15,10 +11,11 @@ import { getHostTerminalsQueryKey } from "../../../../hooks/useHostTerminals";
 import type { ChatTarget } from "../../../../stores/chatTargetStore";
 
 /**
- * Prompt an existing workspace: deliver into its live claude terminal via the
- * host's bracketed-paste `terminal.send` when one is attached, otherwise
- * launch a fresh agent run (`agents.run` bakes the prompt into the launch
- * command), then open the terminal.
+ * Launch a NEW agent session in an existing workspace (`agents.run` bakes the
+ * prompt into the launch command) and land on its tab. Always a fresh session
+ * — the composer says "New agent in …", and delivering into an already-running
+ * session belongs to explicit flows like the terminal composer or the
+ * finish-review target picker, never to this one.
  */
 export function useStartWorkspaceTerminal(workspaces: HostWorkspaceItem[]) {
 	const router = useRouter();
@@ -49,32 +46,6 @@ export function useStartWorkspaceTerminal(workspaces: HostWorkspaceItem[]) {
 			);
 			const client = getHostServiceClientByUrl(hostUrl);
 			const text = message.text.trim();
-
-			// Reuse only works for builtin terminal agents — custom presets have
-			// no binding to find, so they always launch fresh.
-			const builtinAgentId = (BUILTIN_AGENT_IDS as readonly string[]).includes(
-				agentId,
-			)
-				? (agentId as BuiltinAgentId)
-				: null;
-			const active = builtinAgentId
-				? await client.terminalAgents.findActive.query({
-						workspaceId: target.workspaceId,
-						agentId: builtinAgentId,
-					})
-				: null;
-			if (active) {
-				await client.terminal.send.mutate({
-					terminalId: active.terminalId,
-					workspaceId: target.workspaceId,
-					text,
-				});
-				return {
-					workspaceId: target.workspaceId,
-					terminalId: active.terminalId,
-					hostId: target.hostId,
-				};
-			}
 
 			const result = await client.agents.run.mutate({
 				workspaceId: target.workspaceId,
