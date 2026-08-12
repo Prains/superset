@@ -55,6 +55,34 @@ describe("listGitIgnoredDirs", () => {
 		).toEqual([]);
 	});
 
+	test("reports the on-disk casing when the .gitignore rule differs in case", async () => {
+		// macOS: core.ignorecase makes `buildout/` match an on-disk `Buildout`.
+		// What matters for the watcher is that the returned name is the ON-DISK
+		// casing — that's what kernel event paths carry, so glob and filter
+		// comparisons stay consistent. (On a case-sensitive FS the rule simply
+		// doesn't match and nothing is returned — also consistent.)
+		const dir = await createRepo();
+		await writeFile(path.join(dir, ".gitignore"), "buildout/\n");
+		await mkdir(path.join(dir, "Buildout"), { recursive: true });
+		await writeFile(path.join(dir, "Buildout", "junk.js"), "x");
+
+		const ignored = await listGitIgnoredDirs(dir);
+
+		if (ignored.length > 0) {
+			expect(ignored).toEqual(["Buildout"]);
+		}
+	});
+
+	test("honors .git/info/exclude rules, not just .gitignore", async () => {
+		const dir = await createRepo();
+		await mkdir(path.join(dir, ".git", "info"), { recursive: true });
+		await writeFile(path.join(dir, ".git", "info", "exclude"), "hidden/\n");
+		await mkdir(path.join(dir, "hidden"), { recursive: true });
+		await writeFile(path.join(dir, "hidden", "junk.js"), "x");
+
+		expect(await listGitIgnoredDirs(dir)).toContain("hidden");
+	});
+
 	test("never returns a dir containing a negated (re-included) child", async () => {
 		const dir = await createRepo();
 		// `dist/*` + `!dist/keep.txt`: git will not collapse `dist/` because it

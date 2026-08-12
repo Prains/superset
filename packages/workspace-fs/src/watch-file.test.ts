@@ -107,6 +107,31 @@ describe("watchSingleFile", () => {
 		await waitFor(events, (e) => e.kind === "create");
 	}, 20_000);
 
+	it("survives the path becoming a directory and a file again", async () => {
+		const file = await createTempFile();
+		const events: FsWatchEvent[] = [];
+		disposers.push(
+			watchSingleFile(file, (e) => events.push(e), {
+				debounceMs: 25,
+				pollMs: 100,
+			}),
+		);
+		await new Promise((r) => setTimeout(r, 150));
+
+		// File → directory at the same path.
+		await fs.rm(file);
+		await waitFor(events, (e) => e.kind === "delete");
+		await fs.mkdir(file);
+		await waitFor(events, (e) => e.kind === "create" && e.isDirectory === true);
+
+		// Directory → file again: the watch must keep following the path.
+		events.length = 0;
+		await fs.rmdir(file);
+		await waitFor(events, (e) => e.kind === "delete");
+		await fs.writeFile(file, "file again");
+		await waitFor(events, (e) => e.kind === "create" && !e.isDirectory);
+	}, 20_000);
+
 	it("starts against a missing file and emits create when it lands", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "watch-file-"));
 		tempRoots.push(dir);

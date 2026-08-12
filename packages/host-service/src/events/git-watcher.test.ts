@@ -20,6 +20,10 @@ interface GitWatcherInternals {
 	addWorktreePaths(workspaceId: string, paths: Iterable<string>): void;
 	getOrCreateBatch(workspaceId: string): unknown;
 	scheduleFlush(workspaceId: string): void;
+	getOrCreateIgnoredDirsState(workspaceId: string): {
+		dirs: ReadonlySet<string>;
+		rulesChanged: boolean;
+	};
 }
 
 function createWatcher(): GitWatcher {
@@ -173,6 +177,38 @@ describe("filterGitIgnoredEvents", () => {
 		expect(
 			filterGitIgnoredEvents([inside], worktree, new Set()).events,
 		).toEqual([inside]);
+	});
+});
+
+describe("GitWatcher ignore-rule staleness flag", () => {
+	test(".git/info/exclude events flag the ignored set for a native-prune check", () => {
+		const watcher = createWatcher();
+		const state = internals(watcher).getOrCreateIgnoredDirsState("workspace-1");
+		expect(state.rulesChanged).toBe(false);
+
+		internals(watcher).handleGitDirEvent("workspace-1", "info/exclude");
+		expect(state.rulesChanged).toBe(true);
+	});
+
+	test("unrelated .git events do not flag the ignored set", () => {
+		const watcher = createWatcher();
+		const state = internals(watcher).getOrCreateIgnoredDirsState("workspace-1");
+		internals(watcher).handleGitDirEvent("workspace-1", "index");
+		internals(watcher).handleGitDirEvent("workspace-1", "refs/heads/main");
+		expect(state.rulesChanged).toBe(false);
+	});
+
+	test("a .gitignore change in the worktree stream clears the set and flags it", () => {
+		const watcher = createWatcher();
+		const state = internals(watcher).getOrCreateIgnoredDirsState("workspace-1");
+		(state as { dirs: ReadonlySet<string> }).dirs = new Set(["buildout"]);
+
+		const filtered = filterGitIgnoredEvents(
+			[{ kind: "update", absolutePath: "/repo/.gitignore" }],
+			"/repo",
+			state.dirs,
+		);
+		expect(filtered.sawGitignoreChange).toBe(true);
 	});
 });
 

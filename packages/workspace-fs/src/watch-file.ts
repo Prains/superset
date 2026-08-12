@@ -109,6 +109,16 @@ export function watchSingleFile(
 			if (stats) {
 				const existed = exists;
 				exists = true;
+				if (stats.isDirectory()) {
+					// macOS fs.watch on a directory never reports the directory's
+					// own deletion (VS Code skips their folder-delete test on
+					// darwin for this reason) — a watch here would go silently
+					// deaf. Poll instead until the path is a plain file again.
+					closeWatcher();
+					startPolling();
+					emit(existed ? "update" : "create", true);
+					return;
+				}
 				stopPolling();
 				// Re-install only when the inode behind the path changed (atomic
 				// save replaced it — the old watch follows the dead inode). A
@@ -120,7 +130,7 @@ export function watchSingleFile(
 						startPolling();
 					}
 				}
-				emit(existed ? "update" : "create", stats.isDirectory());
+				emit(existed ? "update" : "create", false);
 			} else {
 				const existed = exists;
 				exists = false;

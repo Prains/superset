@@ -99,6 +99,53 @@ describe("FsWatcherManager gitignored-dir pruning", () => {
 		);
 	}, 20_000);
 
+	it("prunes through a symlinked watch root and maps events back to the symlink form", async () => {
+		const realRoot = await createTempRoot();
+		const ignoredDir = path.join(realRoot, "buildout");
+		await fs.mkdir(ignoredDir, { recursive: true });
+		// Watch via a symlink to the root — the ignore provider must be asked
+		// with the RESOLVED path (globs are relative to what parcel watches),
+		// and emitted events must come back in symlink form.
+		const linkParent = await createTempRoot();
+		const linkRoot = path.join(linkParent, "linked-root");
+		await fs.symlink(realRoot, linkRoot);
+
+		const providerCalls: string[] = [];
+		const manager = new FsWatcherManager({
+			debounceMs: 50,
+			listGitIgnoredDirs: async (rootPath) => {
+				providerCalls.push(rootPath);
+				return ["buildout"];
+			},
+		});
+		managers.push(manager);
+
+		const seen: string[] = [];
+		await manager.subscribe({ absolutePath: linkRoot }, (batch) => {
+			for (const event of batch.events) {
+				seen.push(`${event.kind}:${event.absolutePath}`);
+			}
+		});
+		expect(providerCalls).toEqual([realRoot]);
+
+		await fs.writeFile(path.join(ignoredDir, "junk.js"), "x");
+		const probeLinkForm = path.join(linkRoot, "probe.ts");
+		await fs.writeFile(path.join(realRoot, "probe.ts"), "x");
+
+		await waitFor(seen, `create:${probeLinkForm}`);
+		expect(seen.some((entry) => entry.includes("buildout/junk.js"))).toBe(
+			false,
+		);
+
+		// isPathPruned must answer in the caller's (symlink) path space too.
+		expect(
+			manager.isPathPruned(linkRoot, path.join(linkRoot, "buildout", "x.js")),
+		).toBe(true);
+		expect(manager.isPathPruned(linkRoot, path.join(linkRoot, "src.ts"))).toBe(
+			false,
+		);
+	}, 20_000);
+
 	it("still watches when the provider throws", async () => {
 		const rootPath = await createTempRoot();
 		const manager = new FsWatcherManager({
