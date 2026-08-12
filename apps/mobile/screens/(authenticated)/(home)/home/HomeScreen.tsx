@@ -105,7 +105,20 @@ export function HomeScreen() {
 		[projects],
 	);
 
-	const selectedProjectId = projectFilter ?? sortedProjects[0]?.id ?? null;
+	// Default to where the user actually works — the most recently updated
+	// workspace's project — not the alphabetically first project.
+	const defaultProjectId = useMemo(() => {
+		let newest: HostWorkspaceItem | null = null;
+		for (const workspace of workspaces) {
+			if (!workspace.projectId) continue;
+			if (!newest || isAfter(workspace.updatedAt, newest.updatedAt)) {
+				newest = workspace;
+			}
+		}
+		return newest?.projectId ?? sortedProjects[0]?.id ?? null;
+	}, [workspaces, sortedProjects]);
+
+	const selectedProjectId = projectFilter ?? defaultProjectId;
 
 	const projectNamesById = useMemo(
 		() => new Map(projects.map((project) => [project.id, project.name])),
