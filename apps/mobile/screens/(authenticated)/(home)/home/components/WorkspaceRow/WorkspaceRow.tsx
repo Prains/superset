@@ -7,7 +7,7 @@ import {
 	GitPullRequestDraft,
 	Plus,
 } from "lucide-react-native";
-import { Linking, View } from "react-native";
+import { View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
@@ -76,12 +76,14 @@ export function WorkspaceRow({
 			>
 				{prIcon && pullRequest ? (
 					<Button
-						accessibilityLabel={`Open pull request #${pullRequest.prNumber}`}
+						accessibilityLabel={`Pull request #${pullRequest.prNumber}`}
 						variant="ghost"
 						size="icon"
 						className="size-6"
 						hitSlop={8}
-						onPress={() => void Linking.openURL(pullRequest.url)}
+						onPress={() =>
+							router.push(`/(authenticated)/workspace/${workspace.id}/diff`)
+						}
 					>
 						<Icon
 							as={prIcon.icon}
