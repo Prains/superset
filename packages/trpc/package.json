@@ -19,6 +19,10 @@
 		"./factory-webhook": {
 			"types": "./src/router/factory/webhook.ts",
 			"default": "./src/router/factory/webhook.ts"
+		},
+		"./factory-dispatch": {
+			"types": "./src/router/factory/dispatch.ts",
+			"default": "./src/router/factory/dispatch.ts"
 		}
 	},
 	"scripts": {

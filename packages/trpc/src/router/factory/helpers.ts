@@ -10,8 +10,7 @@ import {
 } from "@superset/db/schema";
 import { TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
-import { resolveUserRelayUrl } from "../../lib/relay-url";
-import { dispatchFactoryStage } from "./dispatch";
+import { dispatchStageQueued } from "./queue";
 import { isAgentStage, STAGE_FLOW, STAGE_RESULT_SCHEMAS } from "./stages";
 
 export async function getFactoryForOrg(
@@ -188,18 +187,13 @@ async function maybeAutoAdvance(
 		.limit(1);
 	if (!item) return null;
 
-	try {
-		const result = await dispatchFactoryStage({
-			factory,
-			item,
-			stage: moved.stage,
-			expectedRevision: moved.revision,
-			relayUrl: await resolveUserRelayUrl(factory.ownerUserId),
-		});
-		return result.status === "dispatched" ? moved.stage : null;
-	} catch {
-		return null;
-	}
+	const result = await dispatchStageQueued({
+		factory,
+		item,
+		stage: moved.stage,
+		expectedRevision: moved.revision,
+	});
+	return result === "failed" ? null : moved.stage;
 }
 
 function buildItemPatch(

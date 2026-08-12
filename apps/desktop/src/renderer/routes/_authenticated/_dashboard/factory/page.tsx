@@ -206,6 +206,7 @@ function FactoryPage() {
 					open={addIssuesOpen}
 					onOpenChange={setAddIssuesOpen}
 					factoryId={factory.id}
+					projectId={factory.v2ProjectId}
 					repoFullName={factory.repoFullName}
 					onAdded={() => void utils.factory.listItems.invalidate()}
 				/>

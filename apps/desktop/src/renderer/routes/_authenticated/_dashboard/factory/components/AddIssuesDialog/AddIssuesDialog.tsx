@@ -11,12 +11,16 @@ import { toast } from "@superset/ui/sonner";
 import { Textarea } from "@superset/ui/textarea";
 import { useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { LuDownload } from "react-icons/lu";
 import { apiTrpcClient } from "renderer/lib/api-trpc-client";
+import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
+import { useProjectQueryTargets } from "renderer/routes/_authenticated/_dashboard/hooks/useProjectQueryTargets";
 
 interface AddIssuesDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	factoryId: string;
+	projectId: string;
 	repoFullName: string;
 	onAdded: () => void;
 }
@@ -68,6 +72,7 @@ export function AddIssuesDialog({
 	open,
 	onOpenChange,
 	factoryId,
+	projectId,
 	repoFullName,
 	onAdded,
 }: AddIssuesDialogProps) {
@@ -76,6 +81,44 @@ export function AddIssuesDialog({
 		() => parseLines(text, repoFullName),
 		[text, repoFullName],
 	);
+	const { targets } = useProjectQueryTargets([]);
+	const hostUrl = targets.find((t) => t.projectId === projectId)?.hostUrl;
+
+	// Backfill without webhooks: list open issues through the host's gh and
+	// fill the textarea — the user reviews before adding.
+	const importIssues = useMutation({
+		mutationFn: async () => {
+			if (!hostUrl) throw new Error("Project host is not reachable");
+			const client = getHostServiceClientByUrl(hostUrl);
+			const page = await client.workspaceCreation.searchGitHubIssues.query({
+				projectId,
+				limit: 30,
+			});
+			return page.issues.map((issue) => ({
+				title: issue.title,
+				url: issue.url,
+			}));
+		},
+		onSuccess: (issues) => {
+			const existing = new Set(
+				text
+					.split("\n")
+					.map((line) => line.match(ISSUE_URL_PATTERN)?.[0])
+					.filter(Boolean),
+			);
+			const lines = issues
+				.filter((issue) => !existing.has(issue.url))
+				.map((issue) => `${issue.url} ${issue.title}`);
+			if (lines.length === 0) {
+				toast.info("No new open issues found");
+				return;
+			}
+			setText(
+				(prev) => (prev.trim() ? `${prev.trimEnd()}\n` : "") + lines.join("\n"),
+			);
+		},
+		onError: (error) => toast.error(error.message),
+	});
 
 	const intake = useMutation({
 		mutationFn: () =>
@@ -121,6 +164,19 @@ export function AddIssuesDialog({
 					{parsed.invalid > 0 && <span>{parsed.invalid} unrecognized</span>}
 				</div>
 				<DialogFooter>
+					<Button
+						variant="outline"
+						disabled={!hostUrl || importIssues.isPending}
+						title={
+							hostUrl
+								? "List open issues from the repo via the project's host"
+								: "Project host is offline"
+						}
+						onClick={() => importIssues.mutate()}
+					>
+						<LuDownload className="size-3.5" />
+						{importIssues.isPending ? "Importing…" : "Import open issues"}
+					</Button>
 					<Button
 						disabled={parsed.issues.length === 0 || intake.isPending}
 						onClick={() => intake.mutate()}

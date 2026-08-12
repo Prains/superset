@@ -180,7 +180,12 @@ Call the \`factory_propose_prompt\` MCP tool:
 - content: the full rewritten prompt text
 - rationale: 1-3 sentences on what you changed and which feedback drove it
 
-Your proposal becomes a DRAFT a human reviews — it never activates itself. If the tool is unavailable, say so clearly and stop.`;
+Your proposal becomes a DRAFT a human reviews — it never activates itself.
+
+If the factory_propose_prompt MCP tool is not available in your session, report via the Superset CLI instead (write the prompt to a file first):
+\`\`\`
+superset factory propose-prompt --improve-run ${ctx.improveRunId} --content-file prompt.md --rationale "<1-3 sentences>"
+\`\`\``;
 }
 
 export interface StagePromptContext {
@@ -221,5 +226,10 @@ Call the \`factory_report\` MCP tool:
   ${STAGE_REPORT_EXAMPLES[ctx.stage]}
 - rationale: 1-3 sentences on how you reached the result
 
-If the tool rejects with a revision conflict, re-read the current state it returns and only retry if your work is still the pending one. If the factory_report tool is not available in your session, say so clearly in your final message and stop — a human will record the result.`;
+If the tool rejects with a revision conflict, re-read the current state it returns and only retry if your work is still the pending one.
+
+If the factory_report MCP tool is not available in your session, report via the Superset CLI instead (write the result JSON to a file first):
+\`\`\`
+superset factory report --run ${ctx.runId} --revision ${ctx.expectedRevision} --outcome success --result-file result.json --rationale "<1-3 sentences>"
+\`\`\``;
 }

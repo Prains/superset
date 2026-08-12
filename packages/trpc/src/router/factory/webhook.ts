@@ -7,8 +7,7 @@ import {
 	type SelectFactory,
 } from "@superset/db/schema";
 import { and, eq, max, sql } from "drizzle-orm";
-import { resolveUserRelayUrl } from "../../lib/relay-url";
-import { dispatchFactoryStage } from "./dispatch";
+import { dispatchStageQueued } from "./queue";
 
 /**
  * GitHub webhook → factory intake. Called from apps/api's webhook receiver;
@@ -69,12 +68,11 @@ export async function handleFactoryIssueOpened(args: {
 				.returning();
 
 			if (item && factory.autoAdvance) {
-				await dispatchFactoryStage({
+				await dispatchStageQueued({
 					factory,
 					item,
 					stage: "classify",
 					expectedRevision: item.revision,
-					relayUrl: await resolveUserRelayUrl(factory.ownerUserId),
 				});
 			}
 		}
@@ -154,12 +152,11 @@ export async function handleFactoryPrMerged(args: {
 					.where(eq(factoryItems.id, item.id))
 					.limit(1);
 				if (fresh) {
-					await dispatchFactoryStage({
+					await dispatchStageQueued({
 						factory,
 						item: fresh,
 						stage: "verify",
 						expectedRevision: fresh.revision,
-						relayUrl: await resolveUserRelayUrl(factory.ownerUserId),
 					});
 				}
 			}
