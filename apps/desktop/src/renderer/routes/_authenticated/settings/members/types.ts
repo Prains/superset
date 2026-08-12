@@ -9,4 +9,5 @@ export type TeamMember = {
 	name: string;
 	email: string;
 	image: string | null;
+	deletedAt: Date | null;
 };

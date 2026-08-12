@@ -138,6 +138,7 @@ export function OrganizationSettings({
 				name: m.user.name,
 				email: m.user.email,
 				image: m.user.image,
+				deletedAt: m.user.deletedAt,
 			}))
 			.sort((a, b) => {
 				const priorityDiff =

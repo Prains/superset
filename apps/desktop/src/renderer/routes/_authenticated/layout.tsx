@@ -27,6 +27,7 @@ import { InitGitDialog } from "renderer/react-query/projects/InitGitDialog";
 import { DaemonAutoUpdateFailureDialog } from "renderer/routes/_authenticated/components/DaemonAutoUpdateFailureDialog";
 import { DashboardNewWorkspaceModal } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal";
 import { DiffThemeSync } from "renderer/routes/_authenticated/components/DiffThemeSync";
+import { PendingDeletionScreen } from "renderer/routes/_authenticated/components/PendingDeletionScreen";
 import {
 	V1AutoMigration,
 	V1MigrationContinuity,
@@ -260,6 +261,15 @@ function AuthenticatedLayout() {
 
 	if (!isSignedIn) {
 		return signInRedirect;
+	}
+
+	if (session?.user?.deletedAt) {
+		return (
+			<PendingDeletionScreen
+				deletedAt={session.user.deletedAt}
+				onReactivated={() => void refetch()}
+			/>
+		);
 	}
 
 	if (!activeOrganizationId) {
