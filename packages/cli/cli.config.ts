@@ -42,8 +42,8 @@ export default defineConfig({
 				commands: ["hosts", "projects", "start", "status", "stop"],
 			},
 			{
-				title: "Account",
-				commands: ["auth", "organization", "update", "feedback"],
+				title: "Account & app",
+				commands: ["auth", "organization", "settings", "update", "feedback"],
 			},
 		],
 		examples: [
