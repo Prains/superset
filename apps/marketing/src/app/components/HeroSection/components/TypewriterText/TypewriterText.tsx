@@ -76,7 +76,9 @@ export function TypewriterText({
 				style={{ originY: 1 }}
 				initial={isFirstAppearance ? { scaleY: 0.13 } : false}
 				animate={
-					isTypingComplete ? { opacity: 0, scaleY: 1 } : { opacity: 1, scaleY: 1 }
+					isTypingComplete
+						? { opacity: 0, scaleY: 1 }
+						: { opacity: 1, scaleY: 1 }
 				}
 				transition={
 					isTypingComplete
