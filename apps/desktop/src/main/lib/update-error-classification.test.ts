@@ -48,8 +48,23 @@ describe("isEnvironmentUpdateError", () => {
 		}
 	});
 
-	test("suppresses every updater failure while the volume is full", () => {
-		expect(isEnvironmentUpdateError(CHECKSUM_MISMATCH, FULL_VOLUME)).toBe(true);
+	test("still reports our own defects even while the volume is full", () => {
+		// A full disk does not corrupt a download or break a signature. If these
+		// were suppressed, a bad release would go unreported for exactly the
+		// users least able to recover from it.
+		for (const message of [
+			CHECKSUM_MISMATCH,
+			SIGNATURE_FAILURE,
+			FEED_FAILURE,
+		]) {
+			expect(isEnvironmentUpdateError(message, FULL_VOLUME)).toBe(false);
+		}
+	});
+
+	test("still treats an unrecognised failure on a full volume as environmental", () => {
+		expect(
+			isEnvironmentUpdateError("something we have never seen", FULL_VOLUME),
+		).toBe(true);
 	});
 
 	test("keeps the existing errno and read-only classifications", () => {
