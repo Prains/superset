@@ -162,13 +162,6 @@ export const SETTINGS: SettingDefinition[] = [
 		defaultValue: "file-viewer",
 	},
 	{
-		key: "terminalPersistence",
-		type: "boolean",
-		section: "terminal",
-		description: "Keep terminal sessions alive in the background",
-		defaultValue: true,
-	},
-	{
 		key: "terminalParkedRuntimeCap",
 		type: "number",
 		section: "terminal",
@@ -341,6 +334,7 @@ export const EXCLUDED_SETTINGS_COLUMNS: Record<string, string> = {
 	agentPresetPermissionsMigratedAt: "internal migration marker",
 	disabledAgentHooks: "agent-id list; use the app UI",
 	deleteLocalBranch: "v2 reads renderer localStorage, unreachable externally",
+	terminalPersistence: "dead column — nothing reads persist_terminal anymore",
 	exposeHostServiceViaRelay:
 		"security-sensitive; app gates it behind plan check + confirm dialog",
 };
