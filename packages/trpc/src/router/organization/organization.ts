@@ -87,7 +87,7 @@ export const organizationRouter = {
 			const organizationId = await requireActiveOrgMembership(ctx);
 			const conditions = [eq(members.organizationId, organizationId)];
 			if (!input?.includeDeactivated) {
-				conditions.push(isNull(users.deletedAt));
+				conditions.push(isNull(users.deletionRequestedAt));
 			}
 			return db
 				.select({
@@ -100,7 +100,7 @@ export const organizationRouter = {
 						name: users.name,
 						email: users.email,
 						image: users.image,
-						deletedAt: users.deletedAt,
+						deletionRequestedAt: users.deletionRequestedAt,
 					},
 				})
 				.from(members)

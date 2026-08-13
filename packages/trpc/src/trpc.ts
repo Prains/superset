@@ -112,7 +112,7 @@ export const protectedProcedure = t.procedure
 	})
 	.use(async ({ ctx, path, next }) => {
 		if (
-			ctx.session.user.deletedAt &&
+			ctx.session.user.deletionRequestedAt &&
 			!PENDING_DELETION_ALLOWED_PROCEDURES.has(path)
 		) {
 			throw new TRPCError({

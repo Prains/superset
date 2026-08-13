@@ -158,7 +158,7 @@ export function OrganizationSettings({
 				name: m.user.name,
 				email: m.user.email,
 				image: m.user.image,
-				deletedAt: m.user.deletedAt,
+				deletionRequestedAt: m.user.deletionRequestedAt,
 			}))
 			.sort((a, b) => {
 				const priorityDiff =
@@ -512,7 +512,7 @@ export function OrganizationSettings({
 																		<div className="flex items-center gap-2">
 																			<span
 																				className={
-																					member.deletedAt
+																					member.deletionRequestedAt
 																						? "font-medium text-muted-foreground"
 																						: "font-medium"
 																				}
@@ -527,7 +527,7 @@ export function OrganizationSettings({
 																					You
 																				</Badge>
 																			)}
-																			{member.deletedAt && (
+																			{member.deletionRequestedAt && (
 																				<Badge
 																					variant="outline"
 																					className="text-[10px] h-4 px-1.5 text-muted-foreground"

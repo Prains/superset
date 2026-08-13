@@ -20,7 +20,7 @@ export const organizationMembersRouter = {
 			const organizationId = await requireActiveOrgMembership(ctx);
 			const conditions = [
 				eq(members.organizationId, organizationId),
-				isNull(users.deletedAt),
+				isNull(users.deletionRequestedAt),
 			];
 			if (input?.search) {
 				const pattern = `%${input.search}%`;

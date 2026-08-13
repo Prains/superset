@@ -19,7 +19,7 @@ export function RootLayout() {
 
 	if (isPending) return null;
 
-	const pendingDeletion = !!session?.user.deletedAt;
+	const pendingDeletion = !!session?.user.deletionRequestedAt;
 
 	return (
 		<GestureHandlerRootView style={{ flex: 1 }}>

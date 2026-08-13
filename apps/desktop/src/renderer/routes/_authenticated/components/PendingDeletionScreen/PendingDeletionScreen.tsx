@@ -12,10 +12,10 @@ import { cloudTrpc } from "renderer/lib/cloud-trpc";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function PendingDeletionScreen({
-	deletedAt,
+	deletionRequestedAt,
 	onReactivated,
 }: {
-	deletedAt: Date;
+	deletionRequestedAt: Date;
 	onReactivated: () => void;
 }) {
 	const navigate = useNavigate();
@@ -27,7 +27,8 @@ export function PendingDeletionScreen({
 	});
 
 	const purgeAt =
-		new Date(deletedAt).getTime() + ACCOUNT_DELETION_GRACE_DAYS * DAY_MS;
+		new Date(deletionRequestedAt).getTime() +
+		ACCOUNT_DELETION_GRACE_DAYS * DAY_MS;
 	const daysRemaining = Math.max(0, Math.ceil((purgeAt - Date.now()) / DAY_MS));
 
 	return (

@@ -30,7 +30,11 @@ export default async function proxy(req: NextRequest) {
 	// reachable so the reactivate mutation itself can go through.
 	const isApiRoute =
 		pathname.startsWith("/api") || pathname.startsWith("/trpc");
-	if (session?.user.deletedAt && !isApiRoute && !isPublicRoute(pathname)) {
+	if (
+		session?.user.deletionRequestedAt &&
+		!isApiRoute &&
+		!isPublicRoute(pathname)
+	) {
 		if (pathname !== "/account-pending-deletion") {
 			return NextResponse.redirect(
 				new URL("/account-pending-deletion", req.url),

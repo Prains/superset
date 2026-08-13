@@ -102,7 +102,7 @@ export const userRouter = {
 
 		await db
 			.update(users)
-			.set({ deletedAt: new Date() })
+			.set({ deletionRequestedAt: new Date() })
 			.where(eq(users.id, userId));
 		await db.delete(sessions).where(eq(sessions.userId, userId));
 		await db
@@ -119,19 +119,22 @@ export const userRouter = {
 
 		const user = await db.query.users.findFirst({
 			where: eq(users.id, userId),
-			columns: { deletedAt: true },
+			columns: { deletionRequestedAt: true },
 		});
-		if (!user?.deletedAt) return { success: true };
+		if (!user?.deletionRequestedAt) return { success: true };
 
 		const graceMs = ACCOUNT_DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000;
-		if (Date.now() - user.deletedAt.getTime() > graceMs) {
+		if (Date.now() - user.deletionRequestedAt.getTime() > graceMs) {
 			throw new TRPCError({
 				code: "FORBIDDEN",
 				message: "The recovery period has ended. Contact support@superset.sh.",
 			});
 		}
 
-		await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId));
+		await db
+			.update(users)
+			.set({ deletionRequestedAt: null })
+			.where(eq(users.id, userId));
 		return { success: true };
 	}),
 

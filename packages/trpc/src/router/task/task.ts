@@ -163,7 +163,7 @@ async function getScopedAssigneeId(
 					and(
 						eq(members.organizationId, organizationId),
 						eq(members.userId, assigneeId),
-						isNull(users.deletedAt),
+						isNull(users.deletionRequestedAt),
 					),
 				)
 				.limit(1);

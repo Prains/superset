@@ -29,12 +29,12 @@ export default function AccountPendingDeletionPage() {
 		}),
 	);
 
-	const deletedAt = session?.user.deletedAt;
-	const daysRemaining = deletedAt
+	const deletionRequestedAt = session?.user.deletionRequestedAt;
+	const daysRemaining = deletionRequestedAt
 		? Math.max(
 				0,
 				Math.ceil(
-					(new Date(deletedAt).getTime() +
+					(new Date(deletionRequestedAt).getTime() +
 						ACCOUNT_DELETION_GRACE_DAYS * DAY_MS -
 						Date.now()) /
 						DAY_MS,

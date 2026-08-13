@@ -263,10 +263,10 @@ function AuthenticatedLayout() {
 		return signInRedirect;
 	}
 
-	if (session?.user?.deletedAt) {
+	if (session?.user?.deletionRequestedAt) {
 		return (
 			<PendingDeletionScreen
-				deletedAt={session.user.deletedAt}
+				deletionRequestedAt={session.user.deletionRequestedAt}
 				onReactivated={() => void refetch()}
 			/>
 		);

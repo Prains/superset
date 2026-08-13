@@ -53,11 +53,11 @@ const userOptions = {
 			input: false,
 			fieldName: "onboarded_at",
 		},
-		deletedAt: {
+		deletionRequestedAt: {
 			type: "date",
 			required: false,
 			input: false,
-			fieldName: "deleted_at",
+			fieldName: "deletion_requested_at",
 		},
 	},
 } as const;
@@ -146,7 +146,10 @@ export const auth = betterAuth({
 				return;
 			}
 			const session = await getSessionFromCtx(ctx);
-			if ((session?.user as { deletedAt?: Date | null })?.deletedAt) {
+			if (
+				(session?.user as { deletionRequestedAt?: Date | null })
+					?.deletionRequestedAt
+			) {
 				throw new APIError("FORBIDDEN", {
 					message: "Account is pending deletion.",
 				});
@@ -888,14 +891,14 @@ export const auth = betterAuth({
 				// explicitly so the onboarding gate is deterministic.
 				const userRow = await db.query.users.findFirst({
 					where: eq(authSchema.users.id, user.id),
-					columns: { onboardedAt: true, deletedAt: true },
+					columns: { onboardedAt: true, deletionRequestedAt: true },
 				});
 
 				return {
 					user: {
 						...user,
 						onboardedAt: userRow?.onboardedAt ?? null,
-						deletedAt: userRow?.deletedAt ?? null,
+						deletionRequestedAt: userRow?.deletionRequestedAt ?? null,
 					},
 					session: {
 						...session,

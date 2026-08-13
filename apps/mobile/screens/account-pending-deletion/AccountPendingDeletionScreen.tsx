@@ -16,7 +16,9 @@ export function AccountPendingDeletionScreen() {
 	const { signOut, isSigningOut } = useSignOut();
 	const [isReactivating, setIsReactivating] = useState(false);
 
-	const daysRemaining = useDaysUntilPurge(session?.user.deletedAt ?? null);
+	const daysRemaining = useDaysUntilPurge(
+		session?.user.deletionRequestedAt ?? null,
+	);
 
 	const handleReactivate = async () => {
 		setIsReactivating(true);

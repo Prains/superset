@@ -60,7 +60,7 @@ export function MembersSettings({ visibleItems }: MembersSettingsProps) {
 				name: m.user.name,
 				email: m.user.email,
 				image: m.user.image,
-				deletedAt: m.user.deletedAt,
+				deletionRequestedAt: m.user.deletionRequestedAt,
 			}))
 			.sort((a, b) => {
 				const priorityDiff =
@@ -162,7 +162,7 @@ export function MembersSettings({ visibleItems }: MembersSettingsProps) {
 																<div className="flex items-center gap-2">
 																	<span
 																		className={
-																			member.deletedAt
+																			member.deletionRequestedAt
 																				? "font-medium text-muted-foreground"
 																				: "font-medium"
 																		}
@@ -177,7 +177,7 @@ export function MembersSettings({ visibleItems }: MembersSettingsProps) {
 																			You
 																		</Badge>
 																	)}
-																	{member.deletedAt && (
+																	{member.deletionRequestedAt && (
 																		<Badge
 																			variant="outline"
 																			className="text-xs text-muted-foreground"
