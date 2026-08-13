@@ -529,10 +529,10 @@ export function NewChatWidget({
 							</HStack>
 							<HStack
 								spacing={6}
-								// Negative horizontal: the bordered button style carries ~10pt
-								// of intrinsic inset around its visible circle — pull the row
-								// out so the circle sits 12pt from the pill edge.
-								modifiers={[padding({ horizontal: -4, vertical: 6 })]}
+								// Tuned on-device: the bordered button style carries intrinsic
+								// inset around its visible circle; these values land the
+								// circle ~8pt off every pill edge.
+								modifiers={[padding({ horizontal: 7, vertical: 4 })]}
 							>
 								<HStack
 									modifiers={[
