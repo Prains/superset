@@ -116,8 +116,8 @@ export function SignInScreen() {
 					onPress={() => handleSignIn("google")}
 					className="w-4/5"
 				/>
-				<EmailSignInLink onError={setError} />
 				{(__DEV__ || env.EXPO_PUBLIC_E2E === "1") && <DevSignInOptions />}
+				<EmailSignInLink onError={setError} />
 			</View>
 
 			{error && (

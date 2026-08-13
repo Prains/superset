@@ -55,8 +55,8 @@ export function HomePaywallScreen() {
 					</Text>
 					<Text className="text-center text-base text-muted-foreground">
 						{activeOrganization
-							? `${activeOrganization.name} is on the free plan. Manage your plan from the Superset desktop app, then refresh.`
-							: "Manage your plan from the Superset desktop app, then refresh."}
+							? `${activeOrganization.name} is on the Free plan. Superset Mobile is available for organizations on Pro.`
+							: "This organization is on the Free plan. Superset Mobile is available for organizations on Pro."}
 					</Text>
 				</View>
 
