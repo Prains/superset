@@ -20,7 +20,7 @@ import { createTerminalSessionInternal } from "../../../terminal/terminal";
 import type { HostServiceContext } from "../../../types";
 import { protectedProcedure, router } from "../../index";
 import { resolveAttachmentPath } from "../attachments/storage";
-import { toTerminalIoError } from "../terminal/errors";
+import { toTerminalSessionError } from "../terminal/errors";
 
 interface ResolvedHostAgentConfig {
 	id: string;
@@ -395,7 +395,7 @@ async function runTerminalAgent(
 	});
 
 	if ("error" in result) {
-		throw toTerminalIoError(result.error);
+		throw toTerminalSessionError(result);
 	}
 
 	return {

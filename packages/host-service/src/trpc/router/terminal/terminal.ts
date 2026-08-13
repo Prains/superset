@@ -17,7 +17,7 @@ import {
 } from "../../../terminal/terminal";
 import type { HostServiceContext } from "../../../types";
 import { protectedProcedure, router } from "../../index";
-import { toTerminalIoError } from "./errors";
+import { toTerminalSessionError } from "./errors";
 
 const createSessionInputSchema = z.object({
 	workspaceId: z.string(),
@@ -50,7 +50,7 @@ async function createTerminalSessionFromInput({
 	});
 
 	if ("error" in result) {
-		throw toTerminalIoError(result.error);
+		throw toTerminalSessionError(result);
 	}
 
 	return {
@@ -154,10 +154,7 @@ export const terminalRouter = router({
 		.mutation(({ input }) => {
 			const result = writeInputToSession(input);
 			if ("error" in result) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: result.error,
-				});
+				throw toTerminalSessionError(result);
 			}
 			return { success: true as const };
 		}),
@@ -181,7 +178,7 @@ export const terminalRouter = router({
 				eventBus: ctx.eventBus,
 			});
 			if ("error" in result) {
-				throw toTerminalIoError(result.error);
+				throw toTerminalSessionError(result);
 			}
 			return { terminalId: input.terminalId, submitted: input.submit };
 		}),
@@ -203,7 +200,7 @@ export const terminalRouter = router({
 				eventBus: ctx.eventBus,
 			});
 			if ("error" in result) {
-				throw toTerminalIoError(result.error);
+				throw toTerminalSessionError(result);
 			}
 			const { success: _success, ...snapshot } = result;
 			return { terminalId: input.terminalId, ...snapshot };
