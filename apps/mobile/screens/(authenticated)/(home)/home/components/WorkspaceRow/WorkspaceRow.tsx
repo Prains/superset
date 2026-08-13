@@ -1,6 +1,7 @@
 import type { SelectGithubPullRequest } from "@superset/db/schema";
 import { useRouter } from "expo-router";
 import {
+	FolderGit2,
 	GitMerge,
 	GitPullRequest,
 	GitPullRequestClosed,
@@ -18,6 +19,7 @@ import type {
 import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 import { AgentMark } from "@/screens/(authenticated)/(home)/new-session/agent";
+import { AsciiSpinner } from "@/screens/(authenticated)/components/AsciiSpinner";
 import { PingDot } from "@/screens/(authenticated)/components/PingDot";
 import type { TerminalRowData } from "../../hooks/useHostTerminals";
 import type { DiffStats } from "../../hooks/useVisibleDiffStats";
@@ -76,32 +78,44 @@ export function WorkspaceRow({
 					router.push(`/(authenticated)/workspace/${workspace.id}`)
 				}
 			>
-				{prIcon && pullRequest ? (
-					<Button
-						accessibilityLabel={`Pull request #${pullRequest.prNumber}`}
-						variant="ghost"
-						size="icon"
-						className="size-6"
-						hitSlop={8}
-						onPress={() =>
-							router.push(`/(authenticated)/workspace/${workspace.id}/diff`)
-						}
-					>
-						<Icon
-							as={prIcon.icon}
-							className={`size-5 ${prIcon.iconClassName}`}
-							strokeWidth={1.75}
-						/>
-					</Button>
+				{/* Desktop WorkspaceIcon semantics: working replaces the icon with
+				    the braille spinner; other statuses overlay a corner ping on the
+				    base icon (PR state when one exists, else the workspace mark). */}
+				{attention === "working" ? (
+					<View className="size-6 items-center justify-center">
+						<AsciiSpinner />
+					</View>
 				) : (
 					<View className="size-6 items-center justify-center">
-						{attention === "permission" ? (
-							<PingDot color="#ef4444" />
-						) : attention === "working" ? (
-							<PingDot color="#f59e0b" />
+						{prIcon && pullRequest ? (
+							<Button
+								accessibilityLabel={`Pull request #${pullRequest.prNumber}`}
+								variant="ghost"
+								size="icon"
+								className="size-6"
+								hitSlop={8}
+								onPress={() =>
+									router.push(`/(authenticated)/workspace/${workspace.id}/diff`)
+								}
+							>
+								<Icon
+									as={prIcon.icon}
+									className={`size-5 ${prIcon.iconClassName}`}
+									strokeWidth={1.75}
+								/>
+							</Button>
 						) : (
-							<View className="bg-muted-foreground/40 size-2.5 rounded-full" />
+							<Icon
+								as={FolderGit2}
+								className="text-muted-foreground/80 size-4.5"
+								strokeWidth={1.75}
+							/>
 						)}
+						{attention === "permission" ? (
+							<View className="absolute -right-0.5 -top-0.5">
+								<PingDot color="#eab308" size={7} />
+							</View>
+						) : null}
 					</View>
 				)}
 				<View className="flex-1">
