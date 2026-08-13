@@ -5,7 +5,7 @@ import {
 	parseSettingValue,
 	writeSettingValue,
 } from "../../../lib/settings";
-import { HOST_EFFECT, LOCAL_DB_EFFECT } from "../notes";
+import { HOST_EFFECT, LOCAL_DB_EFFECT, RINGTONE_EFFECT } from "../notes";
 
 export default command({
 	description: "Set a desktop app setting",
@@ -18,7 +18,12 @@ export default command({
 		const def = getSettingDefinition(args.key as string);
 		const value = parseSettingValue(def, args.value as string);
 		await writeSettingValue(def, value);
-		const effect = def.store === "hostService" ? HOST_EFFECT : LOCAL_DB_EFFECT;
+		const effect =
+			def.store === "hostService"
+				? HOST_EFFECT
+				: def.key === "selectedRingtoneId"
+					? RINGTONE_EFFECT
+					: LOCAL_DB_EFFECT;
 		return {
 			data: { key: def.key, value },
 			message: `Set ${def.key} = ${String(value)}. ${effect}`,

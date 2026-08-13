@@ -132,6 +132,29 @@ describe("custom themes", () => {
 		expect(state.customThemes[0]?.ui.ring).toBe("#222");
 	});
 
+	test("import stamps themes as custom (UI groups by isCustom)", () => {
+		writeAppState({ themeState: { activeThemeId: "dark", customThemes: [] } });
+		const file = join(homeDir, "t.json");
+		writeFileSync(file, JSON.stringify({ id: "mine", ui: {} }));
+		const { imported } = importThemes(file);
+		expect(imported[0]?.isCustom).toBeUndefined(); // parser output untouched
+		const stored = readThemeState().customThemes[0];
+		expect(stored?.isCustom).toBe(true);
+		expect(stored?.isBuiltIn).toBe(false);
+	});
+
+	test("malformed custom-theme entries are dropped, arrays rejected as state", () => {
+		writeAppState({
+			themeState: {
+				activeThemeId: "dark",
+				customThemes: [null, "junk", { name: "no id" }, { id: "ok", ui: {} }],
+			},
+		});
+		expect(readThemeState().customThemes.map((t) => t.id)).toEqual(["ok"]);
+		writeFileSync(join(homeDir, "app-state.json"), "[1,2,3]");
+		expect(() => readThemeState()).toThrow(/not a JSON object/);
+	});
+
 	test("import rejects reserved ids and invalid files", () => {
 		writeAppState({ themeState: { activeThemeId: "dark", customThemes: [] } });
 		const file = join(homeDir, "bad.json");

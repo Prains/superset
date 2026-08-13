@@ -392,6 +392,9 @@ export function parseSettingValue(
 			return raw;
 		}
 		case "number": {
+			if (raw.trim() === "") {
+				throw new CLIError(`${def.key} expects a number, got ""`);
+			}
 			const value = Number(raw);
 			if (!Number.isFinite(value)) {
 				throw new CLIError(`${def.key} expects a number, got "${raw}"`);

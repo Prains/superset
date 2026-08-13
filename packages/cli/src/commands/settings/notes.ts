@@ -7,3 +7,6 @@ export const HOST_EFFECT =
 
 export const THEME_EFFECT =
 	"Restart the Superset desktop app to apply. Quit it first if it's running — otherwise the app may overwrite this change.";
+
+export const RINGTONE_EFFECT =
+	"The new sound plays immediately; the selection shown in Settings → Notifications updates after the next app restart.";

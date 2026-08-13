@@ -54,13 +54,16 @@ export default command({
 		}
 
 		const next = writeThemeState(patch);
+		const summary = patch.activeThemeId
+			? `Theme set to ${next.activeThemeId}.`
+			: `Updated system theme mappings (light: ${next.systemLightThemeId}, dark: ${next.systemDarkThemeId}).`;
 		return {
 			data: {
 				activeThemeId: next.activeThemeId,
 				systemLightThemeId: next.systemLightThemeId,
 				systemDarkThemeId: next.systemDarkThemeId,
 			},
-			message: `Theme set to ${next.activeThemeId}. ${THEME_EFFECT}`,
+			message: `${summary} ${THEME_EFFECT}`,
 		};
 	},
 });

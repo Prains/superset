@@ -56,7 +56,7 @@ function readAppState(): AppState {
 			"The desktop app rewrites it on next launch; retry after opening the app.",
 		);
 	}
-	if (typeof parsed !== "object" || parsed === null) {
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
 		throw new CLIError(`Superset app state at ${path} is not a JSON object`);
 	}
 	return parsed as AppState;
@@ -68,7 +68,12 @@ export function readThemeState(): ThemeState {
 		...DEFAULT_THEME_STATE,
 		...state,
 		customThemes: Array.isArray(state?.customThemes)
-			? (state.customThemes as Theme[])
+			? (state.customThemes as Theme[]).filter(
+					(theme) =>
+						typeof theme === "object" &&
+						theme !== null &&
+						typeof theme.id === "string",
+				)
 			: [],
 	};
 }
@@ -177,7 +182,13 @@ export function importThemes(filePath: string): {
 	const importedIds = new Set(result.themes.map((theme) => theme.id));
 	const customThemes = [
 		...state.customThemes.filter((theme) => !importedIds.has(theme.id)),
-		...result.themes,
+		// same stamp the desktop store applies on UI imports; the Appearance
+		// dropdown groups themes by isCustom
+		...result.themes.map((theme) => ({
+			...theme,
+			isCustom: true,
+			isBuiltIn: false,
+		})),
 	];
 	const themeState = writeThemeState({ customThemes });
 	return { imported: result.themes, issues: result.issues, themeState };

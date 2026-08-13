@@ -50,6 +50,8 @@ describe("settings registry", () => {
 			expect(() => parseSettingValue(def, "101")).toThrow(/between/);
 			expect(() => parseSettingValue(def, "1.5")).toThrow(/integer/);
 			expect(() => parseSettingValue(def, "loud")).toThrow(/number/);
+			expect(() => parseSettingValue(def, "")).toThrow(/number/);
+			expect(() => parseSettingValue(def, "  ")).toThrow(/number/);
 		});
 
 		test("font sizes enforce half steps", () => {
