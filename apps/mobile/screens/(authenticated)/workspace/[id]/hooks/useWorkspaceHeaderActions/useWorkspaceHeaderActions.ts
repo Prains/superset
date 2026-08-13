@@ -10,6 +10,7 @@ import {
 	getHostServiceClientByUrl,
 } from "@/lib/host-service/client";
 import { isTrpcErrorWithData } from "@/lib/host-service/errors";
+import { workspaceShareUrl } from "@/lib/web-links";
 
 export function useWorkspaceHeaderActions(
 	workspace: HostWorkspaceRow | null,
@@ -113,7 +114,7 @@ export function useWorkspaceHeaderActions(
 	const shareWorkspace = () => {
 		if (!workspace) return;
 		void Share.share({
-			url: `https://app.superset.sh/workspaces/${workspace.id}`,
+			url: workspaceShareUrl(workspace.id),
 		});
 	};
 
