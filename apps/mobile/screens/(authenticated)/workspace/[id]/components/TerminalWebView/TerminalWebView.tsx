@@ -139,6 +139,18 @@ export const TerminalWebView = forwardRef<
 		return () => subscription.remove();
 	}, [postToPage]);
 
+	// Tab switches swap sessions inside the live page instead of remounting
+	// the WebView — a remount pays the 400KB xterm parse and two cold TLS
+	// handshakes on every switch; a switch reuses the warm connection pool.
+	// If the page isn't booted yet the message is lost harmlessly: its first
+	// dial request signs whatever terminalId is current.
+	const mountedTerminalId = useRef(terminalId);
+	useEffect(() => {
+		if (mountedTerminalId.current === terminalId) return;
+		mountedTerminalId.current = terminalId;
+		postToPage({ type: "switch" });
+	}, [terminalId, postToPage]);
+
 	useImperativeHandle(
 		ref,
 		() => ({

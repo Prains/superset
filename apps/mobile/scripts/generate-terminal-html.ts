@@ -121,38 +121,46 @@ const runtimeJs = /* js */ `
 		}
 	}
 
+	// Bumped on every in-page session switch; stale async work (dial chains,
+	// socket handlers, reconnect timers) bails when its generation is behind.
+	var generation = 0;
+
 	function connect() {
 		if (terminated) return;
+		var gen = generation;
 		setState(everAttached ? "reconnecting" : "connecting");
 		requestDialUrl()
 			.then(function (url) {
+				if (gen !== generation || terminated) return;
 				return primeAffinity(url).then(function (status) {
+					if (gen !== generation || terminated) return;
 					if (status === 403) {
 						terminated = true;
 						setState("denied");
 						return;
 					}
-					openSocket(url);
+					openSocket(url, gen);
 				});
 			})
 			.catch(function () {
-				scheduleReconnect();
+				scheduleReconnect(gen);
 			});
 	}
 
-	function openSocket(url) {
-		if (terminated) return;
+	function openSocket(url, gen) {
+		if (terminated || gen !== generation) return;
 		var socket;
 		try {
 			socket = new WebSocket(url);
 		} catch (error) {
-			scheduleReconnect();
+			scheduleReconnect(gen);
 			return;
 		}
 		socket.binaryType = "arraybuffer";
 		ws = socket;
 
 		socket.onmessage = function (event) {
+			if (gen !== generation) return;
 			if (event.data instanceof ArrayBuffer) {
 				hasReceivedBytes = true;
 				term.write(new Uint8Array(event.data));
@@ -181,16 +189,17 @@ const runtimeJs = /* js */ `
 
 		socket.onclose = function () {
 			if (ws === socket) ws = null;
+			if (gen !== generation) return;
 			if (terminated) {
 				setState("ended");
 				return;
 			}
-			scheduleReconnect();
+			scheduleReconnect(gen);
 		};
 	}
 
-	function scheduleReconnect() {
-		if (terminated) return;
+	function scheduleReconnect(gen) {
+		if (terminated || gen !== generation) return;
 		attempts += 1;
 		if (attempts >= MAX_RECONNECT_ATTEMPTS) {
 			setState("error");
@@ -258,6 +267,25 @@ const runtimeJs = /* js */ `
 			attempts = 0;
 			clearTimeout(reconnectTimer);
 			if (!ws || ws.readyState === 3) connect();
+		} else if (message.type === "switch") {
+			// In-page session switch: the WebView (and its warm TLS pool) stays
+			// alive; only the socket and buffer turn over. The next dial request
+			// is signed RN-side with the new terminalId.
+			generation += 1;
+			terminated = false;
+			attempts = 0;
+			everAttached = false;
+			hasReceivedBytes = false;
+			clearTimeout(reconnectTimer);
+			if (ws) {
+				var oldSocket = ws;
+				ws = null;
+				try {
+					oldSocket.close();
+				} catch (error) {}
+			}
+			term.reset();
+			connect();
 		} else if (message.type === "focus") {
 			term.focus();
 		}

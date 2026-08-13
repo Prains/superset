@@ -253,7 +253,6 @@ export function WorkspaceScreen() {
 			>
 				{activeTerminalId && routingKey && id ? (
 					<TerminalWebView
-						key={activeTerminalId}
 						ref={terminalRef}
 						workspaceId={id}
 						terminalId={activeTerminalId}
