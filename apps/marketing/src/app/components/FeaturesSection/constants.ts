@@ -7,9 +7,9 @@ export interface Feature {
 export const FEATURES: Feature[] = [
 	{
 		tag: "Parallel Execution",
-		title: "Run dozens of agents at once",
+		title: "Run 100+ agents without losing track",
 		description:
-			"Launch multiple AI coding agents across different tasks. Work on features, fix bugs, and refactor code, all in parallel.",
+			"Launch agents across features, bug fixes, and refactors, all in parallel. Status at a glance shows which agents are working, which are blocked, and which are waiting on you.",
 	},
 	{
 		tag: "Universal Compatibility",
