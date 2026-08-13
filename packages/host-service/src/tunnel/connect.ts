@@ -112,7 +112,9 @@ export async function connectRelay(
 				`[host-service] failed to register/connect relay (retrying in ${Math.round(delay / 1000)}s):`,
 				error,
 			);
-			await new Promise((resolve) => setTimeout(resolve, delay));
+			// unref: the HTTP server keeps the process alive between retries;
+			// this timer must not stall shutdown once the server closes.
+			await new Promise((resolve) => setTimeout(resolve, delay).unref());
 		}
 	}
 }
