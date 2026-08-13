@@ -297,7 +297,7 @@ export function NewChatWidget({
 			<Image
 				systemName="plus"
 				size={16}
-				modifiers={[frame({ width: 12, height: 12 })]}
+				modifiers={[frame({ width: 16, height: 16 })]}
 			/>
 		</Button>
 	);
@@ -320,7 +320,7 @@ export function NewChatWidget({
 				systemName="arrow.up"
 				size={16}
 				color="#1c1c1e"
-				modifiers={[frame({ width: 12, height: 12 })]}
+				modifiers={[frame({ width: 16, height: 16 })]}
 			/>
 		</Button>
 	);

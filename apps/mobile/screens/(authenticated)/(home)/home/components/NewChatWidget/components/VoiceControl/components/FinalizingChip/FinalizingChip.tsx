@@ -17,7 +17,7 @@ export function FinalizingChip() {
 				tint(FOREGROUND),
 			]}
 		>
-			<ProgressView modifiers={[frame({ width: 12, height: 12 })]} />
+			<ProgressView modifiers={[frame({ width: 16, height: 16 })]} />
 		</Button>
 	);
 }
