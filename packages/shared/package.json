@@ -32,6 +32,14 @@
 			"types": "./src/media-files.ts",
 			"default": "./src/media-files.ts"
 		},
+		"./ringtones": {
+			"types": "./src/ringtones.ts",
+			"default": "./src/ringtones.ts"
+		},
+		"./settings-constraints": {
+			"types": "./src/settings-constraints.ts",
+			"default": "./src/settings-constraints.ts"
+		},
 		"./themes": {
 			"types": "./src/themes/index.ts",
 			"default": "./src/themes/index.ts"

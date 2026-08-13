@@ -7,6 +7,18 @@ import {
 	NON_EDITOR_APPS,
 	TERMINAL_LINK_BEHAVIORS,
 } from "@superset/local-db/schema/zod";
+import { RINGTONES } from "@superset/shared/ringtones";
+import {
+	FONT_FAMILY_MAX_LENGTH,
+	FONT_SIZE_LIMITS,
+	FONT_WEIGHT_LIMITS,
+	LETTER_SPACING_LIMITS,
+	LINE_HEIGHT_LIMITS,
+	NOTIFICATION_VOLUME_LIMITS,
+	TERMINAL_CURSOR_STYLES,
+	TERMINAL_MINIMUM_CONTRAST_CHOICES,
+	TERMINAL_PARKED_RUNTIME_CAP_LIMITS,
+} from "@superset/shared/settings-constraints";
 
 export type SettingValue = string | number | boolean;
 
@@ -40,26 +52,13 @@ const EDITOR_APPS = EXTERNAL_APPS.filter(
 	(app) => !NON_EDITOR_APPS.includes(app),
 );
 
-// Mirrors the built-in list in apps/desktop/src/shared/ringtones.ts. The
-// "custom" ringtone is excluded: it requires a file uploaded through the app.
-const RINGTONE_IDS = [
-	"shamisen",
-	"arcade",
-	"ping",
-	"quick",
-	"doowap",
-	"woman",
-	"african",
-	"afrobeat",
-	"edm",
-	"comeback",
-	"shabala",
-] as const;
+// The "custom" ringtone is excluded: it requires a file uploaded through the app.
+const RINGTONE_IDS = RINGTONES.map((ringtone) => ringtone.id);
 
-const FONT_SIZE = { min: 10, max: 24, step: 0.5 } as const;
-const LINE_HEIGHT = { min: 1, max: 2.5, step: 0.1 } as const;
-const LETTER_SPACING = { min: -2, max: 4, step: 0.1 } as const;
-const FONT_WEIGHT = { min: 100, max: 900, step: 100, integer: true } as const;
+const FONT_SIZE = FONT_SIZE_LIMITS;
+const LINE_HEIGHT = LINE_HEIGHT_LIMITS;
+const LETTER_SPACING = LETTER_SPACING_LIMITS;
+const FONT_WEIGHT = { ...FONT_WEIGHT_LIMITS, integer: true };
 
 export const SETTINGS: SettingDefinition[] = [
 	// Behavior
@@ -148,8 +147,7 @@ export const SETTINGS: SettingDefinition[] = [
 		key: "notificationVolume",
 		type: "number",
 		section: "notifications",
-		min: 0,
-		max: 100,
+		...NOTIFICATION_VOLUME_LIMITS,
 		integer: true,
 		description: "Notification volume (0-100)",
 		defaultValue: 100,
@@ -174,8 +172,7 @@ export const SETTINGS: SettingDefinition[] = [
 		key: "terminalParkedRuntimeCap",
 		type: "number",
 		section: "terminal",
-		min: 2,
-		max: 64,
+		...TERMINAL_PARKED_RUNTIME_CAP_LIMITS,
 		integer: true,
 		description: "Max number of background terminals kept running",
 		defaultValue: 12,
@@ -213,7 +210,7 @@ export const SETTINGS: SettingDefinition[] = [
 		key: "terminalFontFamily",
 		type: "string",
 		section: "terminal appearance",
-		maxLength: 500,
+		maxLength: FONT_FAMILY_MAX_LENGTH,
 		description: "Terminal font family (unset = app default)",
 		defaultValue: null,
 	},
@@ -260,7 +257,7 @@ export const SETTINGS: SettingDefinition[] = [
 		key: "terminalMinimumContrast",
 		type: "number",
 		section: "terminal appearance",
-		numberChoices: [1, 3, 4.5, 7],
+		numberChoices: TERMINAL_MINIMUM_CONTRAST_CHOICES,
 		description: "Minimum terminal color contrast ratio (1, 3, 4.5, or 7)",
 		defaultValue: 1,
 	},
@@ -268,7 +265,7 @@ export const SETTINGS: SettingDefinition[] = [
 		key: "terminalCursorStyle",
 		type: "enum",
 		section: "terminal appearance",
-		enumValues: ["block", "bar", "underline"],
+		enumValues: TERMINAL_CURSOR_STYLES,
 		description: "Terminal cursor style",
 		defaultValue: "block",
 	},
@@ -284,7 +281,7 @@ export const SETTINGS: SettingDefinition[] = [
 		key: "editorFontFamily",
 		type: "string",
 		section: "editor appearance",
-		maxLength: 500,
+		maxLength: FONT_FAMILY_MAX_LENGTH,
 		description: "File editor font family (unset = app default)",
 		defaultValue: null,
 	},
@@ -328,6 +325,25 @@ export const SETTINGS: SettingDefinition[] = [
 		defaultValue: true,
 	},
 ];
+
+/**
+ * settings-table columns deliberately NOT exposed by the CLI, with the reason.
+ * The registry coverage test asserts every column is either in SETTINGS or
+ * here — a new desktop column fails the test until someone decides.
+ */
+export const EXCLUDED_SETTINGS_COLUMNS: Record<string, string> = {
+	lastActiveWorkspaceId: "internal navigation state, not a preference",
+	activeOrganizationId: "internal session state, managed by sign-in",
+	terminalPresets: "structured JSON; use the app UI or superset agents",
+	terminalPresetsInitialized: "internal seeding flag",
+	agentPresetOverrides: "structured JSON; use superset agents",
+	agentCustomDefinitions: "structured JSON; use superset agents",
+	agentPresetPermissionsMigratedAt: "internal migration marker",
+	disabledAgentHooks: "agent-id list; use the app UI",
+	deleteLocalBranch: "v2 reads renderer localStorage, unreachable externally",
+	exposeHostServiceViaRelay:
+		"security-sensitive; app gates it behind plan check + confirm dialog",
+};
 
 export function getSettingDefinition(key: string): SettingDefinition {
 	const def = SETTINGS.find((setting) => setting.key === key);
