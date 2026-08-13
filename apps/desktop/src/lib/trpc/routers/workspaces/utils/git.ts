@@ -1495,45 +1495,56 @@ export async function listBranches(
  * @param repoPath - Path to the repository
  * @returns The current branch name, or null if in detached HEAD state
  */
+export type CurrentBranch =
+	| { kind: "branch"; branch: string }
+	| { kind: "detached" };
+
+/**
+ * Reads HEAD, distinguishing a genuinely detached HEAD from a repository we
+ * cannot read at all. Real git failures (not a repository, permission wall,
+ * git missing) propagate rather than collapsing into "detached", so they
+ * stay visible instead of being reported to the user as a HEAD problem.
+ */
+export async function readCurrentBranch(
+	repoPath: string,
+): Promise<CurrentBranch> {
+	const git = await getSimpleGitWithShellPath(repoPath);
+
+	let revparseError: unknown;
+	try {
+		const trimmed = (await git.revparse(["--abbrev-ref", "HEAD"])).trim();
+		if (trimmed && trimmed !== "HEAD") {
+			return { kind: "branch", branch: trimmed };
+		}
+	} catch (error) {
+		// An unborn HEAD (fresh repo, no commits) fails here but still
+		// resolves through symbolic-ref below, so hold the error rather than
+		// giving up on it.
+		revparseError = error;
+	}
+
+	try {
+		const trimmed = (await git.raw(["symbolic-ref", "--short", "HEAD"])).trim();
+		if (trimmed) return { kind: "branch", branch: trimmed };
+	} catch {
+		// symbolic-ref fails on a detached HEAD, which is only meaningful if
+		// revparse got far enough to tell us HEAD is readable. If it did not,
+		// the repository itself is the problem and that error is the real one.
+		if (revparseError) throw revparseError;
+	}
+
+	return { kind: "detached" };
+}
+
 export async function getCurrentBranch(
 	repoPath: string,
 ): Promise<string | null> {
-	const git = await getSimpleGitWithShellPath(repoPath);
 	try {
-		const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
-		const trimmed = branch.trim();
-		if (trimmed && trimmed !== "HEAD") {
-			return trimmed;
-		}
-	} catch {
-		// Fall back to symbolic-ref below for unborn HEAD repos.
-	}
-
-	try {
-		const branch = await git.raw(["symbolic-ref", "--short", "HEAD"]);
-		const trimmed = branch.trim();
-		return trimmed || null;
+		const head = await readCurrentBranch(repoPath);
+		return head.kind === "branch" ? head.branch : null;
 	} catch {
 		return null;
 	}
-}
-
-/**
- * Whether HEAD is genuinely detached, as opposed to unreadable.
- *
- * `getCurrentBranch` collapses "detached HEAD" and "this git call failed"
- * into the same `null`, so callers that want to blame the user's HEAD state
- * must confirm it first — otherwise a missing repo, a permission wall or a
- * missing git binary all get reported to the user as a detached HEAD, and
- * the underlying failure stops being visible.
- *
- * Throws the underlying git error when the repository cannot be read at all,
- * so genuine breakage keeps surfacing instead of being reclassified.
- */
-export async function isDetachedHead(repoPath: string): Promise<boolean> {
-	const git = await getSimpleGitWithShellPath(repoPath);
-	const head = await git.revparse(["--abbrev-ref", "HEAD"]);
-	return head.trim() === "HEAD";
 }
 
 /**
