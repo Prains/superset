@@ -34,6 +34,7 @@ import {
 } from "@superset/shared/agent-settings";
 import { NOTIFICATION_VOLUME_LIMITS } from "@superset/shared/settings-constraints";
 import { TRPCError } from "@trpc/server";
+import { getTableColumns, sql } from "drizzle-orm";
 import { app } from "electron";
 import { env } from "main/env.main";
 import { exitImmediately } from "main/index";
@@ -97,12 +98,65 @@ function isValidRingtoneId(ringtoneId: string): boolean {
 	return false;
 }
 
-function getSettings() {
-	let row = localDb.select().from(settings).get();
-	if (!row) {
-		row = localDb.insert(settings).values({ id: 1 }).returning().get();
+let reportedSettingsSchemaSkew = false;
+
+/**
+ * A local.db written by a newer build can be missing columns this build's
+ * drizzle schema selects, and `select()` emits an explicit column list — so
+ * one unknown column fails every settings read, not just the one that wants
+ * it. Re-read with `select *` and map only the columns that exist, so schema
+ * skew degrades to defaults for the missing settings instead of taking out
+ * unrelated startup queries. Narrow on purpose: any other SQLite error, and
+ * any skew on the insert path, still throws.
+ */
+function readSettingsRowIgnoringMissingColumns() {
+	const rawRow = localDb
+		.all<Record<string, unknown>>(sql`select * from settings limit 1`)
+		.at(0);
+	if (!rawRow) return undefined;
+
+	const row: Record<string, unknown> = {};
+	for (const [field, column] of Object.entries(getTableColumns(settings))) {
+		const value = rawRow[column.name];
+		row[field] =
+			value === undefined || value === null
+				? null
+				: column.mapFromDriverValue(value);
 	}
-	return row;
+	return row as typeof settings.$inferSelect;
+}
+
+function reportSettingsSchemaSkew(error: unknown) {
+	if (reportedSettingsSchemaSkew) return;
+	reportedSettingsSchemaSkew = true;
+
+	console.error("[settings] local.db schema is ahead of this build:", error);
+	void import("@sentry/electron/main")
+		.then((Sentry) =>
+			Sentry.captureException(error, {
+				tags: { settings_schema_skew: "true" },
+				extra: { appVersion: app.getVersion() },
+			}),
+		)
+		.catch(() => {});
+}
+
+function getSettings() {
+	try {
+		let row = localDb.select().from(settings).get();
+		if (!row) {
+			row = localDb.insert(settings).values({ id: 1 }).returning().get();
+		}
+		return row;
+	} catch (error) {
+		if (!(error instanceof Error) || !/no such column/i.test(error.message)) {
+			throw error;
+		}
+		const row = readSettingsRowIgnoringMissingColumns();
+		if (!row) throw error;
+		reportSettingsSchemaSkew(error);
+		return row;
+	}
 }
 
 function readRawTerminalPresets(): PresetWithUnknownMode[] {
