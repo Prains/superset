@@ -23,6 +23,10 @@
 		"./factory-dispatch": {
 			"types": "./src/router/factory/dispatch.ts",
 			"default": "./src/router/factory/dispatch.ts"
+		},
+		"./factory-sweep": {
+			"types": "./src/router/factory/sweep.ts",
+			"default": "./src/router/factory/sweep.ts"
 		}
 	},
 	"scripts": {

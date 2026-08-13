@@ -15,6 +15,7 @@ import {
 	desc,
 	eq,
 	gte,
+	inArray,
 	isNotNull,
 	isNull,
 	max,
@@ -33,6 +34,7 @@ import {
 	gatherFlawedRuns,
 	proposePromptForImproveRun,
 } from "./improve";
+import { dispatchStageQueued } from "./queue";
 import {
 	createFactorySchema,
 	intakeSchema,
@@ -50,6 +52,7 @@ import {
 	isAgentStage,
 	STAGE_FLOW,
 } from "./stages";
+import { sweepFactory } from "./sweep";
 import { mirrorStageToTask } from "./tasks-mirror";
 
 async function verifyHostAccess(
@@ -261,10 +264,45 @@ export const factoryRouter = {
 				})
 				.returning({ id: factoryItems.id });
 
+			// autoAdvance factories start classifying immediately; the sweep
+			// covers anything beyond the first few.
+			if (factory.autoAdvance && inserted.length > 0) {
+				const fresh = await db
+					.select()
+					.from(factoryItems)
+					.where(
+						inArray(
+							factoryItems.id,
+							inserted.slice(0, 3).map((row) => row.id),
+						),
+					);
+				for (const item of fresh) {
+					await dispatchStageQueued({
+						factory,
+						item,
+						stage: "classify",
+						expectedRevision: item.revision,
+					});
+				}
+			}
+
 			return {
 				created: inserted.length,
 				skipped: input.issues.length - inserted.length,
 			};
+		}),
+
+	/**
+	 * Manual heartbeat: expire stale runs and (with autoAdvance) dispatch
+	 * anything runnable — same logic the cron runs, callable from the UI
+	 * and dev setups without QStash.
+	 */
+	sweepNow: protectedProcedure
+		.input(z.object({ factoryId: z.string().uuid() }))
+		.mutation(async ({ ctx, input }) => {
+			const organizationId = await requireActiveOrgMembership(ctx);
+			const factory = await getFactoryForOrg(organizationId, input.factoryId);
+			return sweepFactory(factory);
 		}),
 
 	/** Dispatch a stage agent for an item (phase 1's "Run" button). */
