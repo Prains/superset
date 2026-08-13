@@ -49,6 +49,7 @@
 		"db:push": "bun run --cwd packages/db push",
 		"db:migrate": "bun run --cwd packages/db migrate",
 		"db:seed-dev": "NODE_ENV=development bun run packages/auth/src/seed-dev.ts",
+		"db:seed-review": "bun run packages/auth/src/seed-review-account.ts",
 		"db:generate:desktop": "bun run --cwd packages/local-db generate"
 	},
 	"type": "module",
@@ -75,5 +76,8 @@
 		"sharp",
 		"utf-8-validate",
 		"workerd"
-	]
+	],
+	"patchedDependencies": {
+		"@xterm/addon-webgl@0.20.0-beta.297": "patches/@xterm%2Faddon-webgl@0.20.0-beta.297.patch"
+	}
 }
