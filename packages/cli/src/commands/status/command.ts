@@ -17,14 +17,13 @@ async function checkHealth(
 	endpoint: string,
 	authToken: string,
 ): Promise<HealthResult> {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), 2_000);
 	try {
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 2_000);
 		const res = await fetch(`${endpoint}/trpc/health.check`, {
 			signal: controller.signal,
 			headers: { Authorization: `Bearer ${authToken}` },
 		});
-		clearTimeout(timeout);
 		if (!res.ok) return { healthy: false };
 		const body = (await res.json()) as {
 			result?: { data?: { json?: Record<string, unknown> } };
@@ -43,6 +42,8 @@ async function checkHealth(
 		};
 	} catch {
 		return { healthy: false };
+	} finally {
+		clearTimeout(timeout);
 	}
 }
 
