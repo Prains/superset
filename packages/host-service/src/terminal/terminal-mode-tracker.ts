@@ -24,6 +24,9 @@ export interface ModeTracker {
 	resize(cols: number, rows: number): void;
 	buildPreamble(): Uint8Array | null;
 	isBracketedPasteActive(): boolean;
+	isFocusReportingActive(): boolean;
+	/** Current cursor position on the mirrored screen, 0-based viewport coords. */
+	cursorPosition(): { x: number; y: number };
 	snapshot(maxLines?: number): TerminalSnapshot;
 	dispose(): void;
 }
@@ -153,6 +156,13 @@ export function createModeTracker(cols: number, rows: number): ModeTracker {
 		buildPreamble,
 		isBracketedPasteActive() {
 			return term.modes.bracketedPasteMode;
+		},
+		isFocusReportingActive() {
+			return term.modes.sendFocusMode;
+		},
+		cursorPosition() {
+			const buffer = term.buffer.active;
+			return { x: buffer.cursorX, y: buffer.cursorY };
 		},
 		snapshot,
 		dispose() {

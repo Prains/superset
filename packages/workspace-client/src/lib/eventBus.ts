@@ -16,6 +16,7 @@ type EventType =
 	| "terminal:lifecycle"
 	| "port:changed"
 	| "workspace:changed"
+	| "workspace:create-settled"
 	| "project:changed";
 
 interface FsEventsPayload {
@@ -71,6 +72,16 @@ export interface WorkspaceChangedPayload {
 	occurredAt: number;
 }
 
+type WorkspaceCreateSettledMessage = Extract<
+	ServerMessage,
+	{ type: "workspace:create-settled" }
+>;
+
+export type WorkspaceCreateSettledPayload = Omit<
+	WorkspaceCreateSettledMessage,
+	"type" | "workspaceId"
+>;
+
 type ProjectChangedMessage = Extract<
 	ServerMessage,
 	{ type: "project:changed" }
@@ -99,9 +110,14 @@ type EventListener<T extends EventType> = T extends "fs:events"
 					? (workspaceId: string, payload: PortChangedPayload) => void
 					: T extends "workspace:changed"
 						? (workspaceId: string, payload: WorkspaceChangedPayload) => void
-						: T extends "project:changed"
-							? (projectId: string, payload: ProjectChangedPayload) => void
-							: never;
+						: T extends "workspace:create-settled"
+							? (
+									workspaceId: string,
+									payload: WorkspaceCreateSettledPayload,
+								) => void
+							: T extends "project:changed"
+								? (projectId: string, payload: ProjectChangedPayload) => void
+								: never;
 
 interface ListenerEntry {
 	type: EventType;
@@ -121,6 +137,12 @@ interface ConnectionState {
 	refCount: number;
 	listeners: Set<ListenerEntry>;
 	fsWatchedWorkspaces: Map<string, number>;
+	/** Refcounted per-file watches, keyed `${workspaceId}\0${absolutePath}`. */
+	fsWatchedFiles: Map<string, number>;
+}
+
+function fileWatchKey(workspaceId: string, absolutePath: string): string {
+	return `${workspaceId}\0${absolutePath}`;
 }
 
 const connections = new Map<string, ConnectionState>();
@@ -157,7 +179,8 @@ function handleMessage(state: ConnectionState, data: unknown): void {
 			message.type === "agent:lifecycle" ||
 			message.type === "terminal:lifecycle" ||
 			message.type === "port:changed" ||
-			message.type === "workspace:changed"
+			message.type === "workspace:changed" ||
+			message.type === "workspace:create-settled"
 				? message.workspaceId
 				: message.type === "project:changed"
 					? message.projectId
@@ -216,6 +239,12 @@ function handleMessage(state: ConnectionState, data: unknown): void {
 					occurredAt: message.occurredAt,
 				},
 			);
+		} else if (message.type === "workspace:create-settled") {
+			const { type: _type, workspaceId: _workspaceId, ...payload } = message;
+			(entry.callback as EventListener<"workspace:create-settled">)(
+				message.workspaceId,
+				payload,
+			);
 		} else if (message.type === "project:changed") {
 			(entry.callback as EventListener<"project:changed">)(message.projectId, {
 				eventType: message.eventType,
@@ -252,12 +281,23 @@ function getOrCreateConnection(
 		refCount: 0,
 		listeners: new Set(),
 		fsWatchedWorkspaces: new Map(),
+		fsWatchedFiles: new Map(),
 	};
 
 	socket.addEventListener("open", () => {
 		// Re-send all active fs:watch commands
 		for (const workspaceId of state.fsWatchedWorkspaces.keys()) {
 			sendCommand(state, { type: "fs:watch", workspaceId });
+		}
+		for (const key of state.fsWatchedFiles.keys()) {
+			const [workspaceId, absolutePath] = key.split("\0");
+			if (workspaceId && absolutePath) {
+				sendCommand(state, {
+					type: "fs:watch-file",
+					workspaceId,
+					absolutePath,
+				});
+			}
 		}
 	});
 	socket.addEventListener("message", (event) => {
@@ -289,6 +329,13 @@ export interface EventBusHandle {
 	): () => void;
 	watchFs(workspaceId: string): void;
 	unwatchFs(workspaceId: string): void;
+	/**
+	 * Declare one open file so the host can install a targeted watch when the
+	 * recursive workspace watcher doesn't cover it (gitignored build dirs,
+	 * node_modules, nested repos). Events arrive as regular `fs:events`.
+	 */
+	watchFsFile(workspaceId: string, absolutePath: string): void;
+	unwatchFsFile(workspaceId: string, absolutePath: string): void;
 	retain(): () => void;
 }
 
@@ -336,6 +383,34 @@ export function getEventBus(
 				sendCommand(state, { type: "fs:unwatch", workspaceId });
 			} else {
 				state.fsWatchedWorkspaces.set(workspaceId, count - 1);
+			}
+		},
+
+		watchFsFile(workspaceId: string, absolutePath: string): void {
+			const key = fileWatchKey(workspaceId, absolutePath);
+			const count = state.fsWatchedFiles.get(key) ?? 0;
+			state.fsWatchedFiles.set(key, count + 1);
+			if (count === 0) {
+				sendCommand(state, {
+					type: "fs:watch-file",
+					workspaceId,
+					absolutePath,
+				});
+			}
+		},
+
+		unwatchFsFile(workspaceId: string, absolutePath: string): void {
+			const key = fileWatchKey(workspaceId, absolutePath);
+			const count = state.fsWatchedFiles.get(key) ?? 0;
+			if (count <= 1) {
+				state.fsWatchedFiles.delete(key);
+				sendCommand(state, {
+					type: "fs:unwatch-file",
+					workspaceId,
+					absolutePath,
+				});
+			} else {
+				state.fsWatchedFiles.set(key, count - 1);
 			}
 		},
 

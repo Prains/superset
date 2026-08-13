@@ -25,6 +25,7 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 		"src/renderer/lib/terminal/terminal-runtime.ts",
 		["terminal-buffer:*", "terminal-dims:*"],
 	],
+	["src/renderer/lib/terminal/terminal-seq-anchor.ts", ["terminal-seq:*"]],
 	[
 		"src/renderer/lib/terminal/terminal-buffer-gc.ts",
 		["terminal-buffer-persisted-at"],
@@ -78,7 +79,7 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 		["workspace-sidebar-store"],
 	],
 	[
-		"src/renderer/stores/sidebar-workspaces-collapse.ts",
+		"src/renderer/stores/sidebar-sections-collapse.ts",
 		["sidebar-workspaces-collapse"],
 	],
 	["src/renderer/stores/v2-local-override.ts", ["v2-local-override-v2"]],
@@ -156,6 +157,10 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 	],
 	[
 		"src/renderer/routes/_authenticated/_dashboard/automations/$automationId/components/PreviousRunsList/PreviousRunsList.tsx",
+		["lastViewedWorkspaceId"],
+	],
+	[
+		"src/renderer/routes/_authenticated/_dashboard/automations/components/AutomationRow/AutomationRow.tsx",
 		["lastViewedWorkspaceId"],
 	],
 	[

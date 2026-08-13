@@ -590,66 +590,6 @@ export const v2Workspaces = pgTable(
 export type InsertV2Workspace = typeof v2Workspaces.$inferInsert;
 export type SelectV2Workspace = typeof v2Workspaces.$inferSelect;
 
-export const secrets = pgTable(
-	"secrets",
-	{
-		id: uuid().primaryKey().defaultRandom(),
-		organizationId: uuid("organization_id")
-			.notNull()
-			.references(() => organizations.id, { onDelete: "cascade" }),
-		projectId: uuid("project_id")
-			.notNull()
-			.references(() => projects.id, { onDelete: "cascade" }),
-		key: text().notNull(),
-		encryptedValue: text("encrypted_value").notNull(),
-		sensitive: boolean().notNull().default(false),
-		createdByUserId: uuid("created_by_user_id").references(() => users.id, {
-			onDelete: "set null",
-		}),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-		updatedAt: timestamp("updated_at")
-			.notNull()
-			.defaultNow()
-			.$onUpdate(() => new Date()),
-	},
-	(table) => [
-		unique("secrets_project_key_unique").on(table.projectId, table.key),
-		index("secrets_project_id_idx").on(table.projectId),
-		index("secrets_organization_id_idx").on(table.organizationId),
-	],
-);
-
-export type InsertSecret = typeof secrets.$inferInsert;
-export type SelectSecret = typeof secrets.$inferSelect;
-
-export const sandboxImages = pgTable(
-	"sandbox_images",
-	{
-		id: uuid().primaryKey().defaultRandom(),
-		organizationId: uuid("organization_id")
-			.notNull()
-			.references(() => organizations.id, { onDelete: "cascade" }),
-		projectId: uuid("project_id")
-			.notNull()
-			.references(() => projects.id, { onDelete: "cascade" }),
-		setupCommands: jsonb("setup_commands").$type<string[]>().default([]),
-		baseImage: text("base_image"),
-		systemPackages: jsonb("system_packages").$type<string[]>().default([]),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-		updatedAt: timestamp("updated_at")
-			.notNull()
-			.defaultNow()
-			.$onUpdate(() => new Date()),
-	},
-	(table) => [
-		unique("sandbox_images_project_unique").on(table.projectId),
-		index("sandbox_images_organization_id_idx").on(table.organizationId),
-	],
-);
-
-export type InsertSandboxImage = typeof sandboxImages.$inferInsert;
-export type SelectSandboxImage = typeof sandboxImages.$inferSelect;
-
 export const workspaces = pgTable(
 	"workspaces",
 	{
@@ -695,9 +635,7 @@ export const chatSessions = pgTable(
 		workspaceId: uuid("workspace_id").references(() => workspaces.id, {
 			onDelete: "set null",
 		}),
-		v2WorkspaceId: uuid("v2_workspace_id").references(() => v2Workspaces.id, {
-			onDelete: "set null",
-		}),
+		v2WorkspaceId: uuid("v2_workspace_id"),
 		title: text(),
 		lastActiveAt: timestamp("last_active_at").notNull().defaultNow(),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -776,7 +714,9 @@ export const automations = pgTable(
 
 		targetHostId: text("target_host_id"),
 
-		v2ProjectId: uuid("v2_project_id").notNull(),
+		// Null = session automation: each run creates a project-less session
+		// workspace (or the pinned v2WorkspaceId is itself a session).
+		v2ProjectId: uuid("v2_project_id"),
 		v2WorkspaceId: uuid("v2_workspace_id"),
 
 		rrule: text().notNull(),
