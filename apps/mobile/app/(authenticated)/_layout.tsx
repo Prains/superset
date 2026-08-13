@@ -131,7 +131,8 @@ export default function AuthenticatedLayout() {
 						presentation: "formSheet",
 						sheetAllowedDetents: [0.5],
 						sheetGrabberVisible: true,
-						headerShown: false,
+						...glassHeaderOptions,
+						title: "Workspace",
 					}}
 				/>
 				<Stack.Screen
