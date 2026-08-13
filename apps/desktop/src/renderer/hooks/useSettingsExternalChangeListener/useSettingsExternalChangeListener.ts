@@ -1,4 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { FONT_SETTINGS_QUERY_KEY } from "renderer/lib/font-settings";
 import { useThemeStore } from "renderer/stores/theme";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import type { Theme } from "shared/themes";
@@ -26,6 +28,7 @@ function isExternalThemeState(value: unknown): value is ExternalThemeState {
  */
 export function useSettingsExternalChangeListener() {
 	const utils = electronTrpc.useUtils();
+	const queryClient = useQueryClient();
 
 	electronTrpc.notifications.subscribe.useSubscription(undefined, {
 		onData: (event) => {
@@ -35,6 +38,9 @@ export function useSettingsExternalChangeListener() {
 				useThemeStore.getState().applyExternalThemeState(themeState);
 			}
 			void utils.settings.invalidate();
+			// terminal + editor panes read typography through this custom key,
+			// not the tRPC key space, so invalidate it explicitly
+			void queryClient.invalidateQueries({ queryKey: FONT_SETTINGS_QUERY_KEY });
 		},
 	});
 }
