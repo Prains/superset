@@ -31,9 +31,9 @@
 			"firstName": "Satya",
 			"lastName": "Patel",
 			"email": "support@superset.sh",
-			"phone": "+1 000 000 0000",
+			"phone": "+1 510 519 1602",
 			"demoRequired": false,
-			"notes": "Sign in requires a GitHub or Google account. TODO: provide a demo account before App Store review."
+			"notes": "Sign in with Apple, GitHub, or Google. Signing in with Apple creates a free account instantly, so no demo credentials are needed. Superset is a companion app for the Superset desktop product (https://superset.sh): it lets developers monitor and chat with AI coding agents running in their own workspaces. A fresh account with no connected desktop host will show an empty state after onboarding. Account deletion is available in Settings > Account."
 		}
 	}
 }
