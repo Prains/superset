@@ -50,6 +50,7 @@ import {
 	isAgentStage,
 	STAGE_FLOW,
 } from "./stages";
+import { mirrorStageToTask } from "./tasks-mirror";
 
 async function verifyHostAccess(
 	userId: string,
@@ -382,6 +383,7 @@ export const factoryRouter = {
 				reportedAt: new Date(),
 			});
 
+			await mirrorStageToTask(item.id, input.toStage);
 			return { revision: moved.revision };
 		}),
 

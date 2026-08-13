@@ -12,6 +12,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
 import { dispatchStageQueued } from "./queue";
 import { isAgentStage, STAGE_FLOW, STAGE_RESULT_SCHEMAS } from "./stages";
+import { mirrorStageToTask } from "./tasks-mirror";
 
 export async function getFactoryForOrg(
 	organizationId: string,
@@ -150,6 +151,7 @@ export async function reportFactoryRun(
 		})
 		.where(eq(factoryRuns.id, run.id));
 
+	await mirrorStageToTask(run.itemId, moved.stage);
 	const autoDispatched = await maybeAutoAdvance(run, input.outcome, moved);
 	return {
 		itemId: run.itemId,
