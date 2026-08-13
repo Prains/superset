@@ -164,6 +164,11 @@ export const createGitOperationsRouter = () => {
 						if (error instanceof TRPCError) {
 							throw error;
 						}
+						// Classify environmental failures first: wrapping them below
+						// would hide "not a git repository" behind PRECONDITION_FAILED
+						// and strip the cause.kind consumers branch on, because the
+						// outer boundary skips values that are already TRPCErrors.
+						rethrowEnvironmentalGitError(error);
 						// git refuses a push for reasons that live in the user's repo,
 						// remote or hooks — a rejected ref, missing credentials, a
 						// pre-push hook exiting non-zero. Surface git's own text.
