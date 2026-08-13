@@ -35,13 +35,10 @@ import {
 } from "../components/TerminalWebView";
 import { useWorkspaceChangeset } from "../hooks/useWorkspaceChangeset";
 
-// Solid themed header: the tab strip sits flush under it and must not
-// render beneath glass.
 const headerOptions = {
 	headerShown: true,
 	headerBackButtonDisplayMode: "minimal",
 	headerShadowVisible: false,
-	// Horizontal swipes belong to the terminal — back stays edge-only.
 	fullScreenGestureEnabled: false,
 } as const;
 
