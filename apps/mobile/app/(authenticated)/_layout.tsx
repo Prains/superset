@@ -129,10 +129,9 @@ export default function AuthenticatedLayout() {
 					name="workspace/[id]/actions"
 					options={{
 						presentation: "formSheet",
-						sheetAllowedDetents: [0.5],
+						sheetAllowedDetents: [0.65],
 						sheetGrabberVisible: true,
-						...glassHeaderOptions,
-						title: "Workspace",
+						headerShown: false,
 					}}
 				/>
 				<Stack.Screen

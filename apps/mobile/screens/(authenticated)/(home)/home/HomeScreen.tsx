@@ -20,6 +20,7 @@ import {
 	type OrgPullRequest,
 	usePullRequests,
 } from "@/screens/(authenticated)/hooks/usePullRequests";
+import { usePinnedWorkspacesStore } from "@/screens/(authenticated)/stores/pinnedWorkspacesStore";
 import { HostOfflineView } from "./components/HostOfflineView";
 import { NewChatWidget } from "./components/NewChatWidget";
 import { OrganizationHeaderButton } from "./components/OrganizationHeaderButton";
@@ -71,6 +72,7 @@ export function HomeScreen() {
 	} = useOrganizations();
 
 	const selectedHost = useSelectedHost();
+	const pinnedAt = usePinnedWorkspacesStore((state) => state.pinnedAt);
 	const { workspaces, isReady, cache } = useHostWorkspaces(selectedHost);
 	const { terminalsByWorkspace, attentionByWorkspace } =
 		useHostTerminals(selectedHost);
@@ -149,7 +151,17 @@ export function HomeScreen() {
 						workspace.projectId === selectedProjectId &&
 						workspace.hostId === selectedHost?.machineId,
 				);
-		return matches.sort((a, b) => activityTs(b) - activityTs(a));
+		// Pinned first (oldest pin leads, desktop's ordering), then activity.
+		return matches.sort((a, b) => {
+			const aPin = pinnedAt[a.id];
+			const bPin = pinnedAt[b.id];
+			if (aPin !== undefined || bPin !== undefined) {
+				if (aPin === undefined) return 1;
+				if (bPin === undefined) return -1;
+				return aPin - bPin;
+			}
+			return activityTs(b) - activityTs(a);
+		});
 	}, [
 		workspaces,
 		selectedProjectId,
@@ -158,6 +170,7 @@ export function HomeScreen() {
 		projectNamesById,
 		terminalsByWorkspace,
 		activityTs,
+		pinnedAt,
 	]);
 
 	const listItems = useMemo<HomeListItem[]>(() => {
