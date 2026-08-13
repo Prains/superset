@@ -1,5 +1,5 @@
 {
-	"name": "@superset/chat-legacy",
+	"name": "@superset/provider-auth",
 	"version": "0.0.1",
 	"private": true,
 	"type": "module",
@@ -8,9 +8,17 @@
 			"types": "./src/client/index.ts",
 			"default": "./src/client/index.ts"
 		},
-		"./server/trpc": {
-			"types": "./src/server/trpc/index.ts",
-			"default": "./src/server/trpc/index.ts"
+		"./shared": {
+			"types": "./src/shared/index.ts",
+			"default": "./src/shared/index.ts"
+		},
+		"./server": {
+			"types": "./src/server/index.ts",
+			"default": "./src/server/index.ts"
+		},
+		"./server/shared": {
+			"types": "./src/server/shared/index.ts",
+			"default": "./src/server/shared/index.ts"
 		}
 	},
 	"scripts": {
@@ -18,14 +26,11 @@
 		"test": "bun test --pass-with-no-tests"
 	},
 	"dependencies": {
-		"@mastra/mcp": "1.7.0",
-		"@mastra/memory": "1.18.0",
-		"@superset/provider-auth": "workspace:*",
-		"@superset/trpc": "workspace:*",
+		"@ai-sdk/anthropic": "3.0.64",
+		"@ai-sdk/openai": "3.0.36",
+		"@mastra/core": "1.33.1",
 		"@superset/workspace-fs": "workspace:*",
-		"@trpc/client": "11.16.0",
 		"@trpc/server": "11.16.0",
-		"ai": "6.0.235",
 		"mastracode": "0.18.1",
 		"superjson": "2.2.6",
 		"zod": "4.4.3"
