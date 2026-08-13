@@ -13,7 +13,10 @@ import type { SettingsColumn, SettingValue } from "./registry";
 
 // The desktop app owns local.db and its migrations — the CLI must never
 // create the file or its tables, only read/update the existing settings row.
-function openLocalDb(options: { readonly: boolean }) {
+// Always opened readwrite: readonly opens of a WAL-mode database fail with
+// SQLITE_CANTOPEN when the -shm sidecar is missing (e.g. after a checkpoint),
+// and the existsSync guard already prevents creating a fresh database.
+function openLocalDb() {
 	const path = getLocalDbPath();
 	if (!existsSync(path)) {
 		throw new CLIError(
@@ -21,10 +24,7 @@ function openLocalDb(options: { readonly: boolean }) {
 			"Launch the Superset desktop app once on this machine first.",
 		);
 	}
-	const sqlite = new Database(path, {
-		readonly: options.readonly,
-		readwrite: !options.readonly,
-	});
+	const sqlite = new Database(path, { readwrite: true });
 	sqlite.exec("PRAGMA busy_timeout = 2000");
 	return { sqlite, db: drizzle(sqlite) };
 }
@@ -40,7 +40,7 @@ function isMissingTableError(error: unknown): boolean {
  */
 export function readSettingsRow(): SelectSettings | undefined {
 	if (!existsSync(getLocalDbPath())) return undefined;
-	const { sqlite, db } = openLocalDb({ readonly: true });
+	const { sqlite, db } = openLocalDb();
 	try {
 		return db.select().from(settings).where(eq(settings.id, 1)).get();
 	} catch (error) {
@@ -56,7 +56,7 @@ export function writeSetting(
 	key: SettingsColumn,
 	value: SettingValue | null,
 ): void {
-	const { sqlite, db } = openLocalDb({ readonly: false });
+	const { sqlite, db } = openLocalDb();
 	try {
 		const patch = { [key]: value } as Partial<InsertSettings>;
 		db.insert(settings)
