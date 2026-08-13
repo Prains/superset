@@ -6,7 +6,6 @@ import {
 	type SelectSettings,
 	settings,
 } from "@superset/local-db/schema";
-import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { getLocalDbPath } from "./paths";
 import type { SettingsColumn, SettingValue } from "./registry";
@@ -24,7 +23,16 @@ function openLocalDb() {
 			"Launch the Superset desktop app once on this machine first.",
 		);
 	}
-	const sqlite = new Database(path, { readwrite: true });
+	let sqlite: Database;
+	try {
+		sqlite = new Database(path, { readwrite: true });
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new CLIError(
+			`Could not open ${path} (${message})`,
+			"Check the file's permissions; the CLI opens it read-write like the desktop app.",
+		);
+	}
 	sqlite.exec("PRAGMA busy_timeout = 2000");
 	return { sqlite, db: drizzle(sqlite) };
 }
@@ -42,7 +50,9 @@ export function readSettingsRow(): SelectSettings | undefined {
 	if (!existsSync(getLocalDbPath())) return undefined;
 	const { sqlite, db } = openLocalDb();
 	try {
-		return db.select().from(settings).where(eq(settings.id, 1)).get();
+		// first row, no id filter — mirrors the desktop's getSettings() so a
+		// legacy row with a non-1 id can't make the CLI and app disagree
+		return db.select().from(settings).get();
 	} catch (error) {
 		if (isMissingTableError(error)) return undefined;
 		throw error;

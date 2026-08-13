@@ -47,7 +47,15 @@ function readAppState(): AppState {
 			"Launch the Superset desktop app once on this machine first.",
 		);
 	}
-	const parsed: unknown = JSON.parse(readFileSync(path, "utf-8"));
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(readFileSync(path, "utf-8"));
+	} catch {
+		throw new CLIError(
+			`Superset app state at ${path} is not valid JSON`,
+			"The desktop app rewrites it on next launch; retry after opening the app.",
+		);
+	}
 	if (typeof parsed !== "object" || parsed === null) {
 		throw new CLIError(`Superset app state at ${path} is not a JSON object`);
 	}
