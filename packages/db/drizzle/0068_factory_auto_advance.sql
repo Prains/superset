@@ -1,1 +1,0 @@
-ALTER TABLE "factories" ADD COLUMN "auto_advance" boolean DEFAULT false NOT NULL;

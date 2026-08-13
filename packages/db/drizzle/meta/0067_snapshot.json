@@ -1,6 +1,6 @@
 {
-  "id": "f92bef60-04d0-46df-8cf5-9e3cbcd947b7",
-  "prevId": "9e2f4867-7222-49c5-a53d-d412b72844fc",
+  "id": "bd3b741e-3cd6-4075-b6c1-4761e2fba4af",
+  "prevId": "0a720b09-14b6-4873-8e92-37dc6b5e7653",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1827,6 +1827,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "deletion_requested_at": {
+          "name": "deletion_requested_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2008,6 +2014,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "auto_advance": {
+          "name": "auto_advance",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
