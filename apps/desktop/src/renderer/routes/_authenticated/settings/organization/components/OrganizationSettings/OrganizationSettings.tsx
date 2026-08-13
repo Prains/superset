@@ -144,7 +144,7 @@ export function OrganizationSettings({
 	);
 
 	const { data: membersData, isPending: membersPending } =
-		cloudTrpc.organization.listMembers.useQuery(undefined);
+		cloudTrpc.organization.listMembers.useQuery({ includeDeactivated: true });
 
 	const members: TeamMember[] = useMemo(() => {
 		if (!activeOrganizationId) return [];
@@ -510,7 +510,13 @@ export function OrganizationSettings({
 																			image={member.image}
 																		/>
 																		<div className="flex items-center gap-2">
-																			<span className="font-medium">
+																			<span
+																				className={
+																					member.deletedAt
+																						? "font-medium text-muted-foreground"
+																						: "font-medium"
+																				}
+																			>
 																				{member.name || "Unknown"}
 																			</span>
 																			{isCurrentUserRow && (
@@ -519,6 +525,14 @@ export function OrganizationSettings({
 																					className="text-[10px] h-4 px-1.5"
 																				>
 																					You
+																				</Badge>
+																			)}
+																			{member.deletedAt && (
+																				<Badge
+																					variant="outline"
+																					className="text-[10px] h-4 px-1.5 text-muted-foreground"
+																				>
+																					Deactivated
 																				</Badge>
 																			)}
 																		</div>
