@@ -19,6 +19,12 @@ const SIGNATURE_FAILURE =
 	'Could not get code signature for running application: Error: Command failed: codesign --verify -vvvv "/Applications/Superset.app"';
 const FEED_FAILURE =
 	"HttpError: 404 Not Found\nCannot parse update info from latest-mac.yml";
+// Further electron-updater release-artifact defects. Each must survive a full
+// volume; a gap here silences a bad release for the users least able to cope.
+const MISSING_CHANNEL = "Cannot find channel “latest-mac.yml” update info";
+const NO_FILES = "No files provided in update info";
+const NO_CHECKSUM =
+	"Update info doesn't contain nor sha256 neither sha512 checksum";
 
 describe("isEnvironmentUpdateError", () => {
 	test("classifies a full staging volume without reading the message", () => {
@@ -56,8 +62,12 @@ describe("isEnvironmentUpdateError", () => {
 			CHECKSUM_MISMATCH,
 			SIGNATURE_FAILURE,
 			FEED_FAILURE,
+			MISSING_CHANNEL,
+			NO_FILES,
+			NO_CHECKSUM,
 		]) {
 			expect(isEnvironmentUpdateError(message, FULL_VOLUME)).toBe(false);
+			expect(isEnvironmentUpdateError(message, ROOMY_VOLUME)).toBe(false);
 		}
 	});
 

@@ -17,11 +17,16 @@ export const UPDATE_STAGING_MIN_FREE_BYTES = 1024 * 1024 * 1024;
 // does not cause any of these, so they must be checked before the free-space
 // heuristic — otherwise a genuine release defect goes unreported for every
 // user who happens to be low on space.
+// Keep this list ahead of the release-artifact failure modes electron-updater
+// can surface. A missing entry means that defect is silently suppressed for
+// every user low on disk, which is the failure this ordering exists to prevent.
 const UPDATER_DEFECT_PATTERNS = [
-	"checksum mismatch",
+	"checksum", // mismatch, and "doesn't contain nor sha256 neither sha512 checksum"
 	"code signature",
 	"codesign",
 	"cannot parse update info",
+	"cannot find channel",
+	"no files provided",
 ];
 
 // Update failures owned by the user's machine, not by us. A full volume is the
