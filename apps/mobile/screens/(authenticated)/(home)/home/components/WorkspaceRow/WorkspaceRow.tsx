@@ -18,6 +18,7 @@ import type {
 import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 import { AgentMark } from "@/screens/(authenticated)/(home)/new-session/agent";
+import { PingDot } from "@/screens/(authenticated)/components/PingDot";
 import type { TerminalRowData } from "../../hooks/useHostTerminals";
 import type { DiffStats } from "../../hooks/useVisibleDiffStats";
 import { useChatTargetStore } from "../../stores/chatTargetStore";
@@ -94,16 +95,13 @@ export function WorkspaceRow({
 					</Button>
 				) : (
 					<View className="size-6 items-center justify-center">
-						<View
-							className={cn(
-								"size-2.5 rounded-full",
-								attention === "permission"
-									? "bg-red-500"
-									: attention === "working"
-										? "bg-amber-500"
-										: "bg-muted-foreground/40",
-							)}
-						/>
+						{attention === "permission" ? (
+							<PingDot color="#ef4444" />
+						) : attention === "working" ? (
+							<PingDot color="#f59e0b" />
+						) : (
+							<View className="bg-muted-foreground/40 size-2.5 rounded-full" />
+						)}
 					</View>
 				)}
 				<View className="flex-1">

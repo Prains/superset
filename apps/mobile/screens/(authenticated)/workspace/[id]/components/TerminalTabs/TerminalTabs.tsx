@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 import type { TerminalRowData } from "@/screens/(authenticated)/(home)/home/hooks/useHostTerminals";
 import { AgentMark } from "@/screens/(authenticated)/(home)/new-session/agent";
+import { PingDot } from "@/screens/(authenticated)/components/PingDot";
 
 interface TerminalTabsProps {
 	rows: TerminalRowData[];
@@ -71,9 +72,9 @@ export function TerminalTabs({
 								{row.title}
 							</Text>
 							{row.attention === "permission" ? (
-								<View className="bg-amber-400 size-1.5 rounded-full" />
+								<PingDot color="#fbbf24" size={6} />
 							) : row.attention === "working" ? (
-								<View className="bg-green-500 size-1.5 rounded-full" />
+								<PingDot color="#22c55e" size={6} />
 							) : null}
 						</Pressable>
 					);
