@@ -190,6 +190,24 @@ describe("mergeMarkdownEdits", () => {
 		expect(merged.split("Paragraph 500 line one").length - 1).toBe(1);
 	});
 
+	it("handles 200k-line documents without engine argument-limit failures", () => {
+		// out.push(...lines) passes one argument per line; V8 RangeErrors past
+		// the argument limit, which is reachable under the editable-size gate
+		// (and lower from deep call stacks). appendRange must copy by index.
+		const lines: string[] = [];
+		for (let i = 0; i < 200_000; i += 1) lines.push(`line ${i}`);
+		const original = `${lines.join("\n")}\n`;
+		const baseline = lines.join("\n");
+		const merge = createMarkdownMerger(original, baseline);
+		expect(merge(baseline)).toBe(original);
+
+		const edited = baseline.replace("line 100000", "line 100000 EDITED");
+		const merged = merge(edited);
+		expect(merged).toContain("line 100000 EDITED");
+		expect(merged.startsWith("line 0\nline 1\n")).toBe(true);
+		expect(merged.endsWith("line 199999\n")).toBe(true);
+	});
+
 	it("aligns via fuzzy anchors when a leading blank-line mismatch offsets the doc", () => {
 		// Regression (found via CDP stress): the first section follows the doc
 		// title WITHOUT a blank line, which mis-paired an ordinal blank-line

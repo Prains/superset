@@ -288,6 +288,21 @@ function conflicts(a: Hunk, b: Hunk): boolean {
 	return a.oStart < b.oEnd && b.oStart < a.oEnd;
 }
 
+// `out.push(...lines)` passes one argument per line and V8 throws a
+// RangeError past the argument limit — reachable for documents under the
+// editable-size gate, and worse from deep call stacks (the merge runs inside
+// ProseMirror dispatch). Manual index loop, same as VS Code's arrays helpers.
+function appendRange(
+	out: string[],
+	lines: string[],
+	start = 0,
+	end = lines.length,
+): void {
+	for (let i = start; i < end; i += 1) {
+		out.push(lines[i] as string);
+	}
+}
+
 function applyEditsOntoOriginal(
 	aLines: string[],
 	aHunks: Hunk[],
@@ -323,13 +338,13 @@ function applyEditsOntoOriginal(
 			const commonEnd = hunkApplies ? hunk.oStart : target;
 			// Common segments are identical in the original and the baseline.
 			if (mode !== "drop") {
-				out.push(...aLines.slice(aPos, aPos + (commonEnd - oPos)));
+				appendRange(out, aLines, aPos, aPos + (commonEnd - oPos));
 			}
 			aPos += commonEnd - oPos;
 			oPos = commonEnd;
 			if (!hunkApplies) return;
 			if (mode === "original") {
-				out.push(...hunk.content);
+				appendRange(out, hunk.content);
 			}
 			aPos += hunk.content.length;
 			oPos = hunk.oEnd;
@@ -386,7 +401,7 @@ function applyEditsOntoOriginal(
 			// of them; for pure user insertions the new content goes first so
 			// dropped content stays attached to the following original block.
 			advanceTo(first.oStart, "original", !isInsertion(first));
-			out.push(...first.content);
+			appendRange(out, first.content);
 			advanceTo(first.oEnd, "drop", false);
 			bi += 1;
 			continue;
@@ -420,19 +435,19 @@ function applyEditsOntoOriginal(
 					ins.oStart < to || (includeInsertionsAtEnd && ins.oStart === to);
 				if (!within) break;
 				if (ins.oStart >= cursor) {
-					out.push(...oLines.slice(cursor, ins.oStart));
-					out.push(...ins.content);
+					appendRange(out, oLines, cursor, ins.oStart);
+					appendRange(out, ins.content);
 					cursor = ins.oStart;
 				}
 				ri += 1;
 			}
-			out.push(...oLines.slice(cursor, to));
+			appendRange(out, oLines, cursor, to);
 			cursor = to;
 		};
 		for (let k = bi; k < biEnd; k += 1) {
 			const bHunk = bHunks[k] as Hunk;
 			emitGap(bHunk.oStart, !isInsertion(bHunk));
-			out.push(...bHunk.content);
+			appendRange(out, bHunk.content);
 			cursor = bHunk.oEnd;
 			// Insertions strictly inside the replaced range are part of the
 			// conflict; the user's rewrite wins.
