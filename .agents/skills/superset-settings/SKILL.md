@@ -1,6 +1,6 @@
 ---
 name: superset-settings
-description: Read and update the Superset desktop app's user settings (theme, fonts, terminal, git, notifications, behavior) via the superset CLI. Use when asked to change app settings, switch the theme, adjust fonts, or configure desktop preferences without opening the settings UI.
+description: Read and update the Superset desktop app's user settings (theme, fonts, terminal, git, notifications, behavior) via the superset CLI, including creating and installing custom themes from JSON. Use when asked to change app settings, switch or create a theme, adjust fonts, or configure desktop preferences without opening the settings UI.
 ---
 
 # Superset settings via CLI
@@ -27,23 +27,72 @@ superset settings theme import <file>               # add/replace custom themes 
 superset settings theme remove <id>                 # delete a custom theme
 ```
 
-**Create a custom theme**: export a built-in as a starter, edit it, import it,
-set it — then restart the app:
+Prefer `--json` (auto-on in agent environments) and `superset settings list`
+to discover keys and allowed values instead of guessing.
+
+## Creating custom themes
+
+Two paths; both end with import → set → app relaunch.
+
+**From scratch** — a minimal file is enough. Every color you omit is filled
+in from the built-in base theme for your declared `type`, so start small and
+override only what you care about:
+
+```json
+{
+  "name": "Midnight Ocean",
+  "type": "dark",
+  "ui": {
+    "background": "#071A2E",
+    "sidebar": "#061426",
+    "primary": "#38BDF8"
+  },
+  "terminal": { "background": "#071A2E", "cursor": "#38BDF8" }
+}
+```
+
+```bash
+superset settings theme import ocean.json   # -> Imported 1 theme: midnight-ocean
+superset settings theme set midnight-ocean
+# quit the app, relaunch — theme applies at startup
+```
+
+**From a starter** — export any theme's complete definition (all ~38 ui +
+21 terminal colors) and edit it. Best when restyling everything:
 
 ```bash
 superset settings theme export dark --out my-theme.json
-# edit id/name + ui/terminal/editor colors in my-theme.json
-superset settings theme import my-theme.json
-superset settings theme set my-theme
+# edit, then:
+superset settings theme import my-theme.json && superset settings theme set my-theme
 ```
 
-Import uses the desktop's own parser: ids are slugified, missing colors fill
-from the base theme, reserved ids (`dark`, `light`, `monokai`, `system`) are
-rejected, max file size 256 KB. A file can hold one theme, an array, or
-`{ "themes": [...] }`.
+### Theme file anatomy
 
-Prefer `--json` (auto-on in agent environments) and `superset settings list`
-to discover keys and allowed values instead of guessing.
+| Field | Notes |
+| --- | --- |
+| `name` / `id` | either works; the id is slugified (`"Midnight Ocean"` → `midnight-ocean`). Reserved: `dark`, `light`, `monokai`, `system` |
+| `type` | `"dark"` or `"light"` (defaults to dark) — picks the base theme that fills omitted colors |
+| `ui` | app chrome. Highest-impact keys: `background`, `foreground`, `sidebar`, `card`, `popover`, `primary`, `accent`, `muted`, `border`, `input`, `ring`, plus `sidebar*` variants |
+| `terminal` | xterm colors: `background`, `foreground`, `cursor`, `selectionBackground`, and the 16 ANSI names (`red`, `brightRed`, ...) |
+| `editor` | optional `{ "colors": {...}, "syntax": {...} }` for the file editor; generated from `ui`/`type` when omitted |
+| `author`, `version`, `description` | optional metadata |
+
+Rules (same parser as the app's Appearance → Import): all colors are CSS color
+strings; missing colors inherit from the base; a file can hold one theme, an
+array, or a pack `{ "themes": [...] }`; max 256 KB; re-importing an id
+replaces that theme; import never activates — `theme set` does.
+
+### Verify and iterate
+
+```bash
+superset settings theme list      # SOURCE column shows custom; * marks active
+superset settings theme get       # active theme id
+superset settings theme export midnight-ocean   # round-trip the stored result
+superset settings theme remove midnight-ocean   # active falls back to dark
+```
+
+Iterating on colors: each `import` replaces the theme, but the app only
+reads themes at launch — so the loop is edit → import → relaunch.
 
 ## How changes take effect
 
