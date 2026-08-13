@@ -71,7 +71,11 @@ export function TerminalComposer({
 
 	return (
 		<View className="gap-2 px-3 pb-2">
-			<View className="flex-row pl-1">
+			{/* z-10: the settled glass Host renders taller than the frame
+			    matchContents reports and, as the later sibling, sits above the
+			    chips — without the raise its invisible top edge swallows their
+			    taps (the pill's tap-to-focus fires instead). */}
+			<View className="z-10 flex-row pl-1">
 				<QuickKeysRow onKey={onQuickKey} />
 			</View>
 			<Host matchContents={{ vertical: true }} style={{ width: "100%" }}>

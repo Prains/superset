@@ -68,8 +68,14 @@ export function WorkspaceScreen() {
 	const { terminalsByWorkspace, isReady } = useHostTerminals(host);
 	const changeset = useWorkspaceChangeset(id ?? null);
 
+	// Tabs hold creation order — the hook's activity sort is right for home
+	// rows but makes tabs swap places under the user whenever relative
+	// activity changes.
 	const rows = useMemo(
-		() => (id ? (terminalsByWorkspace.get(id) ?? []) : []),
+		() =>
+			(id ? (terminalsByWorkspace.get(id) ?? []) : [])
+				.slice()
+				.sort((a, b) => a.createdAt - b.createdAt),
 		[terminalsByWorkspace, id],
 	);
 

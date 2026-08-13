@@ -28,6 +28,8 @@ export interface TerminalRowData {
 	workspaceId: string;
 	title: string;
 	ts: number;
+	/** Session creation time — the stable ordering key for tab strips. */
+	createdAt: number;
 	/** Host-clock timestamp of the binding's last agent event. */
 	lastEventAt: number | null;
 	/** Agent bound to the terminal via lifecycle hooks; null = plain shell. */
@@ -135,6 +137,7 @@ export function useHostTerminals(
 				workspaceId: session.workspaceId,
 				title: session.title ?? (binding ? binding.agentId : "Terminal"),
 				ts: binding?.lastEventAt ?? session.createdAt,
+				createdAt: session.createdAt,
 				lastEventAt: binding?.lastEventAt ?? null,
 				agentId: binding?.agentId ?? null,
 				attention,
