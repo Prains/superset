@@ -21,7 +21,10 @@ import { cn } from "@/lib/utils";
 import { AgentMark } from "@/screens/(authenticated)/(home)/new-session/agent";
 import { AsciiSpinner } from "@/screens/(authenticated)/components/AsciiSpinner";
 import { PingDot } from "@/screens/(authenticated)/components/PingDot";
-import type { TerminalRowData } from "../../hooks/useHostTerminals";
+import type {
+	TerminalAttention,
+	TerminalRowData,
+} from "../../hooks/useHostTerminals";
 import type { DiffStats } from "../../hooks/useVisibleDiffStats";
 import { useChatTargetStore } from "../../stores/chatTargetStore";
 import { type PrBadgeState, prStateFor } from "../../utils/prStateFor";
@@ -53,7 +56,7 @@ export function WorkspaceRow({
 	pullRequest?: SelectGithubPullRequest;
 	diffStats: DiffStats | null;
 	cache: HostWorkspacesCacheOps;
-	attention?: "permission" | "working" | null;
+	attention?: TerminalAttention | null;
 	sessions: TerminalRowData[];
 }) {
 	const router = useRouter();
@@ -115,6 +118,12 @@ export function WorkspaceRow({
 							<View className="absolute -right-0.5 -top-0.5">
 								<PingDot color="#eab308" size={7} />
 							</View>
+						) : attention === "failed" ? (
+							<View className="absolute -right-0.5 -top-0.5">
+								<PingDot color="#ef4444" size={7} />
+							</View>
+						) : attention === "review" ? (
+							<View className="bg-green-500 absolute -right-0.5 -top-0.5 size-2 rounded-full" />
 						) : null}
 					</View>
 				)}

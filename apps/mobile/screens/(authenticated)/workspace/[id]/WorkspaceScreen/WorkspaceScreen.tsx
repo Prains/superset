@@ -21,6 +21,7 @@ import {
 	useHostTerminals,
 } from "@/screens/(authenticated)/(home)/home/hooks/useHostTerminals";
 import { PressableScale } from "@/screens/(authenticated)/components/PressableScale";
+import { useTerminalSeenStore } from "@/screens/(authenticated)/stores/terminalSeenStore";
 import {
 	TerminalComposer,
 	type TerminalQuickKey,
@@ -96,6 +97,19 @@ export function WorkspaceScreen() {
 	useEffect(() => {
 		if (params.tab) setPickedTerminalId(params.tab);
 	}, [params.tab]);
+
+	// Port of desktop's useClearActivePaneAttention: viewing the tab clears
+	// its `review` state by advancing the seen mark to the binding's last
+	// event (host clock — never the device clock).
+	const markTerminalSeen = useTerminalSeenStore(
+		(state) => state.markTerminalSeen,
+	);
+	const activeRow = rows.find((row) => row.terminalId === activeTerminalId);
+	useEffect(() => {
+		if (activeRow?.attention !== "review") return;
+		if (activeRow.lastEventAt === null) return;
+		markTerminalSeen(activeRow.terminalId, activeRow.lastEventAt);
+	}, [activeRow, markTerminalSeen]);
 
 	const invalidateTerminals = useCallback(() => {
 		if (!host) return;

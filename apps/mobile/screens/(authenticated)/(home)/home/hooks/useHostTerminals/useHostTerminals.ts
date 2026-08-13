@@ -4,6 +4,7 @@ import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
 } from "@/lib/host-service/client";
+import { useTerminalSeenStore } from "@/screens/(authenticated)/stores/terminalSeenStore";
 
 export interface TerminalsHost {
 	organizationId: string;
@@ -11,13 +12,24 @@ export interface TerminalsHost {
 	isOnline: boolean;
 }
 
-export type TerminalAttention = "working" | "permission";
+export type TerminalAttention = "working" | "permission" | "failed" | "review";
+
+// Desktop's STATUS_PRIORITY: a live permission prompt is actionable right
+// now; a failure is terminal; review is the least urgent.
+const ATTENTION_PRIORITY: Record<TerminalAttention, number> = {
+	review: 1,
+	working: 2,
+	failed: 3,
+	permission: 4,
+};
 
 export interface TerminalRowData {
 	terminalId: string;
 	workspaceId: string;
 	title: string;
 	ts: number;
+	/** Host-clock timestamp of the binding's last agent event. */
+	lastEventAt: number | null;
 	/** Agent bound to the terminal via lifecycle hooks; null = plain shell. */
 	agentId: string | null;
 	attention: TerminalAttention | null;
@@ -30,15 +42,24 @@ export function getHostTerminalsQueryKey(machineId: string | null) {
 }
 
 /**
- * Mirror of desktop's deriveTerminalAgentStatus: only a Start event means
- * the agent is working; anything else (Attached, Stop, ...) is idle.
+ * Mirror of desktop's deriveTerminalAgentStatus. `permission` is a live
+ * blocking state, never seen-gated; `review` is an unseen Stop — it clears
+ * when the seen mark catches up to the binding's lastEventAt.
  */
-function attentionFromEvent(lastEventType: string): TerminalAttention | null {
+function attentionFromEvent(
+	lastEventType: string,
+	lastEventAt: number,
+	lastSeenAt: number | undefined,
+): TerminalAttention | null {
 	switch (lastEventType) {
 		case "PermissionRequest":
 			return "permission";
 		case "Start":
 			return "working";
+		case "Failed":
+			return "failed";
+		case "Stop":
+			return lastEventAt > (lastSeenAt ?? 0) ? "review" : null;
 		default:
 			return null;
 	}
@@ -46,7 +67,7 @@ function attentionFromEvent(lastEventType: string): TerminalAttention | null {
 
 export interface UseHostTerminalsResult {
 	terminalsByWorkspace: Map<string, TerminalRowData[]>;
-	/** Per-workspace attention rollup (permission outranks working). */
+	/** Per-workspace attention rollup by desktop's status priority. */
 	attentionByWorkspace: Map<string, TerminalAttention>;
 	/**
 	 * True once the host answered or failed (or is offline). Gates empty
@@ -67,6 +88,7 @@ export function useHostTerminals(
 	const hostUrl = host?.isOnline
 		? buildRelayHostUrl(host.organizationId, host.machineId)
 		: null;
+	const terminalSeenAt = useTerminalSeenStore((state) => state.terminalSeenAt);
 
 	const query = useQuery({
 		queryKey: getHostTerminalsQueryKey(host?.machineId ?? null),
@@ -102,13 +124,18 @@ export function useHostTerminals(
 			if (session.exited) continue;
 			const binding = bindingsByTerminal.get(session.terminalId);
 			const attention = binding
-				? attentionFromEvent(binding.lastEventType)
+				? attentionFromEvent(
+						binding.lastEventType,
+						binding.lastEventAt,
+						terminalSeenAt[session.terminalId],
+					)
 				: null;
 			const row: TerminalRowData = {
 				terminalId: session.terminalId,
 				workspaceId: session.workspaceId,
 				title: session.title ?? (binding ? binding.agentId : "Terminal"),
 				ts: binding?.lastEventAt ?? session.createdAt,
+				lastEventAt: binding?.lastEventAt ?? null,
 				agentId: binding?.agentId ?? null,
 				attention,
 			};
@@ -119,7 +146,10 @@ export function useHostTerminals(
 			// Stale statuses are worse than none: attention only from live data.
 			if (attention) {
 				const existing = attentionByWorkspace.get(session.workspaceId);
-				if (attention === "permission" || !existing) {
+				if (
+					!existing ||
+					ATTENTION_PRIORITY[attention] > ATTENTION_PRIORITY[existing]
+				) {
 					attentionByWorkspace.set(session.workspaceId, attention);
 				}
 			}
@@ -132,5 +162,12 @@ export function useHostTerminals(
 			attentionByWorkspace,
 			isReady: hostUrl === null || query.isSuccess || query.isError,
 		};
-	}, [query.data, query.isSuccess, query.isError, host?.isOnline, hostUrl]);
+	}, [
+		query.data,
+		query.isSuccess,
+		query.isError,
+		host?.isOnline,
+		hostUrl,
+		terminalSeenAt,
+	]);
 }

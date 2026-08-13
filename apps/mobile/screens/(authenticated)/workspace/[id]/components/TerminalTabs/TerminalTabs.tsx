@@ -53,7 +53,7 @@ export function TerminalTabs({
 								])
 							}
 							className={cn(
-								"flex-row items-center gap-1.5 rounded-full px-3 py-1.5",
+								"flex-row items-center gap-1.5 rounded-md px-3 py-1.5",
 								active ? "bg-secondary" : "bg-secondary/40",
 							)}
 						>
@@ -71,10 +71,16 @@ export function TerminalTabs({
 							>
 								{row.title}
 							</Text>
+							{/* Desktop StatusIndicator colors: yellow permission ping,
+							    amber working ping, red failed ping, green static review. */}
 							{row.attention === "permission" ? (
-								<PingDot color="#fbbf24" size={6} />
+								<PingDot color="#eab308" size={6} />
+							) : row.attention === "failed" ? (
+								<PingDot color="#ef4444" size={6} />
 							) : row.attention === "working" ? (
-								<PingDot color="#22c55e" size={6} />
+								<PingDot color="#f59e0b" size={6} />
+							) : row.attention === "review" ? (
+								<View className="bg-green-500 size-1.5 rounded-full" />
 							) : null}
 						</Pressable>
 					);
@@ -83,7 +89,7 @@ export function TerminalTabs({
 			<Pressable
 				onPress={onAdd}
 				accessibilityLabel="New session"
-				className="bg-secondary/40 size-7 items-center justify-center rounded-full active:opacity-60"
+				className="bg-secondary/40 size-7 items-center justify-center rounded-md active:opacity-60"
 			>
 				<Plus size={15} color={theme.foreground} strokeWidth={2.25} />
 			</Pressable>
