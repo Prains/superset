@@ -31,7 +31,7 @@ export function VoiceControl({ dictation }: { dictation: VoiceDictation }) {
 			<Image
 				systemName="mic"
 				size={16}
-				modifiers={[frame({ width: 26, height: 26 })]}
+				modifiers={[frame({ width: 12, height: 12 })]}
 			/>
 		</Button>
 	);

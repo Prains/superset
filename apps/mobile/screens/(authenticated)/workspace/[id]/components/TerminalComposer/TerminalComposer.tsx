@@ -126,7 +126,7 @@ export function TerminalComposer({
 									systemName="arrow.up"
 									size={16}
 									color="#1c1c1e"
-									modifiers={[frame({ width: 26, height: 26 })]}
+									modifiers={[frame({ width: 12, height: 12 })]}
 								/>
 							</Button>
 						</HStack>

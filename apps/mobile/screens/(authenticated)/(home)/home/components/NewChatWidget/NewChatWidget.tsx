@@ -297,7 +297,7 @@ export function NewChatWidget({
 			<Image
 				systemName="plus"
 				size={16}
-				modifiers={[frame({ width: 26, height: 26 })]}
+				modifiers={[frame({ width: 12, height: 12 })]}
 			/>
 		</Button>
 	);
@@ -320,7 +320,7 @@ export function NewChatWidget({
 				systemName="arrow.up"
 				size={16}
 				color="#1c1c1e"
-				modifiers={[frame({ width: 26, height: 26 })]}
+				modifiers={[frame({ width: 12, height: 12 })]}
 			/>
 		</Button>
 	);
@@ -529,7 +529,10 @@ export function NewChatWidget({
 							</HStack>
 							<HStack
 								spacing={6}
-								modifiers={[padding({ horizontal: 2, vertical: 6 })]}
+								// Negative horizontal: the bordered button style carries ~10pt
+								// of intrinsic inset around its visible circle — pull the row
+								// out so the circle sits 12pt from the pill edge.
+								modifiers={[padding({ horizontal: -4, vertical: 6 })]}
 							>
 								<HStack
 									modifiers={[
