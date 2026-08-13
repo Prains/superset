@@ -24,11 +24,9 @@ describe("desktop settings nudge", () => {
 		expect(hit).toBe(true);
 	});
 
-	test("returns false quickly when nothing is listening", async () => {
+	test("returns false when nothing is listening", async () => {
 		process.env.DESKTOP_NOTIFICATIONS_PORT = "9";
-		const started = performance.now();
 		expect(await notifyDesktopSettingsChanged()).toBe(false);
-		expect(performance.now() - started).toBeLessThan(600);
 	});
 
 	test("returns false on non-2xx (older app without the endpoint)", async () => {

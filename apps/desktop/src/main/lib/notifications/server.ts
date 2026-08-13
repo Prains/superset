@@ -203,8 +203,10 @@ app.get("/auth/callback", async (req, res) => {
 // refresh, so an unauthenticated localhost nudge is safe.
 app.post("/settings-changed", (_req, res) => {
 	const themeState = reloadThemeStateFromDisk();
+	// Emit even when the theme reload failed: local.db settings may still
+	// have changed, and the renderer refresh is driven by this event.
 	notificationsEmitter.emit("settings-external-change", { themeState });
-	res.json({ success: true });
+	res.json({ success: true, themeReloaded: themeState !== null });
 });
 
 // 404

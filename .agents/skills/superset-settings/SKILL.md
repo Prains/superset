@@ -35,7 +35,7 @@ already on PATH. `SUPERSET_HOME_DIR` overrides the target profile
 
 ## Creating custom themes
 
-Two paths; both end with import → set → app relaunch.
+Two paths; both end with import → set (a running app restyles live).
 
 **From scratch** — a minimal file is enough. Every color you omit is filled
 in from the built-in base theme for your declared `type`, so start small and
