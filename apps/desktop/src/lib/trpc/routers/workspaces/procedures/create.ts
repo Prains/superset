@@ -31,6 +31,7 @@ import {
 	getPrInfo,
 	getPrLocalBranchName,
 	getWorktreeCreatedAt,
+	isDetachedHead,
 	listBranches,
 	listExternalWorktrees,
 	type PullRequestInfo,
@@ -745,6 +746,14 @@ export const createCreateProcedures = () => {
 				const branch =
 					input.branch || (await getCurrentBranch(project.mainRepoPath));
 				if (!branch) {
+					// Only blame HEAD once we know it is actually detached: a null
+					// here also covers an unreadable repo, and reporting that as
+					// detached HEAD both misleads the user and hides the real fault.
+					if (!(await isDetachedHead(project.mainRepoPath))) {
+						throw new Error(
+							`Could not determine current branch for ${project.mainRepoPath}`,
+						);
+					}
 					throw new TRPCError({
 						code: "BAD_REQUEST",
 						message:

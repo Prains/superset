@@ -1519,6 +1519,24 @@ export async function getCurrentBranch(
 }
 
 /**
+ * Whether HEAD is genuinely detached, as opposed to unreadable.
+ *
+ * `getCurrentBranch` collapses "detached HEAD" and "this git call failed"
+ * into the same `null`, so callers that want to blame the user's HEAD state
+ * must confirm it first — otherwise a missing repo, a permission wall or a
+ * missing git binary all get reported to the user as a detached HEAD, and
+ * the underlying failure stops being visible.
+ *
+ * Throws the underlying git error when the repository cannot be read at all,
+ * so genuine breakage keeps surfacing instead of being reclassified.
+ */
+export async function isDetachedHead(repoPath: string): Promise<boolean> {
+	const git = await getSimpleGitWithShellPath(repoPath);
+	const head = await git.revparse(["--abbrev-ref", "HEAD"]);
+	return head.trim() === "HEAD";
+}
+
+/**
  * Result of pre-checkout safety checks
  */
 export interface CheckoutSafetyResult {
