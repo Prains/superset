@@ -1,7 +1,7 @@
-import { Button } from "@superset/ui/button";
 import { toast } from "@superset/ui/sonner";
 import { X } from "lucide-react";
 import { useEffect } from "react";
+import { AnimatedStarButton } from "renderer/components/AnimatedStarButton";
 import { useGithubStarAction } from "renderer/hooks/useGithubStarAction";
 import { track } from "renderer/lib/analytics";
 import { useStarNagStore } from "renderer/stores/star-nag";
@@ -48,19 +48,12 @@ function StarNagToastContent({ toastId }: { toastId: string | number }) {
 				If you're enjoying Superset so far, a GitHub star helps other developers
 				discover it.
 			</p>
-			<Button
-				variant="outline"
-				size="sm"
-				className="mt-3 h-7 w-full text-xs"
-				onClick={handleAction}
-				disabled={isBusy || state === "starred"}
-			>
-				{state === "starred"
-					? "Starred — thank you!"
-					: state === "unknown"
-						? "Open GitHub"
-						: "Star on GitHub"}
-			</Button>
+			<AnimatedStarButton
+				state={state}
+				busy={isBusy}
+				onActivate={handleAction}
+				className="mt-3 w-full justify-center"
+			/>
 		</div>
 	);
 }

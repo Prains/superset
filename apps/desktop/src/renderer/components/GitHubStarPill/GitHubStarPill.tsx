@@ -1,6 +1,7 @@
 import { cn } from "@superset/ui/utils";
-import { ExternalLink, Star } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatedStarButton } from "renderer/components/AnimatedStarButton";
+import type { GithubStarActionState } from "renderer/hooks/useGithubStarAction";
 import { useGithubStarAction } from "renderer/hooks/useGithubStarAction";
 import { track } from "renderer/lib/analytics";
 
@@ -11,10 +12,29 @@ interface GitHubStarPillProps {
 /**
  * Small, always-optional "Star Superset on GitHub" pill for the empty
  * "no pane open" screens (v1 EmptyTabView and v2 WorkspaceEmptyState).
- * Hides once starred — there's nothing further to ask for.
+ * Hides once starred — either immediately if it was already starred before
+ * this mounted, or after a short grace period if the user just starred it
+ * here, so the confetti/label animation has time to play.
  */
 export function GitHubStarPill({ className }: GitHubStarPillProps) {
 	const { state, activate, isBusy } = useGithubStarAction();
+	const [visible, setVisible] = useState(true);
+	const prevStateRef = useRef<GithubStarActionState | null>(null);
+
+	useEffect(() => {
+		const prev = prevStateRef.current;
+		prevStateRef.current = state;
+		const justStarred =
+			(prev === "not_starred" || prev === "unknown") && state === "starred";
+		if (state === "starred" && !justStarred) {
+			setVisible(false);
+			return;
+		}
+		if (justStarred) {
+			const timer = setTimeout(() => setVisible(false), 900);
+			return () => clearTimeout(timer);
+		}
+	}, [state]);
 
 	useEffect(() => {
 		if (state === "not_starred" || state === "unknown") {
@@ -22,7 +42,7 @@ export function GitHubStarPill({ className }: GitHubStarPillProps) {
 		}
 	}, [state]);
 
-	if (state === "loading" || state === "starred") return null;
+	if (state === "loading" || !visible) return null;
 
 	const handleClick = () => {
 		track(state === "unknown" ? "star_nag_opened_web" : "star_nag_starred", {
@@ -33,19 +53,11 @@ export function GitHubStarPill({ className }: GitHubStarPillProps) {
 
 	return (
 		<div className={cn("flex items-center justify-center", className)}>
-			<button
-				type="button"
-				onClick={handleClick}
-				disabled={isBusy}
-				className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 px-4 py-1.5 text-[13px] font-medium text-amber-700 transition-colors hover:bg-amber-400/10 disabled:pointer-events-none disabled:opacity-50 dark:border-amber-400/30 dark:text-amber-300/90 dark:hover:bg-amber-400/[0.08]"
-			>
-				{state === "unknown" ? (
-					<ExternalLink className="size-3.5" />
-				) : (
-					<Star className="size-3.5" />
-				)}
-				{state === "unknown" ? "Open GitHub" : "Star on GitHub"}
-			</button>
+			<AnimatedStarButton
+				state={state}
+				busy={isBusy}
+				onActivate={handleClick}
+			/>
 		</div>
 	);
 }

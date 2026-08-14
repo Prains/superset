@@ -2,7 +2,9 @@ import { FEATURE_FLAGS } from "@superset/shared/constants";
 import { SidebarCard } from "@superset/ui/sidebar-card";
 import { AnimatePresence, motion } from "framer-motion";
 import { useFeatureFlagEnabled } from "posthog-js/react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatedStarButton } from "renderer/components/AnimatedStarButton";
+import type { GithubStarActionState } from "renderer/hooks/useGithubStarAction";
 import { useGithubStarAction } from "renderer/hooks/useGithubStarAction";
 import { track } from "renderer/lib/analytics";
 import { useStarNagStore } from "renderer/stores/star-nag";
@@ -23,6 +25,26 @@ export function StarNagCard({ isCollapsed }: StarNagCardProps) {
 	const dismiss = useStarNagStore((s) => s.dismiss);
 	const { state, activate, isBusy } = useGithubStarAction();
 
+	// Starring calls markCompleted() internally, which flips shouldShow to
+	// false immediately — without this, the card would unmount before the
+	// AnimatedStarButton's confetti/label animation gets a chance to play.
+	const [staysVisibleForAnimation, setStaysVisibleForAnimation] =
+		useState(false);
+	const prevStateRef = useRef<GithubStarActionState | null>(null);
+
+	useEffect(() => {
+		const prev = prevStateRef.current;
+		prevStateRef.current = state;
+		const justStarred =
+			(prev === "not_starred" || prev === "unknown") && state === "starred";
+		if (justStarred) {
+			setStaysVisibleForAnimation(true);
+			const timer = setTimeout(() => setStaysVisibleForAnimation(false), 900);
+			return () => clearTimeout(timer);
+		}
+	}, [state]);
+
+	const renderVisible = shouldShow || staysVisibleForAnimation;
 	const isVisible = !isCollapsed && isEnabled && shouldShow;
 
 	useEffect(() => {
@@ -46,7 +68,7 @@ export function StarNagCard({ isCollapsed }: StarNagCardProps) {
 
 	return (
 		<AnimatePresence>
-			{shouldShow && (
+			{renderVisible && (
 				<motion.div
 					initial={{ opacity: 0, y: 8 }}
 					animate={{ opacity: 1, y: 0 }}
@@ -57,16 +79,15 @@ export function StarNagCard({ isCollapsed }: StarNagCardProps) {
 					<SidebarCard
 						title="Enjoying Superset?"
 						description="Superset is open source. If it's helped you today, a GitHub star helps other developers find it."
-						actionLabel={
-							isBusy
-								? "Starring…"
-								: state === "unknown"
-									? "Open GitHub"
-									: "Star on GitHub"
-						}
-						onAction={handleAction}
 						onDismiss={handleDismiss}
-					/>
+					>
+						<AnimatedStarButton
+							state={state}
+							busy={isBusy}
+							onActivate={handleAction}
+							className="mt-3 w-full justify-center"
+						/>
+					</SidebarCard>
 				</motion.div>
 			)}
 		</AnimatePresence>
