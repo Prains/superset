@@ -1,0 +1,39 @@
+{
+	"name": "@superset/workspace-contract",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./errors": {
+			"types": "./src/errors.ts",
+			"default": "./src/errors.ts"
+		},
+		"./events": {
+			"types": "./src/events.ts",
+			"default": "./src/events.ts"
+		},
+		"./routes": {
+			"types": "./src/routes.ts",
+			"default": "./src/routes.ts"
+		},
+		"./package.json": "./package.json"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit --emitDeclarationOnly false",
+		"test": "bun test --pass-with-no-tests"
+	},
+	"dependencies": {
+		"@superset/shared": "workspace:*",
+		"zod": "4.4.3"
+	},
+	"devDependencies": {
+		"@superset/typescript": "workspace:*",
+		"@types/bun": "1.3.14",
+		"@types/node": "24.12.0",
+		"typescript": "6.0.3"
+	}
+}

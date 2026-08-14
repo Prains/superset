@@ -941,6 +941,7 @@
       "devDependencies": {
         "@superset/host-client": "workspace:*",
         "@superset/typescript": "workspace:*",
+        "@superset/workspace-contract": "workspace:*",
         "@types/better-sqlite3": "7.6.13",
         "@types/mime-types": "3.0.1",
         "@types/node": "24.12.0",
@@ -1241,6 +1242,20 @@
       },
       "peerDependencies": {
         "react": "19.2.3",
+      },
+    },
+    "packages/workspace-contract": {
+      "name": "@superset/workspace-contract",
+      "version": "0.0.1",
+      "dependencies": {
+        "@superset/shared": "workspace:*",
+        "zod": "4.4.3",
+      },
+      "devDependencies": {
+        "@superset/typescript": "workspace:*",
+        "@types/bun": "1.3.14",
+        "@types/node": "24.12.0",
+        "typescript": "6.0.3",
       },
     },
     "packages/workspace-fs": {
@@ -2978,6 +2993,8 @@
     "@superset/web": ["@superset/web@workspace:apps/web"],
 
     "@superset/workspace-client": ["@superset/workspace-client@workspace:packages/workspace-client"],
+
+    "@superset/workspace-contract": ["@superset/workspace-contract@workspace:packages/workspace-contract"],
 
     "@superset/workspace-fs": ["@superset/workspace-fs@workspace:packages/workspace-fs"],
 
