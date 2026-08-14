@@ -88,3 +88,11 @@ export function showStarNagOnboardingToast() {
 		},
 	});
 }
+
+/** Dev-only: renders the toast regardless of eligibility/cooldown/session
+ * state, for previewing via the command palette. Does not track "shown". */
+export function previewStarNagOnboardingToast() {
+	toast.custom((id) => <StarNagToastContent toastId={id} />, {
+		duration: TOAST_DURATION_MS,
+	});
+}
