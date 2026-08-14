@@ -53,5 +53,7 @@ export function getBundledPluginDir(): string {
  */
 export function getV1NotificationsPort(): number {
 	const parsed = Number(process.env.DESKTOP_NOTIFICATIONS_PORT);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : 51741;
+	return Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535
+		? parsed
+		: 51741;
 }

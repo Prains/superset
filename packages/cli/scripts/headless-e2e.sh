@@ -86,7 +86,13 @@ await_healthy() {
 
 boot_host "$HSDIR/host.log"
 await_healthy "$HSDIR/host.log"
-sleep 3  # let async provisioning (managed skills) and shell-env probe settle
+# The login-shell probe may take up to 8s after the server is listening; wait
+# for its merge log line (asserted again below) instead of a fixed sleep.
+for _ in $(seq 1 30); do
+  grep -q "login-shell PATH entries into process env" "$HSDIR/host.log" && break
+  sleep 0.5
+done
+sleep 1  # managed-skills provisioning is async fire-and-forget
 
 echo "[e2e] === assert: provisioning artifacts ==="
 test -x "$HOME/.superset/hooks/notify.sh"
@@ -153,7 +159,7 @@ echo "$STATUS" | grep -q "host-service dispatched status=200"
 ' )
 
 echo "[e2e] === assert: idempotent re-provisioning on restart ==="
-kill "$HSPID"; wait "$HSPID" 2>/dev/null || true
+kill "$HSPID" 2>/dev/null || true; wait "$HSPID" 2>/dev/null || true
 NOTIFY_MTIME1=$(stat -c %Y "$HOME/.superset/hooks/notify.sh")
 boot_host "$HSDIR/host2.log"
 await_healthy "$HSDIR/host2.log"
