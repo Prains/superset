@@ -14,7 +14,7 @@ import {
 	sanitizeBranchNameWithMaxLength,
 	slugifyForBranch,
 } from "@superset/shared/workspace-launch";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { fetchRelayPresence } from "../../lib/relay-presence";
 import { RelayDispatchError, relayMutation } from "./relay-client";
 
@@ -77,6 +77,7 @@ export async function dispatchAutomation(
 		})
 		.onConflictDoNothing({
 			target: [automationRuns.automationId, automationRuns.scheduledFor],
+			where: sql`${automationRuns.scheduledFor} IS NOT NULL`,
 		})
 		.returning();
 
@@ -284,6 +285,7 @@ async function recordSkipped(
 		})
 		.onConflictDoNothing({
 			target: [automationRuns.automationId, automationRuns.scheduledFor],
+			where: sql`${automationRuns.scheduledFor} IS NOT NULL`,
 		})
 		.returning({ id: automationRuns.id });
 	return row;
