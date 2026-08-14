@@ -8,6 +8,7 @@ import {
 } from "./providers/auth";
 import { LocalGitCredentialProvider } from "./providers/git";
 import { PskHostAuthProvider } from "./providers/host-auth";
+import { provisionAgentIntegrations } from "./runtime/agent-provisioning";
 import { installProcessSafetyNet, installUpgradeSocketGuard } from "./safety";
 import { captureFatalStartupError, initSentry } from "./sentry";
 import { startTerminalBaseEnvResolution } from "./terminal/env";
@@ -33,6 +34,11 @@ async function main(): Promise<void> {
 	// Non-terminal requests (workspaces, git, chat) are unaffected if the
 	// daemon takes time to come up or fails entirely.
 	startDaemonBootstrap(env.ORGANIZATION_ID);
+
+	// Standalone entry only: the desktop provisions these itself for hosts it
+	// spawns (with its per-agent disable settings); this covers CLI/systemd
+	// launches, which previously had no notify hooks or shell wrappers (#6254).
+	provisionAgentIntegrations();
 
 	const configTokenSource = env.SUPERSET_AUTH_CONFIG_PATH
 		? new ConfigFileSessionTokenSource({

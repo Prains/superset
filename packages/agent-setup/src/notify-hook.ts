@@ -1,16 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { env } from "shared/env.shared";
-import { HOOKS_DIR } from "./paths";
+import { getTemplatePath, getV1NotificationsPort } from "./config";
+import { getHooksDir } from "./paths";
 
 export const NOTIFY_SCRIPT_NAME = "notify.sh";
 export const NOTIFY_SCRIPT_MARKER = "# Superset agent notification hook v8";
-
-const NOTIFY_SCRIPT_TEMPLATE_PATH = path.join(
-	__dirname,
-	"templates",
-	"notify-hook.template.sh",
-);
 
 function writeFileIfChanged(
 	filePath: string,
@@ -34,14 +28,17 @@ function writeFileIfChanged(
 }
 
 export function getNotifyScriptPath(): string {
-	return path.join(HOOKS_DIR, NOTIFY_SCRIPT_NAME);
+	return path.join(getHooksDir(), NOTIFY_SCRIPT_NAME);
 }
 
 export function getNotifyScriptContent(): string {
-	const template = fs.readFileSync(NOTIFY_SCRIPT_TEMPLATE_PATH, "utf-8");
+	const template = fs.readFileSync(
+		getTemplatePath("notify-hook.template.sh"),
+		"utf-8",
+	);
 	return template
 		.replaceAll("{{MARKER}}", NOTIFY_SCRIPT_MARKER)
-		.replaceAll("{{DEFAULT_PORT}}", String(env.DESKTOP_NOTIFICATIONS_PORT));
+		.replaceAll("{{DEFAULT_PORT}}", String(getV1NotificationsPort()));
 }
 
 export function createNotifyScript(): void {

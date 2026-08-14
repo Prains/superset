@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { SUPERSET_MANAGED_BINARIES } from "./desktop-agent-capabilities";
+import { SUPERSET_MANAGED_BINARIES } from "./agent-setup-targets";
 import { NOTIFY_SCRIPT_NAME } from "./notify-hook";
-import { BIN_DIR } from "./paths";
+import { getBinDir } from "./paths";
 
 export const WRAPPER_MARKER = "# Superset agent-wrapper v3";
 export { SUPERSET_MANAGED_BINARIES };
@@ -110,7 +110,7 @@ function buildRealBinaryResolver(): string {
     [ -z "$dir" ] && continue
     dir="\${dir%/}"
     case "$dir" in
-      "${BIN_DIR}"|"$HOME"/.superset/bin|"$HOME"/.superset-*/bin) continue ;;
+      "${getBinDir()}"|"$HOME"/.superset/bin|"$HOME"/.superset-*/bin) continue ;;
     esac
     if [ -x "$dir/$name" ] && [ ! -d "$dir/$name" ]; then
       printf "%s\\n" "$dir/$name"
@@ -127,7 +127,7 @@ function getMissingBinaryMessage(name: string): string {
 }
 
 export function getWrapperPath(binaryName: string): string {
-	return path.join(BIN_DIR, binaryName);
+	return path.join(getBinDir(), binaryName);
 }
 
 export interface BuildWrapperScriptOptions {

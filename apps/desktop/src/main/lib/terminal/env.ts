@@ -7,7 +7,7 @@ import {
 } from "@superset/shared/constants";
 import defaultShell from "default-shell";
 import { env } from "shared/env.shared";
-import { getShellEnv } from "../agent-setup/shell-wrappers";
+import { getShellEnv } from "@superset/agent-setup/shell-wrappers";
 
 const MACOS_SYSTEM_CERT_FILE = "/etc/ssl/cert.pem";
 let cachedUtf8Locale: string | null = null;

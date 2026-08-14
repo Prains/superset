@@ -4,7 +4,7 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { Terminal as HeadlessTerminal } from "@xterm/headless";
 import * as pty from "node-pty";
 import { DEFAULT_TERMINAL_SCROLLBACK } from "shared/constants";
-import { getShellArgs } from "../agent-setup";
+import { getShellArgs } from "@superset/agent-setup";
 import { DataBatcher } from "../data-batcher";
 import {
 	containsClearScrollbackSequence,
