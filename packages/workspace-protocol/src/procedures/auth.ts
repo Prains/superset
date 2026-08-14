@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 
 const authStatusSchema = z.object({
 	authenticated: z.boolean(),
@@ -29,4 +29,4 @@ export const authContract = {
 		input: z.void(),
 		output: authStatusSchema,
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

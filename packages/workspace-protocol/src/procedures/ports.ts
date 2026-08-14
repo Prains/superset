@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 import { enrichedPortSchema, portEventSchema } from "../schemas/terminal";
 
 const workspaceIdsSchema = z.object({
@@ -38,4 +38,4 @@ export const portsContract = {
 			error: z.string().optional(),
 		}),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

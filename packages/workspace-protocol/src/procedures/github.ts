@@ -1,8 +1,8 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 
 /**
- * Only `mergePR` is in the contract. The rest of host-service's `github.*`
+ * Only `mergePR` is in the protocol. The rest of host-service's `github.*`
  * is a thin authenticated proxy over Octokit reads that a client can make
  * directly with its own token; merging is here because it is the one write
  * the workspace surface performs against the workspace's own pull request,
@@ -24,4 +24,4 @@ export const githubContract = {
 			message: z.string(),
 		}),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

@@ -1,5 +1,5 @@
 /**
- * host-service must serve every procedure in the workspace contract.
+ * host-service must serve every procedure in the workspace protocol.
  *
  * The contract is the shared surface between this runtime (a laptop) and the
  * cloud sandbox runtime. Both serve it; clients are written against it once.
@@ -14,17 +14,17 @@
 
 import { describe, expect, it } from "bun:test";
 import {
-	type ContractNode,
-	isProcedureContract,
-	workspaceContract,
-} from "@superset/workspace-contract";
+	isProcedureSpec,
+	type ProtocolNode,
+	workspaceProtocol,
+} from "@superset/workspace-protocol";
 import { appRouter } from "./router/router";
 
-/** Every `a.b.c` path in the contract, in declaration order. */
-function contractPaths(node: ContractNode, prefix = ""): string[] {
-	if (isProcedureContract(node)) return [prefix];
+/** Every `a.b.c` path in the protocol, in declaration order. */
+function protocolPaths(node: ProtocolNode, prefix = ""): string[] {
+	if (isProcedureSpec(node)) return [prefix];
 	return Object.entries(node).flatMap(([key, child]) =>
-		contractPaths(child as ContractNode, prefix ? `${prefix}.${key}` : key),
+		protocolPaths(child as ProtocolNode, prefix ? `${prefix}.${key}` : key),
 	);
 }
 
@@ -44,7 +44,7 @@ function routerHas(path: string): boolean {
 }
 
 describe("workspace contract compliance", () => {
-	const paths = contractPaths(workspaceContract);
+	const paths = protocolPaths(workspaceProtocol);
 
 	it("declares a non-trivial contract", () => {
 		// Guards against the assertion silently passing because the contract
@@ -52,7 +52,7 @@ describe("workspace contract compliance", () => {
 		expect(paths.length).toBeGreaterThan(50);
 	});
 
-	it("serves every contract procedure", () => {
+	it("serves every protocol procedure", () => {
 		const missing = paths.filter((path) => !routerHas(path));
 		expect(missing).toEqual([]);
 	});

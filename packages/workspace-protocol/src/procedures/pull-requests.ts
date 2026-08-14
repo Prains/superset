@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 import { pullRequestWorkspaceSnapshotSchema } from "../schemas/git";
 
 const workspaceIdsSchema = z.object({ workspaceIds: z.array(z.string()) });
@@ -32,4 +32,4 @@ export const pullRequestsContract = {
 		input: z.object({ workspaceId: z.string() }),
 		output: z.object({ ok: z.boolean() }),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

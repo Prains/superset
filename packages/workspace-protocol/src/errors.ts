@@ -1,7 +1,7 @@
 /**
  * The workspace error taxonomy.
  *
- * A runtime serving this contract signals expected domain failures by
+ * A runtime serving this protocol signals expected domain failures by
  * throwing a tRPC error whose `cause` is one of the shapes below. Today
  * host-service builds these inline as object literals and clients recover
  * them by string-matching `kind`, with no shared type on either side; this

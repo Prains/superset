@@ -1,5 +1,5 @@
 /**
- * The non-tRPC surface of the workspace contract: WebSocket and REST routes,
+ * The non-tRPC surface of the workspace protocol: WebSocket and REST routes,
  * plus the replay invariants a terminal transport must honor.
  *
  * These are as load-bearing as the procedures. A runtime that serves every

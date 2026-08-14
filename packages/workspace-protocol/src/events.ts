@@ -6,7 +6,7 @@
  * exactly one workspace, so its filter is trivially satisfied — but the
  * shapes stay identical so one client implementation works against both.
  *
- * Deliberately NOT in the contract:
+ * Deliberately NOT in the protocol:
  * - `workspace:create-settled` — creation is a control-plane act for a
  *   sandbox (the cloud registry creates it before the VM exists), so a
  *   sandbox never emits a settle for its own creation.

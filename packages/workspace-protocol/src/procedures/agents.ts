@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 
 export const agentsContract = {
 	/**
@@ -36,4 +36,4 @@ export const agentsContract = {
 			}),
 		]),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

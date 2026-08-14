@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 import {
 	daemonHealthSchema,
 	terminalDisposalResultSchema,
@@ -183,4 +183,4 @@ export const terminalContract = {
 			},
 		},
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

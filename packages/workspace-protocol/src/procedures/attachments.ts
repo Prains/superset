@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 import { base64PayloadSchema } from "../schemas/filesystem";
 
 export const attachmentsContract = {
@@ -31,4 +31,4 @@ export const attachmentsContract = {
 		input: z.object({ attachmentId: z.string().uuid() }),
 		output: z.object({ success: z.literal(true) }),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

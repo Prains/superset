@@ -1,21 +1,21 @@
 /**
- * The workspace contract: everything a runtime must serve to be a Superset
+ * The workspace protocol: everything a runtime must serve to be a Superset
  * workspace, independent of whether that runtime is a laptop's host-service
  * or a cloud sandbox.
  *
  * The contract is a strict subset of host-service's `AppRouter`. Paths are
  * wire-identical on purpose, so host-service complies without a shim; the
  * compliance assertion lives in
- * `packages/host-service/src/trpc/contract-compliance.test-d.ts`.
+ * `packages/host-service/src/trpc/protocol-compliance.test.ts`.
  *
- * Deliberately NOT in the contract (control-plane, not workspace-plane):
+ * Deliberately NOT in the protocol (control-plane, not workspace-plane):
  * `workspaces.*`, `workspaceCreation.*`, `workspaceCleanup.*`, `workspace.*`,
  * `project.*`, `cloud.*`, `issues.*`, and `chat.*`. Creating, listing, and
  * destroying workspaces is something done TO a workspace from outside it — a
  * sandbox cannot create itself.
  */
 
-import type { ContractNamespace } from "./procedure";
+import type { ProtocolNamespace } from "./procedure";
 import { agentsContract } from "./procedures/agents";
 import { attachmentsContract } from "./procedures/attachments";
 import { authContract } from "./procedures/auth";
@@ -32,7 +32,7 @@ import { settingsContract } from "./procedures/settings";
 import { terminalContract } from "./procedures/terminal";
 import { terminalAgentsContract } from "./procedures/terminal-agents";
 
-export const workspaceContract = {
+export const workspaceProtocol = {
 	terminal: terminalContract,
 	git: gitContract,
 	filesystem: filesystemContract,
@@ -48,23 +48,23 @@ export const workspaceContract = {
 	github: githubContract,
 	host: hostContract,
 	health: healthContract,
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;
 
-export type WorkspaceContract = typeof workspaceContract;
+export type WorkspaceContract = typeof workspaceProtocol;
 
 export * from "./errors";
 export * from "./events";
 export {
-	type ContractNamespace,
-	type ContractNode,
 	DEFAULT_QUERY_TIMEOUT_MS,
-	type InferContractInput,
-	type InferContractOutput,
-	isProcedureContract,
-	type ProcedureContract,
+	type InferProtocolInput,
+	type InferProtocolOutput,
+	isProcedureSpec,
 	type ProcedureDeprecation,
 	type ProcedureExposure,
 	type ProcedureKind,
+	type ProcedureSpec,
+	type ProtocolNamespace,
+	type ProtocolNode,
 } from "./procedure";
 export { agentsContract } from "./procedures/agents";
 export { attachmentsContract } from "./procedures/attachments";

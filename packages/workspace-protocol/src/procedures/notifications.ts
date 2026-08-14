@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 
 export const notificationsContract = {
 	/**
@@ -13,7 +13,7 @@ export const notificationsContract = {
 	 * bearer token would leak it into every agent shell's environment for no
 	 * practical gain, so this procedure accepts anonymous callers. That is
 	 * only safe because the caller is inside the workspace, dialing
-	 * 127.0.0.1. A runtime serving this contract MUST NOT make this path
+	 * 127.0.0.1. A runtime serving this protocol MUST NOT make this path
 	 * reachable through the relay, a tunnel, or any other remote ingress:
 	 * an anonymous remote caller could otherwise forge lifecycle events for
 	 * any terminal id — chimes, working indicators, and the forward-only
@@ -35,4 +35,4 @@ export const notificationsContract = {
 		}),
 		output: z.object({ success: z.boolean(), ignored: z.boolean() }),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

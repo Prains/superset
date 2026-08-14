@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 
 export const hostContract = {
 	/**
-	 * Identity and version of the process serving this contract.
+	 * Identity and version of the process serving this protocol.
 	 *
 	 * @deprecated Renaming to `runtime.info` in the desktop-adoption PR:
 	 * "host" is device-side vocabulary and a cloud sandbox is not a host.
@@ -32,4 +32,4 @@ export const hostContract = {
 				"`host` is device-side vocabulary; a cloud sandbox serves the same contract without being a host.",
 		},
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

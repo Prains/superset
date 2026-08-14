@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 import {
 	agentDefinitionIdSchema,
 	terminalAgentBindingSchema,
@@ -90,4 +90,4 @@ export const terminalAgentsContract = {
 			created: z.boolean(),
 		}),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

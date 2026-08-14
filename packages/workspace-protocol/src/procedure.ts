@@ -22,7 +22,7 @@ export interface ProcedureDeprecation {
 	reason: string;
 }
 
-export interface ProcedureContract<
+export interface ProcedureSpec<
 	Input extends z.ZodType = z.ZodType,
 	Output extends z.ZodType = z.ZodType,
 > {
@@ -40,11 +40,11 @@ export interface ProcedureContract<
 	deprecated?: ProcedureDeprecation;
 }
 
-export interface ContractNamespace {
-	[name: string]: ContractNode;
+export interface ProtocolNamespace {
+	[name: string]: ProtocolNode;
 }
 
-export type ContractNode = ProcedureContract | ContractNamespace;
+export type ProtocolNode = ProcedureSpec | ProtocolNamespace;
 
 /**
  * Default budget applied by host-service's `queryProcedure` timeout
@@ -52,18 +52,16 @@ export type ContractNode = ProcedureContract | ContractNamespace;
  */
 export const DEFAULT_QUERY_TIMEOUT_MS = 5_000;
 
-export function isProcedureContract(
-	node: ContractNode,
-): node is ProcedureContract {
+export function isProcedureSpec(node: ProtocolNode): node is ProcedureSpec {
 	return "kind" in node && "input" in node && "output" in node;
 }
 
-/** Client-visible input type of a contract node (or namespace of them). */
-export type InferContractInput<Node> = Node extends ProcedureContract
+/** Client-visible input type of a protocol node (or namespace of them). */
+export type InferProtocolInput<Node> = Node extends ProcedureSpec
 	? z.infer<Node["input"]>
-	: { [Key in keyof Node]: InferContractInput<Node[Key]> };
+	: { [Key in keyof Node]: InferProtocolInput<Node[Key]> };
 
-/** Client-visible output type of a contract node (or namespace of them). */
-export type InferContractOutput<Node> = Node extends ProcedureContract
+/** Client-visible output type of a protocol node (or namespace of them). */
+export type InferProtocolOutput<Node> = Node extends ProcedureSpec
 	? z.infer<Node["output"]>
-	: { [Key in keyof Node]: InferContractOutput<Node[Key]> };
+	: { [Key in keyof Node]: InferProtocolOutput<Node[Key]> };

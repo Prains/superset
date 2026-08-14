@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 
 const projectIdSchema = z.object({ projectId: z.string().uuid() });
 
@@ -31,4 +31,4 @@ export const configContract = {
 			})
 			.nullable(),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

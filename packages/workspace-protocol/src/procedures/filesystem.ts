@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 import {
 	base64PayloadSchema,
 	fsContentMatchSchema,
@@ -155,4 +155,4 @@ export const filesystemContract = {
 		input: searchOptionsSchema.extend({ workspaceId: z.string() }),
 		output: z.object({ matches: z.array(fsContentMatchSchema) }),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

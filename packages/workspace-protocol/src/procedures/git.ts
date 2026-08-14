@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 import {
 	changedFileSchema,
 	checkRunSchema,
@@ -221,4 +221,4 @@ export const gitContract = {
 		}),
 		output: z.object({ threadId: z.string(), isResolved: z.boolean() }),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;

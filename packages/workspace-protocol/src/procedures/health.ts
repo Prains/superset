@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ContractNamespace } from "../procedure";
+import type { ProtocolNamespace } from "../procedure";
 
 /**
  * Liveness probe. Public on purpose: it carries no workspace data, and a
@@ -18,4 +18,4 @@ export const healthContract = {
 			registrationError: z.string().nullable(),
 		}),
 	},
-} as const satisfies ContractNamespace;
+} as const satisfies ProtocolNamespace;
