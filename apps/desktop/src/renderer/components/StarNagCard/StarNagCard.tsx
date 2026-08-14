@@ -39,7 +39,7 @@ export function StarNagCard({ isCollapsed }: StarNagCardProps) {
 			(prev === "not_starred" || prev === "unknown") && state === "starred";
 		if (justStarred) {
 			setStaysVisibleForAnimation(true);
-			const timer = setTimeout(() => setStaysVisibleForAnimation(false), 900);
+			const timer = setTimeout(() => setStaysVisibleForAnimation(false), 1700);
 			return () => clearTimeout(timer);
 		}
 	}, [state]);

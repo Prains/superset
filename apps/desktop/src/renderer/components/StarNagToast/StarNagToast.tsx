@@ -12,7 +12,7 @@ function StarNagToastContent({ toastId }: { toastId: string | number }) {
 
 	useEffect(() => {
 		if (state !== "starred") return;
-		const timer = setTimeout(() => toast.dismiss(toastId), 1_500);
+		const timer = setTimeout(() => toast.dismiss(toastId), 2_000);
 		return () => clearTimeout(timer);
 	}, [state, toastId]);
 

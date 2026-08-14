@@ -41,9 +41,10 @@ interface AnimatedStarButtonProps {
 
 /**
  * Shared "Star on GitHub" button for the empty-state pill, sidebar card, and
- * onboarding toast: a tilt-on-hover solid button with an icon well, a label
- * crossfade, and a confetti burst on success. Framer Motion only (already a
- * dependency) — no new libraries, no external assets.
+ * onboarding toast: a tilt-on-hover solid button (auto-inverts light/dark
+ * via bg-foreground/text-background) with a label crossfade and a confetti
+ * burst on success. Framer Motion only (already a dependency) — no new
+ * libraries, no external assets.
  */
 export function AnimatedStarButton({
 	state,
@@ -85,7 +86,7 @@ export function AnimatedStarButton({
 			const clearTimer = setTimeout(() => {
 				setJustStarred(false);
 				setParticles([]);
-			}, 900);
+			}, 1700);
 			return () => {
 				clearTimeout(recoilTimer);
 				clearTimeout(clearTimer);
@@ -111,9 +112,11 @@ export function AnimatedStarButton({
 			onMouseLeave={handleMouseLeave}
 			disabled={busy || state === "loading"}
 			style={{ rotateX, rotateY, transformPerspective: 500 }}
+			whileHover={{ scale: 1.03 }}
 			whileTap={{ scale: 0.97 }}
+			transition={{ type: "spring", stiffness: 220, damping: 26 }}
 			className={cn(
-				"relative inline-flex items-center gap-2.5 rounded-xl bg-foreground py-1.5 pl-1.5 pr-3.5 text-[13px] font-semibold text-background shadow-md shadow-black/10 transition-shadow will-change-transform hover:shadow-lg disabled:pointer-events-none disabled:opacity-60 dark:shadow-black/30",
+				"group relative inline-flex items-center gap-2.5 rounded-xl bg-foreground py-1.5 pl-1.5 pr-3.5 text-[13px] font-semibold text-background shadow-md shadow-black/10 transition-[filter,box-shadow] duration-300 ease-out will-change-transform hover:brightness-105 hover:shadow-[0_10px_28px_-8px_rgba(245,197,24,0.55)] disabled:pointer-events-none disabled:opacity-60 dark:shadow-black/30 dark:hover:shadow-[0_10px_28px_-8px_rgba(251,191,36,0.35)]",
 				className,
 			)}
 		>
@@ -126,7 +129,7 @@ export function AnimatedStarButton({
 						? { duration: 0.12 }
 						: { type: "spring", stiffness: 300, damping: 12 }
 				}
-				className="relative flex size-6 shrink-0 items-center justify-center rounded-lg bg-background/10"
+				className="relative flex size-6 shrink-0 items-center justify-center"
 			>
 				<motion.span
 					animate={
@@ -134,13 +137,15 @@ export function AnimatedStarButton({
 							? { scale: [1, 1.5, 0.85, 1.1, 1], rotate: [0, -20, 15, -8, 0] }
 							: { scale: 1, rotate: 0 }
 					}
-					transition={{ duration: 0.5, ease: "easeOut" }}
+					transition={{ duration: 0.7, ease: "easeOut" }}
 					className="block"
 				>
 					<Star
 						className={cn(
 							"size-3.5 text-background transition-colors",
-							isStarred && "fill-amber-400 text-amber-400",
+							isStarred
+								? "fill-amber-400 text-amber-400"
+								: "group-hover:fill-amber-400/80 group-hover:text-amber-400/80",
 						)}
 					/>
 				</motion.span>
@@ -166,7 +171,7 @@ export function AnimatedStarButton({
 							}}
 							exit={{ opacity: 0 }}
 							transition={{
-								duration: 0.7,
+								duration: 1.3,
 								ease: "easeOut",
 								times: [0, 0.4, 1],
 							}}

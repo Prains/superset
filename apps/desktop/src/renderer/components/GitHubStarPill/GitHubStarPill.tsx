@@ -31,7 +31,7 @@ export function GitHubStarPill({ className }: GitHubStarPillProps) {
 			return;
 		}
 		if (justStarred) {
-			const timer = setTimeout(() => setVisible(false), 900);
+			const timer = setTimeout(() => setVisible(false), 1700);
 			return () => clearTimeout(timer);
 		}
 	}, [state]);
