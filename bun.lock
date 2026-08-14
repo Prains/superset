@@ -941,7 +941,6 @@
       "devDependencies": {
         "@superset/host-client": "workspace:*",
         "@superset/typescript": "workspace:*",
-        "@superset/workspace-protocol": "workspace:*",
         "@types/better-sqlite3": "7.6.13",
         "@types/mime-types": "3.0.1",
         "@types/node": "24.12.0",

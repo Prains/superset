@@ -1,12 +1,20 @@
 /**
- * The workspace protocol: everything a runtime must serve to be a Superset
- * workspace, independent of whether that runtime is a laptop's host-service
- * or a cloud sandbox.
+ * The workspace protocol: the zod schemas for everything a runtime must serve
+ * to be a Superset workspace, independent of whether that runtime is a
+ * laptop's host-service or a cloud sandbox.
  *
- * The contract is a strict subset of host-service's `AppRouter`. Paths are
- * wire-identical on purpose, so host-service complies without a shim; the
- * compliance assertion lives in
- * `packages/host-service/src/trpc/protocol-compliance.test.ts`.
+ * The package is schemas and nothing else. Drift is prevented by shared object
+ * identity, not by a compliance checker: both runtimes pass these exact schema
+ * objects to their `.input()` / `.output()` calls, so they cannot disagree
+ * about a shape. tRPC's own `inferRouterInputs` / `inferRouterOutputs` cover
+ * client-side type inference, so nothing here reimplements them.
+ *
+ * Modules mirror host-service's router layout
+ * (`src/trpc/router/<namespace>/<namespace>.ts`) one-for-one. Exports are
+ * namespace-prefixed — `terminalListOutput`, `gitGetStatusInput` — so a flat
+ * import never collides. A `Schema` suffix marks a building block shared by
+ * several procedures or nested inside another schema; `Input` / `Output` mark
+ * a procedure's wire boundary.
  *
  * Deliberately NOT in the protocol (control-plane, not workspace-plane):
  * `workspaces.*`, `workspaceCreation.*`, `workspaceCleanup.*`, `workspace.*`,
@@ -15,79 +23,22 @@
  * sandbox cannot create itself.
  */
 
-import type { ProtocolNamespace } from "./procedure";
-import { agentsContract } from "./procedures/agents";
-import { attachmentsContract } from "./procedures/attachments";
-import { authContract } from "./procedures/auth";
-import { configContract } from "./procedures/config";
-import { filesystemContract } from "./procedures/filesystem";
-import { gitContract } from "./procedures/git";
-import { githubContract } from "./procedures/github";
-import { healthContract } from "./procedures/health";
-import { hostContract } from "./procedures/host";
-import { notificationsContract } from "./procedures/notifications";
-import { portsContract } from "./procedures/ports";
-import { pullRequestsContract } from "./procedures/pull-requests";
-import { settingsContract } from "./procedures/settings";
-import { terminalContract } from "./procedures/terminal";
-import { terminalAgentsContract } from "./procedures/terminal-agents";
-
-export const workspaceProtocol = {
-	terminal: terminalContract,
-	git: gitContract,
-	filesystem: filesystemContract,
-	terminalAgents: terminalAgentsContract,
-	ports: portsContract,
-	pullRequests: pullRequestsContract,
-	attachments: attachmentsContract,
-	config: configContract,
-	auth: authContract,
-	agents: agentsContract,
-	settings: settingsContract,
-	notifications: notificationsContract,
-	github: githubContract,
-	host: hostContract,
-	health: healthContract,
-} as const satisfies ProtocolNamespace;
-
-export type WorkspaceContract = typeof workspaceProtocol;
-
+export * from "./agents";
+export * from "./attachments";
+export * from "./auth";
+export * from "./config";
 export * from "./errors";
 export * from "./events";
-export {
-	DEFAULT_QUERY_TIMEOUT_MS,
-	type InferProtocolInput,
-	type InferProtocolOutput,
-	isProcedureSpec,
-	type ProcedureDeprecation,
-	type ProcedureExposure,
-	type ProcedureKind,
-	type ProcedureSpec,
-	type ProtocolNamespace,
-	type ProtocolNode,
-} from "./procedure";
-export { agentsContract } from "./procedures/agents";
-export { attachmentsContract } from "./procedures/attachments";
-export { authContract } from "./procedures/auth";
-export { configContract } from "./procedures/config";
-export { filesystemContract } from "./procedures/filesystem";
-export { gitContract } from "./procedures/git";
-export { githubContract } from "./procedures/github";
-export { healthContract } from "./procedures/health";
-export { hostContract } from "./procedures/host";
-export { notificationsContract } from "./procedures/notifications";
-export { portsContract } from "./procedures/ports";
-export { pullRequestsContract } from "./procedures/pull-requests";
-export { settingsContract } from "./procedures/settings";
-export {
-	createdTerminalSessionSchema,
-	createTerminalSessionInputSchema,
-	launchTerminalSessionInputSchema,
-	terminalContract,
-} from "./procedures/terminal";
-export { terminalAgentsContract } from "./procedures/terminal-agents";
+export * from "./filesystem";
+export * from "./git";
+export * from "./github";
+export * from "./health";
+export * from "./host";
+export * from "./notifications";
+export * from "./ports";
+export * from "./pull-requests";
 export * from "./routes";
-export * from "./schemas/agents";
-export * from "./schemas/filesystem";
-export * from "./schemas/git";
-export * from "./schemas/terminal";
+export * from "./settings";
+export * from "./shared";
+export * from "./terminal";
+export * from "./terminal-agents";

@@ -9,16 +9,16 @@
 			"default": "./src/index.ts"
 		},
 		"./errors": {
-			"types": "./src/errors.ts",
-			"default": "./src/errors.ts"
+			"types": "./src/errors/index.ts",
+			"default": "./src/errors/index.ts"
 		},
 		"./events": {
-			"types": "./src/events.ts",
-			"default": "./src/events.ts"
+			"types": "./src/events/index.ts",
+			"default": "./src/events/index.ts"
 		},
 		"./routes": {
-			"types": "./src/routes.ts",
-			"default": "./src/routes.ts"
+			"types": "./src/routes/index.ts",
+			"default": "./src/routes/index.ts"
 		},
 		"./package.json": "./package.json"
 	},
