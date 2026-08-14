@@ -29,6 +29,11 @@ describe("checkGithubStarred / starGithubRepo", () => {
 		})) as unknown as ExecWithShellEnv);
 
 		expect(await checkGithubStarred()).toBe("starred");
+		expect(execMock).toHaveBeenCalledWith(
+			"gh",
+			["api", "--include", "user/starred/superset-sh/superset"],
+			{ timeout: 10_000 },
+		);
 	});
 
 	test("returns 'starred' when gh api responds 200", async () => {
@@ -76,6 +81,11 @@ describe("checkGithubStarred / starGithubRepo", () => {
 		})) as unknown as ExecWithShellEnv);
 
 		expect(await starGithubRepo()).toBe(true);
+		expect(execMock).toHaveBeenCalledWith(
+			"gh",
+			["api", "-X", "PUT", "user/starred/superset-sh/superset"],
+			{ timeout: 10_000 },
+		);
 	});
 
 	test("star: returns false on any failure", async () => {

@@ -2,7 +2,7 @@ import { cn } from "@superset/ui/utils";
 import {
 	AnimatePresence,
 	motion,
-	useMotionValue,
+	useReducedMotion,
 	useSpring,
 } from "framer-motion";
 import { Star } from "lucide-react";
@@ -11,6 +11,11 @@ import type { GithubStarActionState } from "renderer/hooks/useGithubStarAction";
 
 const CONFETTI_COLORS = ["#892ab8", "#ea4c89", "#ffff04", "#4af2fd"];
 const PARTICLE_COUNT = 12;
+
+// How long the post-star celebration (icon pop + confetti) stays visible.
+// Shared with GitHubStarPill and StarNagCard so they keep rendering the
+// button — instead of unmounting it — for exactly as long as this plays.
+export const STAR_SUCCESS_ANIMATION_MS = 1700;
 
 interface Particle {
 	id: number;
@@ -56,11 +61,13 @@ export function AnimatedStarButton({
 	const [justStarred, setJustStarred] = useState(false);
 	const [recoiling, setRecoiling] = useState(false);
 	const prevStateRef = useRef(state);
+	const prefersReducedMotion = useReducedMotion();
 
-	const rotateX = useSpring(useMotionValue(0), { stiffness: 300, damping: 20 });
-	const rotateY = useSpring(useMotionValue(0), { stiffness: 300, damping: 20 });
+	const rotateX = useSpring(0, { stiffness: 300, damping: 20 });
+	const rotateY = useSpring(0, { stiffness: 300, damping: 20 });
 
 	function handleMouseMove(e: MouseEvent<HTMLButtonElement>) {
+		if (prefersReducedMotion) return;
 		const bounds = e.currentTarget.getBoundingClientRect();
 		const px =
 			(e.clientX - bounds.left - bounds.width / 2) / (bounds.width / 2);
@@ -77,6 +84,14 @@ export function AnimatedStarButton({
 
 	useEffect(() => {
 		if (prevStateRef.current !== "starred" && state === "starred") {
+			if (prefersReducedMotion) {
+				setJustStarred(true);
+				const clearTimer = setTimeout(
+					() => setJustStarred(false),
+					STAR_SUCCESS_ANIMATION_MS,
+				);
+				return () => clearTimeout(clearTimer);
+			}
 			setRecoiling(true);
 			const recoilTimer = setTimeout(() => {
 				setRecoiling(false);
@@ -86,14 +101,14 @@ export function AnimatedStarButton({
 			const clearTimer = setTimeout(() => {
 				setJustStarred(false);
 				setParticles([]);
-			}, 1700);
+			}, STAR_SUCCESS_ANIMATION_MS);
 			return () => {
 				clearTimeout(recoilTimer);
 				clearTimeout(clearTimer);
 			};
 		}
 		prevStateRef.current = state;
-	}, [state]);
+	}, [state, prefersReducedMotion]);
 
 	const isStarred = state === "starred";
 	const label = isStarred
@@ -112,8 +127,8 @@ export function AnimatedStarButton({
 			onMouseLeave={handleMouseLeave}
 			disabled={busy || state === "loading"}
 			style={{ rotateX, rotateY, transformPerspective: 500 }}
-			whileHover={{ scale: 1.03 }}
-			whileTap={{ scale: 0.97 }}
+			whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
+			whileTap={prefersReducedMotion ? undefined : { scale: 0.97 }}
 			transition={{ type: "spring", stiffness: 220, damping: 26 }}
 			className={cn(
 				"group relative inline-flex items-center gap-2.5 rounded-xl bg-foreground py-1.5 pl-1.5 pr-3.5 text-[13px] font-semibold text-background shadow-md shadow-black/10 transition-[filter,box-shadow] duration-300 ease-out will-change-transform hover:brightness-105 hover:shadow-[0_10px_28px_-8px_rgba(245,197,24,0.55)] disabled:pointer-events-none disabled:opacity-60 dark:shadow-black/30 dark:hover:shadow-[0_10px_28px_-8px_rgba(251,191,36,0.35)]",
@@ -133,7 +148,7 @@ export function AnimatedStarButton({
 			>
 				<motion.span
 					animate={
-						justStarred
+						justStarred && !prefersReducedMotion
 							? { scale: [1, 1.5, 0.85, 1.1, 1], rotate: [0, -20, 15, -8, 0] }
 							: { scale: 1, rotate: 0 }
 					}

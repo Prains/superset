@@ -2,8 +2,11 @@ import { FEATURE_FLAGS } from "@superset/shared/constants";
 import { SidebarCard } from "@superset/ui/sidebar-card";
 import { AnimatePresence, motion } from "framer-motion";
 import { useFeatureFlagEnabled } from "posthog-js/react";
-import { useEffect, useRef, useState } from "react";
-import { AnimatedStarButton } from "renderer/components/AnimatedStarButton";
+import { useEffect, useReducer, useRef, useState } from "react";
+import {
+	AnimatedStarButton,
+	STAR_SUCCESS_ANIMATION_MS,
+} from "renderer/components/AnimatedStarButton";
 import type { GithubStarActionState } from "renderer/hooks/useGithubStarAction";
 import { useGithubStarAction } from "renderer/hooks/useGithubStarAction";
 import { track } from "renderer/lib/analytics";
@@ -22,8 +25,23 @@ interface StarNagCardProps {
 export function StarNagCard({ isCollapsed }: StarNagCardProps) {
 	const isEnabled = useFeatureFlagEnabled(FEATURE_FLAGS.STAR_NAG_CARD);
 	const shouldShow = useStarNagStore((s) => s.shouldShowThresholdCard());
+	const deferredUntil = useStarNagStore((s) => s.deferredUntil);
 	const dismiss = useStarNagStore((s) => s.dismiss);
 	const { state, activate, isBusy } = useGithubStarAction();
+
+	// shouldShowThresholdCard() is only re-evaluated when the store itself
+	// changes — a cooldown expiring is a pure passage of time, not a store
+	// write, so without this the card stays hidden past its cooldown until
+	// something unrelated (e.g. creating another workspace) happens to write
+	// to the store. Force a re-render right when the cooldown actually ends.
+	const [, forceRecheck] = useReducer((n: number) => n + 1, 0);
+	useEffect(() => {
+		if (!deferredUntil) return;
+		const msUntilExpiry = deferredUntil - Date.now();
+		if (msUntilExpiry <= 0) return;
+		const timer = setTimeout(forceRecheck, msUntilExpiry);
+		return () => clearTimeout(timer);
+	}, [deferredUntil]);
 
 	// Starring calls markCompleted() internally, which flips shouldShow to
 	// false immediately — without this, the card would unmount before the
@@ -39,7 +57,10 @@ export function StarNagCard({ isCollapsed }: StarNagCardProps) {
 			(prev === "not_starred" || prev === "unknown") && state === "starred";
 		if (justStarred) {
 			setStaysVisibleForAnimation(true);
-			const timer = setTimeout(() => setStaysVisibleForAnimation(false), 1700);
+			const timer = setTimeout(
+				() => setStaysVisibleForAnimation(false),
+				STAR_SUCCESS_ANIMATION_MS,
+			);
 			return () => clearTimeout(timer);
 		}
 	}, [state]);

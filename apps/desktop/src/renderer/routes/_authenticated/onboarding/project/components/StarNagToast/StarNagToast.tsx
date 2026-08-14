@@ -58,12 +58,23 @@ function StarNagToastContent({ toastId }: { toastId: string | number }) {
 	);
 }
 
+// Bounded so an ignored toast eventually records a dismissal (see
+// onAutoClose below) instead of silently never entering cooldown.
+const TOAST_DURATION_MS = 30_000;
+
 /** Fires once, right after onboarding completes — a no-op if the user has
  * already starred or is within an active cooldown from a prior dismissal. */
 export function showStarNagOnboardingToast() {
 	if (!useStarNagStore.getState().isEligible()) return;
 	track("star_nag_shown", { surface: "toast" });
 	toast.custom((id) => <StarNagToastContent toastId={id} />, {
-		duration: Number.POSITIVE_INFINITY,
+		duration: TOAST_DURATION_MS,
+		// Only fires when the toast's own duration elapses naturally — a
+		// manual toast.dismiss() from starring or clicking the X does not
+		// trigger this, so it can't double-count a dismissal.
+		onAutoClose: () => {
+			track("star_nag_dismissed", { surface: "toast" });
+			useStarNagStore.getState().dismiss();
+		},
 	});
 }

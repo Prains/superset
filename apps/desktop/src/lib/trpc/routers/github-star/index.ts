@@ -6,6 +6,9 @@ export type GithubStarState = "starred" | "not_starred" | "unknown";
 // Matches COMPANY.GITHUB_URL ("https://github.com/superset-sh/superset") in
 // packages/shared/src/constants.ts, used by the renderer for the browser fallback.
 const STARRED_REPO_PATH = "user/starred/superset-sh/superset";
+// A hung `gh` process must not leave the query/mutation pending forever —
+// both callers already treat any failure as a safe "unknown"/false outcome.
+const GH_CALL_TIMEOUT_MS = 10_000;
 
 /**
  * Checks whether the signed-in `gh` CLI user has starred superset-sh/superset.
@@ -16,11 +19,11 @@ const STARRED_REPO_PATH = "user/starred/superset-sh/superset";
  */
 export async function checkGithubStarred(): Promise<GithubStarState> {
 	try {
-		const { stdout, stderr } = await execWithShellEnv("gh", [
-			"api",
-			"--include",
-			STARRED_REPO_PATH,
-		]);
+		const { stdout, stderr } = await execWithShellEnv(
+			"gh",
+			["api", "--include", STARRED_REPO_PATH],
+			{ timeout: GH_CALL_TIMEOUT_MS },
+		);
 		const response = `${stdout ?? ""}\n${stderr ?? ""}`;
 		if (/HTTP\/\S+\s+(?:200|204)\b/.test(response)) {
 			return "starred";
@@ -38,7 +41,9 @@ export async function checkGithubStarred(): Promise<GithubStarState> {
 /** Stars superset-sh/superset on behalf of the signed-in `gh` CLI user. Never throws. */
 export async function starGithubRepo(): Promise<boolean> {
 	try {
-		await execWithShellEnv("gh", ["api", "-X", "PUT", STARRED_REPO_PATH]);
+		await execWithShellEnv("gh", ["api", "-X", "PUT", STARRED_REPO_PATH], {
+			timeout: GH_CALL_TIMEOUT_MS,
+		});
 		return true;
 	} catch {
 		return false;

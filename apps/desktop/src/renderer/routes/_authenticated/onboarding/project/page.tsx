@@ -10,7 +10,6 @@ import {
 	LuGitBranch,
 	LuLayoutTemplate,
 } from "react-icons/lu";
-import { showStarNagOnboardingToast } from "renderer/components/StarNagToast";
 import { useIsV2CloudEnabled } from "renderer/hooks/useIsV2CloudEnabled";
 import { track } from "renderer/lib/analytics";
 import { apiTrpcClient } from "renderer/lib/api-trpc-client";
@@ -29,6 +28,7 @@ import { TemplateGalleryModal } from "renderer/routes/_authenticated/components/
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 import { useOpenNewWorkspaceModal } from "renderer/stores/new-workspace-modal";
 import { GhAuthDialog } from "../components/GhAuthDialog";
+import { showStarNagOnboardingToast } from "./components/StarNagToast";
 
 export const Route = createFileRoute("/_authenticated/onboarding/project/")({
 	component: OnboardingProjectPage,

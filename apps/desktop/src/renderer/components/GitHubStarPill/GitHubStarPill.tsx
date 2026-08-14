@@ -1,6 +1,9 @@
 import { cn } from "@superset/ui/utils";
 import { useEffect, useRef, useState } from "react";
-import { AnimatedStarButton } from "renderer/components/AnimatedStarButton";
+import {
+	AnimatedStarButton,
+	STAR_SUCCESS_ANIMATION_MS,
+} from "renderer/components/AnimatedStarButton";
 import type { GithubStarActionState } from "renderer/hooks/useGithubStarAction";
 import { useGithubStarAction } from "renderer/hooks/useGithubStarAction";
 import { track } from "renderer/lib/analytics";
@@ -31,15 +34,23 @@ export function GitHubStarPill({ className }: GitHubStarPillProps) {
 			return;
 		}
 		if (justStarred) {
-			const timer = setTimeout(() => setVisible(false), 1700);
+			const timer = setTimeout(
+				() => setVisible(false),
+				STAR_SUCCESS_ANIMATION_MS,
+			);
 			return () => clearTimeout(timer);
 		}
 	}, [state]);
 
+	// Fire at most once per mount — without this guard, a failed star attempt
+	// (not_starred -> unknown) reports a second "shown" for the same session,
+	// inflating impressions relative to star_nag_starred.
+	const trackedShownRef = useRef(false);
 	useEffect(() => {
-		if (state === "not_starred" || state === "unknown") {
-			track("star_nag_shown", { surface: "empty_state" });
-		}
+		if (trackedShownRef.current) return;
+		if (state !== "not_starred" && state !== "unknown") return;
+		trackedShownRef.current = true;
+		track("star_nag_shown", { surface: "empty_state" });
 	}, [state]);
 
 	if (state === "loading" || !visible) return null;
