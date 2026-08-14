@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../../index";
 
@@ -142,12 +143,52 @@ export const githubRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const octokit = await ctx.github();
-			const { data } = await octokit.pulls.merge({
-				owner: input.owner,
-				repo: input.repo,
-				pull_number: input.pullNumber,
-				merge_method: input.mergeMethod,
-			});
-			return data;
+			try {
+				const { data } = await octokit.pulls.merge({
+					owner: input.owner,
+					repo: input.repo,
+					pull_number: input.pullNumber,
+					merge_method: input.mergeMethod,
+				});
+				return data;
+			} catch (error) {
+				throw mergeRejectionError(error);
+			}
 		}),
 });
+
+/**
+ * GitHub rejects merges for conflicts, branch protection, missing reviews and
+ * stale heads. Those are states of the PR, not host bugs, so they get a
+ * non-500 code (500s page Sentry) and GitHub's own wording, which is the only
+ * text that says which of them happened.
+ */
+function mergeRejectionError(error: unknown): TRPCError {
+	const status =
+		typeof error === "object" && error !== null && "status" in error
+			? Number((error as { status: unknown }).status)
+			: null;
+	const message =
+		error instanceof Error && error.message
+			? error.message
+			: "GitHub refused the merge.";
+
+	switch (status) {
+		// 405 not mergeable (conflicts/draft), 409 head branch moved on.
+		case 405:
+		case 409:
+			return new TRPCError({ code: "CONFLICT", message, cause: error });
+		case 403:
+			return new TRPCError({ code: "FORBIDDEN", message, cause: error });
+		case 404:
+			return new TRPCError({ code: "NOT_FOUND", message, cause: error });
+		case 422:
+			return new TRPCError({ code: "BAD_REQUEST", message, cause: error });
+		default:
+			return new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message,
+				cause: error,
+			});
+	}
+}

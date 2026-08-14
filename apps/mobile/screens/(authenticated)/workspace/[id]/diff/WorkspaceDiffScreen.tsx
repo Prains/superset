@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -14,9 +15,11 @@ import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { PULL_REQUESTS_QUERY_KEY } from "@/screens/(authenticated)/hooks/usePullRequests";
 import { useWorkspaceChangeset } from "../hooks/useWorkspaceChangeset";
 import { useWorkspaceCommits } from "../hooks/useWorkspaceCommits";
 import { useWorkspacePullRequest } from "../hooks/useWorkspacePullRequest";
+import { MergePullRequestButton } from "./components/MergePullRequestButton";
 
 function SectionLabel({ children }: { children: string }) {
 	return (
@@ -85,6 +88,8 @@ export function WorkspaceDiffScreen() {
 	const router = useRouter();
 	const workspaceId = id ?? null;
 
+	const queryClient = useQueryClient();
+
 	const changeset = useWorkspaceChangeset(workspaceId);
 	const { commits } = useWorkspaceCommits(workspaceId);
 	const pullRequest = useWorkspacePullRequest(workspaceId);
@@ -93,11 +98,14 @@ export function WorkspaceDiffScreen() {
 	const onRefresh = useCallback(async () => {
 		setRefreshing(true);
 		try {
-			await changeset.refetch();
+			await Promise.all([
+				changeset.refetch(),
+				queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY }),
+			]);
 		} finally {
 			setRefreshing(false);
 		}
-	}, [changeset.refetch]);
+	}, [changeset.refetch, queryClient]);
 
 	const fileCount = changeset.files.length;
 	const latestCommit = commits[0] ?? null;
@@ -236,6 +244,11 @@ export function WorkspaceDiffScreen() {
 					</Text>
 				</View>
 			)}
+
+			<MergePullRequestButton
+				workspaceId={workspaceId}
+				pullRequest={pullRequest}
+			/>
 
 			{changeset.isReady && fileCount === 0 ? (
 				<View className="items-center gap-2 px-10 py-16">

@@ -1,0 +1,1 @@
+export { MergePullRequestButton } from "./MergePullRequestButton";
