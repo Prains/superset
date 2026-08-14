@@ -26,6 +26,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { HiOutlineCog6Tooth } from "react-icons/hi2";
 import { HiringBanner } from "renderer/components/HiringBanner";
+import { StarNagCard } from "renderer/components/StarNagCard";
 import { UpdatesPill } from "renderer/components/UpdatesPill";
 import { useHotkeyDisplay } from "renderer/hotkeys";
 import { OrganizationDropdown } from "renderer/routes/_authenticated/_dashboard/components/TopBar/components/OrganizationDropdown";
@@ -321,6 +322,7 @@ export function DashboardSidebar({
 									/>
 								)}
 								<HiringBanner surface="v2" isCollapsed={isCollapsed} />
+								<StarNagCard isCollapsed={isCollapsed} />
 								<div
 									className={cn(
 										isCollapsed
