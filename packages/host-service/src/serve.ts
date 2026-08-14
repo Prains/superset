@@ -9,6 +9,7 @@ import {
 import { LocalGitCredentialProvider } from "./providers/git";
 import { PskHostAuthProvider } from "./providers/host-auth";
 import { provisionAgentIntegrations } from "./runtime/agent-provisioning";
+import { applyLoginShellEnvToProcess } from "./runtime/login-shell-env";
 import { installProcessSafetyNet, installUpgradeSocketGuard } from "./safety";
 import { captureFatalStartupError, initSentry } from "./sentry";
 import { startTerminalBaseEnvResolution } from "./terminal/env";
@@ -26,6 +27,12 @@ async function main(): Promise<void> {
 	// budget). PTY creation awaits waitForTerminalBaseEnv() before it reads the
 	// snapshot; every other request path is unaffected.
 	startTerminalBaseEnvResolution();
+
+	// Standalone entry only: the desktop already merges the login-shell PATH
+	// into hosts it spawns. Fire-and-forget for the same reason as the base-env
+	// resolution above; git/gh calls racing the probe just see the launcher env
+	// once, same as before this merge existed.
+	void applyLoginShellEnvToProcess();
 
 	// Fire-and-track: kick off pty-daemon spawn-or-adopt without blocking
 	// host-service startup. Terminal request handlers `await
