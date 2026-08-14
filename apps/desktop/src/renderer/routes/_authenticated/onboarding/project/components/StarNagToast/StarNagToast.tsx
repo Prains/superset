@@ -62,10 +62,20 @@ function StarNagToastContent({ toastId }: { toastId: string | number }) {
 // onAutoClose below) instead of silently never entering cooldown.
 const TOAST_DURATION_MS = 30_000;
 
+// finish() in page.tsx is guarded against re-entry by navigation away from
+// the route, but a rapid double-click on the create/clone/open button can
+// still fire it twice before that navigation commits. Since isEligible()
+// doesn't flip until the toast is starred or dismissed, that race could
+// otherwise stack two toasts — this makes the toast a true once-per-session
+// event regardless.
+let shownThisSession = false;
+
 /** Fires once, right after onboarding completes — a no-op if the user has
  * already starred or is within an active cooldown from a prior dismissal. */
 export function showStarNagOnboardingToast() {
+	if (shownThisSession) return;
 	if (!useStarNagStore.getState().isEligible()) return;
+	shownThisSession = true;
 	track("star_nag_shown", { surface: "toast" });
 	toast.custom((id) => <StarNagToastContent toastId={id} />, {
 		duration: TOAST_DURATION_MS,
