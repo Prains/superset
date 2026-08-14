@@ -61,9 +61,13 @@ export function WorkspaceProvider({
 
 	return (
 		<WorkspaceContext.Provider value={{ workspace, hostUrl }}>
+			{/* Keyed on the workspace alone: the host service can come back on a
+			    different port, and keying on the URL too would remount every pane
+			    for what is only a transport swap. WorkspaceClientProvider already
+			    rebuilds its clients when hostUrl changes. */}
 			<WorkspaceTrpcProvider
 				cacheKey={workspace.id}
-				key={`${workspace.id}:${hostUrl}`}
+				key={workspace.id}
 				hostUrl={hostUrl}
 				headers={() => getHostServiceHeaders(hostUrl)}
 				wsToken={() => getHostServiceWsToken(hostUrl)}

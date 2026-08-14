@@ -45,7 +45,11 @@ export function WorkspaceHostGate({
 	// workspace on every reconnect.
 	return (
 		<div className="relative flex min-h-0 min-w-0 flex-1">
-			{children}
+			{/* Covered panes stay mounted, so without `inert` they keep taking Tab
+			    stops and screen-reader focus behind the takeover. */}
+			<div className="flex min-h-0 min-w-0 flex-1" inert={isUnreachable}>
+				{children}
+			</div>
 			{isUnreachable ? (
 				<div className="absolute inset-0 z-50 bg-background">
 					<StateScreenShell>

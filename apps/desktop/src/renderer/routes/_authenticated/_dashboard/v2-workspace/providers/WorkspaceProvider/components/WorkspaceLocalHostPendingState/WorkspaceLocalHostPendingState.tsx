@@ -67,7 +67,16 @@ export function WorkspaceLocalHostPendingState({ hostId }: { hostId: string }) {
 				retryLabel="Restart host service"
 				retryBusyLabel="Starting…"
 				onRetry={() => {
-					if (isStarting || !activeOrganizationId) return;
+					if (isStarting) return;
+					// The button reads as enabled without an org, so swallowing the
+					// click here would look like the restart silently failed.
+					if (!activeOrganizationId) {
+						toast.error("No active organization", {
+							description:
+								"Switch organization or sign in again to restart the host service.",
+						});
+						return;
+					}
 					restart.mutate({ organizationId: activeOrganizationId });
 				}}
 			/>
