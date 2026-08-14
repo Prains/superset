@@ -17,7 +17,6 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { previewStarNagOnboardingToast } from "renderer/components/StarNagToast";
 import { env } from "renderer/env.renderer";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { electronQueryClient } from "renderer/providers/ElectronTRPCProvider";
@@ -277,7 +276,15 @@ export const actionsProvider: CommandProvider = {
 					section: "dev",
 					icon: StarIcon,
 					keywords: ["star", "github", "nag", "dev", "preview", "test"],
-					run: () => previewStarNagOnboardingToast(),
+					// Dynamically imported so StarNagToast (and its AnimatedStarButton /
+					// framer-motion tree) isn't pulled into the always-loaded module
+					// graph just for a dev-only preview command.
+					run: async () => {
+						const { previewStarNagOnboardingToast } = await import(
+							"renderer/components/StarNagToast"
+						);
+						previewStarNagOnboardingToast();
+					},
 				},
 				{
 					id: "dev.resetStarNagState",
@@ -291,6 +298,7 @@ export const actionsProvider: CommandProvider = {
 							STAR_NAG_INITIAL_THRESHOLD;
 						useStarNagStore.setState({
 							completed: false,
+							completedAt: null,
 							workspacesCreatedSinceBaseline: threshold,
 							nextThreshold: threshold,
 							deferredUntil: null,

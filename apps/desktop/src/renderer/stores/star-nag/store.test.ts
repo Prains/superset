@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { STAR_NAG_INITIAL_THRESHOLD, useStarNagStore } from "./store";
+import {
+	recordV1WorkspaceCreatedIfNew,
+	STAR_NAG_INITIAL_THRESHOLD,
+	useStarNagStore,
+} from "./store";
 
 function resetStore() {
 	useStarNagStore.setState({
 		completed: false,
+		completedAt: null,
 		workspacesCreatedSinceBaseline: 0,
 		nextThreshold: STAR_NAG_INITIAL_THRESHOLD,
 		deferredUntil: null,
@@ -64,7 +69,7 @@ describe("useStarNagStore", () => {
 		expect(useStarNagStore.getState().shouldShowThresholdCard()).toBe(true);
 	});
 
-	test("markCompleted() permanently mutes the card regardless of count or cooldown", () => {
+	test("markCompleted() mutes the card regardless of count or cooldown, and stamps completedAt", () => {
 		for (let i = 0; i < STAR_NAG_INITIAL_THRESHOLD; i++) {
 			useStarNagStore.getState().recordWorkspaceCreated();
 		}
@@ -73,10 +78,37 @@ describe("useStarNagStore", () => {
 		expect(useStarNagStore.getState().shouldShowThresholdCard()).toBe(false);
 		expect(useStarNagStore.getState().isEligible()).toBe(false);
 		expect(useStarNagStore.getState().completed).toBe(true);
+		expect(useStarNagStore.getState().completedAt).toBeGreaterThan(0);
 		expect(useStarNagStore.getState().deferredUntil).toBeNull();
+	});
+
+	test("markUnstarred() clears completed and completedAt, restoring eligibility", () => {
+		useStarNagStore.getState().markCompleted();
+		useStarNagStore.getState().markUnstarred();
+
+		expect(useStarNagStore.getState().completed).toBe(false);
+		expect(useStarNagStore.getState().completedAt).toBeNull();
+		expect(useStarNagStore.getState().isEligible()).toBe(true);
 	});
 
 	test("isEligible() is true with no completion and no active cooldown", () => {
 		expect(useStarNagStore.getState().isEligible()).toBe(true);
+	});
+
+	test("snoozeThresholdCard() starts a cooldown without doubling the threshold", () => {
+		useStarNagStore.getState().snoozeThresholdCard();
+
+		const state = useStarNagStore.getState();
+		expect(state.nextThreshold).toBe(STAR_NAG_INITIAL_THRESHOLD);
+		expect(state.deferredUntil).toBeGreaterThan(Date.now());
+		expect(state.isEligible()).toBe(false);
+	});
+
+	test("recordV1WorkspaceCreatedIfNew() only counts genuinely new workspaces", () => {
+		recordV1WorkspaceCreatedIfNew(true);
+		expect(useStarNagStore.getState().workspacesCreatedSinceBaseline).toBe(0);
+
+		recordV1WorkspaceCreatedIfNew(false);
+		expect(useStarNagStore.getState().workspacesCreatedSinceBaseline).toBe(1);
 	});
 });

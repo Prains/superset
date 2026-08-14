@@ -27,7 +27,14 @@ export function StarNagCard({ isCollapsed }: StarNagCardProps) {
 	const shouldShow = useStarNagStore((s) => s.shouldShowThresholdCard());
 	const deferredUntil = useStarNagStore((s) => s.deferredUntil);
 	const dismiss = useStarNagStore((s) => s.dismiss);
-	const { state, activate, isBusy } = useGithubStarAction();
+	// The card is mounted unconditionally in both sidebars regardless of the
+	// flag or collapsed state — without this, checkStarred (which shells out
+	// to `gh`) would fire in the background for every user on every window
+	// focus, even with the flag off. isMuted still reflects the shared store
+	// even while this instance's own query is disabled.
+	const { state, activate, isBusy } = useGithubStarAction({
+		enabled: !isCollapsed && isEnabled === true,
+	});
 
 	// shouldShowThresholdCard() is only re-evaluated when the store itself
 	// changes — a cooldown expiring is a pure passage of time, not a store
@@ -68,8 +75,17 @@ export function StarNagCard({ isCollapsed }: StarNagCardProps) {
 	const renderVisible = shouldShow || staysVisibleForAnimation;
 	const isVisible = !isCollapsed && isEnabled && shouldShow;
 
+	// Fire at most once per visible showing — without the reset, every
+	// sidebar collapse/expand cycle re-triggers this effect and inflates
+	// impressions relative to the other surfaces' once-per-showing trackers.
+	const trackedShownRef = useRef(false);
 	useEffect(() => {
-		if (!isVisible) return;
+		if (!isVisible) {
+			trackedShownRef.current = false;
+			return;
+		}
+		if (trackedShownRef.current) return;
+		trackedShownRef.current = true;
 		track("star_nag_shown", { surface: "card" });
 	}, [isVisible]);
 
