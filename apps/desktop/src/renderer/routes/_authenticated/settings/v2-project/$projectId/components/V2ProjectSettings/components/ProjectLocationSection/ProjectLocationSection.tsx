@@ -77,12 +77,6 @@ export function ProjectLocationSection({
 			toast.error(`Host unavailable: ${hostName}`);
 			return;
 		}
-		try {
-			const _client = getHostServiceClientByUrl(hostUrl);
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : String(err));
-			return;
-		}
 		setPendingPath(path);
 	};
 
