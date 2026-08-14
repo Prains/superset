@@ -9,7 +9,8 @@ import { Text } from "@/components/ui/text";
 import type { PullRequestReviewThread } from "@/lib/host-service/client";
 import { cn } from "@/lib/utils";
 import { PressableScale } from "@/screens/(authenticated)/components/PressableScale";
-import { previewText } from "./utils/previewText";
+import { previewText } from "../../utils/previewText";
+import { readableBody } from "./utils/readableBody";
 
 type ThreadComment = PullRequestReviewThread["comments"][number];
 
@@ -67,7 +68,7 @@ function CommentBody({
 				{expanded ? (
 					// Bodies are GitHub markdown — review bots ship tables, code and
 					// <details> blocks that are unreadable raw.
-					<MessageResponse>{comment.body}</MessageResponse>
+					<MessageResponse>{readableBody(comment.body)}</MessageResponse>
 				) : (
 					<Text
 						className="text-muted-foreground mt-0.5 text-[13.5px] leading-[19px]"

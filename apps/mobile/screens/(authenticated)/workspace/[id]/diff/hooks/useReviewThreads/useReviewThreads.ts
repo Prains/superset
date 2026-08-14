@@ -158,6 +158,13 @@ export function useReviewThreads(
 		);
 	}, [query.data]);
 
+	// Pull-to-refresh reaches here even with no host to ask — `refetch` ignores
+	// `enabled`, and the queryFn would throw into the caller's Promise.all.
+	const refetch = useCallback(async () => {
+		if (!hostUrl || !workspaceId) return;
+		return query.refetch();
+	}, [hostUrl, workspaceId, query.refetch]);
+
 	const setResolved = useCallback(
 		(threadId: string, resolved: boolean) => {
 			resolution.mutate({ threadId, resolved });
@@ -174,6 +181,6 @@ export function useReviewThreads(
 		isHostOffline: hostUrl === null,
 		pendingThreadIds,
 		setResolved,
-		refetch: query.refetch,
+		refetch,
 	};
 }

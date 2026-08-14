@@ -1,18 +1,18 @@
 import { formatDistanceToNowStrict } from "date-fns";
 import { useRouter } from "expo-router";
-import { ChevronRight, MessageSquare } from "lucide-react-native";
+import { ChevronDown, ChevronRight, MessageSquare } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Linking, Pressable, View } from "react-native";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import type { PullRequestConversationComment } from "@/lib/host-service/client";
-import { cn } from "@/lib/utils";
 import { PressableScale } from "@/screens/(authenticated)/components/PressableScale";
 import { useDiffViewStore } from "../../../stores/diffViewStore";
 import type { WorkspaceReviewThreadsResult } from "../../hooks/useReviewThreads";
 import { SectionLabel } from "../SectionLabel";
 import { ReviewThreadCard } from "./components/ReviewThreadCard";
+import { previewText } from "./utils/previewText";
 
 function GroupHeader({
 	label,
@@ -31,9 +31,10 @@ function GroupHeader({
 			className="flex-row items-center gap-1.5 px-4 pb-2 pt-3 active:opacity-70"
 			onPress={onPress}
 		>
+			{/* Swapped, not rotated — a `rotate-90` class on the icon is a no-op here. */}
 			<Icon
-				as={ChevronRight}
-				className={cn("text-muted-foreground/70 size-3.5", open && "rotate-90")}
+				as={open ? ChevronDown : ChevronRight}
+				className="text-muted-foreground/70 size-3.5"
 			/>
 			<Text className="text-muted-foreground font-semibold text-[12px]">
 				{label}
@@ -108,8 +109,11 @@ function ConversationCommentCard({
 						<Text className="text-muted-foreground text-[11.5px]">{age}</Text>
 					) : null}
 				</View>
-				<Text className="mt-0.5 text-[13.5px] leading-[19px]" numberOfLines={4}>
-					{comment.body.trim()}
+				<Text
+					className="text-muted-foreground mt-0.5 text-[13.5px] leading-[19px]"
+					numberOfLines={4}
+				>
+					{previewText(comment.body)}
 				</Text>
 			</View>
 		</Pressable>
