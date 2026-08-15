@@ -129,10 +129,12 @@ export async function recordPromptVersion(
  */
 export const scheduleTriggerColumns = {
 	rrule: sql<string>`${automationTriggers.config}->>'rrule'`.as("rrule"),
-	dtstart:
-		sql<Date>`(${automationTriggers.config}->>'dtstart')::timestamptz`.as(
-			"dtstart",
-		),
+	// mapWith is load-bearing: a computed expression carries no column type, so
+	// without it the driver returns the timestamp as a string while the type
+	// claims Date, and callers that treat it as a Date throw at runtime.
+	dtstart: sql<Date>`(${automationTriggers.config}->>'dtstart')::timestamptz`
+		.mapWith(automationTriggers.nextRunAt)
+		.as("dtstart"),
 	timezone: sql<string>`${automationTriggers.config}->>'timezone'`.as(
 		"timezone",
 	),
