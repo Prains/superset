@@ -55,6 +55,18 @@ export function toRelativeWorkspacePath(
 	return filePath;
 }
 
+export function isWithinWorkspacePath(
+	worktreePath: string,
+	path: string,
+): boolean {
+	const normalizedRoot = normalizeComparablePath(worktreePath);
+	const normalizedPath = normalizeComparablePath(path);
+	return (
+		normalizedPath === normalizedRoot ||
+		normalizedPath.startsWith(`${normalizedRoot}/`)
+	);
+}
+
 export function getPathBaseName(path: string): string {
 	const normalizedPath = path.replace(/[\\/]+$/, "");
 	if (!normalizedPath) {
