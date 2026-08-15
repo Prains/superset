@@ -1,6 +1,10 @@
 import { GripVertical, X } from "lucide-react-native";
 import { Pressable, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import {
+	Gesture,
+	GestureDetector,
+	type PanGesture,
+} from "react-native-gesture-handler";
 import Animated, {
 	runOnJS,
 	type SharedValue,
@@ -14,6 +18,9 @@ import type { TerminalRowData } from "@/screens/(authenticated)/(home)/home/hook
 import { AgentMark } from "@/screens/(authenticated)/(home)/new-session/agent";
 import { PingDot } from "@/screens/(authenticated)/components/PingDot";
 import { ROW_HEIGHT } from "../../constants";
+
+/** Hold before a row lifts. Moving >10pt inside it cancels (RNGH's rule). */
+const PICK_UP_MS = 300;
 
 interface SessionRowProps {
 	row: TerminalRowData;
@@ -30,10 +37,9 @@ interface SessionRowProps {
 }
 
 /**
- * One session in the manage sheet: tap the row to switch to it, drag the
- * handle to reorder, tap ✕ to close. The handle is why there's no long-press
- * anywhere here — the drag has its own target, so nothing has to be inferred
- * from how long you hold.
+ * One session in the manage sheet: tap the row to switch to it, tap ✕ to close,
+ * and reorder either by dragging the leading grip straight away or by holding
+ * anywhere else on the row first.
  */
 export function SessionRow({
 	row,
@@ -50,22 +56,34 @@ export function SessionRow({
 }: SessionRowProps) {
 	const theme = useTheme();
 
-	const drag = Gesture.Pan()
-		.activeOffsetY([-4, 4])
-		.onStart(() => {
-			dragIndex.value = index;
-			dropIndex.value = index;
-			dragTranslation.value = 0;
-			runOnJS(onDragStart)();
-		})
-		.onUpdate((event) => {
-			dragTranslation.value = event.translationY;
-			const slots = Math.round(event.translationY / ROW_HEIGHT);
-			dropIndex.value = Math.min(Math.max(index + slots, 0), count - 1);
-		})
-		.onEnd((_event, success) => {
-			runOnJS(onDrop)(index, success ? dropIndex.value : index);
-		});
+	const tap = Gesture.Tap().onEnd((_event, success) => {
+		if (success) runOnJS(onSelect)(row.terminalId);
+	});
+
+	// Two ways in, because the row shares its axis with the list's scroll:
+	// dragging from the grip starts immediately, dragging from anywhere else on
+	// the row needs a hold first so a scroll flick still scrolls.
+	const withDragHandlers = (pan: PanGesture) =>
+		pan
+			.onStart(() => {
+				dragIndex.value = index;
+				dropIndex.value = index;
+				dragTranslation.value = 0;
+				runOnJS(onDragStart)();
+			})
+			.onUpdate((event) => {
+				dragTranslation.value = event.translationY;
+				const slots = Math.round(event.translationY / ROW_HEIGHT);
+				dropIndex.value = Math.min(Math.max(index + slots, 0), count - 1);
+			})
+			.onEnd((_event, success) => {
+				runOnJS(onDrop)(index, success ? dropIndex.value : index);
+			});
+
+	const gripDrag = withDragHandlers(Gesture.Pan().activeOffsetY([-4, 4]));
+	const rowDrag = withDragHandlers(
+		Gesture.Pan().activateAfterLongPress(PICK_UP_MS),
+	);
 
 	const style = useAnimatedStyle(() => {
 		const lifted = dragIndex.value === index;
@@ -92,38 +110,55 @@ export function SessionRow({
 		};
 	});
 
-	// The ✕ and the handle are siblings of the tappable area, not children of
-	// it: nesting them inside would merge all three into one VoiceOver element.
+	// The ✕ sits outside the gesture area, not inside it: nesting it would both
+	// merge the row into one VoiceOver element and fire select on every close.
 	return (
 		<Animated.View
 			style={[style, { height: ROW_HEIGHT }]}
 			className={cn(
-				"flex-row items-center gap-1 rounded-xl pr-1",
+				"flex-row items-center rounded-xl pr-1",
 				active ? "bg-secondary" : "bg-transparent",
 			)}
 		>
-			<Pressable
-				onPress={() => onSelect(row.terminalId)}
-				className="h-full flex-1 flex-row items-center gap-3 px-3 active:opacity-60"
-			>
-				<AgentMark
-					agentId={row.agentId ?? ""}
-					size={18}
-					color={theme.mutedForeground}
-				/>
-				<Text className="flex-1 text-base" numberOfLines={1}>
-					{row.title}
-				</Text>
-				{row.attention === "permission" ? (
-					<PingDot color="#eab308" size={7} />
-				) : row.attention === "failed" ? (
-					<PingDot color="#ef4444" size={7} />
-				) : row.attention === "working" ? (
-					<PingDot color="#f59e0b" size={7} />
-				) : row.attention === "review" ? (
-					<View className="bg-green-500 size-2 rounded-full" />
-				) : null}
-			</Pressable>
+			<GestureDetector gesture={Gesture.Race(rowDrag, tap)}>
+				<View
+					accessible
+					accessibilityLabel={row.title}
+					className="h-full flex-1 flex-row items-center gap-2.5 pl-1.5 pr-3"
+				>
+					<GestureDetector gesture={gripDrag}>
+						{/* Not separately accessible: the row is one VoiceOver element,
+						    and dragging isn't a VoiceOver-operable gesture anyway. */}
+						<View
+							hitSlop={10}
+							className="items-center justify-center py-2 pr-1"
+						>
+							<GripVertical
+								size={17}
+								color={theme.mutedForeground}
+								strokeWidth={2}
+							/>
+						</View>
+					</GestureDetector>
+					<AgentMark
+						agentId={row.agentId ?? ""}
+						size={18}
+						color={theme.mutedForeground}
+					/>
+					<Text className="flex-1 text-base" numberOfLines={1}>
+						{row.title}
+					</Text>
+					{row.attention === "permission" ? (
+						<PingDot color="#eab308" size={7} />
+					) : row.attention === "failed" ? (
+						<PingDot color="#ef4444" size={7} />
+					) : row.attention === "working" ? (
+						<PingDot color="#f59e0b" size={7} />
+					) : row.attention === "review" ? (
+						<View className="bg-green-500 size-2 rounded-full" />
+					) : null}
+				</View>
+			</GestureDetector>
 			<Pressable
 				accessibilityLabel={`Close ${row.title}`}
 				onPress={() => onClose(row)}
@@ -132,20 +167,6 @@ export function SessionRow({
 			>
 				<X size={17} color={theme.mutedForeground} strokeWidth={2} />
 			</Pressable>
-			<GestureDetector gesture={drag}>
-				<View
-					accessible
-					accessibilityLabel={`Reorder ${row.title}`}
-					hitSlop={8}
-					className="size-9 items-center justify-center"
-				>
-					<GripVertical
-						size={18}
-						color={theme.mutedForeground}
-						strokeWidth={2}
-					/>
-				</View>
-			</GestureDetector>
 		</Animated.View>
 	);
 }
