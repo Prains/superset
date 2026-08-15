@@ -41,7 +41,10 @@ import {
 	DashboardSidebarWorkspaceStatusProvider,
 	type SidebarStatusWorkspaceRef,
 } from "./providers/DashboardSidebarWorkspaceStatusProvider";
-import type { DashboardSidebarProject } from "./types";
+import type {
+	DashboardSidebarProject,
+	DashboardSidebarWorkspace,
+} from "./types";
 import { getProjectChildrenWorkspaces } from "./utils/projectChildren";
 
 interface DashboardSidebarProps {
@@ -158,21 +161,33 @@ export function DashboardSidebar({
 		orderedGroups,
 		sessionWorkspaces,
 	);
-	const selectableWorkspaceIds = useMemo(
-		() =>
-			new Set(
-				orderedGroups.flatMap((project) =>
-					getProjectChildrenWorkspaces(project.children)
-						.filter(
-							(workspace) =>
-								workspace.type === "worktree" &&
-								workspace.pendingTransaction?.type !== "insert",
-						)
-						.map((workspace) => workspace.id),
-				),
-			),
-		[orderedGroups],
-	);
+	const selectableWorkspaceIds = useMemo(() => {
+		const ids = new Set<string>();
+		const addWorkspace = (workspace: DashboardSidebarWorkspace) => {
+			if (
+				workspace.type === "worktree" &&
+				workspace.pendingTransaction?.type !== "insert"
+			) {
+				ids.add(workspace.id);
+			}
+		};
+		for (const project of orderedGroups) {
+			for (const child of project.children) {
+				if (child.type === "workspace") {
+					addWorkspace(child.workspace);
+					continue;
+				}
+				// Members of collapsed groups are hidden and unclickable; keeping
+				// them selected would leave invisible rows armed for bulk actions
+				// (including Delete), so collapsing prunes them from the selection.
+				if (child.section.isCollapsed) continue;
+				for (const workspace of child.section.workspaces) {
+					addWorkspace(workspace);
+				}
+			}
+		}
+		return ids;
+	}, [orderedGroups]);
 
 	// Every workspace the sidebar can render (pinned, sessions, project rows) —
 	// the status provider fans out bindings queries and event subscriptions for
