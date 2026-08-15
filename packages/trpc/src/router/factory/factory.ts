@@ -372,6 +372,7 @@ export const factoryRouter = {
 		.mutation(async ({ ctx, input }) => {
 			const organizationId = await requireActiveOrgMembership(ctx);
 			const item = await getItemForOrg(organizationId, input.itemId);
+			const factory = await getFactoryForOrg(organizationId, item.factoryId);
 
 			const [moved] = await dbWs
 				.update(factoryItems)
@@ -422,6 +423,24 @@ export const factoryRouter = {
 			});
 
 			await mirrorStageToTask(item.id, input.toStage);
+
+			// Human gates shouldn't require a second click: with autoAdvance,
+			// moving into an agent stage (e.g. merge-gate → verify) dispatches.
+			if (factory.autoAdvance && isAgentStage(input.toStage)) {
+				const [fresh] = await db
+					.select()
+					.from(factoryItems)
+					.where(eq(factoryItems.id, item.id))
+					.limit(1);
+				if (fresh) {
+					await dispatchStageQueued({
+						factory,
+						item: fresh,
+						stage: input.toStage,
+						expectedRevision: fresh.revision,
+					});
+				}
+			}
 			return { revision: moved.revision };
 		}),
 

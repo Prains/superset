@@ -10,11 +10,10 @@ import {
 } from "@superset/db/schema";
 import { buildHostRoutingKey } from "@superset/shared/host-routing";
 import {
-	deduplicateBranchName,
 	sanitizeBranchNameWithMaxLength,
 	slugifyForBranch,
 } from "@superset/shared/workspace-launch";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { pickOnlineHost, resolveCandidateHosts } from "../automation/dispatch";
 import { RelayDispatchError, relayMutation } from "../automation/relay-client";
 import {
@@ -65,7 +64,15 @@ export async function dispatchFactoryStage(
 		};
 	}
 
-	const candidates = await resolveCandidateHosts(factory);
+	// An item's workspace lives on one host; once pinned, every stage runs
+	// there. Unpinned items pick any online host of the owner's.
+	const candidates = item.workspaceHostId
+		? await resolveCandidateHosts({
+				organizationId: factory.organizationId,
+				ownerUserId: factory.ownerUserId,
+				targetHostId: item.workspaceHostId,
+			})
+		: await resolveCandidateHosts(factory);
 	const host =
 		candidates.length > 0
 			? await pickOnlineHost(factory, relayUrl, candidates)
@@ -177,29 +184,63 @@ export async function dispatchFactoryStage(
 			priorResults,
 		});
 
-		workspaceId = await createStageWorkspace({
+		workspaceId = await ensureItemWorkspace({
 			relayUrl,
 			hostId: routingKey,
 			jwt,
 			projectId: factory.v2ProjectId,
 			item,
-			stage,
+			hostMachineId: host.machineId,
 		});
 
-		const result = await relayMutation<
-			{
-				workspaceId: string;
-				agent: string;
-				prompt: string;
-				model?: string;
-			},
-			AgentRunResult
-		>({ relayUrl, hostId: routingKey, jwt }, "agents.run", {
-			workspaceId,
-			agent,
-			prompt: fullPrompt,
-			...(stageConfig?.model ? { model: stageConfig.model } : {}),
-		});
+		const runAgent = (targetWorkspaceId: string) =>
+			relayMutation<
+				{
+					workspaceId: string;
+					agent: string;
+					prompt: string;
+					model?: string;
+				},
+				AgentRunResult
+			>({ relayUrl, hostId: routingKey, jwt }, "agents.run", {
+				workspaceId: targetWorkspaceId,
+				agent,
+				prompt: fullPrompt,
+				...(stageConfig?.model ? { model: stageConfig.model } : {}),
+			});
+
+		let result: AgentRunResult;
+		try {
+			result = await runAgent(workspaceId);
+		} catch (err) {
+			// Stale pin: the host says the pinned workspace is gone. Clear the
+			// pin (CAS so a concurrent repin is never erased) and recreate.
+			const stalePin =
+				item.v2WorkspaceId !== null &&
+				item.v2WorkspaceId === workspaceId &&
+				err instanceof RelayDispatchError &&
+				err.status === 404 &&
+				err.message.includes(workspaceId);
+			if (!stalePin) throw err;
+			await dbWs
+				.update(factoryItems)
+				.set({ v2WorkspaceId: null, workspaceHostId: null })
+				.where(
+					and(
+						eq(factoryItems.id, item.id),
+						eq(factoryItems.v2WorkspaceId, workspaceId),
+					),
+				);
+			workspaceId = await ensureItemWorkspace({
+				relayUrl,
+				hostId: routingKey,
+				jwt,
+				projectId: factory.v2ProjectId,
+				item: { ...item, v2WorkspaceId: null },
+				hostMachineId: host.machineId,
+			});
+			result = await runAgent(workspaceId);
+		}
 
 		await dbWs
 			.update(factoryRuns)
@@ -304,26 +345,30 @@ async function markRunFailed(
 		.where(eq(factoryRuns.id, runId));
 }
 
-async function createStageWorkspace(args: {
+/**
+ * One workspace per item: reuse the pin when present, else create it once
+ * on a stable branch (factory/issue-N — retries and later stages converge
+ * on it; the host's create dedupes by branch) and CAS-claim the pin.
+ */
+async function ensureItemWorkspace(args: {
 	relayUrl: string;
 	hostId: string;
 	jwt: string;
 	projectId: string;
 	item: SelectFactoryItem;
-	stage: AgentStage;
+	hostMachineId: string;
 }): Promise<string> {
-	const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
-	const slug = slugifyForBranch(args.item.title, 24);
-	const candidate = sanitizeBranchNameWithMaxLength(
-		`factory-${args.item.externalNumber}-${args.stage}${slug ? `-${slug}` : ""}-${timestamp}`,
+	if (args.item.v2WorkspaceId) return args.item.v2WorkspaceId;
+
+	const slug = slugifyForBranch(args.item.title, 30);
+	const branch = sanitizeBranchNameWithMaxLength(
+		`factory/issue-${args.item.externalNumber}${slug ? `-${slug}` : ""}`,
 		60,
 	);
-	const branch = deduplicateBranchName(candidate, []);
-	const name =
-		`Factory #${args.item.externalNumber} ${args.stage}: ${args.item.title}`.slice(
-			0,
-			100,
-		);
+	const name = `Factory #${args.item.externalNumber}: ${args.item.title}`.slice(
+		0,
+		100,
+	);
 
 	const result = await relayMutation<
 		{ projectId: string; name: string; branch: string },
@@ -339,7 +384,21 @@ async function createStageWorkspace(args: {
 		"workspaces.create",
 		{ projectId: args.projectId, name, branch },
 	);
-	return result.workspace.id;
+	const workspaceId = result.workspace.id;
+
+	// First claimer wins; a concurrent dispatch that lost uses the winner's
+	// pin on its next attempt (this run still uses the workspace it made —
+	// same branch, so the host dedupe usually returns the same workspace).
+	await dbWs
+		.update(factoryItems)
+		.set({ v2WorkspaceId: workspaceId, workspaceHostId: args.hostMachineId })
+		.where(
+			and(
+				eq(factoryItems.id, args.item.id),
+				isNull(factoryItems.v2WorkspaceId),
+			),
+		);
+	return workspaceId;
 }
 
 function describeError(err: unknown): string {

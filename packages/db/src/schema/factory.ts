@@ -142,6 +142,12 @@ export const factoryItems = pgTable(
 			onDelete: "set null",
 		}),
 
+		// One workspace per item: created on first dispatch (stable branch
+		// factory/issue-N), then every stage runs a new agent inside it.
+		// Cleared when the host reports the pin stale (workspace deleted).
+		v2WorkspaceId: uuid("v2_workspace_id"),
+		workspaceHostId: text("workspace_host_id"),
+
 		stageEnteredAt: timestamp("stage_entered_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

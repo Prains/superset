@@ -477,6 +477,13 @@
       "when": 1786602704174,
       "tag": "0067_factory",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1786820516362,
+      "tag": "0068_factory_item_workspace_pin",
+      "breakpoints": true
     }
   ]
 }
