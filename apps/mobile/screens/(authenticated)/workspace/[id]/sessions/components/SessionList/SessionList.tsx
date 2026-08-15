@@ -1,7 +1,8 @@
 import * as Haptics from "expo-haptics";
 import { useCallback, useState } from "react";
-import { ScrollView } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
+import { Text } from "@/components/ui/text";
 import type { TerminalRowData } from "@/screens/(authenticated)/(home)/home/hooks/useHostTerminals";
 import { SessionRow } from "./components/SessionRow";
 
@@ -55,10 +56,17 @@ export function SessionList({
 	return (
 		<ScrollView
 			scrollEnabled={!dragging}
-			className="flex-1"
+			className="bg-background flex-1"
 			contentContainerClassName="px-2 pb-8"
 			contentInsetAdjustmentBehavior="automatic"
 		>
+			{rows.length === 0 ? (
+				<View className="items-center py-8">
+					<Text className="text-muted-foreground text-sm">
+						No sessions yet.
+					</Text>
+				</View>
+			) : null}
 			{rows.map((row, index) => (
 				<SessionRow
 					key={row.terminalId}

@@ -1,8 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
-import { Alert, View } from "react-native";
-import { Text } from "@/components/ui/text";
+import { Alert } from "react-native";
 import { useWorkspaceHost } from "@/hooks/useWorkspaceHost";
 import {
 	buildRelayHostUrl,
@@ -88,8 +87,11 @@ export function SessionsSheet() {
 		[workspace, hostUrl, host, queryClient],
 	);
 
+	// The list is the sheet's ONLY layout child — the toolbar renders null.
+	// A wrapping View plus a flex-1 child lays out at zero height on a
+	// formSheet's cold mount (same trap CommitsSheet hit).
 	return (
-		<View className="bg-background flex-1">
+		<>
 			<Stack.Toolbar placement="left">
 				<Stack.Toolbar.Button
 					icon="xmark"
@@ -97,21 +99,13 @@ export function SessionsSheet() {
 					onPress={() => router.back()}
 				/>
 			</Stack.Toolbar>
-			{rows.length === 0 ? (
-				<View className="items-center py-8">
-					<Text className="text-muted-foreground text-sm">
-						No sessions yet.
-					</Text>
-				</View>
-			) : (
-				<SessionList
-					rows={rows}
-					activeTerminalId={params.active ?? null}
-					onSelect={handleSelect}
-					onReorder={handleReorder}
-					onClose={handleClose}
-				/>
-			)}
-		</View>
+			<SessionList
+				rows={rows}
+				activeTerminalId={params.active ?? null}
+				onSelect={handleSelect}
+				onReorder={handleReorder}
+				onClose={handleClose}
+			/>
+		</>
 	);
 }
