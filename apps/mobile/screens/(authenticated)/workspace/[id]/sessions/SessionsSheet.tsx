@@ -74,6 +74,9 @@ export function SessionsSheet() {
 								terminalId: row.terminalId,
 								workspaceId: workspace.id,
 							})
+							// `finally` alone doesn't consume the rejection: a failed kill
+							// would close the alert and leave the session running silently.
+							.catch(() => Alert.alert("Could not close session"))
 							.finally(() => {
 								if (!host) return;
 								void queryClient.invalidateQueries({
