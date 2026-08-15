@@ -6,6 +6,7 @@ import {
 	type SupersetManagedBinary,
 } from "./agent-setup-targets";
 import { getBashDir, getBinDir, getZshDir } from "./paths";
+import { writeFileIfChanged } from "./write-file-if-changed";
 
 export interface ShellWrapperPaths {
 	BIN_DIR: string;
@@ -56,32 +57,6 @@ function logModeDiagnostics(shellName: string): void {
 	console.debug(
 		`[agent-setup] shell integration mode=native shell=${shellName}`,
 	);
-}
-
-function writeFileIfChanged(
-	filePath: string,
-	content: string,
-	mode: number,
-): boolean {
-	const existing = fs.existsSync(filePath)
-		? fs.readFileSync(filePath, "utf-8")
-		: null;
-	if (existing === content) {
-		try {
-			fs.chmodSync(filePath, mode);
-		} catch {
-			// Best effort.
-		}
-		return false;
-	}
-
-	fs.writeFileSync(filePath, content, { mode });
-	try {
-		fs.chmodSync(filePath, mode);
-	} catch {
-		// Best effort.
-	}
-	return true;
 }
 
 /**

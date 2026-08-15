@@ -17,9 +17,10 @@
 #   4. A restart is idempotent: no file rewrites, no duplicated hook entries.
 #
 # DESTRUCTIVE: wipes $HOME/.superset, ~/.claude, ~/.agents, ~/.codex,
-# ~/.gemini and appends to ~/.profile. Only runs when
-# SUPERSET_HEADLESS_E2E=1 — set by build-dist-linux-docker.sh, which runs
-# this inside a throwaway container after the smoke test.
+# ~/.gemini and appends to the login-shell profile. Only runs when
+# SUPERSET_HEADLESS_E2E=1 — set by build-dist-linux-docker.sh (throwaway
+# container) and by the Linux jobs in .github/workflows/build-cli.yml
+# (ephemeral runners), both after the smoke test.
 #
 # Usage: headless-e2e.sh <dist-dir>
 #   <dist-dir>  extracted distribution root (contains bin/, lib/, share/)
@@ -38,9 +39,13 @@ fi
 
 # ── Fixture: a fresh home with a login-shell-only PATH addition ──────────
 rm -rf "$HOME/.superset" "$HOME/.claude" "$HOME/.agents" "$HOME/.codex" "$HOME/.gemini"
-mkdir -p /opt/fake-tools/bin
-grep -q fake-tools "$HOME/.profile" 2>/dev/null || \
-  echo 'export PATH="/opt/fake-tools/bin:$PATH"' >> "$HOME/.profile"
+FAKE_TOOLS_DIR="${TMPDIR:-/tmp}/superset-e2e-fake-tools/bin"
+mkdir -p "$FAKE_TOOLS_DIR"
+# bash login shells read .bash_profile and ignore .profile when both exist.
+PROFILE="$HOME/.profile"
+[[ -f "$HOME/.bash_profile" ]] && PROFILE="$HOME/.bash_profile"
+grep -q superset-e2e-fake-tools "$PROFILE" 2>/dev/null || \
+  echo "export PATH=\"$FAKE_TOOLS_DIR:\$PATH\"" >> "$PROFILE"
 
 ORG="00000000-0000-4000-8000-0000000000bb"
 PORT="$("$DIST/lib/node" -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')"

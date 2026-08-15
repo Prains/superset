@@ -35,26 +35,9 @@ export function getManagedNotifyHookCommand(agentId: string): string {
 const SUPERSET_MANAGED_HOOK_PATH_PATTERN =
 	/\/(?:\.superset(?:-[^/'"\s\\]+)?|superset-dev-data)\//;
 
-export function writeFileIfChanged(
-	filePath: string,
-	content: string,
-	mode: number,
-): boolean {
-	const existing = fs.existsSync(filePath)
-		? fs.readFileSync(filePath, "utf-8")
-		: null;
-	if (existing === content) {
-		try {
-			fs.chmodSync(filePath, mode);
-		} catch {
-			// Best effort.
-		}
-		return false;
-	}
+import { writeFileIfChanged } from "./write-file-if-changed";
 
-	fs.writeFileSync(filePath, content, { mode });
-	return true;
-}
+export { writeFileIfChanged };
 
 /**
  * Deletes a wholly Superset-owned file, gated on its content signature so a
