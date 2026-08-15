@@ -31,8 +31,11 @@ function bucketToMinute(d: Date): Date {
 
 /** Null when the config can't drive a schedule, so the caller can fall back. */
 function scheduleFromConfig(
-	config: TriggerConfig,
+	config: TriggerConfig | null,
 ): { rrule: string; dtstart: Date; timezone: string } | null {
+	// The kind-matches-config CHECK passes for jsonb `null` (SQL NULL = NULL is
+	// not false), so the column can hold something the type says it can't.
+	if (config === null || typeof config !== "object") return null;
 	if (config.kind !== "schedule") return null;
 	if (!config.rrule || !config.timezone) return null;
 	const dtstart = new Date(config.dtstart);
