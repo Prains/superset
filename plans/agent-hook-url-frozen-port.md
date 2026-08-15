@@ -52,7 +52,7 @@ This machine runs the same topology as Maxime's. Long-running agents from Aug 2-
 
 Temp script (`packages/host-service/repro-frozen-hook.ts`, not committed) boots the real host-service `createApp` on a real TCP port twice against the same host.db, builds the terminal env with the real `buildV2TerminalEnv`, and replays the real rendered `notify-hook.template.sh` (SUPERSET_DEBUG_HOOKS=1, v1 fallback pointed at a dead port):
 
-```
+```text
 [instance 1] host-service listening on port 62970
 [terminal] frozen SUPERSET_HOST_AGENT_HOOK_URL=http://127.0.0.1:62970/trpc/notifications.hook
 
@@ -73,7 +73,7 @@ Exactly Maxime's table: old terminals dead, new terminals fine, zero surfaced er
 
 ### After the fix (same script, fixed template)
 
-```
+```text
 --- old terminal (frozen env, port 65310) after restart ---
 [notify-hook] host-service dispatched status=000 url=http://127.0.0.1:65310/trpc/notifications.hook
 [notify-hook] host-service dispatched status=200 url=http://127.0.0.1:65314/trpc/notifications.hook  <- healed via manifest
