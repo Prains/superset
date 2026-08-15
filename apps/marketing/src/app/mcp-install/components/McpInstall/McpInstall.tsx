@@ -7,6 +7,7 @@ import { DEFAULT_MCP_INSTALL_TAB, MCP_INSTALL_TABS } from "./constants";
 export function McpInstall() {
 	const [activeTabId, setActiveTabId] = useState(DEFAULT_MCP_INSTALL_TAB.id);
 	const [copied, setCopied] = useState(false);
+	const [copyError, setCopyError] = useState<string | null>(null);
 
 	const activeTab =
 		MCP_INSTALL_TABS.find((tab) => tab.id === activeTabId) ??
@@ -15,10 +16,11 @@ export function McpInstall() {
 	const handleCopy = async () => {
 		try {
 			await navigator.clipboard.writeText(activeTab.content);
+			setCopyError(null);
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
 		} catch {
-			// Clipboard unavailable (e.g. insecure context); ignore
+			setCopyError("Copy failed. Select the text and copy it manually.");
 		}
 	};
 
@@ -33,6 +35,7 @@ export function McpInstall() {
 							onClick={() => {
 								setActiveTabId(tab.id);
 								setCopied(false);
+								setCopyError(null);
 							}}
 							className={`px-3 py-2 text-xs font-mono whitespace-nowrap transition-colors ${
 								tab.id === activeTabId
@@ -57,6 +60,11 @@ export function McpInstall() {
 					)}
 				</button>
 			</div>
+			{copyError && (
+				<output className="block px-4 py-2 text-xs text-destructive border-b border-border">
+					{copyError}
+				</output>
+			)}
 			<div className="px-4 py-3.5 font-mono text-sm overflow-x-auto">
 				{activeTab.kind === "cli" ? (
 					<div className="flex items-start gap-2">
