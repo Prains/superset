@@ -37,6 +37,7 @@ import { ScrollToBottomButton } from "renderer/screens/main/components/Workspace
 import { TerminalSearch } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/TerminalSearch";
 import { useTheme } from "renderer/stores/theme";
 import { resolveTerminalThemeType } from "renderer/stores/theme/utils";
+import { isWithinWorkspacePath } from "shared/absolute-paths";
 import { TerminalAgentResumeBanner } from "./components/TerminalAgentResumeBanner";
 import { TerminalRichInput } from "./components/TerminalRichInput";
 import { useLinkClickHint } from "./hooks/useLinkClickHint";
@@ -73,6 +74,13 @@ export function TerminalPane({
 	const { hint, showHint } = useLinkClickHint();
 	const openInExternalEditor = useOpenInExternalEditor(workspaceId);
 	const revealInFinder = useRevealInFinder(workspaceId);
+	// The "reveal" intent falls back to Finder for folders outside the
+	// worktree (revealPath's containment check); the hover label needs the
+	// same knowledge so it doesn't promise a sidebar reveal it can't do.
+	const workspaceQuery = workspaceTrpc.workspace.get.useQuery({
+		id: workspaceId,
+	});
+	const worktreePath = workspaceQuery.data?.worktreePath ?? undefined;
 	const paneData = ctx.pane.data as TerminalPaneData;
 	const { terminalId } = paneData;
 	const terminalInstanceId = ctx.pane.id;
@@ -491,6 +499,7 @@ export function TerminalPane({
 					filePolicy,
 					urlPolicy,
 					folderPolicy,
+					worktreePath,
 				)}
 				hoverPosition={hoveredLink}
 				clickHint={hint}
@@ -508,6 +517,7 @@ function resolveHoverLabel(
 	filePolicy: ReturnType<typeof useTerminalFilePolicy>,
 	urlPolicy: ReturnType<typeof useTerminalUrlPolicy>,
 	folderPolicy: FolderClickPolicy,
+	worktreePath: string | undefined,
 ): string | null {
 	if (!hovered) return null;
 	const event = {
@@ -520,7 +530,18 @@ function resolveHoverLabel(
 		return action ? actionLabel(action, "url") : null;
 	}
 	if (hovered.info.isDirectory) {
-		return folderIntentLabel(folderPolicy.getIntent(event));
+		const intent = folderPolicy.getIntent(event);
+		// A folder outside the worktree can't be revealed in the sidebar —
+		// clicking falls back to Finder (revealPath), so say that instead.
+		if (
+			intent === "reveal" &&
+			worktreePath &&
+			hovered.info.resolvedPath &&
+			!isWithinWorkspacePath(worktreePath, hovered.info.resolvedPath)
+		) {
+			return folderIntentLabel("finder");
+		}
+		return folderIntentLabel(intent);
 	}
 	const action = filePolicy.getAction(event);
 	return action ? actionLabel(action, "file") : null;
