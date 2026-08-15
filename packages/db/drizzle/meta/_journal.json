@@ -519,6 +519,13 @@
       "when": 1786825016352,
       "tag": "0073_automation_schedule_trigger_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1786827115646,
+      "tag": "0074_cloud_workspaces",
+      "breakpoints": true
     }
   ]
 }
