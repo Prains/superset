@@ -509,9 +509,10 @@ export function TerminalPane({
 }
 
 // Compute "what would clicking right now do?" for the live link tooltip.
-// Folders use the hardcoded folderIntent rule; files/urls go through the
-// settings-driven policies. Returns null when no modifier is held or the
-// matching tier is unbound — the tooltip stays hidden in that case.
+// Files, URLs, and folders all resolve through their settings-driven
+// policies; folders additionally swap "reveal" for the Finder fallback when
+// the path sits outside the worktree. Returns null when the matching tier
+// is unbound — the tooltip stays hidden in that case.
 function resolveHoverLabel(
 	hovered: HoveredLink | null,
 	filePolicy: ReturnType<typeof useTerminalFilePolicy>,
