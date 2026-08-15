@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import {
 	setAgentSetupTemplatesDir,
 	setupAgentIntegrations,
+	writeSharedDisabledAgentIds,
 } from "@superset/agent-setup";
 import { settings } from "@superset/local-db";
 import {
@@ -469,6 +470,9 @@ if (!gotTheLock) {
 			setAgentSetupTemplatesDir(path.join(__dirname, "templates"));
 			const disabledAgentHooks =
 				localDb.select().from(settings).get()?.disabledAgentHooks ?? [];
+			// Mirror the disable list so CLI-launched host-services on this
+			// machine honor it instead of re-provisioning disabled agents.
+			writeSharedDisabledAgentIds(disabledAgentHooks);
 			setupAgentIntegrations({ disabledAgentIds: disabledAgentHooks });
 		} catch (error) {
 			console.error("[main] Failed to set up agent integrations:", error);

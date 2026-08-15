@@ -49,6 +49,26 @@ describe("applyLoginShellEnvToProcess", () => {
 		expect(target.EDITOR).toBe("vim");
 	});
 
+	it("never imports runtime-altering vars from the shell", async () => {
+		// NODE_ENV=development from a dotfile would flip serve.ts into dev-mode
+		// shutdown, killing the pty-daemon (and every PTY) on host restart.
+		initTerminalBaseEnv({
+			PATH: "/usr/bin",
+			NODE_ENV: "development",
+			NODE_OPTIONS: "--inspect",
+			ELECTRON_RUN_AS_NODE: "1",
+			EDITOR: "vim",
+		});
+		const target: NodeJS.ProcessEnv = { PATH: "/usr/bin" };
+
+		await applyLoginShellEnvToProcess(target);
+
+		expect(target.NODE_ENV).toBeUndefined();
+		expect(target.NODE_OPTIONS).toBeUndefined();
+		expect(target.ELECTRON_RUN_AS_NODE).toBeUndefined();
+		expect(target.EDITOR).toBe("vim");
+	});
+
 	it("adopts the shell PATH when the launcher has none", async () => {
 		initTerminalBaseEnv({ PATH: "/opt/homebrew/bin:/usr/bin" });
 		const target: NodeJS.ProcessEnv = {};

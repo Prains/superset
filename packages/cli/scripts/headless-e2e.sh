@@ -13,8 +13,14 @@
 #      notifications.hook and a row lands in terminal_agent_bindings.
 #      Unknown terminal ids are accepted (200) but recorded nowhere.
 #   3. The login-shell env merge picks up PATH entries only a login shell
-#      exports (the host is launched with a stripped systemd-like PATH).
+#      exports (the host is launched with a stripped systemd-like PATH),
+#      while runtime-altering vars like NODE_ENV are never imported.
 #   4. A restart is idempotent: no file rewrites, no duplicated hook entries.
+#   5. Real zsh/bash login flows through the provisioned wrappers put
+#      ~/.superset/bin on PATH and register the shell-ready marker.
+#   6. SUPERSET_DISABLED_AGENT_HOOKS and the shared agent-hooks.json mirror
+#      tear down (and re-enabling restores) per-agent hook configs.
+#   7. Two hosts provisioning concurrently leave valid, deduplicated configs.
 #
 # DESTRUCTIVE: wipes $HOME/.superset, ~/.claude, ~/.agents, ~/.codex,
 # ~/.gemini and appends to the login-shell profile. Only runs when
@@ -37,7 +43,7 @@ if [[ "$(uname -s)" != "Linux" ]]; then
   exit 1
 fi
 
-# ── Fixture: a fresh home with a login-shell-only PATH addition ──────────
+# ── Fixture: a fresh home with login-shell-only env additions ────────────
 rm -rf "$HOME/.superset" "$HOME/.claude" "$HOME/.agents" "$HOME/.codex" "$HOME/.gemini"
 FAKE_TOOLS_DIR="${TMPDIR:-/tmp}/superset-e2e-fake-tools/bin"
 mkdir -p "$FAKE_TOOLS_DIR"
@@ -46,39 +52,53 @@ PROFILE="$HOME/.profile"
 [[ -f "$HOME/.bash_profile" ]] && PROFILE="$HOME/.bash_profile"
 grep -q superset-e2e-fake-tools "$PROFILE" 2>/dev/null || \
   echo "export PATH=\"$FAKE_TOOLS_DIR:\$PATH\"" >> "$PROFILE"
+# Runtime-altering var a dotfile might export; the merge must never import it
+# (it would flip the host into dev-mode shutdown, killing PTYs on restart).
+grep -q "NODE_ENV=development" "$PROFILE" 2>/dev/null || \
+  echo 'export NODE_ENV=development' >> "$PROFILE"
 
-ORG="00000000-0000-4000-8000-0000000000bb"
-PORT="$("$DIST/lib/node" -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')"
 HSDIR="$(mktemp -d)"
+HSPID=""
+HSPID2=""
 
 cleanup() {
-  [[ -n "${HSPID:-}" ]] && kill "$HSPID" 2>/dev/null || true
+  [[ -n "$HSPID" ]] && kill "$HSPID" 2>/dev/null || true
+  [[ -n "$HSPID2" ]] && kill "$HSPID2" 2>/dev/null || true
   pkill -f "$DIST/lib/pty-daemon" 2>/dev/null || true
   rm -rf "$HSDIR"
 }
 trap cleanup EXIT
 
+new_port() {
+  "$DIST/lib/node" -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'
+}
+
+# boot_host <org> <db> <logfile> <port> [EXTRA=env ...]
+# systemd-like environment: stripped PATH, no SUPERSET_HOME_DIR.
 boot_host() {
-  # systemd-like environment: stripped PATH, no SUPERSET_HOME_DIR.
+  local org="$1" db="$2" log="$3" port="$4"
+  shift 4
   env -i \
     PATH=/usr/sbin:/usr/bin:/sbin:/bin \
     HOME="$HOME" \
     SHELL=/bin/bash \
-    ORGANIZATION_ID="$ORG" \
+    ORGANIZATION_ID="$org" \
     AUTH_TOKEN="e2e-token" \
     SUPERSET_API_URL="https://api.superset.sh" \
-    PORT="$PORT" HOST_SERVICE_PORT="$PORT" \
+    PORT="$port" HOST_SERVICE_PORT="$port" \
     HOST_SERVICE_SECRET="e2e-secret" \
-    HOST_DB_PATH="$HSDIR/host.db" \
+    HOST_DB_PATH="$db" \
     HOST_MIGRATIONS_FOLDER="$DIST/share/migrations" \
-    "$DIST/bin/superset-host" > "$1" 2>&1 &
+    "$@" \
+    "$DIST/bin/superset-host" > "$log" 2>&1 &
   HSPID=$!
 }
 
+# await_healthy <logfile> <port>
 await_healthy() {
   local ok=0
   for _ in $(seq 1 120); do
-    if curl -fsS -m 2 "http://127.0.0.1:$PORT/trpc/health.check" >/dev/null 2>&1; then ok=1; break; fi
+    if curl -fsS -m 2 "http://127.0.0.1:$2/trpc/health.check" >/dev/null 2>&1; then ok=1; break; fi
     kill -0 "$HSPID" 2>/dev/null || break
     sleep 0.5
   done
@@ -89,8 +109,25 @@ await_healthy() {
   fi
 }
 
-boot_host "$HSDIR/host.log"
-await_healthy "$HSDIR/host.log"
+stop_host() {
+  kill "$HSPID" 2>/dev/null || true
+  wait "$HSPID" 2>/dev/null || true
+  HSPID=""
+}
+
+claude_stop_hook_count() {
+  "$DIST/lib/node" -e '
+    try {
+      const hooks = JSON.parse(require("fs").readFileSync(`${process.env.HOME}/.claude/settings.json`, "utf8")).hooks ?? {};
+      console.log((hooks.Stop ?? []).length);
+    } catch { console.log(0); }
+  '
+}
+
+ORG="00000000-0000-4000-8000-0000000000bb"
+PORT="$(new_port)"
+boot_host "$ORG" "$HSDIR/host.db" "$HSDIR/host.log" "$PORT"
+await_healthy "$HSDIR/host.log" "$PORT"
 # The login-shell probe may take up to 8s after the server is listening; wait
 # for its merge log line (asserted again below) instead of a fixed sleep.
 for _ in $(seq 1 30); do
@@ -129,6 +166,21 @@ ls "$HOME/.agents/skills" | grep -q "superset-doctor"
 echo "[e2e] === assert: login-shell PATH merge ==="
 grep -q "login-shell PATH entries into process env" "$HSDIR/host.log"
 
+echo "[e2e] === assert: real shell login flows through the wrappers ==="
+BASH_PROBE=$(env -i HOME="$HOME" TERM=dumb PATH=/usr/bin:/bin \
+  bash -c "source \"$HOME/.superset/bash/rcfile\"; echo \"PATH=\$PATH\"; declare -F __superset_prompt_mark")
+echo "$BASH_PROBE" | grep -q "$HOME/.superset/bin"
+echo "$BASH_PROBE" | grep -q "__superset_prompt_mark"
+if command -v zsh >/dev/null 2>&1; then
+  ZSH_PROBE=$(env -i HOME="$HOME" TERM=dumb PATH=/usr/bin:/bin \
+    SUPERSET_ORIG_ZDOTDIR="$HOME" ZDOTDIR="$HOME/.superset/zsh" \
+    zsh -ilc 'print -r -- "PATH=$PATH"; whence -w __superset_prompt_mark' 2>/dev/null)
+  echo "$ZSH_PROBE" | grep -q "$HOME/.superset/bin"
+  echo "$ZSH_PROBE" | grep -q "__superset_prompt_mark: function"
+else
+  echo "[e2e] zsh not installed — skipping zsh wrapper-chain check"
+fi
+
 echo "[e2e] === assert: notify.sh -> notifications.hook -> host DB ==="
 # Seed a real workspace + terminal session; the hook deliberately ignores
 # unknown terminal ids (it is unauthenticated), which we also assert below.
@@ -164,13 +216,72 @@ echo "$STATUS" | grep -q "host-service dispatched status=200"
 ' )
 
 echo "[e2e] === assert: idempotent re-provisioning on restart ==="
-kill "$HSPID" 2>/dev/null || true; wait "$HSPID" 2>/dev/null || true
+stop_host
 NOTIFY_MTIME1=$(stat -c %Y "$HOME/.superset/hooks/notify.sh")
-boot_host "$HSDIR/host2.log"
-await_healthy "$HSDIR/host2.log"
+PORT="$(new_port)"
+boot_host "$ORG" "$HSDIR/host.db" "$HSDIR/host2.log" "$PORT"
+await_healthy "$HSDIR/host2.log" "$PORT"
 NOTIFY_MTIME2=$(stat -c %Y "$HOME/.superset/hooks/notify.sh")
 [[ "$NOTIFY_MTIME1" == "$NOTIFY_MTIME2" ]] || { echo "[e2e] FAIL notify.sh rewritten on unchanged content"; exit 1; }
-CLAUDE_HOOK_COUNT=$("$DIST/lib/node" -e 'console.log(JSON.parse(require("fs").readFileSync(`${process.env.HOME}/.claude/settings.json`,"utf8")).hooks.Stop.length)')
-[[ "$CLAUDE_HOOK_COUNT" == "1" ]] || { echo "[e2e] FAIL duplicate hook entries after re-provision: $CLAUDE_HOOK_COUNT"; exit 1; }
+[[ "$(claude_stop_hook_count)" == "1" ]] || { echo "[e2e] FAIL duplicate hook entries after re-provision"; exit 1; }
+
+echo "[e2e] === assert: NODE_ENV from dotfiles is never imported ==="
+# The fixture .profile exports NODE_ENV=development. If the merge imported
+# it, this SIGTERM would take the dev-mode shutdown path and log it.
+stop_host
+sleep 1
+if grep -q "dev-mode" "$HSDIR/host.log" "$HSDIR/host2.log"; then
+  echo "[e2e] FAIL host entered dev-mode from a dotfile NODE_ENV"; exit 1
+fi
+
+echo "[e2e] === assert: SUPERSET_DISABLED_AGENT_HOOKS tears down on boot ==="
+PORT="$(new_port)"
+boot_host "$ORG" "$HSDIR/host.db" "$HSDIR/host3.log" "$PORT" SUPERSET_DISABLED_AGENT_HOOKS=claude
+await_healthy "$HSDIR/host3.log" "$PORT"
+sleep 1
+[[ "$(claude_stop_hook_count)" == "0" ]] || { echo "[e2e] FAIL claude hooks not torn down via env disable"; exit 1; }
+test -f "$HOME/.gemini/settings.json"  # other agents untouched
+stop_host
+
+echo "[e2e] === assert: shared agent-hooks.json mirror is honored ==="
+printf '{\n\t"disabledAgentIds": ["claude"]\n}\n' > "$HOME/.superset/agent-hooks.json"
+PORT="$(new_port)"
+boot_host "$ORG" "$HSDIR/host.db" "$HSDIR/host4.log" "$PORT"
+await_healthy "$HSDIR/host4.log" "$PORT"
+sleep 1
+[[ "$(claude_stop_hook_count)" == "0" ]] || { echo "[e2e] FAIL claude hooks re-provisioned despite shared-file disable"; exit 1; }
+stop_host
+
+echo "[e2e] === assert: re-enabling restores the hooks ==="
+rm -f "$HOME/.superset/agent-hooks.json"
+PORT="$(new_port)"
+boot_host "$ORG" "$HSDIR/host.db" "$HSDIR/host5.log" "$PORT"
+await_healthy "$HSDIR/host5.log" "$PORT"
+sleep 1
+[[ "$(claude_stop_hook_count)" == "1" ]] || { echo "[e2e] FAIL claude hooks not restored after re-enable"; exit 1; }
+stop_host
+
+echo "[e2e] === assert: concurrent provisioners converge on valid configs ==="
+rm -f "$HOME/.claude/settings.json"
+PORT="$(new_port)"
+PORT2="$(new_port)"
+boot_host "00000000-0000-4000-8000-0000000000cc" "$HSDIR/host-c.db" "$HSDIR/host-c.log" "$PORT"
+HSPID2=$HSPID
+boot_host "00000000-0000-4000-8000-0000000000dd" "$HSDIR/host-d.db" "$HSDIR/host-d.log" "$PORT2"
+await_healthy "$HSDIR/host-d.log" "$PORT2"
+HSPID_D=$HSPID
+HSPID=$HSPID2
+await_healthy "$HSDIR/host-c.log" "$PORT"
+sleep 1
+"$DIST/lib/node" -e '
+  const s = require("fs").readFileSync(`${process.env.HOME}/.claude/settings.json`, "utf8");
+  const hooks = JSON.parse(s).hooks;   // throws on torn/invalid JSON
+  if (hooks.Stop.length !== 1) { console.error("duplicated entries after concurrent provisioning:", hooks.Stop.length); process.exit(1); }
+  console.log("[e2e] concurrent provisioning left valid, deduplicated config");
+'
+kill "$HSPID_D" 2>/dev/null || true
+wait "$HSPID_D" 2>/dev/null || true
+stop_host
+HSPID2=""
 
 echo "[e2e] ALL HEADLESS E2E CHECKS PASSED"

@@ -2,6 +2,19 @@ import path from "node:path";
 import { getTerminalBaseEnv, waitForTerminalBaseEnv } from "../terminal/env";
 
 /**
+ * Never imported from the login shell: these change how the host-service
+ * runtime itself (and the node children it spawns) behaves. NODE_ENV is the
+ * sharp one — a dotfile exporting NODE_ENV=development would flip serve.ts
+ * into dev-mode shutdown, which kills the pty-daemon (and every PTY) on host
+ * restart.
+ */
+const MERGE_DENYLIST = new Set([
+	"NODE_ENV",
+	"NODE_OPTIONS",
+	"ELECTRON_RUN_AS_NODE",
+]);
+
+/**
  * Enriches the host-service process env from the user's login shell, so git,
  * gh, and credential helpers resolve the same way they do in an interactive
  * terminal. The desktop wraps its spawned host-service in
@@ -24,7 +37,8 @@ export async function applyLoginShellEnvToProcess(
 		const shellEnv = getTerminalBaseEnv();
 
 		for (const [key, value] of Object.entries(shellEnv)) {
-			if (key === "PATH" || typeof targetEnv[key] === "string") continue;
+			if (key === "PATH" || MERGE_DENYLIST.has(key)) continue;
+			if (typeof targetEnv[key] === "string") continue;
 			targetEnv[key] = value;
 		}
 

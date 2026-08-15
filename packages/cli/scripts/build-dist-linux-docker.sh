@@ -42,7 +42,7 @@ docker run --rm --platform "$PLATFORM" \
   "oven/bun:${BUN_VERSION}" bash -euxc '
     apt-get update -qq
     apt-get install -y --no-install-recommends \
-      curl python3 make g++ ca-certificates xz-utils rsync procps >/dev/null
+      curl python3 make g++ ca-certificates xz-utils rsync procps zsh >/dev/null
 
     curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
       | tar -xJ -C /usr/local --strip-components=1

@@ -1,4 +1,8 @@
-import { setupSingleAgent, teardownSingleAgent } from "@superset/agent-setup";
+import {
+	setupSingleAgent,
+	teardownSingleAgent,
+	writeSharedDisabledAgentIds,
+} from "@superset/agent-setup";
 import {
 	type AgentCustomDefinition,
 	type AgentPresetOverrideEnvelope,
@@ -1101,6 +1105,7 @@ export const createSettingsRouter = () => {
 							set: { disabledAgentHooks: next },
 						})
 						.run();
+					writeSharedDisabledAgentIds(next);
 				}
 				const ran = setupSingleAgent(input.agentId);
 				return { ran };
@@ -1134,6 +1139,7 @@ export const createSettingsRouter = () => {
 						set: { disabledAgentHooks: next },
 					})
 					.run();
+				writeSharedDisabledAgentIds(next);
 
 				const ran = input.enabled
 					? setupSingleAgent(input.agentId)

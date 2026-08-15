@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	getAgentSetupTemplatesDir,
 	setAgentSetupTemplatesDir,
 	setupAgentIntegrations,
 } from "@superset/agent-setup";
@@ -37,6 +38,16 @@ export function provisionAgentIntegrations(): void {
 	try {
 		const templatesDir = resolveAgentTemplatesDir();
 		if (templatesDir) setAgentSetupTemplatesDir(templatesDir);
+		// Individual writers soft-fail on missing templates (each is
+		// try/caught), which is exactly the silence that hid #6254 — surface a
+		// broken install loudly instead of one warn per agent.
+		const effectiveDir = getAgentSetupTemplatesDir();
+		if (!existsSync(path.join(effectiveDir, "notify-hook.template.sh"))) {
+			console.error(
+				`[host-service] agent-setup templates missing at ${effectiveDir} — agent hooks will NOT work on this host. ` +
+					"Reinstall the CLI or set SUPERSET_AGENT_TEMPLATES_DIR.",
+			);
+		}
 		setupAgentIntegrations();
 	} catch (error) {
 		console.warn(
