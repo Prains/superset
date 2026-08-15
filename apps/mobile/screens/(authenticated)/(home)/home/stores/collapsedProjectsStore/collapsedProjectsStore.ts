@@ -10,6 +10,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
  */
 interface CollapsedProjectsStore {
 	collapsed: Record<string, true>;
+	/** False until AsyncStorage answers — sections would flash open before it. */
+	hasHydrated: boolean;
 	toggleProject: (machineId: string, projectId: string) => void;
 	setAllCollapsed: (
 		machineId: string,
@@ -26,6 +28,7 @@ export const useCollapsedProjectsStore = create<CollapsedProjectsStore>()(
 	persist(
 		(set) => ({
 			collapsed: {},
+			hasHydrated: false,
 			toggleProject: (machineId, projectId) => {
 				set((state) => {
 					const key = collapsedProjectKey(machineId, projectId);
@@ -51,6 +54,12 @@ export const useCollapsedProjectsStore = create<CollapsedProjectsStore>()(
 		{
 			name: "collapsed-projects-v1",
 			storage: createJSONStorage(() => AsyncStorage),
+			partialize: ({ collapsed }) => ({ collapsed }),
+			// Rehydration is async, so readers see {} first and every collapsed
+			// section would render expanded and then snap shut. Flips on storage
+			// errors too, so a failed read falls back to everything expanded.
+			onRehydrateStorage: () => () =>
+				useCollapsedProjectsStore.setState({ hasHydrated: true }),
 		},
 	),
 );

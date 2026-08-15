@@ -100,6 +100,9 @@ export function HomeScreen() {
 	const pullRequests = usePullRequests();
 
 	const collapsed = useCollapsedProjectsStore((state) => state.collapsed);
+	const collapseHydrated = useCollapsedProjectsStore(
+		(state) => state.hasHydrated,
+	);
 	const toggleProject = useCollapsedProjectsStore(
 		(state) => state.toggleProject,
 	);
@@ -187,9 +190,17 @@ export function HomeScreen() {
 			});
 		}
 
+		// A project id the host no longer reports is as good as none: grouping
+		// under it would render the workspace nowhere, since sections come from
+		// the reported list. Also covers the beat where workspaces have loaded
+		// and projects haven't.
+		const knownProjectIds = new Set(projects.map((project) => project.id));
 		const byProject = new Map<string, HostWorkspaceItem[]>();
 		for (const workspace of pool) {
-			const projectId = workspace.projectId ?? "__none";
+			const projectId =
+				workspace.projectId && knownProjectIds.has(workspace.projectId)
+					? workspace.projectId
+					: "__none";
 			const group = byProject.get(projectId);
 			if (group) group.push(workspace);
 			else byProject.set(projectId, [workspace]);
@@ -218,6 +229,7 @@ export function HomeScreen() {
 		for (const section of sections) {
 			const isCollapsed =
 				!searching &&
+				collapseHydrated &&
 				!!collapsed[
 					collapsedProjectKey(selectedHost?.machineId ?? "", section.project.id)
 				];
@@ -260,6 +272,7 @@ export function HomeScreen() {
 		byPinThenActivity,
 		activityTs,
 		collapsed,
+		collapseHydrated,
 	]);
 
 	const workspacesById = useMemo(
