@@ -1,4 +1,5 @@
 import { GripVertical, X } from "lucide-react-native";
+import { memo } from "react";
 import { Pressable, View } from "react-native";
 import {
 	Gesture,
@@ -21,6 +22,9 @@ import { ROW_HEIGHT } from "../../constants";
 
 /** Hold before a row lifts. Moving >10pt inside it cancels (RNGH's rule). */
 const PICK_UP_MS = 300;
+/** Neighbours opening a gap, and the picked-up row settling into it. */
+const SHIFT_MS = 150;
+const SETTLE_MS = 130;
 
 interface SessionRowProps {
 	row: TerminalRowData;
@@ -41,7 +45,7 @@ interface SessionRowProps {
  * and reorder either by dragging the leading grip straight away or by holding
  * anywhere else on the row first.
  */
-export function SessionRow({
+function SessionRowComponent({
 	row,
 	index,
 	count,
@@ -77,7 +81,17 @@ export function SessionRow({
 				dropIndex.value = Math.min(Math.max(index + slots, 0), count - 1);
 			})
 			.onEnd((_event, success) => {
-				runOnJS(onDrop)(index, success ? dropIndex.value : index);
+				// Glide into the target slot, then commit. Committing first would
+				// snap the row from under the finger to zero and hope React
+				// re-renders the new order in the same frame.
+				const target = success ? dropIndex.value : index;
+				dragTranslation.value = withTiming(
+					(target - index) * ROW_HEIGHT,
+					{ duration: SETTLE_MS },
+					(finished) => {
+						if (finished) runOnJS(onDrop)(index, target);
+					},
+				);
 			});
 
 	const gripDrag = withDragHandlers(Gesture.Pan().activeOffsetY([-4, 4]));
@@ -89,7 +103,10 @@ export function SessionRow({
 		const lifted = dragIndex.value === index;
 		if (lifted) {
 			return {
-				transform: [{ translateY: dragTranslation.value }],
+				transform: [
+					{ translateY: dragTranslation.value },
+					{ scale: withTiming(1.02, { duration: 120 }) },
+				],
 				zIndex: 1,
 			};
 		}
@@ -104,7 +121,10 @@ export function SessionRow({
 		}
 		return {
 			transform: [
-				{ translateY: from < 0 ? 0 : withTiming(shift, { duration: 160 }) },
+				{
+					translateY: from < 0 ? 0 : withTiming(shift, { duration: SHIFT_MS }),
+				},
+				{ scale: 1 },
 			],
 			zIndex: 0,
 		};
@@ -170,3 +190,7 @@ export function SessionRow({
 		</Animated.View>
 	);
 }
+
+// Memoised: picking a row up flips list state, and re-rendering every row
+// mid-drag is exactly when dropped frames show.
+export const SessionRow = memo(SessionRowComponent);

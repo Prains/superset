@@ -108,6 +108,13 @@ export function WorkspaceScreen() {
 		if (params.tab) setPickedTerminalId(params.tab);
 	}, [params.tab]);
 
+	// Pin whatever ended up active, including the implicit first row: without
+	// this, reordering in the sessions sheet moves a different row into first
+	// place and the terminal you're watching switches out from under you.
+	useEffect(() => {
+		if (activeTerminalId) setPickedTerminalId(activeTerminalId);
+	}, [activeTerminalId]);
+
 	// Port of desktop's useClearActivePaneAttention: viewing the tab clears
 	// its `review` state by advancing the seen mark to the binding's last
 	// event (host clock — never the device clock).

@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
 import { Text } from "@/components/ui/text";
@@ -28,7 +28,10 @@ export function SessionList({
 	// The list must stop scrolling under a lifted row; RN's ScrollView won't
 	// yield to a gesture-handler pan on its own.
 	const [dragging, setDragging] = useState(false);
-	const ids = rows.map((row) => row.terminalId);
+	// Read through a ref so the drop callback keeps its identity when `dragging`
+	// flips — a new callback would re-render every memoised row mid-drag.
+	const rowsRef = useRef(rows);
+	rowsRef.current = rows;
 
 	const handleDragStart = useCallback(() => {
 		setDragging(true);
@@ -43,6 +46,7 @@ export function SessionList({
 			dropIndex.value = -1;
 			dragTranslation.value = 0;
 			setDragging(false);
+			const ids = rowsRef.current.map((row) => row.terminalId);
 			const moved = ids[from];
 			if (!moved || from === to) return;
 			const next = ids.slice();
@@ -50,7 +54,7 @@ export function SessionList({
 			next.splice(to, 0, moved);
 			onReorder(next);
 		},
-		[ids, onReorder, dragIndex, dropIndex, dragTranslation],
+		[onReorder, dragIndex, dropIndex, dragTranslation],
 	);
 
 	return (
