@@ -86,42 +86,70 @@ export async function POST(request: Request): Promise<Response> {
 			row.nextRunAt !== null,
 	);
 
-	if (due.length === 0) {
-		return Response.json({ enqueued: 0 });
+	// Work out the next occurrence before dispatching anything: a trigger we
+	// can't advance must not be enqueued, or it would fire on every tick forever
+	// while its next_run_at stayed put.
+	const planned: Array<{
+		automationId: string;
+		scheduledFor: Date;
+		next: Date | null;
+	}> = [];
+	const unusable: Array<{ automationId: string; reason: string }> = [];
+
+	for (const row of due) {
+		const schedule = scheduleFromConfig(row.config);
+		if (!schedule) {
+			unusable.push({
+				automationId: row.automationId,
+				reason: "schedule trigger config is unusable",
+			});
+			continue;
+		}
+		try {
+			planned.push({
+				automationId: row.automationId,
+				scheduledFor: bucketToMinute(row.nextRunAt),
+				next: nextOccurrenceAfter({ ...schedule, after: row.nextRunAt }),
+			});
+		} catch (error) {
+			unusable.push({ automationId: row.automationId, reason: String(error) });
+		}
+	}
+
+	// Should be empty. These automations are stalled until someone fixes the
+	// config, so they need to be loud rather than silently skipped.
+	if (unusable.length > 0) {
+		console.error(
+			"[automations/evaluate] unusable schedule triggers, not dispatched",
+			unusable,
+		);
+	}
+
+	if (planned.length === 0) {
+		return Response.json({ enqueued: 0, unusable: unusable.length });
 	}
 
 	await qstash.batchJSON(
-		due.map((row) => {
-			const scheduledFor = bucketToMinute(row.nextRunAt);
-			return {
-				url: `${env.NEXT_PUBLIC_API_URL}/api/automations/dispatch/${row.automationId}`,
-				body: {
-					automationId: row.automationId,
-					scheduledFor: scheduledFor.toISOString(),
-				},
-				deduplicationId: `${row.automationId}_${scheduledFor.getTime()}`,
-				retries: 2,
-				failureCallback: `${env.NEXT_PUBLIC_API_URL}/api/automations/run-failed`,
-			};
-		}),
+		planned.map(({ automationId, scheduledFor }) => ({
+			url: `${env.NEXT_PUBLIC_API_URL}/api/automations/dispatch/${automationId}`,
+			body: {
+				automationId,
+				scheduledFor: scheduledFor.toISOString(),
+			},
+			deduplicationId: `${automationId}_${scheduledFor.getTime()}`,
+			retries: 2,
+			failureCallback: `${env.NEXT_PUBLIC_API_URL}/api/automations/run-failed`,
+		})),
 	);
 
 	const advanceResults = await Promise.allSettled(
-		due.map(async (row) => {
-			const schedule = scheduleFromConfig(row.config);
-			if (!schedule) {
-				throw new Error(
-					`schedule trigger config is unusable for automation ${row.automationId}`,
-				);
-			}
-
-			const next = nextOccurrenceAfter({ ...schedule, after: row.nextRunAt });
+		planned.map(async ({ automationId, next }) => {
 			await dbWs
 				.update(automationTriggers)
 				.set(next ? { nextRunAt: next } : { enabled: false })
 				.where(
 					and(
-						eq(automationTriggers.automationId, row.automationId),
+						eq(automationTriggers.automationId, automationId),
 						eq(automationTriggers.kind, "schedule"),
 					),
 				);
@@ -133,7 +161,9 @@ export async function POST(request: Request): Promise<Response> {
 	// hide itself without this log.
 	const advanceFailures = advanceResults.flatMap((result, index) => {
 		if (result.status !== "rejected") return [];
-		return [{ automationId: due[index]?.automationId, reason: result.reason }];
+		return [
+			{ automationId: planned[index]?.automationId, reason: result.reason },
+		];
 	});
 	if (advanceFailures.length > 0) {
 		console.error(
@@ -143,7 +173,8 @@ export async function POST(request: Request): Promise<Response> {
 	}
 
 	return Response.json({
-		enqueued: due.length,
+		enqueued: planned.length,
 		advanceFailed: advanceFailures.length,
+		unusable: unusable.length,
 	});
 }
