@@ -31,8 +31,8 @@ describe("isWithinWorkspacePath", () => {
 	it("collapses dot segments so traversal can't fake containment", () => {
 		expect(isWithinWorkspacePath(root, `${root}/../outside`)).toBe(false);
 		expect(isWithinWorkspacePath(root, `${root}/./src/../apps`)).toBe(true);
-		expect(isWithinWorkspacePath(root, "/Users/dev/../dev/worktrees/my-branch/apps")).toBe(
-			true,
-		);
+		expect(
+			isWithinWorkspacePath(root, "/Users/dev/../dev/worktrees/my-branch/apps"),
+		).toBe(true);
 	});
 });
