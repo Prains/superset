@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react-native";
-import { Pressable } from "react-native";
+import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/hooks/useTheme";
 import { ProjectAvatar } from "@/screens/(authenticated)/(home)/filter/components/ProjectAvatar";
@@ -35,15 +35,19 @@ export function ProjectSectionHeader({
 		>
 			{/* Two icons rather than one rotated: a transform on the icon itself
 			    doesn't reach the underlying SVG, so it renders nothing. */}
-			<Caret size={13} color={theme.mutedForeground} strokeWidth={2.5} />
-			<ProjectAvatar name={name} iconUrl={iconUrl} size={17} />
+			<Caret size={14} color={theme.mutedForeground} strokeWidth={2.5} />
+			<View className="size-6 items-center justify-center">
+				<ProjectAvatar name={name} iconUrl={iconUrl} size={20} />
+			</View>
 			<Text
-				className="text-foreground font-semibold text-[13.5px] uppercase tracking-wider"
+				className="text-foreground font-semibold text-[15px] uppercase tracking-wider"
 				numberOfLines={1}
 			>
 				{name}
 			</Text>
-			<Text className="text-muted-foreground font-mono text-xs">{count}</Text>
+			<Text className="text-muted-foreground font-mono text-[13px]">
+				{count}
+			</Text>
 		</Pressable>
 	);
 }

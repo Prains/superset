@@ -74,7 +74,7 @@ export function WorkspaceRow({
 			    owns the hold animation, and custom press feedback fights it. */}
 			<Pressable
 				className={cn(
-					"flex-row items-center gap-3 rounded-xl py-2 pl-8 pr-3",
+					"flex-row items-center gap-3 rounded-xl py-2 pl-10 pr-3",
 					targeted ? "bg-foreground/5" : "bg-background",
 				)}
 				onPress={() =>
