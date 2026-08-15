@@ -36,9 +36,7 @@ export function readSharedDisabledAgentIds(): string[] {
 	}
 }
 
-export function writeSharedDisabledAgentIds(
-	ids: readonly string[],
-): void {
+export function writeSharedDisabledAgentIds(ids: readonly string[]): void {
 	try {
 		fs.mkdirSync(resolveSupersetHomeDir(), { recursive: true });
 		writeFileIfChanged(
