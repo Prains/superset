@@ -22,7 +22,6 @@ import {
 import { usePinnedWorkspacesStore } from "@/screens/(authenticated)/stores/pinnedWorkspacesStore";
 import { HostOfflineView } from "./components/HostOfflineView";
 import { NewChatWidget } from "./components/NewChatWidget";
-import { useNewSessionPreferencesStore } from "./components/NewChatWidget/stores/newSessionPreferencesStore";
 import { OrganizationHeaderButton } from "./components/OrganizationHeaderButton";
 import { OrganizationSwitcherSheet } from "./components/OrganizationSwitcherSheet";
 import { ProjectSectionHeader } from "./components/ProjectSectionHeader";
@@ -103,9 +102,6 @@ export function HomeScreen() {
 	const collapsed = useCollapsedProjectsStore((state) => state.collapsed);
 	const toggleProject = useCollapsedProjectsStore(
 		(state) => state.toggleProject,
-	);
-	const setTargetKey = useNewSessionPreferencesStore(
-		(state) => state.setTargetKey,
 	);
 
 	const searching = searchQuery.trim().length > 0;
@@ -378,12 +374,6 @@ export function HomeScreen() {
 							void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 							toggleProject(selectedHost?.machineId ?? "", item.projectId);
 						}}
-						onAdd={() => {
-							void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-							if (selectedHost) {
-								setTargetKey(`${item.projectId}:${selectedHost.machineId}`);
-							}
-						}}
 					/>
 				);
 			}
@@ -417,7 +407,6 @@ export function HomeScreen() {
 			terminalsByWorkspace,
 			toggleProject,
 			selectedHost,
-			setTargetKey,
 		],
 	);
 
