@@ -31,21 +31,19 @@ export function ProjectSectionHeader({
 			onPress={onToggle}
 			accessibilityLabel={`${name}, ${count} workspaces`}
 			accessibilityState={{ expanded: !collapsed }}
-			className="flex-row items-center gap-2 px-4 pb-0.5 pt-3.5 active:opacity-60"
+			className="flex-row items-center gap-2.5 px-4 pb-1 pt-4 active:opacity-60"
 		>
 			{/* Two icons rather than one rotated: a transform on the icon itself
 			    doesn't reach the underlying SVG, so it renders nothing. */}
-			<Caret size={11} color={theme.mutedForeground} strokeWidth={2.5} />
-			<ProjectAvatar name={name} iconUrl={iconUrl} size={14} />
+			<Caret size={13} color={theme.mutedForeground} strokeWidth={2.5} />
+			<ProjectAvatar name={name} iconUrl={iconUrl} size={17} />
 			<Text
-				className="text-muted-foreground font-semibold text-xs uppercase tracking-wide"
+				className="text-foreground font-semibold text-[13.5px] uppercase tracking-wider"
 				numberOfLines={1}
 			>
 				{name}
 			</Text>
-			<Text className="text-muted-foreground/70 font-mono text-[11px]">
-				{count}
-			</Text>
+			<Text className="text-muted-foreground font-mono text-xs">{count}</Text>
 		</Pressable>
 	);
 }
