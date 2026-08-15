@@ -126,7 +126,16 @@ export function useGithubStarAction(options?: UseGithubStarActionOptions) {
 		// `isBusy` already gives immediate feedback ("Starring…"), so waiting
 		// for a real result costs nothing but correctness.
 		starMutation.mutate(undefined, {
-			onSuccess: (starred) => {
+			onSuccess: async (starred) => {
+				// Cancel any in-flight checkStarred fetch first: it may have
+				// started before this mutation resolved (e.g. Settings'
+				// alwaysFreshOnMount, or a fresh mount elsewhere) and, if left
+				// running, could resolve *after* the setData below and silently
+				// overwrite this confirmed result with a stale pre-mutation
+				// read — react-query's own out-of-order protection only covers
+				// its own fetches racing each other, not a fetch racing a
+				// direct cache write like setData.
+				await utils.githubStar.checkStarred.cancel();
 				// Written into the shared query cache (not per-hook-instance
 				// state) so every mounted surface reflects the confirmed result
 				// immediately; StarNagObserver reacts to the change and marks
@@ -137,7 +146,8 @@ export function useGithubStarAction(options?: UseGithubStarActionOptions) {
 				);
 				if (!starred) markStaleWithoutRefetch(utils);
 			},
-			onError: () => {
+			onError: async () => {
+				await utils.githubStar.checkStarred.cancel();
 				utils.githubStar.checkStarred.setData(undefined, "unknown");
 				markStaleWithoutRefetch(utils);
 			},
