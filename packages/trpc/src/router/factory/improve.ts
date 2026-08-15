@@ -164,10 +164,9 @@ export async function dispatchImproveRun(args: {
 			flawedRuns: flawed,
 		});
 
-		const timestamp = new Date()
-			.toISOString()
-			.slice(0, 19)
-			.replace(/[T:]/g, "-");
+		// Stable branch: the host dedupes workspaces.create by branch, so
+		// every improve run reuses one "Factory improve" workspace per
+		// factory instead of accumulating new ones.
 		const created = await relayMutation<
 			{ projectId: string; name: string; branch: string },
 			{ workspace: { id: string } }
@@ -176,8 +175,8 @@ export async function dispatchImproveRun(args: {
 			"workspaces.create",
 			{
 				projectId: factory.v2ProjectId,
-				name: `Factory improve: ${stage}`,
-				branch: `factory-improve-${stage}-${timestamp}`,
+				name: "Factory improve",
+				branch: "factory/improve",
 			},
 		);
 		workspaceId = created.workspace.id;

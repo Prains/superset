@@ -1,5 +1,6 @@
 import { db, dbWs } from "@superset/db/client";
 import {
+	type FactoryStage,
 	factories,
 	factoryImproveRuns,
 	factoryItems,
@@ -88,13 +89,11 @@ async function verifyHostAccess(
 
 /** The stage runStage may dispatch for an item: retry current, or advance. */
 function resolveDispatchStage(
-	itemStage: string,
+	itemStage: FactoryStage,
 	requested: AgentStage | undefined,
 ): AgentStage {
-	const retry = isAgentStage(itemStage as AgentStage)
-		? (itemStage as AgentStage)
-		: null;
-	const advanceTo = STAGE_FLOW[itemStage as keyof typeof STAGE_FLOW];
+	const retry = isAgentStage(itemStage) ? itemStage : null;
+	const advanceTo = STAGE_FLOW[itemStage];
 	const advance = advanceTo && isAgentStage(advanceTo) ? advanceTo : null;
 
 	const target = requested ?? retry ?? advance;
@@ -381,9 +380,6 @@ export const factoryRouter = {
 					stageEnteredAt: new Date(),
 					blockedReason: null,
 					revision: sql`${factoryItems.revision} + 1`,
-					...(input.toStage === "done" || input.toStage === "rejected"
-						? { archivedAt: null }
-						: {}),
 				})
 				.where(
 					and(
