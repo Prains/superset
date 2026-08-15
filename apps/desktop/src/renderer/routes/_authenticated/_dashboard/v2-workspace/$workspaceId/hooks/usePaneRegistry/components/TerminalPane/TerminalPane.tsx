@@ -13,10 +13,11 @@ import {
 import { useHotkey } from "renderer/hotkeys";
 import {
 	actionLabel,
-	folderIntentFor,
+	type FolderClickPolicy,
 	folderIntentLabel,
 	LinkHoverHint,
 	useTerminalFilePolicy,
+	useTerminalFolderPolicy,
 	useTerminalUrlPolicy,
 } from "renderer/lib/clickPolicy";
 import {
@@ -25,6 +26,7 @@ import {
 } from "renderer/lib/terminal/terminal-runtime-registry";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useOpenInExternalEditor } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/useOpenInExternalEditor";
+import { useRevealInFinder } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/useRevealInFinder";
 import type {
 	PaneViewerData,
 	TerminalPaneData,
@@ -62,6 +64,7 @@ export function TerminalPane({
 }: TerminalPaneProps) {
 	const filePolicy = useTerminalFilePolicy();
 	const urlPolicy = useTerminalUrlPolicy();
+	const folderPolicy = useTerminalFolderPolicy();
 	const {
 		hoveredLink,
 		onHover: onLinkHover,
@@ -69,6 +72,7 @@ export function TerminalPane({
 	} = useLinkHoverState();
 	const { hint, showHint } = useLinkClickHint();
 	const openInExternalEditor = useOpenInExternalEditor(workspaceId);
+	const revealInFinder = useRevealInFinder(workspaceId);
 	const paneData = ctx.pane.data as TerminalPaneData;
 	const { terminalId } = paneData;
 	const terminalInstanceId = ctx.pane.id;
@@ -262,7 +266,7 @@ export function TerminalPane({
 				},
 				onFileLinkClick: (event, link) => {
 					if (link.isDirectory) {
-						const intent = folderIntentFor(event);
+						const intent = folderPolicy.getIntent(event);
 						if (intent === null) {
 							showHint(event.clientX, event.clientY);
 							return;
@@ -270,6 +274,8 @@ export function TerminalPane({
 						event.preventDefault();
 						if (intent === "external") {
 							openInExternalEditor(link.resolvedPath);
+						} else if (intent === "finder") {
+							revealInFinder(link.resolvedPath, { isDirectory: true });
 						} else {
 							onRevealPath(link.resolvedPath, { isDirectory: true });
 						}
@@ -325,11 +331,13 @@ export function TerminalPane({
 		onOpenFile,
 		onRevealPath,
 		openInExternalEditor,
+		revealInFinder,
 		onLinkHover,
 		onLinkLeave,
 		showHint,
 		filePolicy,
 		urlPolicy,
+		folderPolicy,
 	]);
 
 	useTerminalInterruptClear({
@@ -478,7 +486,12 @@ export function TerminalPane({
 				)}
 			/>
 			<LinkHoverHint
-				hoverLabel={resolveHoverLabel(hoveredLink, filePolicy, urlPolicy)}
+				hoverLabel={resolveHoverLabel(
+					hoveredLink,
+					filePolicy,
+					urlPolicy,
+					folderPolicy,
+				)}
 				hoverPosition={hoveredLink}
 				clickHint={hint}
 			/>
@@ -494,6 +507,7 @@ function resolveHoverLabel(
 	hovered: HoveredLink | null,
 	filePolicy: ReturnType<typeof useTerminalFilePolicy>,
 	urlPolicy: ReturnType<typeof useTerminalUrlPolicy>,
+	folderPolicy: FolderClickPolicy,
 ): string | null {
 	if (!hovered) return null;
 	const event = {
@@ -506,7 +520,7 @@ function resolveHoverLabel(
 		return action ? actionLabel(action, "url") : null;
 	}
 	if (hovered.info.isDirectory) {
-		return folderIntentLabel(folderIntentFor(event));
+		return folderIntentLabel(folderPolicy.getIntent(event));
 	}
 	const action = filePolicy.getAction(event);
 	return action ? actionLabel(action, "file") : null;
