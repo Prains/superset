@@ -94,7 +94,7 @@ export function SessionList({
 						return (
 							<HStack
 								key={row.terminalId}
-								spacing={10}
+								spacing={12}
 								modifiers={[
 									onTapGesture(() => onSelect(row.terminalId)),
 									listRowSeparator("hidden"),
@@ -102,10 +102,10 @@ export function SessionList({
 									// sits in the row instead.
 									deleteDisabled(true),
 									listRowInsets({
-										top: 6,
-										bottom: 6,
-										leading: 8,
-										trailing: 8,
+										top: 12,
+										bottom: 12,
+										leading: 16,
+										trailing: 16,
 									}),
 									listRowBackground(
 										row.terminalId === activeTerminalId
