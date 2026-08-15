@@ -8,12 +8,17 @@ import {
 	Text as UIText,
 } from "@expo/ui/swift-ui";
 import {
+	deleteDisabled,
 	environment,
 	frame,
 	lineLimit,
 	listRowBackground,
+	listRowInsets,
+	listRowSeparator,
+	listStyle,
 	onTapGesture,
 	resizable,
+	scrollContentBackground,
 } from "@expo/ui/swift-ui/modifiers";
 import type { TerminalRowData } from "@/screens/(authenticated)/(home)/home/hooks/useHostTerminals";
 import { ATTENTION_COLORS, ROW_TINT } from "./constants";
@@ -51,7 +56,16 @@ export function SessionList({
 					description="Start one with + in the tab strip."
 				/>
 			) : null}
-			<List modifiers={[environment({ key: "editMode", value: "active" })]}>
+			{/* Plain + hidden background: the default insetGrouped style draws a
+			    rounded card and inset separators that read as the Settings app,
+			    not as this sheet. */}
+			<List
+				modifiers={[
+					environment({ key: "editMode", value: "active" }),
+					listStyle("plain"),
+					scrollContentBackground("hidden"),
+				]}
+			>
 				<List.ForEach
 					onMove={(sourceIndices, destination) => {
 						const from = sourceIndices[0];
@@ -83,9 +97,21 @@ export function SessionList({
 								spacing={10}
 								modifiers={[
 									onTapGesture(() => onSelect(row.terminalId)),
-									...(row.terminalId === activeTerminalId
-										? [listRowBackground(ROW_TINT)]
-										: []),
+									listRowSeparator("hidden"),
+									// Edit mode's red ⊖ reads as the Settings app; our own ✕
+									// sits in the row instead.
+									deleteDisabled(true),
+									listRowInsets({
+										top: 6,
+										bottom: 6,
+										leading: 8,
+										trailing: 8,
+									}),
+									listRowBackground(
+										row.terminalId === activeTerminalId
+											? ROW_TINT
+											: "transparent",
+									),
 								]}
 							>
 								{iconUri ? (
@@ -107,6 +133,12 @@ export function SessionList({
 										color={attentionColor}
 									/>
 								) : null}
+								<Image
+									systemName="xmark"
+									size={13}
+									color="#a1a1aa"
+									modifiers={[onTapGesture(() => onClose(row))]}
+								/>
 							</HStack>
 						);
 					})}
