@@ -122,14 +122,64 @@ export async function recordPromptVersion(
 	return row;
 }
 
+/**
+ * The schedule, read from the automation's `schedule` trigger rather than the
+ * columns on `automations`. Same field names and types the clients already
+ * consume, so the response shape is unchanged as those columns go away.
+ */
+export const scheduleTriggerColumns = {
+	rrule: sql<string>`${automationTriggers.config}->>'rrule'`.as("rrule"),
+	dtstart:
+		sql<Date>`(${automationTriggers.config}->>'dtstart')::timestamptz`.as(
+			"dtstart",
+		),
+	timezone: sql<string>`${automationTriggers.config}->>'timezone'`.as(
+		"timezone",
+	),
+	nextRunAt: automationTriggers.nextRunAt,
+};
+
+/**
+ * Joins an automation to its schedule trigger. Inner join is safe: every
+ * automation has exactly one, enforced by a partial unique index.
+ */
+export const onScheduleTrigger = and(
+	eq(automationTriggers.automationId, automations.id),
+	eq(automationTriggers.kind, "schedule"),
+);
+
+/**
+ * Automation columns minus the ones the schedule trigger supplies, and minus
+ * `prompt` (large markdown — `getPrompt` fetches it). Listed explicitly so the
+ * response shape is visible and the dropped schedule columns can't creep back.
+ */
+export const automationBaseColumns = {
+	id: automations.id,
+	organizationId: automations.organizationId,
+	ownerUserId: automations.ownerUserId,
+	name: automations.name,
+	agent: automations.agent,
+	targetHostId: automations.targetHostId,
+	v2ProjectId: automations.v2ProjectId,
+	v2WorkspaceId: automations.v2WorkspaceId,
+	enabled: automations.enabled,
+	createdAt: automations.createdAt,
+	updatedAt: automations.updatedAt,
+};
+
 export async function getAutomationForUser(
 	userId: string,
 	organizationId: string,
 	id: string,
 ) {
 	const [automation] = await db
-		.select()
+		.select({
+			...automationBaseColumns,
+			prompt: automations.prompt,
+			...scheduleTriggerColumns,
+		})
 		.from(automations)
+		.innerJoin(automationTriggers, onScheduleTrigger)
 		.where(
 			and(
 				eq(automations.id, id),
