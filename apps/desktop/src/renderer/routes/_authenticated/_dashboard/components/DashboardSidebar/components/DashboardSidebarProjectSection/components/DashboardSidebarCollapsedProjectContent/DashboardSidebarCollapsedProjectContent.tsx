@@ -1,4 +1,3 @@
-import { DndContext } from "@dnd-kit/core";
 import {
 	SortableContext,
 	verticalListSortingStrategy,
@@ -8,9 +7,10 @@ import { cn } from "@superset/ui/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { type ComponentPropsWithoutRef, forwardRef, useMemo } from "react";
 import { ProjectThumbnail } from "renderer/routes/_authenticated/components/ProjectThumbnail";
-import { useSidebarDnd } from "../../../../hooks/useSidebarDnd";
-import { parseId } from "../../../../hooks/useSidebarDnd/useSidebarDnd";
-import type { DashboardSidebarProjectChild } from "../../../../types";
+import {
+	parseId,
+	useDashboardSidebarDnd,
+} from "../../../../hooks/useSidebarDnd";
 import { SortableCollapsedWorkspaceItem } from "./components/SortableCollapsedWorkspaceItem";
 
 interface DashboardSidebarCollapsedProjectContentProps
@@ -18,9 +18,9 @@ interface DashboardSidebarCollapsedProjectContentProps
 	projectId: string;
 	projectName: string;
 	iconUrl: string | null;
+	projectColor: string | null;
 	isCollapsed: boolean;
 	totalWorkspaceCount: number;
-	projectChildren: DashboardSidebarProjectChild[];
 	workspaceShortcutLabels: Map<string, string>;
 	onWorkspaceHover: (workspaceId: string) => void | Promise<void>;
 	onToggleCollapse: () => void;
@@ -35,9 +35,9 @@ export const DashboardSidebarCollapsedProjectContent = forwardRef<
 			projectId,
 			projectName,
 			iconUrl,
+			projectColor,
 			isCollapsed,
 			totalWorkspaceCount,
-			projectChildren,
 			workspaceShortcutLabels,
 			onWorkspaceHover,
 			onToggleCollapse,
@@ -46,19 +46,13 @@ export const DashboardSidebarCollapsedProjectContent = forwardRef<
 		},
 		ref,
 	) => {
-		const {
-			sensors,
-			measuring,
-			collisionDetection,
-			flatItems,
-			workspacesById,
-			handlers,
-		} = useSidebarDnd({ projectId, projectChildren });
+		const { projectItems, workspacesById } = useDashboardSidebarDnd();
+		const flatItems = projectItems[projectId];
 
 		// Sections aren't rendered in the collapsed rail — only workspace icons
-		// are sortable; useSidebarDnd still persists cross-section moves.
+		// are sortable; the drop commit still persists cross-section moves.
 		const workspaceItems = useMemo(
-			() => flatItems.filter((id) => parseId(id)?.type === "workspace"),
+			() => (flatItems ?? []).filter((id) => parseId(id)?.type === "workspace"),
 			[flatItems],
 		);
 
@@ -81,6 +75,7 @@ export const DashboardSidebarCollapsedProjectContent = forwardRef<
 							<ProjectThumbnail
 								projectName={projectName}
 								iconUrl={iconUrl}
+								color={projectColor}
 								className="size-4 text-[10px]"
 							/>
 						</button>
@@ -104,41 +99,32 @@ export const DashboardSidebarCollapsedProjectContent = forwardRef<
 							className="overflow-hidden w-full"
 						>
 							<div className="flex w-full flex-col gap-1 pt-1">
-								<DndContext
-									sensors={sensors}
-									collisionDetection={collisionDetection}
-									measuring={measuring}
-									{...handlers}
+								<SortableContext
+									items={workspaceItems}
+									strategy={verticalListSortingStrategy}
 								>
-									<SortableContext
-										items={workspaceItems}
-										strategy={verticalListSortingStrategy}
-									>
-										{workspaceItems.map((id) => {
-											const parsed = parseId(id);
-											if (!parsed) return null;
-											const workspace = workspacesById.get(parsed.realId);
-											if (!workspace) return null;
-											return (
-												<SortableCollapsedWorkspaceItem
-													key={String(id)}
-													sortableId={String(id)}
-													workspace={workspace}
-													onHoverCardOpen={() =>
-														onWorkspaceHover(parsed.realId)
-													}
-													shortcutLabel={workspaceShortcutLabels.get(
-														parsed.realId,
-													)}
-													disabled={
-														workspace.type === "main" &&
-														workspace.hostType === "local-device"
-													}
-												/>
-											);
-										})}
-									</SortableContext>
-								</DndContext>
+									{workspaceItems.map((id) => {
+										const parsed = parseId(id);
+										if (!parsed) return null;
+										const workspace = workspacesById.get(parsed.realId);
+										if (!workspace) return null;
+										return (
+											<SortableCollapsedWorkspaceItem
+												key={String(id)}
+												sortableId={String(id)}
+												workspace={workspace}
+												onHoverCardOpen={onWorkspaceHover}
+												shortcutLabel={workspaceShortcutLabels.get(
+													parsed.realId,
+												)}
+												disabled={
+													workspace.type === "main" &&
+													workspace.hostType === "local-device"
+												}
+											/>
+										);
+									})}
+								</SortableContext>
 							</div>
 						</motion.div>
 					)}

@@ -23,11 +23,11 @@ type SelectedWorkspace =
 	  }
 	| null;
 
-mock.module("@superset/chat/server/shared", () => ({
+mock.module("@superset/provider-auth/server/shared", () => ({
 	getSmallModel: getSmallModelMock,
 }));
 
-mock.module("@superset/chat/server/desktop", () => ({
+mock.module("@superset/provider-auth/server", () => ({
 	generateTitleFromMessage: generateTitleFromMessageMock,
 }));
 

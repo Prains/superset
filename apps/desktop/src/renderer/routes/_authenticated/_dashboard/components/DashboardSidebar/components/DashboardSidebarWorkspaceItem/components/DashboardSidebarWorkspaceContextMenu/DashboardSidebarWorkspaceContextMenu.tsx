@@ -26,23 +26,26 @@ import {
 	LuPinOff,
 	LuRadioTower,
 	LuTrash2,
+	LuUnlink,
 	LuX,
 } from "react-icons/lu";
 import { useHotkeyDisplay } from "renderer/hotkeys";
 import { useDashboardSidebarPortKill } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar/hooks/useDashboardSidebarPortKill";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
-import { useDashboardSidebarHover } from "../../../../providers/DashboardSidebarHoverProvider";
+import { useDashboardSidebarHoverActions } from "../../../../providers/DashboardSidebarHoverProvider";
 import { useDashboardSidebarWorkspacePorts } from "../../../../providers/DashboardSidebarPortsProvider";
 
 interface DashboardSidebarWorkspaceContextMenuProps {
 	workspaceId: string;
-	projectId: string;
+	/** Null for project-less "session" workspaces (no group actions yet). */
+	projectId: string | null;
 	isInSection?: boolean;
 	isLocalWorkspace: boolean;
 	isLocalMainWorkspace?: boolean;
 	isPinned: boolean;
 	isUnread: boolean;
 	hasStatus: boolean;
+	hasPullRequest: boolean;
 	showDeleteHotkey?: boolean;
 	onTogglePin: () => void;
 	onCreateSection: () => void;
@@ -55,6 +58,7 @@ interface DashboardSidebarWorkspaceContextMenuProps {
 	onDelete?: () => void;
 	onToggleUnread: () => void;
 	onClearStatus: () => void;
+	onRemovePullRequest: () => void;
 	children: React.ReactNode;
 }
 
@@ -67,6 +71,7 @@ export function DashboardSidebarWorkspaceContextMenu({
 	isPinned,
 	isUnread,
 	hasStatus,
+	hasPullRequest,
 	showDeleteHotkey = false,
 	onTogglePin,
 	onCreateSection,
@@ -79,10 +84,11 @@ export function DashboardSidebarWorkspaceContextMenu({
 	onDelete,
 	onToggleUnread,
 	onClearStatus,
+	onRemovePullRequest,
 	children,
 }: DashboardSidebarWorkspaceContextMenuProps) {
 	const collections = useCollections();
-	const { setContextMenuOpen } = useDashboardSidebarHover();
+	const { setContextMenuOpen } = useDashboardSidebarHoverActions();
 	const portGroup = useDashboardSidebarWorkspacePorts(workspaceId);
 	const { isPending: isKillingPorts, killPorts } =
 		useDashboardSidebarPortKill();
@@ -94,8 +100,12 @@ export function DashboardSidebarWorkspaceContextMenu({
 		(q) =>
 			q
 				.from({ sidebarSections: collections.v2SidebarSections })
+				// `?? ""` and not null: TanStack DB's eq(col, null) never
+				// matches, and no section can have an empty-string projectId,
+				// so sessions resolve to an empty list without relying on the
+				// eq(null) quirk.
 				.where(({ sidebarSections }) =>
-					eq(sidebarSections.projectId, projectId),
+					eq(sidebarSections.projectId, projectId ?? ""),
 				)
 				.orderBy(({ sidebarSections }) => sidebarSections.tabOrder, "asc")
 				.select(({ sidebarSections }) => ({
@@ -172,9 +182,15 @@ export function DashboardSidebarWorkspaceContextMenu({
 						Clear Status
 					</ContextMenuItem>
 				)}
+				{hasPullRequest && (
+					<ContextMenuItem onSelect={onRemovePullRequest}>
+						<LuUnlink className="size-4 mr-2" />
+						Remove PR Link
+					</ContextMenuItem>
+				)}
 				{/* Group actions mutate placement (sectionId/tabOrder), which a pinned
 				    row doesn't display — the change would only surface on unpin. */}
-				{!isPinned && !isLocalMainWorkspace && (
+				{!isPinned && !isLocalMainWorkspace && projectId !== null && (
 					<>
 						<ContextMenuSeparator />
 						<ContextMenuItem onSelect={onCreateSection}>

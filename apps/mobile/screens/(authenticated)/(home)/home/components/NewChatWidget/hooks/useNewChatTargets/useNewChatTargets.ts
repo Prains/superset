@@ -1,16 +1,16 @@
-import { useLiveQuery } from "@tanstack/react-db";
 import { useQueries } from "@tanstack/react-query";
 import { compareDesc } from "date-fns";
 import { useMemo } from "react";
 import { toHostProjectItem } from "@/hooks/useHostProjects";
+import { useHostsPresence } from "@/hooks/useHostsPresence";
 import type { HostWorkspaceItem } from "@/hooks/useHostWorkspaces";
+import { useOrgHosts } from "@/hooks/useOrgHosts";
 import {
 	buildRelayHostUrl,
 	getHostServiceClientByUrl,
 } from "@/lib/host-service/client";
-import { useCollections } from "@/screens/(authenticated)/providers/CollectionsProvider";
 import { useWorkspacesFilterStore } from "../../../../stores/workspacesFilterStore";
-import { useNewChatPreferencesStore } from "../../stores/newChatPreferencesStore";
+import { useNewSessionPreferencesStore } from "../../stores/newSessionPreferencesStore";
 
 export interface NewChatTarget {
 	key: string;
@@ -36,28 +36,31 @@ export function useNewChatTargets(workspaces: HostWorkspaceItem[] = []): {
 	targets: NewChatTarget[];
 	defaultTarget: NewChatTarget | null;
 } {
-	const collections = useCollections();
-	const persistedTargetKey = useNewChatPreferencesStore(
+	const hosts = useOrgHosts();
+	const persistedTargetKey = useNewSessionPreferencesStore(
 		(state) => state.targetKey,
 	);
 	const projectFilter = useWorkspacesFilterStore(
 		(state) => state.projectFilter,
 	);
-
-	const { data: hosts } = useLiveQuery(
-		(q) => q.from({ v2Hosts: collections.v2Hosts }),
-		[collections],
+	const preferencesHydrated = useNewSessionPreferencesStore(
+		(state) => state.hasHydrated,
 	);
+	const filtersHydrated = useWorkspacesFilterStore(
+		(state) => state.hasHydrated,
+	);
+
+	const presence = useHostsPresence(hosts);
 	const onlineHosts = useMemo(
 		() =>
-			(hosts ?? [])
-				.filter((host) => host.isOnline)
+			hosts
+				.filter((host) => presence?.get(host.machineId) ?? host.isOnline)
 				.map((host) => ({
 					machineId: host.machineId,
 					name: host.name,
 					hostUrl: buildRelayHostUrl(host.organizationId, host.machineId),
 				})),
-		[hosts],
+		[hosts, presence],
 	);
 
 	const projectListQueries = useQueries({
@@ -75,8 +78,6 @@ export function useNewChatTargets(workspaces: HostWorkspaceItem[] = []): {
 		const result: NewChatTarget[] = [];
 		onlineHosts.forEach((host, index) => {
 			for (const row of projectListQueries[index]?.data ?? []) {
-				// Projects are fully local — the host row is the identity
-				// (the frozen Electric lookup dropped local-first projects).
 				const project = toHostProjectItem(row);
 				result.push({
 					key: targetKeyFor(project.id, host.machineId),
@@ -94,6 +95,10 @@ export function useNewChatTargets(workspaces: HostWorkspaceItem[] = []): {
 
 	const defaultTarget = useMemo<NewChatTarget | null>(() => {
 		if (targets.length === 0) return null;
+		// Both the last used target and the project filter are read back from
+		// storage asynchronously — defaulting first would land on the wrong
+		// project, and a send in that window would create the workspace there.
+		if (!preferencesHydrated || !filtersHydrated) return null;
 
 		const persisted = targets.find(
 			(target) => target.key === persistedTargetKey,
@@ -119,7 +124,14 @@ export function useNewChatTargets(workspaces: HostWorkspaceItem[] = []): {
 			if (match) return match;
 		}
 		return targets[0] ?? null;
-	}, [targets, persistedTargetKey, projectFilter, workspaces]);
+	}, [
+		targets,
+		persistedTargetKey,
+		projectFilter,
+		workspaces,
+		preferencesHydrated,
+		filtersHydrated,
+	]);
 
 	return { targets, defaultTarget };
 }

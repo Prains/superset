@@ -206,6 +206,8 @@ export const settings = sqliteTable("settings", {
 	terminalLinkBehavior: text(
 		"terminal_link_behavior",
 	).$type<TerminalLinkBehavior>(),
+	/** @deprecated Nothing reads this. Kept so builds <= 1.20.2 can still
+	 * select the column; drop it once those builds are out of circulation. */
 	terminalPersistence: integer("persist_terminal", { mode: "boolean" }).default(
 		true,
 	),
@@ -252,6 +254,9 @@ export const settings = sqliteTable("settings", {
 	exposeHostServiceViaRelay: integer("expose_host_service_via_relay", {
 		mode: "boolean",
 	}),
+	disabledAgentHooks: text("disabled_agent_hooks", { mode: "json" }).$type<
+		string[]
+	>(),
 });
 
 export type InsertSettings = typeof settings.$inferInsert;

@@ -3,6 +3,7 @@ import type { SettingsSection } from "renderer/stores/settings-state";
 export const SETTING_ITEM_ID = {
 	ACCOUNT_PROFILE: "account-profile",
 	ACCOUNT_SIGNOUT: "account-signout",
+	ACCOUNT_DELETE: "account-delete",
 
 	ORGANIZATION_LOGO: "organization-logo",
 	ORGANIZATION_NAME: "organization-name",
@@ -12,6 +13,7 @@ export const SETTING_ITEM_ID = {
 	ORGANIZATION_MEMBERS_INVITE: "organization-members-invite",
 	ORGANIZATION_MEMBERS_PENDING_INVITATIONS:
 		"organization-members-pending-invitations",
+	ORGANIZATION_DELETE: "organization-delete",
 
 	TEAMS_LIST: "teams-list",
 
@@ -28,6 +30,7 @@ export const SETTING_ITEM_ID = {
 	BEHAVIOR_FILE_OPEN_MODE: "behavior-file-open-mode",
 	BEHAVIOR_RESOURCE_MONITOR: "behavior-resource-monitor",
 	BEHAVIOR_OPEN_LINKS_IN_APP: "behavior-open-links-in-app",
+	BEHAVIOR_STAR_GITHUB: "behavior-star-github",
 
 	GIT_BRANCH_PREFIX: "git-branch-prefix",
 	GIT_DELETE_LOCAL_BRANCH: "git-delete-local-branch",
@@ -71,8 +74,8 @@ export const SETTING_ITEM_ID = {
 	PROJECT_SCRIPTS: "project-scripts",
 	PROJECT_BRANCH_PREFIX: "project-branch-prefix",
 	PROJECT_WORKTREE_LOCATION: "project-worktree-location",
+	PROJECT_SPARSE_CHECKOUT: "project-sparse-checkout",
 	PROJECT_IMPORT_WORKTREES: "project-import-worktrees",
-	PROJECT_ENV_VARS: "project-env-vars",
 
 	API_KEYS_LIST: "api-keys-list",
 	API_KEYS_GENERATE: "api-keys-generate",
@@ -118,6 +121,7 @@ export type SettingVariant = "v1" | "v2" | "shared";
 export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.ACCOUNT_PROFILE]: "shared",
 	[SETTING_ITEM_ID.ACCOUNT_SIGNOUT]: "shared",
+	[SETTING_ITEM_ID.ACCOUNT_DELETE]: "shared",
 
 	[SETTING_ITEM_ID.ORGANIZATION_LOGO]: "shared",
 	[SETTING_ITEM_ID.ORGANIZATION_NAME]: "shared",
@@ -126,6 +130,7 @@ export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.ORGANIZATION_MEMBERS_LIST]: "shared",
 	[SETTING_ITEM_ID.ORGANIZATION_MEMBERS_INVITE]: "shared",
 	[SETTING_ITEM_ID.ORGANIZATION_MEMBERS_PENDING_INVITATIONS]: "shared",
+	[SETTING_ITEM_ID.ORGANIZATION_DELETE]: "shared",
 
 	[SETTING_ITEM_ID.TEAMS_LIST]: "shared",
 
@@ -143,6 +148,7 @@ export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.BEHAVIOR_FILE_OPEN_MODE]: "v1",
 	[SETTING_ITEM_ID.BEHAVIOR_RESOURCE_MONITOR]: "shared",
 	[SETTING_ITEM_ID.BEHAVIOR_OPEN_LINKS_IN_APP]: "v1",
+	[SETTING_ITEM_ID.BEHAVIOR_STAR_GITHUB]: "shared",
 
 	// Branch prefix exists in both UIs — v1 `GitSettings`, v2 `V2GitSettings`.
 	[SETTING_ITEM_ID.GIT_BRANCH_PREFIX]: "shared",
@@ -187,8 +193,8 @@ export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.PROJECT_SCRIPTS]: "shared",
 	[SETTING_ITEM_ID.PROJECT_BRANCH_PREFIX]: "v1",
 	[SETTING_ITEM_ID.PROJECT_WORKTREE_LOCATION]: "shared",
+	[SETTING_ITEM_ID.PROJECT_SPARSE_CHECKOUT]: "v2",
 	[SETTING_ITEM_ID.PROJECT_IMPORT_WORKTREES]: "v1",
-	[SETTING_ITEM_ID.PROJECT_ENV_VARS]: "v2",
 
 	[SETTING_ITEM_ID.API_KEYS_LIST]: "shared",
 	[SETTING_ITEM_ID.API_KEYS_GENERATE]: "shared",
@@ -247,6 +253,21 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 			"log out",
 			"disconnect",
 			"leave",
+		],
+	},
+	{
+		id: SETTING_ITEM_ID.ACCOUNT_DELETE,
+		section: "account",
+		title: "Delete Account",
+		description: "Permanently delete your account",
+		keywords: [
+			"account",
+			"delete",
+			"remove",
+			"close",
+			"deactivate",
+			"gdpr",
+			"erase",
 		],
 	},
 	{
@@ -363,6 +384,20 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 			"cancel",
 			"resend",
 			"email",
+		],
+	},
+	{
+		id: SETTING_ITEM_ID.ORGANIZATION_DELETE,
+		section: "organization",
+		title: "Delete Organization",
+		description: "Permanently delete this organization",
+		keywords: [
+			"organization",
+			"delete",
+			"remove",
+			"close",
+			"disband",
+			"danger",
 		],
 	},
 	{
@@ -650,6 +685,21 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 		],
 	},
 	{
+		id: SETTING_ITEM_ID.BEHAVIOR_STAR_GITHUB,
+		section: "behavior",
+		title: "Star Superset on GitHub",
+		description: "Support the project with a GitHub star",
+		keywords: [
+			"star",
+			"github",
+			"support",
+			"feedback",
+			"open source",
+			"repo",
+			"repository",
+		],
+	},
+	{
 		id: SETTING_ITEM_ID.AGENTS_ENABLED,
 		section: "agents",
 		title: "Enabled agents",
@@ -932,13 +982,16 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 			"auth",
 			"workspace naming",
 			"auto name",
+			"ai",
+			"autocomplete",
+			"auto complete",
 		],
 	},
 	{
 		id: SETTING_ITEM_ID.MODELS_OPENAI,
 		section: "models",
 		title: "OpenAI Model Auth",
-		description: "Connect OpenAI for supported model tasks",
+		description: "Connect OpenAI for workspace naming and other model tasks",
 		keywords: [
 			"models",
 			"openai",
@@ -948,6 +1001,9 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 			"auth",
 			"workspace naming",
 			"auto name",
+			"ai",
+			"autocomplete",
+			"auto complete",
 		],
 	},
 	{
@@ -1235,6 +1291,25 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 		],
 	},
 	{
+		id: SETTING_ITEM_ID.PROJECT_SPARSE_CHECKOUT,
+		section: "project",
+		title: "Sparse Checkout",
+		description: "Limit new worktrees to specific folders of the repository",
+		keywords: [
+			"project",
+			"sparse",
+			"checkout",
+			"cone",
+			"worktree",
+			"folders",
+			"directories",
+			"subset",
+			"partial",
+			"monorepo",
+			"size",
+		],
+	},
+	{
 		id: SETTING_ITEM_ID.PROJECT_IMPORT_WORKTREES,
 		section: "project",
 		title: "Import Worktrees",
@@ -1250,20 +1325,6 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 			"existing",
 			"disk",
 			"add",
-		],
-	},
-	{
-		id: SETTING_ITEM_ID.PROJECT_ENV_VARS,
-		section: "project",
-		title: "Environment Variables",
-		description: "Manage environment variables and secrets for cloud sandboxes",
-		keywords: [
-			"environment",
-			"variables",
-			"secrets",
-			"env",
-			"cloud",
-			"sandbox",
 		],
 	},
 	{
@@ -1494,8 +1555,12 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 	},
 ];
 
+export function splitSearchTerms(query: string): string[] {
+	return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
 export function searchSettings(query: string): SettingsItem[] {
-	const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+	const terms = splitSearchTerms(query);
 	if (terms.length === 0) return SETTINGS_ITEMS;
 
 	return SETTINGS_ITEMS.filter((item) => {

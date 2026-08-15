@@ -43,6 +43,7 @@ Go to **Settings → Agents** to customize launch behavior for each built-in age
 - **Command (With Prompt)** - Prompt-aware command for terminal agents
 - **Prompt Command Suffix** - Optional flags appended after the prompt payload
 - **Task Prompt Template** - Template used when launching an agent from a task
+- **Resume Args** - Arguments used to restore a killed session by its id (e.g. `--resume`)
 - **Model Override** - Optional model override for Superset Chat
 - **Reset to Defaults** - Restore the shipped configuration for that agent
 
@@ -63,6 +64,18 @@ When launching an agent from a task, the **Auto-run command** toggle controls wh
 
 The setting is remembered between sessions.
 
+## Resume Interrupted Sessions
+
+If an agent's terminal dies under it (a crash, a reboot, a killed process), the pane shows an "*Agent* was interrupted" banner with a **Resume** button. Resume relaunches the agent with its resume command (e.g. `claude --resume <session-id>`) in the same pane, restoring the conversation.
+
+![The resume banner on an interrupted agent terminal](/images/agent-resume-banner.png)
+
+Works for agents with an id-based resume command (the **Resume Args** field under **Settings → Agents**). From the CLI:
+
+```bash
+superset agents create --workspace ws_… --agent claude --resume-session <sessionId>
+```
+
 ## Parallel Agents
 
 Create multiple workspaces and run an agent in each. Compare results and merge the best solution.
@@ -81,7 +94,7 @@ Get notified when agents finish. Configure sounds in Settings.
 
 ## Agent Skills
 
-Teach any agent to drive Superset itself with the official [skills](https://github.com/superset-sh/skills) — one for the `superset` CLI, one for the [MCP server](/mcp-server):
+Teach any agent to drive Superset itself with the official [skills](https://github.com/superset-sh/skills), one for the `superset` CLI and one for the [MCP server](/mcp-server):
 
 ```bash
 npx skills add superset-sh/skills

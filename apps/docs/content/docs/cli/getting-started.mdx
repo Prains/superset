@@ -11,6 +11,8 @@ The Superset CLI (`superset`) is a single static binary that drives the same
 backend as the desktop app. Use it to manage workspaces, tasks, automations,
 and the local host server from your terminal or from CI.
 
+<YouTubeVideo id="8g-l5kYEGBc" title="Superset CLI + Skills Demo" thumbnail="/images/cli-skills-demo.jpg" />
+
 ## Install
 
 ### Desktop app
@@ -32,9 +34,9 @@ export PATH="$HOME/.superset/bin:$PATH"
 curl -fsSL https://superset.sh/cli/install.sh | sh
 ```
 
-The script auto-detects your platform (macOS Apple Silicon or Linux x86_64),
-installs Superset under `~/superset` by default, and adds `~/superset/bin`
-to your shell `PATH`.
+The script auto-detects your platform (macOS on Apple Silicon or Intel, Linux on
+x64 or arm64), installs Superset under `~/superset` by default, and adds
+`~/superset/bin` to your shell `PATH`.
 
 ### Homebrew
 
@@ -88,6 +90,17 @@ Signed in as Satya Patel (you@example.com)
 Organization: Acme
 Auth: Session (expires in 32 min)
 ```
+
+## Explore interactively
+
+Bare `superset` in a terminal opens an interactive command browser:
+arrow-key through the commands, read their flags, and fill in required
+inputs with guided prompts. The confirmation screen shows the exact
+command before running it. `superset --help` prints the same catalog as
+static, grouped help. Agents and CI always get static help; the browser
+never opens there.
+
+![The interactive command browser](/images/cli-command-browser.png)
 
 ## Run your first commands
 
@@ -171,7 +184,7 @@ superset workspaces list --host h_…  # another host
 Every host-scoped command targets exactly one host. Reads
 (`workspaces list`, `projects list`) default to this machine; mutating
 host commands (`projects create`, `projects setup`, `workspaces create`)
-require an explicit `--host` or `--local` — there's no default. There is
+require an explicit `--host` or `--local`; there's no default. There is
 no org-wide listing; the desktop app is the cross-host view.
 
 ## Where state lives

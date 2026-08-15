@@ -370,15 +370,13 @@ describe("workspace.create + workspace.delete integration", () => {
 		expect(result.workspace.id).toBeDefined();
 		expect(result.alreadyExists).toBe(false);
 
-		// The local row is authoritative and stays cloud-dirty so the
-		// reconciler pushes it once the cloud is reachable again.
+		// The local row is authoritative; a cloud failure never rolls it back.
 		const rows = scenario.host.db
 			.select()
 			.from(workspaces)
 			.where(eq(workspaces.name, "ws"))
 			.all();
 		expect(rows).toHaveLength(1);
-		expect(rows[0]?.cloudSyncedAt).toBeNull();
 		expect(existsSync(rows[0]?.worktreePath ?? "")).toBe(true);
 	});
 
@@ -391,7 +389,7 @@ describe("workspace.create + workspace.delete integration", () => {
 		).rejects.toThrow(/Main workspaces cannot be deleted/i);
 	});
 
-	test("delete() removes the worktree and the local row on success", async () => {
+	test("delete() removes the worktree and archives the local row on success", async () => {
 		const scenario = await createFeatureWorktreeScenario({
 			hostOptions: { apiOverrides: cloudFlows.workspaceDeleteOk() },
 		});
@@ -410,12 +408,9 @@ describe("workspace.create + workspace.delete integration", () => {
 			.from(workspaces)
 			.where(eq(workspaces.id, scenario.featureWorkspaceId))
 			.all();
-		expect(rows).toHaveLength(0);
-		expect(
-			scenario.host.apiCalls.some(
-				(c) => c.path === "v2Workspace.delete.mutate",
-			),
-		).toBe(true);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.archivedAt).not.toBeNull();
+		expect(rows[0]?.archiveReason).toBe("deleted");
 	});
 
 	test("delete() requires authentication", async () => {

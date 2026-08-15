@@ -24,7 +24,7 @@ import {
 	PLATFORM,
 	PROTOCOL_SCHEME,
 } from "shared/constants";
-import { setupAgentHooks } from "./lib/agent-setup";
+import { setupAgentIntegrations } from "./lib/agent-setup";
 import { initAppState } from "./lib/app-state";
 import { requestAppleEventsAccess } from "./lib/apple-events-permission";
 import { isUpdateReadyToInstall, setupAutoUpdater } from "./lib/auto-updater";
@@ -51,7 +51,7 @@ import {
 	getTerminalHostClient,
 } from "./lib/terminal-host/client";
 import { disposeTray, initTray } from "./lib/tray";
-import { startNetworkLogger, stopNetworkLogger } from "./network-logger";
+import { sweepNetworkLogs } from "./network-logger-sweep";
 import { MainWindow } from "./windows/main";
 
 console.log("[main] Local database ready:", !!localDb);
@@ -248,7 +248,6 @@ app.on("before-quit", async (event) => {
 		disposeTerminalHostClient,
 		shutdownPersistence: shutdownTanstackDbPersistence,
 		disposeTray,
-		stopNetworkLogger,
 		forceExit: (code) => app.exit(code),
 	});
 });
@@ -285,10 +284,9 @@ if (process.env.NODE_ENV === "development") {
 		signalHandled = true;
 		console.log(`[main] Received ${signal}, quitting...`);
 		getHostServiceCoordinator().stopAll();
-		void Promise.allSettled([
-			teardownTerminalHost(),
-			stopNetworkLogger(),
-		]).finally(() => app.exit(0));
+		void Promise.allSettled([teardownTerminalHost()]).finally(() =>
+			app.exit(0),
+		);
 	};
 
 	process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
@@ -407,11 +405,7 @@ if (!gotTheLock) {
 		await initAppState();
 		initTanstackDbPersistence();
 
-		try {
-			await startNetworkLogger();
-		} catch (error) {
-			console.error("[main] Failed to start network logger:", error);
-		}
+		sweepNetworkLogs();
 
 		await loadWebviewBrowserExtension();
 
@@ -467,9 +461,11 @@ if (!gotTheLock) {
 		);
 
 		try {
-			setupAgentHooks();
+			const disabledAgentHooks =
+				localDb.select().from(settings).get()?.disabledAgentHooks ?? [];
+			setupAgentIntegrations({ disabledAgentIds: disabledAgentHooks });
 		} catch (error) {
-			console.error("[main] Failed to set up agent hooks:", error);
+			console.error("[main] Failed to set up agent integrations:", error);
 		}
 		try {
 			installBundledCliShim();

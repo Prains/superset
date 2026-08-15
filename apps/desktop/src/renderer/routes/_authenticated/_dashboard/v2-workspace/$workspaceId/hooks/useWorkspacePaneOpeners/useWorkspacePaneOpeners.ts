@@ -4,7 +4,7 @@ import type { V2TerminalPresetRow } from "renderer/routes/_authenticated/provide
 import type { StoreApi } from "zustand/vanilla";
 import type {
 	BrowserPaneData,
-	ChatPaneData,
+	ChatV3PaneData,
 	CommentPaneData,
 	DiffFocusSide,
 	DiffPaneData,
@@ -35,7 +35,7 @@ export function useWorkspacePaneOpeners({
 		changeKey?: string,
 	) => void;
 	addTerminalTab: () => Promise<void>;
-	addChatTab: () => void;
+	addChatV3Tab: () => void;
 	addBrowserTab: () => void;
 	openCommentPane: (comment: CommentPaneData) => void;
 } {
@@ -109,13 +109,15 @@ export function useWorkspacePaneOpeners({
 		[store],
 	);
 
-	const addBlankTerminalTab = useCallback(async () => {
-		const terminalId = await launcher.create();
+	const addBlankTerminalTab = useCallback(() => {
 		store.getState().addTab({
 			panes: [
 				{
 					kind: "terminal",
-					data: { terminalId } as TerminalPaneData,
+					data: {
+						terminalId: launcher.mint(),
+						createOnAttach: true,
+					} as TerminalPaneData,
 				},
 			],
 		});
@@ -123,7 +125,7 @@ export function useWorkspacePaneOpeners({
 
 	const addTerminalTab = useCallback(async () => {
 		if (newTabPresets.length === 0) {
-			await addBlankTerminalTab();
+			addBlankTerminalTab();
 			return;
 		}
 
@@ -134,12 +136,12 @@ export function useWorkspacePaneOpeners({
 		}
 	}, [addBlankTerminalTab, executePreset, newTabPresets]);
 
-	const addChatTab = useCallback(() => {
+	const addChatV3Tab = useCallback(() => {
 		store.getState().addTab({
 			panes: [
 				{
-					kind: "chat",
-					data: { sessionId: null } as ChatPaneData,
+					kind: "chat-v3",
+					data: { sessionId: null } as ChatV3PaneData,
 				},
 			],
 		});
@@ -188,7 +190,7 @@ export function useWorkspacePaneOpeners({
 	return {
 		openDiffPane,
 		addTerminalTab,
-		addChatTab,
+		addChatV3Tab,
 		addBrowserTab,
 		openCommentPane,
 	};
