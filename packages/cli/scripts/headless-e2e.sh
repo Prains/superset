@@ -215,6 +215,16 @@ echo "$STATUS" | grep -q "host-service dispatched status=200"
   if (!rows.some((r) => r.terminal_id === "e2e-terminal-1" && r.agent_id === "claude" && r.agent_session_id === "e2e-session-1")) process.exit(1);
 ' )
 
+echo "[e2e] === assert: every agent's hook artifact delivers to the host ==="
+# Per-agent matrix: dispatch through each agent's own registered command,
+# hook script, or plugin (13 agents). Needs bun (bun:sqlite + TS plugin
+# imports); both the docker image and CI runners have it.
+if command -v bun >/dev/null 2>&1; then
+  bun "$(dirname "$0")/agents-hook-matrix.ts" "$HOME" "$PORT" "$HSDIR/host.db"
+else
+  echo "[e2e] bun not available — skipping per-agent hook matrix"
+fi
+
 echo "[e2e] === assert: idempotent re-provisioning on restart ==="
 stop_host
 NOTIFY_MTIME1=$(stat -c %Y "$HOME/.superset/hooks/notify.sh")
