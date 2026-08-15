@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
+	backfillCompletedAt,
 	recordV1WorkspaceCreatedIfNew,
 	STAR_NAG_INITIAL_THRESHOLD,
 	useStarNagStore,
@@ -82,13 +83,23 @@ describe("useStarNagStore", () => {
 		expect(useStarNagStore.getState().deferredUntil).toBeNull();
 	});
 
-	test("markUnstarred() clears completed and completedAt, restoring eligibility", () => {
+	test("markUnstarred() clears completed and completedAt, but starts a cooldown instead of reopening immediately", () => {
+		for (let i = 0; i < STAR_NAG_INITIAL_THRESHOLD; i++) {
+			useStarNagStore.getState().recordWorkspaceCreated();
+		}
 		useStarNagStore.getState().markCompleted();
 		useStarNagStore.getState().markUnstarred();
 
-		expect(useStarNagStore.getState().completed).toBe(false);
-		expect(useStarNagStore.getState().completedAt).toBeNull();
-		expect(useStarNagStore.getState().isEligible()).toBe(true);
+		const state = useStarNagStore.getState();
+		expect(state.completed).toBe(false);
+		expect(state.completedAt).toBeNull();
+		// Not immediately eligible: workspacesCreatedSinceBaseline/nextThreshold
+		// are still frozen at their completion-time values, so without a
+		// cooldown the card would pop straight back up the instant the unstar
+		// is detected — a real bug this test guards against regressing to.
+		expect(state.deferredUntil).toBeGreaterThan(Date.now());
+		expect(state.isEligible()).toBe(false);
+		expect(state.shouldShowThresholdCard()).toBe(false);
 	});
 
 	test("isEligible() is true with no completion and no active cooldown", () => {
@@ -110,5 +121,30 @@ describe("useStarNagStore", () => {
 
 		recordV1WorkspaceCreatedIfNew(false);
 		expect(useStarNagStore.getState().workspacesCreatedSinceBaseline).toBe(1);
+	});
+});
+
+describe("backfillCompletedAt", () => {
+	test("stamps completedAt for a pre-timestamp-schema profile (completed true, completedAt null)", () => {
+		const now = 1_000_000;
+		expect(
+			backfillCompletedAt({ completed: true, completedAt: null }, now),
+		).toEqual({ completed: true, completedAt: now });
+	});
+
+	test("leaves an already-timestamped profile untouched", () => {
+		const result = backfillCompletedAt(
+			{ completed: true, completedAt: 42 },
+			1_000_000,
+		);
+		expect(result.completedAt).toBe(42);
+	});
+
+	test("leaves a never-completed profile's null completedAt alone", () => {
+		const result = backfillCompletedAt(
+			{ completed: false, completedAt: null },
+			1_000_000,
+		);
+		expect(result.completedAt).toBeNull();
 	});
 });

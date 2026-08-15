@@ -4,32 +4,12 @@ import { Star } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { GithubStarActionState } from "renderer/hooks/useGithubStarAction";
 import "./AnimatedStarButton.css";
+import { PlusMark } from "./components/PlusMark";
 
 // Four corner marks, positioned via offset-path purely by DOM order (see
 // AnimatedStarButton.css) — never reordered, so a stable static key per
 // corner is correct here.
 const CORNERS = ["top-left", "top-right", "bottom-right", "bottom-left"];
-
-// Same path data as the reference's corner icon — not a library icon, so
-// there's no risk of a different icon set's paths rendering subtly
-// differently at 10px.
-function PlusMark() {
-	return (
-		<svg
-			xmlns="http://www.w3.org/2000/svg"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			aria-hidden="true"
-		>
-			<path d="M5 12h14" />
-			<path d="M12 5v14" />
-		</svg>
-	);
-}
 
 // Star = gold, matching GitHub's own convention and every other star icon
 // anywhere. Emerald is this app's existing "success" token (see e.g.

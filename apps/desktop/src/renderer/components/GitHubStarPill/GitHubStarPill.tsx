@@ -1,4 +1,5 @@
 import { cn } from "@superset/ui/utils";
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import {
 	AnimatedStarButton,
@@ -15,26 +16,50 @@ interface GitHubStarPillProps {
 /**
  * Small, always-optional "Star Superset on GitHub" pill for the empty
  * "no pane open" screens (v1 EmptyTabView and v2 WorkspaceEmptyState).
- * Renders from live `state`, not the nag-suppression `isMuted` flag — unlike
+ * Renders straight from live `state`, with no nag-suppression layer — unlike
  * the sidebar card/toast, this is a low-key status indicator, not an
  * interruptive campaign, so it's allowed to be fully truthful: it hides the
  * instant `state` is "starred" and reappears the instant a later unstar is
- * confirmed, without waiting on the mute grace window. It briefly stays
+ * confirmed, without waiting on any mute grace window. It briefly stays
  * mounted past that point so the confetti/label animation on a fresh star
- * has time to play.
+ * has time to play, then dissolves out (fade + soft blur) instead of
+ * vanishing instantly.
  */
 export function GitHubStarPill({ className }: GitHubStarPillProps) {
 	const { state, activate, isBusy } = useGithubStarAction();
 	const prevStateRef = useRef<GithubStarActionState | null>(null);
 
+	// Computed synchronously during render (not inside the effect below) so
+	// the hide check further down can't lag a render behind the state flip.
+	// That lag used to unmount this component's child AnimatedStarButton for
+	// exactly one render right as `state` became "starred" — before
+	// staysVisibleForAnimation had a chance to flip true — which reset
+	// AnimatedStarButton's own "was I just starred" ref on remount and
+	// silently dropped its confetti/pop celebration.
+	const prevState = prevStateRef.current;
+	prevStateRef.current = state;
+	const justStarred =
+		(prevState === "not_starred" || prevState === "unknown") &&
+		state === "starred";
+
+	// Separate ref + effect from the render-time justStarred above, and keyed
+	// on `state` rather than `justStarred`: `justStarred` itself flips back to
+	// false on the very next render (setStaysVisibleForAnimation(true) causes
+	// a re-render, and prevStateRef has already advanced to "starred" by
+	// then) — if this effect depended on `justStarred` directly, that flip
+	// would re-run it, firing the cleanup that cancels the just-started timer
+	// before it ever fires, and no replacement timer gets scheduled since
+	// justStarred is false by then. Keying on `state` (which only changes
+	// once) keeps the timer alive for its full duration instead.
 	const [staysVisibleForAnimation, setStaysVisibleForAnimation] =
 		useState(false);
+	const prevStateForTimerRef = useRef<GithubStarActionState | null>(null);
 	useEffect(() => {
-		const prev = prevStateRef.current;
-		prevStateRef.current = state;
-		const justStarred =
+		const prev = prevStateForTimerRef.current;
+		prevStateForTimerRef.current = state;
+		const justStarredForTimer =
 			(prev === "not_starred" || prev === "unknown") && state === "starred";
-		if (justStarred) {
+		if (justStarredForTimer) {
 			setStaysVisibleForAnimation(true);
 			const timer = setTimeout(
 				() => setStaysVisibleForAnimation(false),
@@ -60,7 +85,12 @@ export function GitHubStarPill({ className }: GitHubStarPillProps) {
 	}, [state]);
 
 	if (state === "loading") return null;
-	if (state === "starred" && !staysVisibleForAnimation) return null;
+
+	const isVisible = !(
+		state === "starred" &&
+		!justStarred &&
+		!staysVisibleForAnimation
+	);
 
 	const handleClick = () => {
 		track(state === "unknown" ? "star_nag_opened_web" : "star_nag_starred", {
@@ -70,12 +100,23 @@ export function GitHubStarPill({ className }: GitHubStarPillProps) {
 	};
 
 	return (
-		<div className={cn("flex items-center justify-center", className)}>
-			<AnimatedStarButton
-				state={state}
-				busy={isBusy}
-				onActivate={handleClick}
-			/>
-		</div>
+		<AnimatePresence>
+			{isVisible && (
+				<motion.div
+					key="star-pill"
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					exit={{ opacity: 0, scale: 0.92, filter: "blur(3px)" }}
+					transition={{ duration: 0.32, ease: "easeOut" }}
+					className={cn("flex items-center justify-center", className)}
+				>
+					<AnimatedStarButton
+						state={state}
+						busy={isBusy}
+						onActivate={handleClick}
+					/>
+				</motion.div>
+			)}
+		</AnimatePresence>
 	);
 }

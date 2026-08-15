@@ -41,15 +41,25 @@ export function StarNagObserver() {
 	const markCompleted = useStarNagStore((s) => s.markCompleted);
 	const markUnstarred = useStarNagStore((s) => s.markUnstarred);
 
-	const { data: checkResult } = electronTrpc.githubStar.checkStarred.useQuery(
-		undefined,
-		{
+	const { data: checkResult, dataUpdatedAt } =
+		electronTrpc.githubStar.checkStarred.useQuery(undefined, {
 			staleTime: CHECK_STARRED_STALE_TIME_MS,
 			refetchOnWindowFocus: false,
+			// Without this, the backstop interval simply doesn't fire while the
+			// window is unfocused/backgrounded (TanStack Query's default) — which
+			// is exactly the "one empty pane left open for a while" scenario it
+			// exists for.
+			refetchIntervalInBackground: true,
 			refetchInterval: completed ? UNSTAR_BACKSTOP_INTERVAL_MS : false,
-		},
-	);
+		});
 
+	// dataUpdatedAt is deliberately in the deps below though unreferenced
+	// here: the scheduled re-verify can resolve to the *same* checkResult
+	// string as the read that started the grace window (e.g. "not_starred"
+	// both times) — without a value that changes on every completed fetch,
+	// React sees no dependency change and skips re-running this effect
+	// entirely, so a confirmed unstar can silently never call markUnstarred().
+	// biome-ignore lint/correctness/useExhaustiveDependencies: see above
 	useEffect(() => {
 		if (checkResult === "starred" && !completed) {
 			markCompleted();
@@ -65,7 +75,14 @@ export function StarNagObserver() {
 		) {
 			markUnstarred();
 		}
-	}, [checkResult, completed, completedAt, markCompleted, markUnstarred]);
+	}, [
+		checkResult,
+		dataUpdatedAt,
+		completed,
+		completedAt,
+		markCompleted,
+		markUnstarred,
+	]);
 
 	// A "not_starred" read inside the grace window is ignored above (that's
 	// the flaky-checkStarred protection) — schedule exactly one re-verify

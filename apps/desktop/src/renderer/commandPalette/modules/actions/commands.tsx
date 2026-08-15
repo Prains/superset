@@ -17,6 +17,7 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
+import { previewStarNagOnboardingToast } from "renderer/components/StarNagToast";
 import { env } from "renderer/env.renderer";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { electronQueryClient } from "renderer/providers/ElectronTRPCProvider";
@@ -276,15 +277,11 @@ export const actionsProvider: CommandProvider = {
 					section: "dev",
 					icon: StarIcon,
 					keywords: ["star", "github", "nag", "dev", "preview", "test"],
-					// Dynamically imported so StarNagToast (and its AnimatedStarButton /
-					// framer-motion tree) isn't pulled into the always-loaded module
-					// graph just for a dev-only preview command.
-					run: async () => {
-						const { previewStarNagOnboardingToast } = await import(
-							"renderer/components/StarNagToast"
-						);
-						previewStarNagOnboardingToast();
-					},
+					// A dynamic import here would only defer this file's own module —
+					// AnimatedStarButton (and framer-motion) is already statically
+					// imported by StarNagCard, which DashboardSidebar/WorkspaceSidebar
+					// import unconditionally, so it's already in the eager bundle.
+					run: () => previewStarNagOnboardingToast(),
 				},
 				{
 					id: "dev.resetStarNagState",

@@ -1,6 +1,5 @@
 import { COMPANY } from "@superset/shared/constants";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { useStarNagStore } from "renderer/stores/star-nag";
 
 export type GithubStarActionState =
 	| "loading"
@@ -68,26 +67,31 @@ interface UseGithubStarActionOptions {
 	 * Skip the checkStarred query entirely. Every check shells out to the
 	 * user's local `gh` CLI, so a surface that isn't currently eligible to be
 	 * shown (e.g. a feature-flagged sidebar card that's collapsed or
-	 * disabled) has no reason to keep checking in the background — `isMuted`
-	 * still reflects the shared store regardless of any one hook instance's
-	 * query being disabled. Defaults to true.
+	 * disabled) has no reason to keep checking in the background. Defaults to
+	 * true.
 	 */
 	enabled?: boolean;
+	/**
+	 * Always fetch a fresh read on mount, ignoring staleTime (still never on
+	 * window focus). For a surface the user navigates to specifically to
+	 * check status — the Settings row — rather than one that's ambiently
+	 * displayed most of a session, staying honest on every visit matters more
+	 * than avoiding a `gh` call. Defaults to false.
+	 */
+	alwaysFreshOnMount?: boolean;
 }
 
 /**
  * Shared check-star-repo/star-repo/open-web-fallback flow, reused by every
  * "Star Superset on GitHub" surface (settings row, empty-state pill,
- * threshold card, onboarding toast).
+ * threshold card, onboarding toast). `state` is the live, truthful star
+ * status — backed by the shared query cache, so a confirmed star from any
+ * one surface is reflected on every other mounted surface immediately.
  *
- * Returns two independent things: `state` is the live, truthful star status
- * (backed by the shared query cache, so a confirmed star from any one
- * surface is reflected on every other mounted surface immediately) — this is
- * what should be displayed. `isMuted` is whether nag surfaces should
- * suppress themselves; it lags `state` deliberately (see
- * shouldUnmuteOnUnstarredRead) to absorb flaky checkStarred reads that would
- * otherwise flicker the ask back on. A status surface like the Settings row
- * or the empty-state pill should only ever read `state`, never `isMuted`.
+ * Suppression (whether a nag surface should show itself at all) is NOT this
+ * hook's concern — StarNagCard and StarNagToast derive that straight from
+ * useStarNagStore (shouldShowThresholdCard()/isEligible()), and the pill and
+ * Settings row are deliberately always-truthful with no suppression at all.
  *
  * checkResult -> store side effects (markCompleted/markUnstarred) are NOT
  * handled here — StarNagObserver owns that, once, so the four independently
@@ -101,10 +105,10 @@ export function useGithubStarAction(options?: UseGithubStarActionOptions) {
 			enabled,
 			staleTime: CHECK_STARRED_STALE_TIME_MS,
 			refetchOnWindowFocus: false,
+			refetchOnMount: options?.alwaysFreshOnMount ? "always" : true,
 		});
 	const starMutation = electronTrpc.githubStar.star.useMutation();
 	const openUrlMutation = electronTrpc.external.openUrl.useMutation();
-	const completed = useStarNagStore((s) => s.completed);
 
 	const state: GithubStarActionState = isSuccess ? checkResult : "loading";
 
@@ -131,17 +135,34 @@ export function useGithubStarAction(options?: UseGithubStarActionOptions) {
 					undefined,
 					starred ? "starred" : "unknown",
 				);
+				if (!starred) markStaleWithoutRefetch(utils);
 			},
 			onError: () => {
 				utils.githubStar.checkStarred.setData(undefined, "unknown");
+				markStaleWithoutRefetch(utils);
 			},
 		});
 	};
 
 	return {
 		state,
-		isMuted: completed,
 		activate,
 		isBusy: starMutation.isPending || openUrlMutation.isPending,
 	};
+}
+
+/**
+ * A failed/declined star attempt still writes "unknown" into the cache for
+ * immediate UI feedback (the web-fallback state), but unlike a real
+ * "starred"/"not_starred" confirmation it shouldn't count as a fresh,
+ * settled-for-10-minutes read — mark it stale (with no eager refetch of its
+ * own) so the next mount naturally rechecks instead of every surface being
+ * stuck on the failure fallback for up to staleTime.
+ */
+function markStaleWithoutRefetch(
+	utils: ReturnType<typeof electronTrpc.useUtils>,
+) {
+	void utils.githubStar.checkStarred.invalidate(undefined, {
+		refetchType: "none",
+	});
 }

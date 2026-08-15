@@ -28,10 +28,12 @@ export function StarNagCard({ isCollapsed }: StarNagCardProps) {
 	const deferredUntil = useStarNagStore((s) => s.deferredUntil);
 	const dismiss = useStarNagStore((s) => s.dismiss);
 	// The card is mounted unconditionally in both sidebars regardless of the
-	// flag or collapsed state — without this, checkStarred (which shells out
-	// to `gh`) would fire in the background for every user on every window
-	// focus, even with the flag off. isMuted still reflects the shared store
-	// even while this instance's own query is disabled.
+	// flag or collapsed state. StarNagObserver's own always-on query already
+	// covers the pill/toast/settings row's need for a live read regardless of
+	// this flag, so gating this instance can't stop `gh` from ever being
+	// called for a disabled user — it only avoids a second, redundant active
+	// query observer (and its own extra mount-time refetch) tied to this
+	// card's collapse/expand and flag-load cycles specifically.
 	const { state, activate, isBusy } = useGithubStarAction({
 		enabled: !isCollapsed && isEnabled === true,
 	});
