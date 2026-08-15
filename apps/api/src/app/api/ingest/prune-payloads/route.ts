@@ -21,6 +21,15 @@ const RETAIN_DAYS = 14;
 /** Small enough that one statement is a short transaction on a 90M-row table. */
 const BATCH_SIZE = 5_000;
 
+/**
+ * Ceiling per run. Every prune is an UPDATE, so it leaves a dead tuple behind;
+ * this is what stops a backlog drain outrunning autovacuum and bloating the
+ * heap. Paced against the cron interval it also sets the drain rate — at one run
+ * every 5 minutes this is ~14M rows/day, so the backlog clears in days without
+ * the database ever being under a write spike.
+ */
+const MAX_ROWS_PER_RUN = 50_000;
+
 /** Well inside the function timeout, so a run ends by choice rather than by kill. */
 const TIME_BUDGET_MS = 20_000;
 
@@ -51,8 +60,8 @@ export async function POST(request: Request): Promise<Response> {
 	// One statement per batch, each its own transaction, so WAL stays bounded and
 	// a long backlog is chewed through across runs rather than in one held-open
 	// transaction.
-	while (Date.now() - startedAt < TIME_BUDGET_MS) {
-		const rows = await dbWs.execute(sql`
+	while (Date.now() - startedAt < TIME_BUDGET_MS && pruned < MAX_ROWS_PER_RUN) {
+		const result = await dbWs.execute(sql`
 			WITH batch AS (
 				SELECT id, received_at
 				FROM ingest.webhook_events
@@ -70,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
 			RETURNING batch.received_at
 		`);
 
-		const returned = rows.rows as Array<{ received_at: string }>;
+		const returned = result.rows as Array<{ received_at: string }>;
 		pruned += returned.length;
 		batches++;
 		if (returned.length < BATCH_SIZE) break;
@@ -82,6 +91,10 @@ export async function POST(request: Request): Promise<Response> {
 	return Response.json({
 		pruned,
 		batches,
+		// Whether the run stopped on a limit rather than running out of work —
+		// the cheap version of "is there still a backlog?". An exact count would
+		// mean scanning tens of millions of rows on every run.
+		hitLimit: pruned >= MAX_ROWS_PER_RUN,
 		retainDays: RETAIN_DAYS,
 		elapsedMs: Date.now() - startedAt,
 	});
