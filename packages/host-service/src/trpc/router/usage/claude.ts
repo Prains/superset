@@ -270,7 +270,8 @@ async function fetchClaudeAccount(
 			...base,
 			email: credential.email ?? null,
 			status: "token_expired",
-			statusDetail: "Saved Claude Code token expired — run /login inside Claude Code to save a fresh one.",
+			statusDetail:
+				"Saved Claude Code token expired — run /login inside Claude Code to save a fresh one.",
 			windows: [],
 			extraUsage: null,
 		};
@@ -293,7 +294,8 @@ async function fetchClaudeAccount(
 				...base,
 				email: apiEmail ?? credential.email ?? null,
 				status: "token_expired",
-				statusDetail: "Saved Claude Code token expired — run /login inside Claude Code to save a fresh one.",
+				statusDetail:
+					"Saved Claude Code token expired — run /login inside Claude Code to save a fresh one.",
 				windows: [],
 				extraUsage: null,
 			};

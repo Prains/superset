@@ -44,11 +44,35 @@ export interface UsageProjectBreakdown {
 	tokens: number;
 }
 
+export interface UsageDrilldownSlice {
+	day: string;
+	usd: number;
+	tokens: number;
+}
+
+export interface UsageDrilldownEntry {
+	/** Sparse daily series — client zero-fills against the range's days. */
+	days: UsageDrilldownSlice[];
+	/** Cross-breakdown: models for a workspace, workspaces for a model. */
+	breakdown: Array<{
+		label: string;
+		provider: UsageProvider;
+		usd: number;
+		tokens: number;
+	}>;
+	usd: number;
+	tokens: number;
+}
+
 export interface UsageHistory {
 	days: number;
 	buckets: UsageDailyBucket[];
 	models: UsageModelBreakdown[];
 	projects: UsageProjectBreakdown[];
+	/** Drilldown cubes, keyed by project label / `provider|model`. Bounded to
+	 * the top projects by cost so the payload stays small. */
+	projectDetails: Record<string, UsageDrilldownEntry>;
+	modelDetails: Record<string, UsageDrilldownEntry>;
 	totals: {
 		usd: number;
 		tokens: number;
@@ -172,6 +196,45 @@ export async function computeUsageHistory(
 	const bucketsByDay = new Map<string, UsageDailyBucket>();
 	const modelsByKey = new Map<string, UsageModelBreakdown>();
 	const projectsByKey = new Map<string, UsageProjectBreakdown>();
+
+	// Drilldown accumulators: entity → day slices and cross-breakdowns.
+	interface Slice {
+		usd: number;
+		tokens: number;
+	}
+	const projectDays = new Map<string, Map<string, Slice>>();
+	const projectModels = new Map<
+		string,
+		Map<string, Slice & { provider: UsageProvider }>
+	>();
+	const modelDays = new Map<string, Map<string, Slice>>();
+	const modelProjects = new Map<
+		string,
+		Map<string, Slice & { provider: UsageProvider }>
+	>();
+	const bump = <K>(
+		map: Map<K, Slice>,
+		key: K,
+		usd: number,
+		tokens: number,
+	): Slice => {
+		let slice = map.get(key);
+		if (!slice) {
+			slice = { usd: 0, tokens: 0 };
+			map.set(key, slice);
+		}
+		slice.usd += usd;
+		slice.tokens += tokens;
+		return slice;
+	};
+	const nested = <V>(map: Map<string, Map<string, V>>, key: string) => {
+		let inner = map.get(key);
+		if (!inner) {
+			inner = new Map();
+			map.set(key, inner);
+		}
+		return inner;
+	};
 	const totals = {
 		usd: 0,
 		tokens: 0,
@@ -219,6 +282,8 @@ export async function computeUsageHistory(
 		model.usd += usd;
 		model.tokens += tokens;
 
+		bump(nested(modelDays, modelKey), day, usd, tokens);
+
 		if (entry.cwd) {
 			const { label, kind } = attributeCwd(entry.cwd, labelsByLength);
 			let projectRow = projectsByKey.get(label);
@@ -228,6 +293,22 @@ export async function computeUsageHistory(
 			}
 			projectRow.usd += usd;
 			projectRow.tokens += tokens;
+
+			bump(nested(projectDays, label), day, usd, tokens);
+			const modelSlice = bump(
+				nested(projectModels, label),
+				modelKey,
+				usd,
+				tokens,
+			) as Slice & { provider: UsageProvider };
+			modelSlice.provider = entry.provider;
+			const projectSlice = bump(
+				nested(modelProjects, modelKey),
+				label,
+				usd,
+				tokens,
+			) as Slice & { provider: UsageProvider };
+			projectSlice.provider = entry.provider;
 		}
 
 		totals.usd += usd;
@@ -252,11 +333,61 @@ export async function computeUsageHistory(
 		);
 	}
 
+	const sortedModels = [...modelsByKey.values()].sort((a, b) => b.usd - a.usd);
+	const sortedProjects = [...projectsByKey.values()].sort(
+		(a, b) => b.usd - a.usd,
+	);
+
+	// Drilldown cubes for the top projects and every model — bounded so the
+	// payload stays small while the drill pages render without a re-scan.
+	const TOP_PROJECT_DETAILS = 24;
+	const buildDetail = (
+		dayMap: Map<string, Slice> | undefined,
+		crossMap: Map<string, Slice & { provider: UsageProvider }> | undefined,
+	): UsageDrilldownEntry => {
+		const daySlices = [...(dayMap ?? new Map<string, Slice>()).entries()]
+			.map(([day, slice]) => ({ day, usd: slice.usd, tokens: slice.tokens }))
+			.sort((a, b) => a.day.localeCompare(b.day));
+		const breakdown = [
+			...(
+				crossMap ?? new Map<string, Slice & { provider: UsageProvider }>()
+			).entries(),
+		]
+			.map(([label, slice]) => ({
+				label,
+				provider: slice.provider,
+				usd: slice.usd,
+				tokens: slice.tokens,
+			}))
+			.sort((a, b) => b.usd - a.usd);
+		return {
+			days: daySlices,
+			breakdown,
+			usd: daySlices.reduce((sum, slice) => sum + slice.usd, 0),
+			tokens: daySlices.reduce((sum, slice) => sum + slice.tokens, 0),
+		};
+	};
+
+	const projectDetails: Record<string, UsageDrilldownEntry> = {};
+	for (const row of sortedProjects.slice(0, TOP_PROJECT_DETAILS)) {
+		projectDetails[row.project] = buildDetail(
+			projectDays.get(row.project),
+			projectModels.get(row.project),
+		);
+	}
+	const modelDetails: Record<string, UsageDrilldownEntry> = {};
+	for (const row of sortedModels) {
+		const key = `${row.provider}|${row.model}`;
+		modelDetails[key] = buildDetail(modelDays.get(key), modelProjects.get(key));
+	}
+
 	return {
 		days,
 		buckets,
-		models: [...modelsByKey.values()].sort((a, b) => b.usd - a.usd),
-		projects: [...projectsByKey.values()].sort((a, b) => b.usd - a.usd),
+		models: sortedModels,
+		projects: sortedProjects,
+		projectDetails,
+		modelDetails,
 		totals,
 		scannedFiles: claudeFiles.length + codexFiles.length,
 		pricingTableUpdated: PRICING_TABLE_UPDATED,

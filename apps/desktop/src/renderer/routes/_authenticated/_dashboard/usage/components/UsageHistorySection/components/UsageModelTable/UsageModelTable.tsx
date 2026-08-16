@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import type { UsageHistory } from "../../../../hooks/useHostUsageHistory";
 import { PROVIDER_CHART_CONFIG } from "../../constants";
 import { formatTokens, formatUsd } from "../../utils/formatUsage";
@@ -5,6 +6,7 @@ import { formatTokens, formatUsd } from "../../utils/formatUsage";
 const MAX_ROWS = 6;
 
 export function UsageModelTable({ history }: { history: UsageHistory }) {
+	const navigate = useNavigate();
 	const rows = history.models.slice(0, MAX_ROWS);
 	const totalUsd = history.totals.usd;
 	if (rows.length === 0) return null;
@@ -21,7 +23,16 @@ export function UsageModelTable({ history }: { history: UsageHistory }) {
 			</thead>
 			<tbody>
 				{rows.map((row) => (
-					<tr key={`${row.provider}|${row.model}`}>
+					<tr
+						key={`${row.provider}|${row.model}`}
+						className="cursor-pointer transition-colors hover:bg-muted/60"
+						onClick={() =>
+							navigate({
+								to: "/usage/model/$modelKey",
+								params: { modelKey: `${row.provider}|${row.model}` },
+							})
+						}
+					>
 						<td className="flex items-center gap-1.5 py-1 pr-2">
 							<span
 								className="size-1.5 shrink-0 rounded-[2px]"
