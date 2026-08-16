@@ -6,8 +6,8 @@ import {
 } from "@superset/ui/chart";
 import { Tabs, TabsList, TabsTrigger } from "@superset/ui/tabs";
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { LuArrowLeft } from "react-icons/lu";
+import { useMemo, useRef, useState } from "react";
+import { LuArrowLeft, LuCheck, LuCopy } from "react-icons/lu";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { useHostUsageHistory } from "../../hooks/useHostUsageHistory";
 import type { HistoryMetric } from "../UsageHistorySection/constants";
@@ -39,6 +39,15 @@ export function UsageDrilldownPage({
 }) {
 	const [days, setDays] = useState<number>(30);
 	const [metric, setMetric] = useState<HistoryMetric>("usd");
+	const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
+	const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const copySessionId = (id: string) => {
+		navigator.clipboard.writeText(id).then(() => {
+			setCopiedSessionId(id);
+			if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+			copyTimeoutRef.current = setTimeout(() => setCopiedSessionId(null), 2000);
+		});
+	};
 	const historyQuery = useHostUsageHistory(hostUrl, days);
 	const history = historyQuery.data ?? null;
 
@@ -306,10 +315,14 @@ export function UsageDrilldownPage({
 								</div>
 								{detail.sessions.map((session) => {
 									const sessionMax = detail.sessions?.[0]?.usd ?? 0;
+									const copied = copiedSessionId === session.id;
 									return (
-										<div
+										<button
 											key={session.id}
-											className="flex flex-col gap-0.5 px-1 py-0.5"
+											type="button"
+											onClick={() => copySessionId(session.id)}
+											title={`${session.id}\nClick to copy the session ID (resume with \`claude --resume <id>\`).`}
+											className="group flex flex-col gap-0.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-muted/60"
 										>
 											<div className="flex items-baseline justify-between gap-3 text-[11px]">
 												<span className="flex min-w-0 items-center gap-1.5">
@@ -330,6 +343,14 @@ export function UsageDrilldownPage({
 															{ month: "short", day: "numeric" },
 														)}
 													</span>
+													{copied ? (
+														<span className="flex shrink-0 items-center gap-1 text-[10px] text-emerald-500">
+															<LuCheck className="size-2.5" />
+															ID copied
+														</span>
+													) : (
+														<LuCopy className="size-2.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+													)}
 												</span>
 												<span className="flex shrink-0 items-baseline gap-2 tabular-nums">
 													<span className="text-muted-foreground">
@@ -349,7 +370,7 @@ export function UsageDrilldownPage({
 													}}
 												/>
 											</div>
-										</div>
+										</button>
 									);
 								})}
 							</div>
