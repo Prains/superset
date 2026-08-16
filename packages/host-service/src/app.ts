@@ -198,6 +198,7 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 					branch: row.branch,
 					type: row.type,
 					projectId: row.projectId,
+					worktreePath: row.worktreePath,
 				})),
 	});
 	// Plugin backends load in the background; a broken plugin is recorded as

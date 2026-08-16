@@ -27,6 +27,8 @@ export interface PluginWorkspaceInfo {
 	branch: string;
 	type: "main" | "worktree" | "session";
 	projectId: string | null;
+	/** Absolute worktree path on this host (plugins run full-trust beside it). */
+	worktreePath: string;
 }
 
 /**
