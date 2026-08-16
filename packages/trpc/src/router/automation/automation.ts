@@ -35,6 +35,7 @@ import {
 	setAutomationPromptSchema,
 	updateAutomationSchema,
 } from "./schema";
+import { saveTriggerSet } from "./triggerSet";
 import { automationVersionsRouter } from "./versions";
 
 function escapeLikePattern(value: string): string {
@@ -272,15 +273,24 @@ export const automationRouter = {
 					});
 				}
 
-				await syncScheduleTrigger(tx, {
-					automationId: row.id,
-					organizationId,
-					rrule: input.rrule,
-					dtstart,
-					timezone: input.timezone,
-					nextRunAt,
-					enabled: row.enabled,
-				});
+				if (input.triggers) {
+					await saveTriggerSet(tx, {
+						automationId: row.id,
+						organizationId,
+						triggers: input.triggers,
+					});
+				} else {
+					// Legacy shape: a top-level rrule becomes the schedule trigger.
+					await syncScheduleTrigger(tx, {
+						automationId: row.id,
+						organizationId,
+						rrule: input.rrule,
+						dtstart,
+						timezone: input.timezone,
+						nextRunAt,
+						enabled: row.enabled,
+					});
+				}
 
 				await recordPromptVersion(tx, {
 					automationId: row.id,
@@ -437,15 +447,23 @@ export const automationRouter = {
 					});
 				}
 
-				await syncScheduleTrigger(tx, {
-					automationId: row.id,
-					organizationId,
-					rrule: nextRrule,
-					dtstart: nextDtstart,
-					timezone: nextTimezone,
-					nextRunAt: recomputedNextRunAt,
-					enabled: row.enabled,
-				});
+				if (input.triggers) {
+					await saveTriggerSet(tx, {
+						automationId: row.id,
+						organizationId,
+						triggers: input.triggers,
+					});
+				} else {
+					await syncScheduleTrigger(tx, {
+						automationId: row.id,
+						organizationId,
+						rrule: nextRrule,
+						dtstart: nextDtstart,
+						timezone: nextTimezone,
+						nextRunAt: recomputedNextRunAt,
+						enabled: row.enabled,
+					});
+				}
 
 				return row;
 			});

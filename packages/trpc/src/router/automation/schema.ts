@@ -1,5 +1,16 @@
 import { automationSessionKindValues } from "@superset/db/schema";
+import { draftTriggerSchema } from "@superset/shared/automation-triggers";
 import { z } from "zod";
+
+/**
+ * The full trigger set, saved with the automation rather than edited one row at
+ * a time — the editor holds the whole automation and Save commits it.
+ *
+ * Optional while the older clients (CLI, SDK, MCP, desktop) still send a
+ * top-level `rrule`; those are folded into a single schedule trigger server-side
+ * so both shapes converge on the same rows.
+ */
+const triggers = z.array(draftTriggerSchema).max(25).optional();
 
 const agentSchema = z.string().min(1).max(200);
 
@@ -36,6 +47,7 @@ export const createAutomationSchema = z.object({
 	rrule: rruleBody,
 	dtstart: z.coerce.date().optional(),
 	timezone: iana,
+	triggers,
 });
 
 export const updateAutomationSchema = z.object({
@@ -50,6 +62,7 @@ export const updateAutomationSchema = z.object({
 	rrule: rruleBody.optional(),
 	dtstart: z.coerce.date().optional(),
 	timezone: iana.optional(),
+	triggers,
 });
 
 export const setAutomationPromptSchema = z.object({
