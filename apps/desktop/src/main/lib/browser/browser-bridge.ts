@@ -22,6 +22,11 @@ const CDP_PATH = /^\/panes\/([^/]+)\/cdp$/;
 
 let server: Server | null = null;
 
+// Tail of the per-workspace open chain, so concurrent `/open` requests for one
+// workspace run one at a time (see the handler for why). Keyed by workspaceId;
+// entries delete themselves once the chain drains.
+const openQueues = new Map<string, Promise<void>>();
+
 function isAuthorized(secret: string, req: IncomingMessage): boolean {
 	const url = new URL(req.url ?? "/", "http://127.0.0.1");
 	const bearer = req.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -96,55 +101,73 @@ export async function startBrowserBridge(): Promise<void> {
 			return;
 		}
 		const resolvedTarget = target === "new-tab" ? "new-tab" : "current-tab";
-		const requestId = randomBytes(8).toString("hex");
-		const known = new Set(
-			browserManager.listPanes(workspaceId).map((p) => p.paneId),
-		);
 
-		let settled = false;
-		const finish = (fn: () => void) => {
-			if (settled) return;
-			settled = true;
-			clearTimeout(timer);
-			browserManager.off("pane-registered", onRegistered);
-			fn();
-		};
-		const timer = setTimeout(() => {
-			finish(() =>
-				res.status(504).json({
-					error:
-						"No browser pane appeared for this workspace. Is the desktop app running and signed in?",
-				}),
-			);
-		}, OPEN_PANE_TIMEOUT_MS);
-		// Client hung up before the pane appeared — stop waiting and free the listener.
-		res.on("close", () => finish(() => {}));
+		// Each open resolves to "the first pane registered in this workspace that
+		// wasn't already open". The registration event can't tell us which request
+		// it belongs to, so two concurrent opens in one workspace would both latch
+		// onto the same new pane. Serialize opens per workspace instead: the next
+		// one only snapshots `known` (and starts listening) after the previous
+		// pane is registered, so each request matches exactly its own pane.
+		const run = () =>
+			new Promise<void>((resolveOpen) => {
+				const requestId = randomBytes(8).toString("hex");
+				const known = new Set(
+					browserManager.listPanes(workspaceId).map((p) => p.paneId),
+				);
 
-		const onRegistered = (event: {
-			paneId: string;
-			workspaceId: string | null;
-		}) => {
-			if (event.workspaceId !== workspaceId) return;
-			if (known.has(event.paneId)) return;
-			const info = browserManager
-				.listPanes(workspaceId)
-				.find((p) => p.paneId === event.paneId);
-			finish(() =>
-				res.json({
-					paneId: event.paneId,
-					url: info?.url ?? url,
-					title: info?.title ?? "",
-				}),
-			);
-		};
-		browserManager.on("pane-registered", onRegistered);
+				let settled = false;
+				const finish = (fn: () => void) => {
+					if (settled) return;
+					settled = true;
+					clearTimeout(timer);
+					browserManager.off("pane-registered", onRegistered);
+					fn();
+					resolveOpen();
+				};
+				const timer = setTimeout(() => {
+					finish(() =>
+						res.status(504).json({
+							error:
+								"No browser pane appeared for this workspace. Is the desktop app running and signed in?",
+						}),
+					);
+				}, OPEN_PANE_TIMEOUT_MS);
+				// Client hung up before the pane appeared — stop waiting and free the listener.
+				res.on("close", () => finish(() => {}));
 
-		browserManager.requestOpen({
-			workspaceId,
-			url,
-			target: resolvedTarget,
-			requestId,
-		} satisfies BrowserOpenRequest);
+				const onRegistered = (event: {
+					paneId: string;
+					workspaceId: string | null;
+				}) => {
+					if (event.workspaceId !== workspaceId) return;
+					if (known.has(event.paneId)) return;
+					const info = browserManager
+						.listPanes(workspaceId)
+						.find((p) => p.paneId === event.paneId);
+					finish(() =>
+						res.json({
+							paneId: event.paneId,
+							url: info?.url ?? url,
+							title: info?.title ?? "",
+						}),
+					);
+				};
+				browserManager.on("pane-registered", onRegistered);
+
+				browserManager.requestOpen({
+					workspaceId,
+					url,
+					target: resolvedTarget,
+					requestId,
+				} satisfies BrowserOpenRequest);
+			});
+
+		const prev = openQueues.get(workspaceId) ?? Promise.resolve();
+		const next = prev.then(run, run);
+		openQueues.set(workspaceId, next);
+		void next.finally(() => {
+			if (openQueues.get(workspaceId) === next) openQueues.delete(workspaceId);
+		});
 	});
 
 	app.post("/panes/:paneId/navigate", (req, res) => {
