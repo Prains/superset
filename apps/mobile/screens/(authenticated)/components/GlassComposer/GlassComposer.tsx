@@ -12,6 +12,7 @@ import {
 } from "@expo/ui/swift-ui";
 import {
 	Animation,
+	accessibilityLabel,
 	animation,
 	aspectRatio,
 	buttonBorderShape,
@@ -146,7 +147,6 @@ export const GlassComposer = forwardRef<
 	// The draft lives in a ref, never state — otherwise each keystroke
 	// re-renders the SwiftUI Host.
 	const draftRef = useRef("");
-	const selectionRef = useRef({ start: 0, end: 0 });
 	const [hasText, setHasText] = useState(false);
 
 	const writeDraft = (text: string) => {
@@ -154,20 +154,16 @@ export const GlassComposer = forwardRef<
 		setHasText(text.trim().length > 0);
 	};
 
-	// Replaces the current selection (or splits at the caret) and leaves the
-	// caret after the inserted text.
-	const replaceSelection = (insert: string) => {
-		const text = draftRef.current;
-		const length = text.length;
-		const start = Math.min(selectionRef.current.start, length);
-		const end = Math.min(Math.max(selectionRef.current.end, start), length);
-		const next = text.slice(0, start) + insert + text.slice(end);
-		const caret = start + insert.length;
+	// Appends to the draft and leaves the caret after it. The field never
+	// reports where its cursor actually is — both onSelectionChange and a
+	// `selection` state read back {0,0} once you've typed — so the end is the
+	// only position an insert can be sure of. Setting the caret does work.
+	const appendToDraft = (insert: string) => {
+		const next = draftRef.current + insert;
 		writeDraft(next);
-		selectionRef.current = { start: caret, end: caret };
 		void fieldRef.current
 			?.setText(next)
-			.then(() => fieldRef.current?.setSelection(caret, caret));
+			.then(() => fieldRef.current?.setSelection(next.length, next.length));
 	};
 
 	const attachments = showAttachments
@@ -201,7 +197,6 @@ export const GlassComposer = forwardRef<
 		},
 		clear: () => {
 			writeDraft("");
-			selectionRef.current = { start: 0, end: 0 };
 			controller.attachments.clear();
 			void fieldRef.current?.clear();
 		},
@@ -258,7 +253,6 @@ export const GlassComposer = forwardRef<
 		read: () => draftRef.current,
 		write: (text) => {
 			writeDraft(text);
-			selectionRef.current = { start: text.length, end: text.length };
 			void fieldRef.current
 				?.setText(text)
 				.then(() => fieldRef.current?.setSelection(text.length, text.length));
@@ -295,6 +289,7 @@ export const GlassComposer = forwardRef<
 				buttonStyle("bordered"),
 				buttonBorderShape("circle"),
 				tint(FOREGROUND),
+				accessibilityLabel("Add attachment"),
 			]}
 		>
 			<Image
@@ -312,12 +307,13 @@ export const GlassComposer = forwardRef<
 		<Button
 			onPress={() => {
 				void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-				replaceSelection("\n");
+				appendToDraft("\n");
 			}}
 			modifiers={[
 				buttonStyle("bordered"),
 				buttonBorderShape("circle"),
 				tint(FOREGROUND),
+				accessibilityLabel("New line"),
 			]}
 		>
 			<Image
@@ -340,6 +336,9 @@ export const GlassComposer = forwardRef<
 				buttonBorderShape("circle"),
 				tint("#ffffff"),
 				disabled(isSending),
+				// Distinct from the terminal quick-key row's up arrow, which is
+				// otherwise the same `arrow.up` symbol to VoiceOver.
+				accessibilityLabel("Send"),
 			]}
 		>
 			<Image
@@ -500,9 +499,6 @@ export const GlassComposer = forwardRef<
 								placeholder={placeholder ?? "Plan, ask, build..."}
 								onTextChange={writeDraft}
 								onFocusChange={setFocused}
-								onSelectionChange={(selection) => {
-									selectionRef.current = selection;
-								}}
 								modifiers={[
 									padding({ horizontal: expanded ? 12 : 4 }),
 									frame({ minHeight: expanded ? 56 : 38 }),
