@@ -23,13 +23,42 @@ const KIND_FILTERS: Array<{ value: KindFilter; label: string }> = [
 	{ value: "other", label: "Other" },
 ];
 
+/**
+ * A row in the Projects pivot: a real Superset project, or one of two
+ * catch-alls — "Sessions" (project-less session workspaces, e.g. automation
+ * runs) and "No project" (cwds matching nothing in host.db, mostly deleted
+ * workspaces' worktrees).
+ */
+type GroupKey =
+	| { kind: "project"; name: string }
+	| { kind: "sessions" }
+	| { kind: "unattributed" };
+
+function groupKeyFor(row: ProjectRow): GroupKey {
+	if (row.group) return { kind: "project", name: row.group };
+	if (row.kind === "workspace") return { kind: "sessions" };
+	return { kind: "unattributed" };
+}
+
+function matchesGroup(row: ProjectRow, filter: GroupKey): boolean {
+	const key = groupKeyFor(row);
+	if (filter.kind === "project") {
+		return key.kind === "project" && key.name === filter.name;
+	}
+	return key.kind === filter.kind;
+}
+
+function groupLabel(key: GroupKey): string {
+	if (key.kind === "project") return key.name;
+	return key.kind === "sessions" ? "Sessions" : "No project";
+}
+
 interface ProjectGroup {
+	key: GroupKey;
 	name: string;
 	usd: number;
 	tokens: number;
 	workspaceCount: number;
-	/** True when the group is a real project (vs a standalone fallback row). */
-	grouped: boolean;
 }
 
 /**
@@ -42,7 +71,7 @@ export function UsageWorkspacesPage({ hostUrl }: { hostUrl: string | null }) {
 	const [metric, setMetric] = useState<HistoryMetric>("usd");
 	const [view, setView] = useState<ViewMode>("workspaces");
 	const [kind, setKind] = useState<KindFilter>("all");
-	const [projectFilter, setProjectFilter] = useState<string | null>(null);
+	const [groupFilter, setGroupFilter] = useState<GroupKey | null>(null);
 	const [query, setQuery] = useState("");
 	const historyQuery = useHostUsageHistory(hostUrl, days);
 	const history = historyQuery.data ?? null;
@@ -53,35 +82,36 @@ export function UsageWorkspacesPage({ hostUrl }: { hostUrl: string | null }) {
 		if (!history) return [];
 		return history.projects
 			.filter((row) => kind === "all" || row.kind === kind)
-			.filter((row) => !projectFilter || row.group === projectFilter)
+			.filter((row) => !groupFilter || matchesGroup(row, groupFilter))
 			.filter((row) => !needle || row.project.toLowerCase().includes(needle))
 			.sort((a, b) => b[metric] - a[metric]);
-	}, [history, kind, projectFilter, needle, metric]);
+	}, [history, kind, groupFilter, needle, metric]);
 
 	const projectGroups = useMemo(() => {
 		if (!history) return [];
 		const groups = new Map<string, ProjectGroup>();
 		for (const row of history.projects) {
-			const name = row.group ?? row.project;
+			const key = groupKeyFor(row);
+			const name = groupLabel(key);
 			let group = groups.get(name);
 			if (!group) {
-				group = {
-					name,
-					usd: 0,
-					tokens: 0,
-					workspaceCount: 0,
-					grouped: row.group !== null,
-				};
+				group = { key, name, usd: 0, tokens: 0, workspaceCount: 0 };
 				groups.set(name, group);
 			}
 			group.usd += row.usd;
 			group.tokens += row.tokens;
 			group.workspaceCount += 1;
-			group.grouped ||= row.group !== null;
 		}
+		// Real projects sorted by the metric; the two catch-alls pinned below
+		// so 300 deleted worktrees don't drown 3 real projects.
 		return [...groups.values()]
 			.filter((group) => !needle || group.name.toLowerCase().includes(needle))
-			.sort((a, b) => b[metric] - a[metric]);
+			.sort((a, b) => {
+				const aSynthetic = a.key.kind !== "project" ? 1 : 0;
+				const bSynthetic = b.key.kind !== "project" ? 1 : 0;
+				if (aSynthetic !== bSynthetic) return aSynthetic - bSynthetic;
+				return b[metric] - a[metric];
+			});
 	}, [history, needle, metric]);
 
 	const shownRows: Array<{ usd: number; tokens: number }> =
@@ -144,7 +174,7 @@ export function UsageWorkspacesPage({ hostUrl }: { hostUrl: string | null }) {
 					value={view}
 					onValueChange={(value) => {
 						setView(value as ViewMode);
-						if (value === "projects") setProjectFilter(null);
+						if (value === "projects") setGroupFilter(null);
 					}}
 				>
 					<TabsList className="h-6">
@@ -182,13 +212,15 @@ export function UsageWorkspacesPage({ hostUrl }: { hostUrl: string | null }) {
 						</TabsList>
 					</Tabs>
 				)}
-				{projectFilter && view === "workspaces" && (
+				{groupFilter && view === "workspaces" && (
 					<button
 						type="button"
-						onClick={() => setProjectFilter(null)}
+						onClick={() => setGroupFilter(null)}
 						className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
 					>
-						Project: {projectFilter}
+						{groupFilter.kind === "project"
+							? `Project: ${groupFilter.name}`
+							: groupLabel(groupFilter)}
 						<LuX className="size-2.5" />
 					</button>
 				)}
@@ -219,14 +251,17 @@ export function UsageWorkspacesPage({ hostUrl }: { hostUrl: string | null }) {
 							key={group.name}
 							type="button"
 							onClick={() => {
-								setProjectFilter(group.grouped ? group.name : null);
-								if (!group.grouped) setQuery(group.name);
+								setGroupFilter(group.key);
+								setKind("all");
+								setQuery("");
 								setView("workspaces");
 							}}
 							className="flex flex-col gap-0.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-muted/60"
 						>
 							<div className="flex items-baseline justify-between gap-3 text-[11px]">
-								<span className="flex min-w-0 items-baseline gap-1.5 truncate">
+								<span
+									className={`flex min-w-0 items-baseline gap-1.5 truncate ${group.key.kind !== "project" ? "text-muted-foreground" : ""}`}
+								>
 									{group.name}
 									{group.workspaceCount > 1 && (
 										<span className="text-[9px] text-muted-foreground">
