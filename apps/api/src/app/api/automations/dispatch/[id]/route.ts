@@ -22,15 +22,21 @@ const receiver = new Receiver({
  * carry the trigger and the event instead, and have no scheduled time.
  */
 const payloadSchema = z.union([
-	z.object({
-		automationId: z.string().uuid(),
-		scheduledFor: z.string().datetime(),
-	}),
-	z.object({
-		automationId: z.string().uuid(),
-		triggerId: z.string().uuid(),
-		eventId: z.string().uuid(),
-	}),
+	// Strict, so a payload carrying both causes is rejected rather than
+	// silently treated as whichever branch happens to match first.
+	z
+		.object({
+			automationId: z.string().uuid(),
+			scheduledFor: z.string().datetime(),
+		})
+		.strict(),
+	z
+		.object({
+			automationId: z.string().uuid(),
+			triggerId: z.string().uuid(),
+			eventId: z.string().uuid(),
+		})
+		.strict(),
 ]);
 
 export async function POST(

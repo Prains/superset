@@ -40,6 +40,7 @@ function matchableFrom(
 			.map((l) => l?.name)
 			.filter((n): n is string => typeof n === "string"),
 		body: payload.comment?.body ?? payload.review?.body ?? null,
+		isFork: payload.pull_request?.head?.repo?.fork === true,
 		// Who opened the thing being commented on, which is a different person
 		// from whoever wrote the comment.
 		subjectAuthorLogin:
@@ -105,9 +106,10 @@ export async function dispatchMatchingTriggers(params: {
 		return githubTriggerMatches(
 			config as never,
 			event,
-			// `me` means the automation's owner, resolved per candidate rather than
-			// per event: two automations can watch the same event for different people.
-			{ names, ownerLogin: candidate.ownerUserId },
+			// `me` cannot resolve yet: the owner is a Superset user id and the
+			// event carries a GitHub login, so there is nothing to compare. Passing
+			// null makes `me` match nobody rather than match the wrong person.
+			{ names, ownerLogin: null },
 		).matches;
 	});
 

@@ -24,6 +24,8 @@ export type MatchableEvent = {
 	labels: string[];
 	/** Comment or review body, when the event carries one. */
 	body: string | null;
+	/** Fork pull requests carry attacker-controlled content into a checkout. */
+	isFork: boolean;
 	/** Who opened the thing being commented on. */
 	subjectAuthorLogin: string | null;
 };
@@ -68,6 +70,16 @@ export function actorAllows(
 	return actor.ids.includes(login);
 }
 
+/**
+ * The body a filter is tested against is truncated first.
+ *
+ * A user-supplied pattern runs on the webhook path, and JavaScript's engine
+ * backtracks: `^(a+)+$` against a long non-matching body is exponential and
+ * would block the event loop. Truncation bounds the exponent; it does not
+ * remove it, which is why a linear-time engine is still wanted here.
+ */
+const MAX_FILTERED_BODY = 4096;
+
 /** Applies a comment filter, treating an invalid regex as no match. */
 export function bodyMatches(
 	filter: { pattern: string; isRegex: boolean } | null,
@@ -75,11 +87,12 @@ export function bodyMatches(
 ): boolean {
 	if (!filter || filter.pattern === "") return true;
 	if (body === null) return false;
+	const subject = body.slice(0, MAX_FILTERED_BODY);
 	if (!filter.isRegex) {
-		return body.toLowerCase().includes(filter.pattern.toLowerCase());
+		return subject.toLowerCase().includes(filter.pattern.toLowerCase());
 	}
 	try {
-		return new RegExp(filter.pattern, "i").test(body);
+		return new RegExp(filter.pattern, "i").test(subject);
 	} catch {
 		// A trigger whose regex does not compile must not match everything.
 		return false;
@@ -191,6 +204,9 @@ export function githubTriggerMatches(
 		)
 	) {
 		return no("subjectAuthor");
+	}
+	if (!config.includeForks && event.isFork) {
+		return no("fork");
 	}
 	if (!bodyMatches(config.commentFilter ?? null, event.body)) {
 		return no("commentFilter");

@@ -30,7 +30,7 @@ export type GithubPayload = {
 		labels?: Array<{ name?: string }>;
 		title?: string;
 		html_url?: string;
-		head?: { ref?: string };
+		head?: { ref?: string; repo?: { fork?: boolean } };
 		user?: { login?: string };
 		draft?: boolean;
 		author_association?: string;
