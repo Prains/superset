@@ -259,15 +259,24 @@ export function NewWorkspaceScreen({
 		updateDraft,
 	]);
 
-	// One suggestion per open: the tiptap Placeholder extension freezes its
-	// text at editor mount, so rotation rides the resetKey remount.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: re-roll per draft reset
+	// One suggestion per open. resetKey only bumps on resetDraft, so ordinary
+	// modal reopens roll their own counter; the tiptap Placeholder extension
+	// freezes its text at editor mount, so the roll also rides the editor key.
+	const [placeholderRoll, setPlaceholderRoll] = useState(0);
+	const wasOpenRef = useRef(isOpen);
+	useEffect(() => {
+		if (isOpen && !wasOpenRef.current) {
+			setPlaceholderRoll((roll) => roll + 1);
+		}
+		wasOpenRef.current = isOpen;
+	}, [isOpen]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: re-roll per draft reset and per open
 	const promptPlaceholder = useMemo(
 		() =>
 			PROMPT_PLACEHOLDERS[
 				Math.floor(Math.random() * PROMPT_PLACEHOLDERS.length)
 			] ?? "What do you want to do?",
-		[resetKey],
+		[resetKey, placeholderRoll],
 	);
 
 	const projectId = draft.selectedProjectId;
@@ -676,7 +685,7 @@ export function NewWorkspaceScreen({
 						</div>
 					)}
 					<MarkdownEditor
-						key={`${resetKey}-${promptSeed}`}
+						key={`${resetKey}-${promptSeed}-${placeholderRoll}`}
 						content={draft.prompt}
 						onChange={(markdown) => updateDraft({ prompt: markdown })}
 						onPasteFiles={(files) => attachments.add(files)}

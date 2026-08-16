@@ -7,10 +7,11 @@ import {
 	ScrollTextIcon,
 	WrenchIcon,
 } from "lucide-react";
-import { usePresetIcon } from "renderer/assets/app-icons/preset-icons";
+import { useState } from "react";
 import { track } from "renderer/lib/analytics";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
-import { SAMPLE_PROMPTS } from "../SamplePrompts/constants";
+import { shuffledSamplePrompts } from "../SamplePrompts/constants";
+import { AgentLogoCluster } from "./components/AgentLogoCluster";
 
 const CARD_ICONS: Record<string, typeof WrenchIcon> = {
 	"set-up-project": WrenchIcon,
@@ -23,24 +24,6 @@ const CARD_ICONS: Record<string, typeof WrenchIcon> = {
 
 const CARD_COUNT = 4;
 
-/** Overlapping real agent logos — the agent-docs card is about the agents
- * themselves, so their marks carry more signal than a generic glyph. */
-function AgentLogoCluster() {
-	const claudeIcon = usePresetIcon("claude");
-	const codexIcon = usePresetIcon("codex");
-	if (!claudeIcon || !codexIcon) {
-		return (
-			<ScrollTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
-		);
-	}
-	return (
-		<span className="flex shrink-0 items-center">
-			<img src={claudeIcon} alt="" className="size-3.5 object-contain" />
-			<img src={codexIcon} alt="" className="-ml-1 size-3.5 object-contain" />
-		</span>
-	);
-}
-
 interface SamplePromptCardsProps {
 	hostUrl: string | null;
 	projectId: string | null;
@@ -52,6 +35,10 @@ export function SamplePromptCards({
 	projectId,
 	onSelect,
 }: SamplePromptCardsProps) {
+	// Shuffled once per mount so every prompt in the pool gets exposure;
+	// re-shuffling per render would reorder cards under the pointer.
+	const [shuffledPrompts] = useState(shuffledSamplePrompts);
+
 	// Setup takes 75% of all prompt clicks, so it leads — but pitching setup for
 	// a project that already has setup/teardown/run commands reads as noise.
 	// Same query the v2 sidebar setup card uses.
@@ -70,9 +57,13 @@ export function SamplePromptCards({
 	// Deciding mid-flight would swap a card out from under the pointer.
 	if (canCheckSetup && isPending) return null;
 
-	const cards = SAMPLE_PROMPTS.filter(
-		(sample) => sample.id !== "set-up-project" || needsSetupScripts === true,
-	).slice(0, CARD_COUNT);
+	const setupCard = shuffledPrompts.find(
+		(sample) => sample.id === "set-up-project",
+	);
+	const cards = [
+		...(needsSetupScripts === true && setupCard ? [setupCard] : []),
+		...shuffledPrompts.filter((sample) => sample.id !== "set-up-project"),
+	].slice(0, CARD_COUNT);
 
 	return (
 		<div className="px-1 pb-2">

@@ -58,6 +58,22 @@ export const SAMPLE_PROMPTS: SamplePrompt[] = [
 ];
 
 /**
+ * Fisher-Yates over a copy — the pool is bigger than either layout shows, so
+ * a fixed slice would leave the tail prompts permanently unreachable.
+ */
+export function shuffledSamplePrompts(): SamplePrompt[] {
+	const prompts = [...SAMPLE_PROMPTS];
+	for (let i = prompts.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[prompts[i], prompts[j]] = [
+			prompts[j] as SamplePrompt,
+			prompts[i] as SamplePrompt,
+		];
+	}
+	return prompts;
+}
+
+/**
  * Composer ghost text: one is picked per screen-open so the empty state
  * suggests a concrete next action instead of a static question.
  */
