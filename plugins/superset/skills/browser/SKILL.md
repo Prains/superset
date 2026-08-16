@@ -1,0 +1,154 @@
+---
+name: browser
+description: Drive a workspace's in-app browser panes from the Superset CLI — list open panes, open/navigate URLs, screenshot, read console, evaluate JavaScript, and speak raw Chrome DevTools Protocol for click/type/scroll automation (browser-use / Playwright-class). Use when asked to open or navigate the in-app browser, screenshot or read a running web app, click or type through a web flow, fill or submit a form, scrape a page, or verify UI in the pane the user is watching. Do not use for the system browser, headless scraping outside Superset, or driving the desktop app's own UI (that's CDP UI verification, not this).
+---
+
+# Superset Browser Control
+
+Drive the browser panes inside a Superset workspace with the `superset browser`
+commands. High-level verbs cover the common 90%; a raw Chrome DevTools Protocol
+(CDP) endpoint covers full interaction (mouse, keyboard, scroll, DOM). Every
+operation runs in the pane the user can see, against the browser's real,
+logged-in session — treat it accordingly (see Safety).
+
+## Establish the control surface
+
+1. Run `superset browser --help` and require `list`, `open`, `navigate`,
+   `screenshot`, `eval`, `console`, and `cdp`. If absent, run `superset update`
+   and recheck. Do not substitute unsupported commands.
+2. Resolve the workspace. Inside a workspace, use `$SUPERSET_WORKSPACE_ID`;
+   otherwise `superset workspaces list --local --json` and pick the target.
+   Pass `--host <id>` for a remote host.
+3. Browser panes live in the desktop app. A host with no desktop attached
+   (a standalone `superset start`) has no panes and every command errors
+   clearly — surface that rather than retrying.
+
+When developing inside the Superset monorepo, use
+`bun run --cwd packages/cli dev -- browser …` in place of `superset browser …`.
+
+## Find or open a pane
+
+Every pane has a stable `paneId`. Discover the panes already open in a
+workspace:
+
+```bash
+superset browser list --workspace <id> --json
+```
+
+Open a URL and get the resulting `paneId` back. `--target new-tab` opens a
+fresh tab and focuses it; the default `current-tab` reuses the active browser
+pane. Opening requires the workspace to be visible in the desktop app (the
+renderer creates the pane), so if it times out, ask the user to open the
+workspace.
+
+```bash
+superset browser open --workspace <id> --url https://example.com --json
+superset browser open --workspace <id> --url http://localhost:3000 --target new-tab --json
+```
+
+Hold the `paneId` for every subsequent operation. `paneId` is scoped to its
+workspace: pass the same `--workspace` you opened it under, or the operation is
+rejected.
+
+## Drive with the high-level verbs
+
+```bash
+# Point an existing pane at a new URL
+superset browser navigate --workspace <id> --pane <paneId> --url https://…
+
+# Capture a PNG (base64 by default; --out writes a file)
+superset browser screenshot --workspace <id> --pane <paneId> --out shot.png
+
+# Read the pane's captured console output
+superset browser console --workspace <id> --pane <paneId> --max-lines 100
+
+# Evaluate JavaScript in the page and return the result
+superset browser eval --workspace <id> --pane <paneId> \
+  --code "document.querySelector('h1')?.textContent"
+```
+
+`eval` is the ergonomic path for reading or nudging the DOM (`.textContent`,
+`.value = …`, `element.click()`, `location.href`). Only `http(s)` and `about:`
+URLs load — `file://`, `chrome://`, and custom schemes are blocked in the pane.
+
+Take a screenshot to *see* state, `eval` to *read* structured data, and
+`console` to check for page errors. Prefer these over raw CDP unless you need
+real input events.
+
+## Full interaction over raw CDP
+
+For clicking, typing, scrolling, waiting on selectors, or any browser-use /
+Playwright-class flow, get a raw CDP WebSocket endpoint for the pane:
+
+```bash
+superset browser cdp --workspace <id> --pane <paneId> --json
+```
+
+The printed `url` is a WebSocket that speaks CDP directly (`Page`, `Runtime`,
+`DOM`, `Input`, `Network`, …). It embeds an auth token — treat the URL as a
+secret; do not paste it into shared logs. Point any CDP client at it, or drive
+it directly. Minimal pattern (Node 22+ / Bun):
+
+```js
+const ws = new WebSocket(cdpUrl);
+let id = 0;
+const send = (method, params) =>
+  new Promise((resolve) => {
+    const myId = ++id;
+    const h = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.id !== myId) return;
+      ws.removeEventListener("message", h);
+      resolve(m.result);
+    };
+    ws.addEventListener("message", h);
+    ws.send(JSON.stringify({ id: myId, method, params }));
+  });
+
+await new Promise((r) => ws.addEventListener("open", r, { once: true }));
+await send("Page.enable");
+await send("Runtime.enable");
+await send("DOM.enable");
+
+// Click an element by resolving its center, then dispatching a real mouse event.
+const { result } = await send("Runtime.evaluate", {
+  expression: `(()=>{const el=document.querySelector('#submit');const b=el.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};})()`,
+  returnByValue: true,
+});
+const { x, y } = result.value;
+await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
+await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
+
+// Type into the focused field.
+await send("Input.insertText", { text: "hello@example.com" });
+```
+
+Conventions that keep CDP flows reliable:
+
+- One CDP session per pane. A second concurrent attach is rejected until the
+  first disconnects (close the socket when done).
+- After a click that should focus a field, verify `document.activeElement`
+  before `Input.insertText`, and poll a selector/state check after each action
+  rather than sleeping a fixed time — the guest can repaint slowly when the
+  window is backgrounded.
+- `Page.navigate` obeys the same scheme allowlist as the CLI; `file://` and
+  `chrome://` are refused.
+
+## Verify
+
+Confirm outcomes from the page itself, not from the fact a command returned:
+read back the URL (`location.href`), the DOM (`eval`), or a screenshot after
+each meaningful step. Check `console` for page errors before declaring success.
+
+## Safety
+
+- **Real sessions.** Panes share one browser profile, so `eval` and CDP reach
+  whatever the user is logged into in *any* in-app browser pane (GitHub, dashboards,
+  …). Never read cookies, tokens, or credentials, exfiltrate session data, or act
+  on authenticated sites beyond the task. When a step would submit a form,
+  make a purchase, or take another consequential action, confirm with the user first.
+- **Workspace scope.** Operations are scoped to the pane's workspace; don't try
+  to reach panes in another workspace.
+- **Leave state clean.** Don't close the user's tabs or clear history unless
+  asked. Navigating away from what they were viewing is itself a change — prefer
+  `--target new-tab` when you need a scratch pane.
