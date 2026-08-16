@@ -78,14 +78,14 @@ export function SamplePromptCards({
 			>
 				<XIcon className="size-3" />
 			</button>
-			<div className="grid grid-cols-2 gap-1.5 rounded-2xl bg-foreground/[0.03] p-1.5">
+			<div className="grid grid-cols-2 gap-2">
 				{cards.map((sample) => {
 					const Icon = CARD_ICONS[sample.id] ?? WrenchIcon;
 					return (
 						<button
 							key={sample.id}
 							type="button"
-							className="flex cursor-pointer flex-col items-start gap-1.5 rounded-[11px] bg-background/70 p-3 text-left transition-colors hover:bg-foreground/[0.06]"
+							className="flex cursor-pointer flex-col items-start gap-1.5 rounded-xl bg-foreground/[0.03] p-3 text-left transition-colors hover:bg-foreground/[0.06]"
 							onClick={() => {
 								track("new_workspace_sample_prompt_clicked", {
 									prompt_id: sample.id,
