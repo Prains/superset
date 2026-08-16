@@ -307,7 +307,12 @@ export function useSidebarDnd({
 	} = useDashboardSidebarState();
 
 	const sensors = useSensors(
-		useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+		// 5px absorbs the 1-3px of jitter a real click carries without turning
+		// it into a pickup; anything smaller starts reordering rows on sloppy
+		// clicks. The trailing click after an activated drag is already
+		// swallowed by dnd-kit (capture-phase document click listener installed
+		// at activation, detached one event loop after the drag ends).
+		useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
 		useSensor(TouchSensor, {
 			activationConstraint: { delay: 200, tolerance: 5 },
 		}),
@@ -1045,6 +1050,27 @@ export function useSidebarDnd({
 	);
 
 	const onDragCancel = useCallback(() => {
+		// dnd-kit swallows the click that trails a drop (capture-phase document
+		// listener, detached ~50ms after the drag ends), but an Escape-cancel
+		// leaves the button held — the click fires on the later release and
+		// would navigate the row under the cursor. Mirror dnd-kit's technique
+		// for that one case: swallow the next click, disarming right after the
+		// release so a subsequent real click works normally.
+		const swallowClick = (event: Event) => {
+			event.stopPropagation();
+			disarm();
+		};
+		const onMouseUp = () => {
+			// The trailing click (if any) fires before this timeout runs.
+			setTimeout(disarm, 50);
+		};
+		const disarm = () => {
+			document.removeEventListener("click", swallowClick, { capture: true });
+			document.removeEventListener("mouseup", onMouseUp, { capture: true });
+		};
+		document.addEventListener("click", swallowClick, { capture: true });
+		document.addEventListener("mouseup", onMouseUp, { capture: true });
+
 		if (clonedRef.current) {
 			commitDragItems(clonedRef.current);
 		}
