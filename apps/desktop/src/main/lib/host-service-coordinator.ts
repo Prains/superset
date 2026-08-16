@@ -850,15 +850,9 @@ export class HostServiceCoordinator extends EventEmitter {
 			SUPERSET_LEGACY_WORKTREE_BASE_DIR: row?.worktreeBaseDir ?? "",
 			SUPERSET_AGENT_HOOK_PORT: String(sharedEnv.DESKTOP_NOTIFICATIONS_PORT),
 			SUPERSET_AGENT_HOOK_VERSION: HOOK_PROTOCOL_VERSION,
-			// Loopback control surface for the in-app browser panes; the child's
-			// `browser.*` router proxies here. Absent on standalone (CLI-spawned)
-			// hosts, which therefore have no browser to drive.
-			...(browserBridge
-				? {
-						BROWSER_BRIDGE_URL: browserBridge.endpoint,
-						BROWSER_BRIDGE_SECRET: browserBridge.secret,
-					}
-				: {}),
+			// BROWSER_BRIDGE_URL/SECRET are set (or stripped) after the shell-env
+			// merge below, alongside RELAY_URL, so an inherited value can't leak
+			// into a standalone host.
 			AUTH_TOKEN: config.authToken,
 			SUPERSET_AUTH_CONFIG_PATH: path.join(SUPERSET_HOME_DIR, "config.json"),
 			SUPERSET_API_URL: config.cloudApiUrl,
@@ -888,6 +882,17 @@ export class HostServiceCoordinator extends EventEmitter {
 			childEnv.RELAY_URL = effectiveRelayUrl;
 		} else {
 			delete childEnv.RELAY_URL;
+		}
+
+		// Same enforce-after-merge for the browser bridge: when this process has
+		// no bridge, strip any inherited BROWSER_BRIDGE_* so the child can't
+		// connect to a stale/unintended bridge from the shell env.
+		if (browserBridge) {
+			childEnv.BROWSER_BRIDGE_URL = browserBridge.endpoint;
+			childEnv.BROWSER_BRIDGE_SECRET = browserBridge.secret;
+		} else {
+			delete childEnv.BROWSER_BRIDGE_URL;
+			delete childEnv.BROWSER_BRIDGE_SECRET;
 		}
 
 		return childEnv;
