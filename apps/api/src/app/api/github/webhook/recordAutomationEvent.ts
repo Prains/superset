@@ -2,6 +2,8 @@ import { db } from "@superset/db/client";
 import { automationEvents, githubInstallations } from "@superset/db/schema";
 import { eq } from "drizzle-orm";
 
+import { stripNullChars } from "@/lib/strip-null-chars";
+
 /**
  * Records an incoming GitHub delivery as an `automation_events` row.
  *
@@ -20,6 +22,9 @@ export type GithubPayload = {
 	installation?: { id?: number | string };
 	repository?: { id?: number | string; full_name?: string };
 	sender?: { login?: string; type?: string };
+	// GitHub's own membership signal, present on comment, PR and review
+	// payloads. The only trustworthy source for "is this person one of us".
+	author_association?: string;
 	pull_request?: {
 		number?: number;
 		title?: string;
@@ -27,6 +32,7 @@ export type GithubPayload = {
 		head?: { ref?: string };
 		user?: { login?: string };
 		draft?: boolean;
+		author_association?: string;
 	};
 	issue?: {
 		number?: number;
@@ -34,7 +40,12 @@ export type GithubPayload = {
 		html_url?: string;
 		user?: { login?: string };
 	};
-	comment?: { body?: string; html_url?: string; user?: { login?: string } };
+	comment?: {
+		body?: string;
+		html_url?: string;
+		user?: { login?: string };
+		author_association?: string;
+	};
 	review?: { state?: string; html_url?: string; user?: { login?: string } };
 	ref?: string;
 	workflow_run?: { conclusion?: string; html_url?: string; name?: string };
@@ -51,7 +62,12 @@ export function resourceKeyFor(
 	payload: GithubPayload,
 	eventType: string,
 ): string | null {
-	const repo = payload.repository?.full_name;
+	// The numeric id for the same reason as repositoryId: a rename must not
+	// change the key, or an in-flight run stops matching its own subject.
+	const repo =
+		payload.repository?.id !== undefined
+			? String(payload.repository.id)
+			: undefined;
 	if (!repo) return null;
 	const pr = payload.pull_request?.number ?? payload.issue?.number;
 	if (pr !== undefined) return `github:${repo}#${pr}`;
@@ -67,6 +83,23 @@ export function titleFor(payload: GithubPayload, eventType: string): string {
 	if (payload.workflow_run?.name) return payload.workflow_run.name;
 	if (eventType === "push" && payload.ref) return payload.ref;
 	return payload.repository?.full_name ?? eventType;
+}
+
+/**
+ * Whether the actor is outside the repository's circle of trust.
+ *
+ * Derived from GitHub's `author_association`, which is the only field that
+ * actually states membership. `sender.type` does not: it distinguishes a bot
+ * from a human, and would mark a genuine outside contributor as internal.
+ * Null when no payload on this event carries the association.
+ */
+export function actorIsExternalFor(payload: GithubPayload): boolean | null {
+	const association =
+		payload.comment?.author_association ??
+		payload.pull_request?.author_association ??
+		payload.author_association;
+	if (!association) return null;
+	return !["OWNER", "MEMBER", "COLLABORATOR"].includes(association);
 }
 
 export function urlFor(payload: GithubPayload): string | null {
@@ -124,15 +157,18 @@ export async function recordAutomationEvent(params: {
 			resourceKey: resourceKeyFor(payload, params.eventType),
 			title: titleFor(payload, params.eventType),
 			url: urlFor(payload),
-			repositoryId: payload.repository?.full_name ?? null,
+			// The numeric id, not the full name: a repository can be renamed and
+			// triggers must keep matching it afterwards.
+			repositoryId:
+				payload.repository?.id !== undefined
+					? String(payload.repository.id)
+					: null,
 			ref: payload.pull_request?.head?.ref ?? payload.ref ?? null,
 			actorLogin: payload.sender?.login ?? null,
-			// Bots and outside contributors are the payloads worth treating with
-			// suspicion; recorded now so matching can filter on it later.
-			actorIsExternal: payload.sender?.type
-				? payload.sender.type !== "User"
-				: null,
-			payload: payload as Record<string, unknown>,
+			actorIsExternal: actorIsExternalFor(payload),
+			// jsonb rejects \u0000, and a payload carrying one would otherwise
+			// throw and lose the event.
+			payload: stripNullChars(payload) as Record<string, unknown>,
 			webhookEventId: params.webhookEventId,
 		})
 		// A redelivery of the same GitHub delivery id is the same event.
