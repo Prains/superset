@@ -9,12 +9,13 @@ export type UsageAccount = RouterOutputs["usage"]["quota"][number];
 export type UsageQuotaWindow = UsageAccount["windows"][number];
 
 export const HOST_USAGE_QUOTA_QUERY_KEY = ["host-usage-quota"] as const;
-const USAGE_REFETCH_INTERVAL_MS = 60_000;
+const USAGE_REFETCH_INTERVAL_MS = 5 * 60_000;
 
 /**
  * Subscription quota for every AI CLI login on the given host. The host
- * caches upstream responses for ~60s, so the poll here mostly re-reads that
- * cache; `refresh` bypasses it for an explicit user-initiated update.
+ * caches upstream responses for ~5 min (faster polling gets the endpoint
+ * 429-blacklisted), so the poll here mostly re-reads that cache; `refresh`
+ * bypasses it for an explicit user-initiated update.
  */
 export function useHostUsageQuota(hostUrl: string | null) {
 	const queryClient = useQueryClient();

@@ -14,7 +14,9 @@ import type { UsageAccount } from "./types";
  * request. The cached promise is evicted on rejection so a failure does not
  * replay for the whole TTL.
  */
-const QUOTA_CACHE_TTL_MS = 60 * 1000;
+// >=5 min: Anthropic 429-blacklists faster pollers of the oauth/usage
+// endpoint (ccusage deprecated its live gauge over this; CodexBar #30930).
+const QUOTA_CACHE_TTL_MS = 5 * 60 * 1000;
 
 let cachedQuota: { promise: Promise<UsageAccount[]>; cachedAt: number } | null =
 	null;

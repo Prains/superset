@@ -112,7 +112,7 @@ export function UsageView({ hostUrl }: { hostUrl: string | null }) {
 			<div className="flex items-center gap-2">
 				<h1 className="text-base font-semibold tracking-tight">Usage</h1>
 				<span className="ml-auto text-[10px] text-muted-foreground">
-					Official quota · refreshes every minute
+					Official quota · refreshes every 5 min
 				</span>
 				<Button
 					variant="ghost"
