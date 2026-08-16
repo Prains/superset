@@ -547,6 +547,20 @@
       "when": 1786902304650,
       "tag": "0077_users_deleted_at",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1786922438586,
+      "tag": "0078_user_identities",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1786922502980,
+      "tag": "0079_backfill_github_identities",
+      "breakpoints": true
     }
   ]
 }
