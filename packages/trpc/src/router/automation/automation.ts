@@ -15,7 +15,7 @@ import {
 	parseRrule,
 } from "@superset/shared/rrule";
 import { TRPCError, type TRPCRouterRecord } from "@trpc/server";
-import { and, desc, eq, ilike } from "drizzle-orm";
+import { and, asc, desc, eq, ilike } from "drizzle-orm";
 import { z } from "zod";
 import { resolveUserRelayUrl } from "../../lib/relay-url";
 import { protectedProcedure } from "../../trpc";
@@ -129,7 +129,7 @@ function withSchedule<T>(
 	legacy: {
 		rrule: string;
 		dtstart: Date;
-		timezone: string;
+		timezone: string | null;
 		nextRunAt: Date;
 	} | null,
 ) {
@@ -245,7 +245,21 @@ export const automationRouter = {
 				});
 			}
 
-			return { ...row, scheduleText: safeDescribeRrule(row) };
+			// The whole set, since the editor saves it as one and needs the ids to
+			// update rows in place rather than replacing them.
+			const triggers = await db
+				.select({
+					id: automationTriggers.id,
+					kind: automationTriggers.kind,
+					config: automationTriggers.config,
+					enabled: automationTriggers.enabled,
+					nextRunAt: automationTriggers.nextRunAt,
+				})
+				.from(automationTriggers)
+				.where(eq(automationTriggers.automationId, input.id))
+				.orderBy(asc(automationTriggers.createdAt));
+
+			return { ...row, triggers, scheduleText: safeDescribeRrule(row) };
 		}),
 
 	create: protectedProcedure
@@ -478,13 +492,14 @@ export const automationRouter = {
 				input.dtstart !== undefined ||
 				input.timezone !== undefined;
 
-			const recomputedNextRunAt = recurrenceChanged
-				? parseRrule({
-						rrule: nextRrule,
-						dtstart: nextDtstart,
-						timezone: nextTimezone,
-					}).nextRunAt
-				: existing.nextRunAt;
+			const recomputedNextRunAt =
+				recurrenceChanged && nextRrule && nextDtstart && nextTimezone
+					? parseRrule({
+							rrule: nextRrule,
+							dtstart: nextDtstart,
+							timezone: nextTimezone,
+						}).nextRunAt
+					: existing.nextRunAt;
 
 			const updated = await dbWs.transaction(async (tx) => {
 				const [row] = await tx
@@ -512,7 +527,7 @@ export const automationRouter = {
 						organizationId,
 						triggers: input.triggers,
 					});
-				} else {
+				} else if (nextRrule && nextDtstart && nextTimezone) {
 					await syncScheduleTrigger(tx, {
 						automationId: row.id,
 						organizationId,
@@ -611,7 +626,7 @@ export const automationRouter = {
 				dtstart: existing.dtstart,
 				timezone: existing.timezone,
 				nextRunAt: existing.nextRunAt,
-				scheduleText: describeSchedule(existing.rrule),
+				scheduleText: safeDescribeRrule(existing),
 			};
 		}),
 
@@ -638,8 +653,14 @@ export const automationRouter = {
 
 			// When resuming, recompute the next run from now so we don't fire stale
 			// occurrences that accumulated while paused.
+			// Only a scheduled automation has a next run to recompute; an
+			// event-only one simply resumes.
 			const resumedNextRunAt =
-				input.enabled && !existing.enabled
+				input.enabled &&
+				!existing.enabled &&
+				existing.rrule &&
+				existing.dtstart &&
+				existing.timezone
 					? parseRrule({
 							rrule: existing.rrule,
 							dtstart: existing.dtstart,
@@ -662,15 +683,17 @@ export const automationRouter = {
 					});
 				}
 
-				await syncScheduleTrigger(tx, {
-					automationId: row.id,
-					organizationId,
-					rrule: existing.rrule,
-					dtstart: existing.dtstart,
-					timezone: existing.timezone,
-					nextRunAt: resumedNextRunAt,
-					enabled: row.enabled,
-				});
+				if (existing.rrule && existing.dtstart && existing.timezone) {
+					await syncScheduleTrigger(tx, {
+						automationId: row.id,
+						organizationId,
+						rrule: existing.rrule,
+						dtstart: existing.dtstart,
+						timezone: existing.timezone,
+						nextRunAt: resumedNextRunAt,
+						enabled: row.enabled,
+					});
+				}
 
 				return row;
 			});
@@ -681,7 +704,7 @@ export const automationRouter = {
 				dtstart: existing.dtstart,
 				timezone: existing.timezone,
 				nextRunAt: resumedNextRunAt,
-				scheduleText: describeSchedule(existing.rrule),
+				scheduleText: safeDescribeRrule(existing),
 			};
 		}),
 
@@ -795,8 +818,11 @@ function bucketToMinute(date: Date): Date {
 	return copy;
 }
 
-function safeDescribeRrule(row: { rrule: string } | null | undefined): string {
-	if (!row) return "";
+/** Empty when there is no schedule, which is normal for an event-only automation. */
+function safeDescribeRrule(
+	row: { rrule: string | null } | null | undefined,
+): string {
+	if (!row?.rrule) return "";
 	try {
 		return describeSchedule(row.rrule);
 	} catch {

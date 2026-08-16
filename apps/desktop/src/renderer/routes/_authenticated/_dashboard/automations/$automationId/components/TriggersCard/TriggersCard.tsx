@@ -1,3 +1,4 @@
+import type { DraftTrigger } from "@superset/shared/automation-triggers";
 import {
 	formatDateTimeInTimezone,
 	nextOccurrenceAfter,
@@ -8,10 +9,11 @@ import { formatDistanceStrict } from "date-fns";
 import { useMemo } from "react";
 import { useRecentProjects } from "renderer/hooks/host-projects/useRecentProjects";
 import type { apiTrpcClient } from "renderer/lib/api-trpc-client";
+import { cloudTrpc } from "renderer/lib/cloud-trpc";
 import { DevicePicker } from "renderer/routes/_authenticated/components/DashboardNewWorkspaceModal/components/DashboardNewWorkspaceForm/components/DevicePicker";
 import { ProjectPicker } from "../../../components/ProjectPicker";
 import { RelayOfflineNotice } from "../../../components/RelayOfflineNotice";
-import { ScheduleSentence } from "../../../components/ScheduleSentence";
+import { TriggersEditor } from "../../../components/TriggersEditor";
 import { WorkspacePicker } from "../../../components/WorkspacePicker";
 
 export type AutomationUpdatePatch = Partial<
@@ -28,7 +30,7 @@ interface TriggersCardProps {
 }
 
 /**
- * Cursor-style sentence trigger: "[Daily at 8:00 AM] [America/LA]" with an
+ * Sentence-shaped trigger: "[Daily at 8:00 AM] [America/LA]" with an
  * indented scope line "in [project] on [device] · [workspace]".
  */
 export function TriggersCard({
@@ -38,6 +40,20 @@ export function TriggersCard({
 	onUpdate,
 }: TriggersCardProps) {
 	const recentProjects = useRecentProjects();
+	// repoId is GitHub's numeric id, which is what the matcher compares against —
+	// a full name would stop matching the moment someone renames the repo.
+	const reposQuery = cloudTrpc.integration.github.listRepositories.useQuery(
+		{ organizationId: automation.organizationId },
+		{ enabled: Boolean(automation.organizationId) },
+	);
+	const repositories = useMemo(
+		() =>
+			(reposQuery.data ?? []).map((repo) => ({
+				id: repo.repoId,
+				label: repo.fullName,
+			})),
+		[reposQuery.data],
+	);
 	const selectedProject = recentProjects.find(
 		(p) => p.id === automation.v2ProjectId,
 	);
@@ -47,6 +63,10 @@ export function TriggersCard({
 	const nextRunDate = useMemo(() => {
 		if (automation.enabled) {
 			return automation.nextRunAt ? new Date(automation.nextRunAt) : null;
+		}
+		// An event-only automation has no schedule to preview.
+		if (!automation.rrule || !automation.dtstart || !automation.timezone) {
+			return null;
 		}
 		try {
 			return nextOccurrenceAfter({
@@ -73,12 +93,16 @@ export function TriggersCard({
 
 	return (
 		<div className="flex flex-col rounded-xl border border-border bg-card/40 px-4 py-3">
-			<ScheduleSentence
-				rrule={automation.rrule}
-				onRruleChange={(rrule) => onUpdate({ rrule })}
-				timezone={automation.timezone}
-				onTimezoneChange={(timezone) => onUpdate({ timezone })}
-				disabled={readOnly}
+			<TriggersEditor
+				triggers={automation.triggers.map((t) => ({
+					id: t.id,
+					enabled: t.enabled,
+					config: t.config as DraftTrigger["config"],
+				}))}
+				onChange={(triggers) => onUpdate({ triggers })}
+				repositories={repositories}
+				people={[]}
+				readOnly={readOnly}
 			/>
 			<div className="ml-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-l border-border pl-4 pt-1 text-sm text-muted-foreground">
 				<span>in</span>
@@ -132,7 +156,10 @@ export function TriggersCard({
 						</span>
 					</TooltipTrigger>
 					<TooltipContent side="right">
-						{formatDateTimeInTimezone(nextRunDate, automation.timezone)}
+						{formatDateTimeInTimezone(
+							nextRunDate,
+							automation.timezone ?? "UTC",
+						)}
 					</TooltipContent>
 				</Tooltip>
 			)}

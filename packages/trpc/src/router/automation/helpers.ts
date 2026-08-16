@@ -128,14 +128,17 @@ export async function recordPromptVersion(
  * consume, so the response shape is unchanged as those columns go away.
  */
 export const scheduleTriggerColumns = {
-	rrule: sql<string>`${automationTriggers.config}->>'rrule'`.as("rrule"),
+	// Nullable: the join is a left join, because an automation whose triggers are
+	// all event-based has no schedule row at all.
+	rrule: sql<string | null>`${automationTriggers.config}->>'rrule'`.as("rrule"),
 	// mapWith is load-bearing: a computed expression carries no column type, so
 	// without it the driver returns the timestamp as a string while the type
 	// claims Date, and callers that treat it as a Date throw at runtime.
-	dtstart: sql<Date>`(${automationTriggers.config}->>'dtstart')::timestamptz`
-		.mapWith(automationTriggers.nextRunAt)
-		.as("dtstart"),
-	timezone: sql<string>`${automationTriggers.config}->>'timezone'`.as(
+	dtstart:
+		sql<Date | null>`(${automationTriggers.config}->>'dtstart')::timestamptz`
+			.mapWith(automationTriggers.nextRunAt)
+			.as("dtstart"),
+	timezone: sql<string | null>`${automationTriggers.config}->>'timezone'`.as(
 		"timezone",
 	),
 	nextRunAt: automationTriggers.nextRunAt,

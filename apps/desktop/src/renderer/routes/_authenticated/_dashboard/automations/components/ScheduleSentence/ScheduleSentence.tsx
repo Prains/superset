@@ -35,7 +35,7 @@ interface ScheduleSentenceProps {
 }
 
 /**
- * Cursor-style sentence-chip schedule editor:
+ * Sentence-chip schedule editor:
  * "[Daily ▾] at [8:00 AM] · Los Angeles (PDT)", decomposed into inline
  * controls instead of one opaque popover chip.
  */
