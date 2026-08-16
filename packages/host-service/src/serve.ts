@@ -9,6 +9,7 @@ import {
 import { LocalGitCredentialProvider } from "./providers/git";
 import { PskHostAuthProvider } from "./providers/host-auth";
 import { provisionAgentIntegrations } from "./runtime/agent-provisioning";
+import { resolveBrowserBridgeFromEnv } from "./runtime/browser-bridge/env";
 import { applyLoginShellEnvToProcess } from "./runtime/login-shell-env";
 import { installProcessSafetyNet, installUpgradeSocketGuard } from "./safety";
 import { captureFatalStartupError, initSentry } from "./sentry";
@@ -70,13 +71,7 @@ async function main(): Promise<void> {
 			cloudApiUrl: env.SUPERSET_API_URL,
 			migrationsFolder: env.HOST_MIGRATIONS_FOLDER,
 			allowedOrigins: env.CORS_ORIGINS ?? [],
-			browserBridge:
-				env.BROWSER_BRIDGE_URL && env.BROWSER_BRIDGE_SECRET
-					? {
-							url: env.BROWSER_BRIDGE_URL,
-							secret: env.BROWSER_BRIDGE_SECRET,
-						}
-					: undefined,
+			browserBridge: resolveBrowserBridgeFromEnv(env),
 		},
 		providers: {
 			auth: authProvider,

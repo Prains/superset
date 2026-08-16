@@ -13,6 +13,7 @@ export default command({
 	run: async ({ ctx, options }) => {
 		const { client } = await resolveBrowserTarget(ctx, options);
 		const { result } = await client.browser.eval.mutate({
+			workspaceId: options.workspace,
 			paneId: options.pane,
 			code: options.code,
 		});

@@ -1,7 +1,6 @@
 import { CLIError, string } from "@superset/cli-framework";
-import { getHostId } from "@superset/shared/host-info";
 import { command } from "../../../lib/command";
-import { resolveHostTarget } from "../../../lib/host-target";
+import { resolveBrowserTarget } from "../shared";
 
 export default command({
 	description:
@@ -12,20 +11,10 @@ export default command({
 		pane: string().required().desc("Pane ID (from `superset browser list`)"),
 	},
 	run: async ({ ctx, options }) => {
-		const organizationId = ctx.config.organizationId;
-		if (!organizationId) {
-			throw new CLIError("No active organization", "Run: superset auth login");
-		}
-		const hostId = options.host ?? getHostId();
-		const target = await resolveHostTarget({
-			requestedHostId: hostId,
-			organizationId,
-			userJwt: ctx.bearer,
-			api: ctx.api,
-		});
-		// Verify the pane exists before handing out a URL — a dead pane id would
-		// otherwise fail only once the tool dials in.
-		const { panes } = await target.client.browser.list.query({
+		const { client, ws } = await resolveBrowserTarget(ctx, options);
+		// Verify the pane exists in this workspace before handing out a URL — a
+		// dead/foreign pane id would otherwise fail only once the tool dials in.
+		const { panes } = await client.browser.list.query({
 			workspaceId: options.workspace,
 		});
 		if (!panes.some((p) => p.paneId === options.pane)) {
@@ -34,9 +23,14 @@ export default command({
 				"Run: superset browser list --workspace <id>",
 			);
 		}
-		const url = `${target.ws.baseWsUrl}/browser/${encodeURIComponent(
+		const url = `${ws.baseWsUrl}/browser/${encodeURIComponent(
 			options.pane,
-		)}/cdp?token=${encodeURIComponent(target.ws.token)}`;
-		return { data: { url }, message: url };
+		)}/cdp?workspaceId=${encodeURIComponent(options.workspace)}&token=${encodeURIComponent(ws.token)}`;
+		return {
+			data: { url },
+			// The URL embeds a bearer token — treat it as a credential (keep it out
+			// of shared logs / screenshots).
+			message: `${url}\n\nNote: this URL contains an auth token — treat it as a secret.`,
+		};
 	},
 });

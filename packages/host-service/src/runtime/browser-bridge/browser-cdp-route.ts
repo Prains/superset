@@ -23,6 +23,7 @@ export function registerBrowserCdpRoute({
 		"/browser/:paneId/cdp",
 		upgradeWebSocket((c) => {
 			const paneId = c.req.param("paneId") ?? "";
+			const workspaceId = c.req.query("workspaceId") ?? "";
 			const bridge = getBridge();
 			let upstream: WebSocket | null = null;
 			// Frames the client sends before the upstream socket is open.
@@ -34,9 +35,13 @@ export function registerBrowserCdpRoute({
 						ws.close(1011, "No browser bridge on this host");
 						return;
 					}
+					if (!workspaceId) {
+						ws.close(1008, "workspaceId is required");
+						return;
+					}
 					const wsUrl = bridge.url.replace(/^http/, "ws");
 					upstream = new WebSocket(
-						`${wsUrl}/panes/${encodeURIComponent(paneId)}/cdp?token=${encodeURIComponent(bridge.secret)}`,
+						`${wsUrl}/panes/${encodeURIComponent(paneId)}/cdp?workspaceId=${encodeURIComponent(workspaceId)}&token=${encodeURIComponent(bridge.secret)}`,
 					);
 					upstream.addEventListener("open", () => {
 						for (const msg of pending) upstream?.send(msg);

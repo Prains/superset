@@ -11,12 +11,13 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, Server } from "node:http";
 import log from "electron-log";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import { type WebSocket, WebSocketServer } from "ws";
 import { setBrowserBridgeInfo } from "./browser-bridge-info";
 import { type BrowserOpenRequest, browserManager } from "./browser-manager";
 
 const OPEN_PANE_TIMEOUT_MS = 15_000;
+const MAX_CDP_MESSAGE_BYTES = 4 * 1024 * 1024;
 const CDP_PATH = /^\/panes\/([^/]+)\/cdp$/;
 
 let server: Server | null = null;
@@ -28,6 +29,42 @@ function isAuthorized(secret: string, req: IncomingMessage): boolean {
 	const a = Buffer.from(candidate);
 	const b = Buffer.from(secret);
 	return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Pull the workspaceId every pane op must carry (body for POST, query for
+ * GET). The bridge never operates unscoped — a missing workspaceId is a 400,
+ * and BrowserManager then rejects a pane that isn't in that workspace.
+ */
+function requireScope(
+	req: Request,
+	res: Response,
+): { paneId: string; workspaceId: string } | null {
+	const paneId = req.params.paneId as string;
+	const raw = req.body?.workspaceId ?? req.query.workspaceId;
+	if (typeof raw !== "string" || raw.length === 0) {
+		res.status(400).json({ error: "workspaceId is required" });
+		return null;
+	}
+	return { paneId, workspaceId: raw };
+}
+
+/** Resolve the live, workspace-scoped webContents or 404. */
+function withPane(
+	req: Request,
+	res: Response,
+	fn: (wc: Electron.WebContents, paneId: string, workspaceId: string) => void,
+): void {
+	const scope = requireScope(req, res);
+	if (!scope) return;
+	const wc = browserManager.getWebContents(scope.paneId, scope.workspaceId);
+	if (!wc) {
+		res
+			.status(404)
+			.json({ error: `No live pane ${scope.paneId} in this workspace` });
+		return;
+	}
+	fn(wc, scope.paneId, scope.workspaceId);
 }
 
 export async function startBrowserBridge(): Promise<void> {
@@ -64,13 +101,24 @@ export async function startBrowserBridge(): Promise<void> {
 			browserManager.listPanes(workspaceId).map((p) => p.paneId),
 		);
 
-		const timer = setTimeout(() => {
+		let settled = false;
+		const finish = (fn: () => void) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
 			browserManager.off("pane-registered", onRegistered);
-			res.status(504).json({
-				error:
-					"No browser pane appeared for this workspace. Is the desktop app running and signed in?",
-			});
+			fn();
+		};
+		const timer = setTimeout(() => {
+			finish(() =>
+				res.status(504).json({
+					error:
+						"No browser pane appeared for this workspace. Is the desktop app running and signed in?",
+				}),
+			);
 		}, OPEN_PANE_TIMEOUT_MS);
+		// Client hung up before the pane appeared — stop waiting and free the listener.
+		res.on("close", () => finish(() => {}));
 
 		const onRegistered = (event: {
 			paneId: string;
@@ -78,16 +126,16 @@ export async function startBrowserBridge(): Promise<void> {
 		}) => {
 			if (event.workspaceId !== workspaceId) return;
 			if (known.has(event.paneId)) return;
-			clearTimeout(timer);
-			browserManager.off("pane-registered", onRegistered);
 			const info = browserManager
 				.listPanes(workspaceId)
 				.find((p) => p.paneId === event.paneId);
-			res.json({
-				paneId: event.paneId,
-				url: info?.url ?? url,
-				title: info?.title ?? "",
-			});
+			finish(() =>
+				res.json({
+					paneId: event.paneId,
+					url: info?.url ?? url,
+					title: info?.title ?? "",
+				}),
+			);
 		};
 		browserManager.on("pane-registered", onRegistered);
 
@@ -100,13 +148,15 @@ export async function startBrowserBridge(): Promise<void> {
 	});
 
 	app.post("/panes/:paneId/navigate", (req, res) => {
+		const scope = requireScope(req, res);
+		if (!scope) return;
 		const url = req.body?.url;
 		if (typeof url !== "string") {
 			res.status(400).json({ error: "url is required" });
 			return;
 		}
 		try {
-			browserManager.navigate(req.params.paneId, url);
+			browserManager.navigate(scope.paneId, url, scope.workspaceId);
 			res.json({ ok: true });
 		} catch (err) {
 			res.status(404).json({ error: errorMessage(err) });
@@ -114,68 +164,63 @@ export async function startBrowserBridge(): Promise<void> {
 	});
 
 	app.post("/panes/:paneId/back", (req, res) => {
-		const wc = browserManager.getWebContents(req.params.paneId);
-		if (!wc) {
-			res.status(404).json({ error: `No live pane ${req.params.paneId}` });
-			return;
-		}
-		if (wc.canGoBack()) wc.goBack();
-		res.json({ ok: true });
+		withPane(req, res, (wc) => {
+			if (wc.canGoBack()) wc.goBack();
+			res.json({ ok: true });
+		});
 	});
 
 	app.post("/panes/:paneId/forward", (req, res) => {
-		const wc = browserManager.getWebContents(req.params.paneId);
-		if (!wc) {
-			res.status(404).json({ error: `No live pane ${req.params.paneId}` });
-			return;
-		}
-		if (wc.canGoForward()) wc.goForward();
-		res.json({ ok: true });
+		withPane(req, res, (wc) => {
+			if (wc.canGoForward()) wc.goForward();
+			res.json({ ok: true });
+		});
 	});
 
 	app.post("/panes/:paneId/reload", (req, res) => {
-		const wc = browserManager.getWebContents(req.params.paneId);
-		if (!wc) {
-			res.status(404).json({ error: `No live pane ${req.params.paneId}` });
-			return;
-		}
-		if (req.body?.hard) {
-			wc.reloadIgnoringCache();
-		} else {
-			wc.reload();
-		}
-		res.json({ ok: true });
+		withPane(req, res, (wc) => {
+			if (req.body?.hard) {
+				wc.reloadIgnoringCache();
+			} else {
+				wc.reload();
+			}
+			res.json({ ok: true });
+		});
 	});
 
 	app.post("/panes/:paneId/screenshot", (req, res) => {
+		const scope = requireScope(req, res);
+		if (!scope) return;
 		browserManager
-			.capturePng(req.params.paneId)
+			.capturePng(scope.paneId, scope.workspaceId)
 			.then((base64) => res.json({ base64 }))
 			.catch((err) => res.status(404).json({ error: errorMessage(err) }));
 	});
 
 	app.post("/panes/:paneId/eval", (req, res) => {
+		const scope = requireScope(req, res);
+		if (!scope) return;
 		const code = req.body?.code;
 		if (typeof code !== "string") {
 			res.status(400).json({ error: "code is required" });
 			return;
 		}
 		browserManager
-			.evaluateJS(req.params.paneId, code)
+			.evaluateJS(scope.paneId, code, scope.workspaceId)
 			.then((result) => res.json({ result: result ?? null }))
 			.catch((err) => res.status(500).json({ error: errorMessage(err) }));
 	});
 
 	app.get("/panes/:paneId/console", (req, res) => {
-		const wc = browserManager.getWebContents(req.params.paneId);
-		if (!wc) {
-			res.status(404).json({ error: `No live pane ${req.params.paneId}` });
-			return;
-		}
-		res.json({ entries: browserManager.getConsoleLogs(req.params.paneId) });
+		withPane(req, res, (_wc, paneId, workspaceId) => {
+			res.json({ entries: browserManager.getConsoleLogs(paneId, workspaceId) });
+		});
 	});
 
-	const wss = new WebSocketServer({ noServer: true });
+	const wss = new WebSocketServer({
+		noServer: true,
+		maxPayload: MAX_CDP_MESSAGE_BYTES,
+	});
 
 	const httpServer = await new Promise<Server>((resolve, reject) => {
 		const s = app.listen(0, "127.0.0.1", () => resolve(s));
@@ -185,13 +230,14 @@ export async function startBrowserBridge(): Promise<void> {
 	httpServer.on("upgrade", (req, socket, head) => {
 		const url = new URL(req.url ?? "/", "http://127.0.0.1");
 		const match = CDP_PATH.exec(url.pathname);
-		if (!match || !isAuthorized(secret, req)) {
+		const workspaceId = url.searchParams.get("workspaceId");
+		if (!match || !workspaceId || !isAuthorized(secret, req)) {
 			socket.destroy();
 			return;
 		}
 		const paneId = match[1] as string;
 		wss.handleUpgrade(req, socket, head, (ws) => {
-			handleCdpSocket(paneId, ws);
+			handleCdpSocket(paneId, workspaceId, ws);
 		});
 	});
 
@@ -205,11 +251,16 @@ export async function startBrowserBridge(): Promise<void> {
 	log.info(`[browser-bridge] listening on ${endpoint}`);
 }
 
-function handleCdpSocket(paneId: string, ws: WebSocket): void {
+function handleCdpSocket(
+	paneId: string,
+	workspaceId: string,
+	ws: WebSocket,
+): void {
 	let session: ReturnType<typeof browserManager.attachCdp>;
 	try {
 		session = browserManager.attachCdp(
 			paneId,
+			workspaceId,
 			(payload) => {
 				if (ws.readyState === ws.OPEN) ws.send(payload);
 			},

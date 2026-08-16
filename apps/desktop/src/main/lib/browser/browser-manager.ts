@@ -59,12 +59,28 @@ function sanitizeUrl(url: string): string {
 	return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
 }
 
+// Schemes a guest pane may navigate to. Enforced on `will-navigate` so it holds
+// no matter who initiates the load — the toolbar, a link, or a raw CDP
+// `Page.navigate` (which bypasses `sanitizeUrl`). Blocks `file:`/`chrome:`/
+// `devtools:`/etc. so an agent can't read local files or internal pages through
+// the pane.
+const ALLOWED_GUEST_SCHEMES = new Set(["http:", "https:", "about:"]);
+
+function isAllowedGuestUrl(url: string): boolean {
+	try {
+		return ALLOWED_GUEST_SCHEMES.has(new URL(url).protocol);
+	} catch {
+		return false;
+	}
+}
+
 class BrowserManager extends EventEmitter {
 	private panes = new Map<string, PaneRegistration>();
 	private consoleLogs = new Map<string, ConsoleEntry[]>();
 	private consoleListeners = new Map<string, () => void>();
 	private contextMenuListeners = new Map<string, () => void>();
 	private beforeInputListeners = new Map<string, () => void>();
+	private navigationListeners = new Map<string, () => void>();
 	private cdpDetachers = new Map<string, () => void>();
 	// Canonical chords to suppress in the focused guest and forward for the
 	// renderer to replay. Kept override/layout-aware by the renderer.
@@ -83,6 +99,7 @@ class BrowserManager extends EventEmitter {
 				this.consoleListeners,
 				this.contextMenuListeners,
 				this.beforeInputListeners,
+				this.navigationListeners,
 			]) {
 				const cleanup = map.get(paneId);
 				if (cleanup) {
@@ -109,6 +126,7 @@ class BrowserManager extends EventEmitter {
 			this.setupConsoleCapture(paneId, wc);
 			this.setupContextMenu(paneId, wc);
 			this.setupBeforeInput(paneId, wc);
+			this.setupNavigationGuard(paneId, wc);
 		}
 		this.emit("pane-registered", {
 			paneId,
@@ -121,6 +139,7 @@ class BrowserManager extends EventEmitter {
 			this.consoleListeners,
 			this.contextMenuListeners,
 			this.beforeInputListeners,
+			this.navigationListeners,
 		]) {
 			const cleanup = map.get(paneId);
 			if (cleanup) {
@@ -139,10 +158,21 @@ class BrowserManager extends EventEmitter {
 		}
 	}
 
-	getWebContents(paneId: string): Electron.WebContents | null {
-		const id = this.panes.get(paneId)?.webContentsId;
-		if (id == null) return null;
-		const wc = webContents.fromId(id);
+	/**
+	 * Resolve a pane's live webContents. When `workspaceId` is passed (every
+	 * external/bridge caller does), the pane must belong to that workspace or
+	 * this returns null — so an agent authenticated for one workspace can't
+	 * reach another workspace's (or org's) panes by guessing a pane id. The
+	 * renderer IPC path omits it: it only ever touches its own pane.
+	 */
+	getWebContents(
+		paneId: string,
+		workspaceId?: string,
+	): Electron.WebContents | null {
+		const reg = this.panes.get(paneId);
+		if (!reg) return null;
+		if (workspaceId != null && reg.workspaceId !== workspaceId) return null;
+		const wc = webContents.fromId(reg.webContentsId);
 		if (!wc || wc.isDestroyed()) return null;
 		return wc;
 	}
@@ -181,10 +211,11 @@ class BrowserManager extends EventEmitter {
 	 */
 	attachCdp(
 		paneId: string,
+		workspaceId: string,
 		onMessage: (payload: string) => void,
 		onDetach: (reason: string) => void,
 	): CdpSession {
-		const wc = this.getWebContents(paneId);
+		const wc = this.getWebContents(paneId, workspaceId);
 		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
 		if (this.cdpDetachers.has(paneId)) {
 			throw new Error(`A CDP session is already attached to pane ${paneId}`);
@@ -259,6 +290,25 @@ class BrowserManager extends EventEmitter {
 					);
 					return;
 				}
+				// `will-navigate` doesn't fire for CDP-initiated navigations, so the
+				// scheme allowlist is re-checked here — otherwise `Page.navigate`
+				// could point the guest at file:// / chrome:// and read it back.
+				if (method === "Page.navigate") {
+					const navUrl = (params as { url?: unknown } | undefined)?.url;
+					if (typeof navUrl === "string" && !isAllowedGuestUrl(navUrl)) {
+						onMessage(
+							JSON.stringify({
+								id,
+								error: {
+									code: -32000,
+									message: `Navigation to ${navUrl} is not allowed`,
+								},
+								...(sessionId ? { sessionId } : {}),
+							}),
+						);
+						return;
+					}
+				}
 				wc.debugger
 					.sendCommand(method, params, sessionId)
 					.then((result) => {
@@ -289,35 +339,45 @@ class BrowserManager extends EventEmitter {
 		};
 	}
 
-	navigate(paneId: string, url: string): void {
-		const wc = this.getWebContents(paneId);
+	navigate(paneId: string, url: string, workspaceId?: string): void {
+		const wc = this.getWebContents(paneId, workspaceId);
 		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
 		wc.loadURL(sanitizeUrl(url));
 	}
 
 	async screenshot(paneId: string): Promise<string> {
-		const wc = this.getWebContents(paneId);
-		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
-		const image = await wc.capturePage();
+		const image = await this.capturePageImage(paneId);
 		clipboard.writeImage(image);
 		return image.toPNG().toString("base64");
 	}
 
 	/** Screenshot for programmatic callers — must not clobber the clipboard. */
-	async capturePng(paneId: string): Promise<string> {
-		const wc = this.getWebContents(paneId);
-		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
-		const image = await wc.capturePage();
+	async capturePng(paneId: string, workspaceId?: string): Promise<string> {
+		const image = await this.capturePageImage(paneId, workspaceId);
 		return image.toPNG().toString("base64");
 	}
 
-	async evaluateJS(paneId: string, code: string): Promise<unknown> {
-		const wc = this.getWebContents(paneId);
+	private async capturePageImage(
+		paneId: string,
+		workspaceId?: string,
+	): Promise<Electron.NativeImage> {
+		const wc = this.getWebContents(paneId, workspaceId);
+		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
+		return wc.capturePage();
+	}
+
+	async evaluateJS(
+		paneId: string,
+		code: string,
+		workspaceId?: string,
+	): Promise<unknown> {
+		const wc = this.getWebContents(paneId, workspaceId);
 		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
 		return wc.executeJavaScript(code);
 	}
 
-	getConsoleLogs(paneId: string): ConsoleEntry[] {
+	getConsoleLogs(paneId: string, workspaceId?: string): ConsoleEntry[] {
+		if (!this.getWebContents(paneId, workspaceId)) return [];
 		return this.consoleLogs.get(paneId) ?? [];
 	}
 
@@ -325,6 +385,25 @@ class BrowserManager extends EventEmitter {
 		const wc = this.getWebContents(paneId);
 		if (!wc) return;
 		wc.openDevTools({ mode: "detach" });
+	}
+
+	// Block navigations to disallowed schemes (file:, chrome:, devtools:, …) on
+	// the guest itself, so the policy holds whether the load came from the
+	// toolbar, a link, or a raw CDP `Page.navigate` (which skips sanitizeUrl).
+	private setupNavigationGuard(paneId: string, wc: Electron.WebContents): void {
+		const handler = (event: Electron.Event, url: string) => {
+			if (!isAllowedGuestUrl(url)) event.preventDefault();
+		};
+		wc.on("will-navigate", handler);
+		wc.on("will-redirect", handler);
+		this.navigationListeners.set(paneId, () => {
+			try {
+				wc.off("will-navigate", handler);
+				wc.off("will-redirect", handler);
+			} catch {
+				// webContents may be destroyed
+			}
+		});
 	}
 
 	private setupContextMenu(paneId: string, wc: Electron.WebContents): void {

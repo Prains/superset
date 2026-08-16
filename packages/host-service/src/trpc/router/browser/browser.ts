@@ -37,28 +37,51 @@ export const browserRouter = router({
 		),
 
 	navigate: protectedProcedure
-		.input(z.object({ paneId: z.string(), url: z.string() }))
+		.input(
+			z.object({
+				workspaceId: z.string(),
+				paneId: z.string(),
+				url: z.string(),
+			}),
+		)
 		.mutation(({ ctx, input }) =>
-			requireBridge(ctx).navigate(input.paneId, input.url),
+			requireBridge(ctx).navigate(input.workspaceId, input.paneId, input.url),
 		),
 
 	reload: protectedProcedure
-		.input(z.object({ paneId: z.string(), hard: z.boolean().default(false) }))
+		.input(
+			z.object({
+				workspaceId: z.string(),
+				paneId: z.string(),
+				hard: z.boolean().default(false),
+			}),
+		)
 		.mutation(({ ctx, input }) =>
-			requireBridge(ctx).reload(input.paneId, input.hard),
+			requireBridge(ctx).reload(input.workspaceId, input.paneId, input.hard),
 		),
 
 	screenshot: protectedProcedure
-		.input(z.object({ paneId: z.string() }))
-		.mutation(({ ctx, input }) => requireBridge(ctx).screenshot(input.paneId)),
+		.input(z.object({ workspaceId: z.string(), paneId: z.string() }))
+		.mutation(({ ctx, input }) =>
+			requireBridge(ctx).screenshot(input.workspaceId, input.paneId),
+		),
 
 	eval: protectedProcedure
-		.input(z.object({ paneId: z.string(), code: z.string() }))
+		.input(
+			z.object({
+				workspaceId: z.string(),
+				paneId: z.string(),
+				// Bound eval size — matches the bridge's HTTP body limit.
+				code: z.string().max(1_000_000),
+			}),
+		)
 		.mutation(({ ctx, input }) =>
-			requireBridge(ctx).evaluate(input.paneId, input.code),
+			requireBridge(ctx).evaluate(input.workspaceId, input.paneId, input.code),
 		),
 
 	console: protectedProcedure
-		.input(z.object({ paneId: z.string() }))
-		.query(({ ctx, input }) => requireBridge(ctx).console(input.paneId)),
+		.input(z.object({ workspaceId: z.string(), paneId: z.string() }))
+		.query(({ ctx, input }) =>
+			requireBridge(ctx).console(input.workspaceId, input.paneId),
+		),
 });

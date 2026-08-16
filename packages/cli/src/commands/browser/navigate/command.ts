@@ -13,6 +13,7 @@ export default command({
 	run: async ({ ctx, options }) => {
 		const { client } = await resolveBrowserTarget(ctx, options);
 		await client.browser.navigate.mutate({
+			workspaceId: options.workspace,
 			paneId: options.pane,
 			url: options.url,
 		});

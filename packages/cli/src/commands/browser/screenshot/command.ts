@@ -14,6 +14,7 @@ export default command({
 	run: async ({ ctx, options }) => {
 		const { client } = await resolveBrowserTarget(ctx, options);
 		const { base64 } = await client.browser.screenshot.mutate({
+			workspaceId: options.workspace,
 			paneId: options.pane,
 		});
 		if (options.out) {

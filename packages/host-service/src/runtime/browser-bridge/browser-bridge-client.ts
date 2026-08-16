@@ -1,5 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import type { BrowserBridgeConfig } from "../../types";
+import type { BrowserPane, ConsoleEntry } from "./types";
+
+export type { BrowserPane, ConsoleEntry } from "./types";
 
 /**
  * Thin HTTP client for the desktop's browser bridge. The bridge is the only
@@ -66,55 +69,42 @@ export class BrowserBridgeClient {
 		);
 	}
 
-	navigate(paneId: string, url: string) {
+	navigate(workspaceId: string, paneId: string, url: string) {
 		return this.request<{ ok: true }>(
 			"POST",
 			`/panes/${encodeURIComponent(paneId)}/navigate`,
-			{ url },
+			{ workspaceId, url },
 		);
 	}
 
-	reload(paneId: string, hard: boolean) {
+	reload(workspaceId: string, paneId: string, hard: boolean) {
 		return this.request<{ ok: true }>(
 			"POST",
 			`/panes/${encodeURIComponent(paneId)}/reload`,
-			{ hard },
+			{ workspaceId, hard },
 		);
 	}
 
-	screenshot(paneId: string) {
+	screenshot(workspaceId: string, paneId: string) {
 		return this.request<{ base64: string }>(
 			"POST",
 			`/panes/${encodeURIComponent(paneId)}/screenshot`,
+			{ workspaceId },
 		);
 	}
 
-	evaluate(paneId: string, code: string) {
+	evaluate(workspaceId: string, paneId: string, code: string) {
 		return this.request<{ result: unknown }>(
 			"POST",
 			`/panes/${encodeURIComponent(paneId)}/eval`,
-			{ code },
+			{ workspaceId, code },
 		);
 	}
 
-	console(paneId: string) {
+	console(workspaceId: string, paneId: string) {
 		return this.request<{ entries: ConsoleEntry[] }>(
 			"GET",
-			`/panes/${encodeURIComponent(paneId)}/console`,
+			`/panes/${encodeURIComponent(paneId)}/console?workspaceId=${encodeURIComponent(workspaceId)}`,
 		);
 	}
-}
-
-export interface BrowserPane {
-	paneId: string;
-	workspaceId: string | null;
-	url: string;
-	title: string;
-	isLoading: boolean;
-}
-
-export interface ConsoleEntry {
-	level: string;
-	message: string;
-	timestamp: number;
 }

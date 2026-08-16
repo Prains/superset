@@ -13,6 +13,7 @@ export default command({
 	run: async ({ ctx, options }) => {
 		const { client } = await resolveBrowserTarget(ctx, options);
 		const { entries } = await client.browser.console.query({
+			workspaceId: options.workspace,
 			paneId: options.pane,
 		});
 		const limited = options.maxLines
