@@ -115,7 +115,9 @@ export default async function plugin(api: SupersetPluginApi) {
 	// Supervised repeating task; cleared on unload/reload.
 	api.background.interval(60_000, async () => {});
 
-	// Live (non-archived) workspaces on this host: id, name, branch, type, projectId.
+	// Live (non-archived) workspaces on this host: id, name, branch, type,
+	// projectId, worktreePath. Full trust means you can shell out inside a
+	// worktree (see the fleet-review example).
 	const workspaces = await api.workspaces.list();
 
 	return { dispose() {/* optional cleanup on unload/reload */} };
@@ -168,6 +170,10 @@ the only channel the backend can send on.
 
 ## Installing plugins
 
+In the app: **sidebar → Plugins** lists installed plugins with status, enable/disable,
+reload, and uninstall, and installs from `owner/repo`, a git URL, or a local path
+(local paths are dev-linked). Or from the CLI:
+
 ```bash
 superset plugin install ./some-dir            # copy into ~/.superset/plugins/<id>
 superset plugin install owner/repo            # git clone (github shorthand) …
@@ -190,7 +196,17 @@ deleted.
   palette commands, realtime push, KV persistence.
 - [`examples/agent-board`](./examples/agent-board) — a real feature: live board of
   every agent across workspaces (working / needs you / done), built on
-  `agent.lifecycle` events. ~200 lines.
+  `agent.lifecycle` events, with card selection synced pane ↔ tab via `postMessage`.
+- [`examples/flock`](./examples/flock) — pure fun: a canvas pasture where every agent
+  is a pixel sheep whose behavior tracks its status.
+- [`examples/fleet-review`](./examples/fleet-review) — the full-trust showcase: shells
+  `git diff` inside every worktree and renders a cross-workspace review queue.
+- [`examples/agent-usage`](./examples/agent-usage) — animated per-agent gauges
+  (turns, events, blocked count, rolling activity) from lifecycle events.
+
+Each example ships source only — run `superset plugin build .` in its directory (plus
+`bunx esbuild src/server.ts --bundle --format=esm --platform=node --outfile=dist/server.js`
+where a prebuilt backend is referenced) before linking.
 
 ## Current limits (honest list)
 
