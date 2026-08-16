@@ -2,6 +2,7 @@ import { Tabs, TabsList, TabsTrigger } from "@superset/ui/tabs";
 import { cn } from "@superset/ui/utils";
 import { useState } from "react";
 import { useHostUsageHistory } from "../../hooks/useHostUsageHistory";
+import { SectionPanel } from "../SectionPanel";
 import { UsageAreaChart } from "./components/UsageAreaChart";
 import { UsageMetricTiles } from "./components/UsageMetricTiles";
 import { UsageModelTable } from "./components/UsageModelTable";
@@ -12,7 +13,7 @@ import {
 	PROVIDER_ORDER,
 	RANGE_OPTIONS,
 } from "./constants";
-import { formatTokens, formatUsd } from "./utils/formatUsage";
+import { formatDayLabel, formatTokens, formatUsd } from "./utils/formatUsage";
 
 export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 	const [days, setDays] = useState<number>(30);
@@ -20,11 +21,19 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 	const historyQuery = useHostUsageHistory(hostUrl, days);
 	const history = historyQuery.data ?? null;
 
+	const firstDay = history?.buckets[0]?.day;
+	const lastDay = history?.buckets[history.buckets.length - 1]?.day;
+	const caption =
+		firstDay && lastDay && history
+			? `${formatDayLabel(firstDay)} – ${formatDayLabel(lastDay)} · estimated from local session logs at API list rates (updated ${history.pricingTableUpdated})`
+			: "Estimated from this host's local session logs at API list rates.";
+
 	return (
-		<div className="flex flex-col gap-4">
-			<div className="flex items-center gap-2">
-				<h2 className="text-sm font-semibold">Token usage</h2>
-				<div className="ml-auto flex items-center gap-2">
+		<SectionPanel
+			title="Token usage"
+			caption={caption}
+			actions={
+				<>
 					<Tabs
 						value={metric}
 						onValueChange={(value) => setMetric(value as HistoryMetric)}
@@ -54,9 +63,9 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 							))}
 						</TabsList>
 					</Tabs>
-				</div>
-			</div>
-
+				</>
+			}
+		>
 			{!history ? (
 				<div className="py-10 text-center text-sm text-muted-foreground">
 					{historyQuery.isError
@@ -64,7 +73,7 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 						: "Scanning transcript logs…"}
 				</div>
 			) : (
-				<>
+				<div className="flex flex-col gap-4">
 					<div
 						className={cn(
 							"grid gap-6 md:grid-cols-[16rem_1fr]",
@@ -83,6 +92,11 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 										? "* if billed at full API rate"
 										: "input, cache and output tokens"}
 								</div>
+								{metric === "usd" && (
+									<div className="mt-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+										Cost to you: $0 — covered by your subscriptions
+									</div>
+								)}
 							</div>
 							<div className="flex flex-col gap-2.5">
 								{PROVIDER_ORDER.map((provider) => {
@@ -160,14 +174,8 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 							<UsageProjectBars history={history} />
 						</div>
 					</div>
-
-					<div className="text-center text-[10px] text-muted-foreground">
-						Estimated from this host's local session logs at API list rates
-						(updated {history.pricingTableUpdated}) — not money spent;
-						subscriptions bill separately.
-					</div>
-				</>
+				</div>
 			)}
-		</div>
+		</SectionPanel>
 	);
 }

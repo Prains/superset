@@ -50,6 +50,21 @@ export function UsageModelTable({ history }: { history: UsageHistory }) {
 						</tr>
 					))}
 				</tbody>
+				<tfoot>
+					<tr className="border-t bg-muted/30 font-medium">
+						<td className="px-3 py-1.5">Total</td>
+						<td className="px-3 py-1.5 text-right tabular-nums">
+							{history.totals.approximate ? "~" : ""}
+							{formatUsd(totalUsd)}
+						</td>
+						<td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+							100%
+						</td>
+						<td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+							{formatTokens(history.totals.tokens)}
+						</td>
+					</tr>
+				</tfoot>
 			</table>
 		</div>
 	);

@@ -6,11 +6,13 @@ import {
 	getPresetIcon,
 	useIsDarkTheme,
 } from "renderer/assets/app-icons/preset-icons";
+import { SupersetIcon } from "renderer/components/SupersetIcon";
 import type {
 	UsageAccount,
 	UsageQuotaWindow,
 } from "../../hooks/useHostUsageQuota";
 import { useHostUsageQuota } from "../../hooks/useHostUsageQuota";
+import { SectionPanel } from "../SectionPanel";
 import { UsageHistorySection } from "../UsageHistorySection";
 import { formatResetLabel } from "./utils/formatResetIn";
 
@@ -138,59 +140,69 @@ export function UsageView({ hostUrl }: { hostUrl: string | null }) {
 	const isBusy = quotaQuery.isFetching || isRefreshing;
 
 	return (
-		<div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-6">
-			<div className="flex items-center gap-2">
-				<h1 className="text-base font-semibold">Usage</h1>
-				{quotaQuery.dataUpdatedAt > 0 && (
-					<span className="ml-auto text-[11px] text-muted-foreground">
-						{updatedAgoMinutes < 1
-							? "Updated just now"
-							: `Updated ${updatedAgoMinutes}m ago`}
-					</span>
-				)}
-				<Button
-					variant="ghost"
-					size="icon"
-					className="size-7"
-					disabled={isBusy || !hostUrl}
-					onClick={() => {
-						setIsRefreshing(true);
-						void quotaQuery.refresh().finally(() => setIsRefreshing(false));
-					}}
-				>
-					<LuRefreshCw className={cn("size-3.5", isBusy && "animate-spin")} />
-				</Button>
-			</div>
-			{quotaQuery.isPending ? (
-				<div className="py-8 text-center text-sm text-muted-foreground">
-					Reading subscription usage…
-				</div>
-			) : accounts.length === 0 ? (
-				<div className="py-8 text-center text-sm text-muted-foreground">
-					No AI subscription logins found on this host.
-					<div className="mt-1 text-xs">
-						Sign in to Claude Code or Codex on this machine and usage will
-						appear here.
-					</div>
-				</div>
-			) : (
-				providers.map((provider) => (
-					<ProviderSection
-						key={provider}
-						provider={provider}
-						accounts={accounts.filter(
-							(account) => account.provider === provider,
-						)}
-					/>
-				))
-			)}
-			<div className="text-center text-[10px] text-muted-foreground">
-				Read from the CLI logins on this host. Refreshes every minute.
+		<div className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-6">
+			<div className="flex items-center gap-2.5">
+				<SupersetIcon className="h-5 w-auto text-foreground" />
+				<h1 className="text-lg font-semibold tracking-tight">Usage</h1>
 			</div>
 
-			<div className="mt-2 border-t pt-6">
-				<UsageHistorySection hostUrl={hostUrl} />
-			</div>
+			<SectionPanel
+				title="Plan limits"
+				caption="Official quota from the provider logins on this host — refreshes every minute."
+				actions={
+					<>
+						{quotaQuery.dataUpdatedAt > 0 && (
+							<span className="text-[11px] text-muted-foreground">
+								{updatedAgoMinutes < 1
+									? "Updated just now"
+									: `Updated ${updatedAgoMinutes}m ago`}
+							</span>
+						)}
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-7"
+							disabled={isBusy || !hostUrl}
+							onClick={() => {
+								setIsRefreshing(true);
+								void quotaQuery.refresh().finally(() => setIsRefreshing(false));
+							}}
+						>
+							<LuRefreshCw
+								className={cn("size-3.5", isBusy && "animate-spin")}
+							/>
+						</Button>
+					</>
+				}
+			>
+				{quotaQuery.isPending ? (
+					<div className="py-8 text-center text-sm text-muted-foreground">
+						Reading subscription usage…
+					</div>
+				) : accounts.length === 0 ? (
+					<div className="py-8 text-center text-sm text-muted-foreground">
+						No AI subscription logins found on this host.
+						<div className="mt-1 text-xs">
+							Sign in to Claude Code or Codex on this machine and usage will
+							appear here.
+						</div>
+					</div>
+				) : (
+					<div className="grid gap-4 md:grid-cols-2">
+						{providers.map((provider) => (
+							<ProviderSection
+								key={provider}
+								provider={provider}
+								accounts={accounts.filter(
+									(account) => account.provider === provider,
+								)}
+							/>
+						))}
+					</div>
+				)}
+			</SectionPanel>
+
+			<UsageHistorySection hostUrl={hostUrl} />
 		</div>
 	);
 }
