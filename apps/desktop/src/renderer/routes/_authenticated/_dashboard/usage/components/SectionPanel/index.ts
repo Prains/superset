@@ -1,1 +1,0 @@
-export { SectionPanel } from "./SectionPanel";

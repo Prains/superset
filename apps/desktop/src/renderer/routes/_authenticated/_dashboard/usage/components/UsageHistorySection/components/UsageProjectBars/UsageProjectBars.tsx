@@ -1,7 +1,7 @@
 import type { UsageHistory } from "../../../../hooks/useHostUsageHistory";
 import { formatTokens, formatUsd } from "../../utils/formatUsage";
 
-const MAX_ROWS = 6;
+const MAX_ROWS = 4;
 
 /**
  * Top projects by cost — the attribution no menu-bar tracker has. Project =
@@ -13,10 +13,14 @@ export function UsageProjectBars({ history }: { history: UsageHistory }) {
 	const maxUsd = rows[0]?.usd ?? 0;
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div className="flex flex-col gap-1.5">
+			<div className="flex items-baseline justify-between border-b py-1 text-[11px] text-muted-foreground">
+				<span className="font-medium">Project</span>
+				<span className="font-medium">Cost</span>
+			</div>
 			{rows.map((row) => (
-				<div key={row.project} className="flex flex-col gap-1">
-					<div className="flex items-baseline justify-between gap-3 text-xs">
+				<div key={row.project} className="flex flex-col gap-0.5">
+					<div className="flex items-baseline justify-between gap-3 text-[11px]">
 						<span className="min-w-0 truncate">{row.project}</span>
 						<span className="flex shrink-0 items-baseline gap-2 tabular-nums">
 							<span className="text-muted-foreground">
@@ -25,7 +29,7 @@ export function UsageProjectBars({ history }: { history: UsageHistory }) {
 							<span>{formatUsd(row.usd)}</span>
 						</span>
 					</div>
-					<div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+					<div className="h-0.5 w-full overflow-hidden rounded-full bg-muted">
 						<div
 							className="h-full rounded-full bg-primary/60"
 							style={{

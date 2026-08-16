@@ -1,25 +1,18 @@
 import type { UsageHistory } from "../../../../hooks/useHostUsageHistory";
 import { formatTokens, formatUsd } from "../../utils/formatUsage";
 
-function Tile({
-	label,
-	value,
-	detail,
-}: {
-	label: string;
-	value: string;
-	detail: string;
-}) {
+function Stat({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="flex flex-col gap-0.5 bg-background p-3">
-			<span className="text-[11px] text-muted-foreground">{label}</span>
-			<span className="text-lg font-semibold tabular-nums">{value}</span>
-			<span className="text-[11px] text-muted-foreground">{detail}</span>
+		<div className="flex min-w-0 flex-col">
+			<span className="truncate text-[10px] text-muted-foreground">
+				{label}
+			</span>
+			<span className="text-sm font-medium tabular-nums">{value}</span>
 		</div>
 	);
 }
 
-/** T3-style hairline metric strip: label / value / detail per tile. */
+/** One-line stat strip — five numbers, no chrome. */
 export function UsageMetricTiles({ history }: { history: UsageHistory }) {
 	const { totals } = history;
 	const observedInput =
@@ -28,38 +21,21 @@ export function UsageMetricTiles({ history }: { history: UsageHistory }) {
 		observedInput > 0
 			? Math.round((100 * totals.cachedInput) / observedInput)
 			: 0;
-	const activeDays = history.buckets.filter((b) => b.tokens > 0).length;
-	const perActiveDay =
-		activeDays > 0 ? formatTokens(totals.tokens / activeDays) : "0";
 	const savingsMultiple =
 		totals.usd > 0 ? (totals.cacheSavingsUsd / totals.usd).toFixed(1) : "0";
 
 	return (
-		<div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border md:grid-cols-5">
-			<Tile
-				label="Processed tokens"
-				value={formatTokens(totals.tokens)}
-				detail={`${perActiveDay} per active day`}
-			/>
-			<Tile
+		<div className="grid grid-cols-3 gap-x-4 gap-y-1 border-y py-2 md:grid-cols-5">
+			<Stat label="Processed tokens" value={formatTokens(totals.tokens)} />
+			<Stat
 				label="Cached input"
-				value={formatTokens(totals.cachedInput)}
-				detail={`${cachedShare}% of observed input`}
+				value={`${formatTokens(totals.cachedInput)} · ${cachedShare}%`}
 			/>
-			<Tile
-				label="Uncached input"
-				value={formatTokens(totals.uncachedInput)}
-				detail={`${formatTokens(totals.cacheWrite)} cache writes`}
-			/>
-			<Tile
-				label="Output"
-				value={formatTokens(totals.output)}
-				detail={`includes ${formatTokens(totals.reasoningOutput)} reasoning`}
-			/>
-			<Tile
+			<Stat label="Uncached input" value={formatTokens(totals.uncachedInput)} />
+			<Stat label="Output" value={formatTokens(totals.output)} />
+			<Stat
 				label="Cache savings"
-				value={formatUsd(totals.cacheSavingsUsd)}
-				detail={`${savingsMultiple}x the raw token cost`}
+				value={`${formatUsd(totals.cacheSavingsUsd)} · ${savingsMultiple}x`}
 			/>
 		</div>
 	);

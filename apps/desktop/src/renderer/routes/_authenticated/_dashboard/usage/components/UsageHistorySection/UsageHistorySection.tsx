@@ -2,7 +2,6 @@ import { Tabs, TabsList, TabsTrigger } from "@superset/ui/tabs";
 import { cn } from "@superset/ui/utils";
 import { useState } from "react";
 import { useHostUsageHistory } from "../../hooks/useHostUsageHistory";
-import { SectionPanel } from "../SectionPanel";
 import { UsageAreaChart } from "./components/UsageAreaChart";
 import { UsageMetricTiles } from "./components/UsageMetricTiles";
 import { UsageModelTable } from "./components/UsageModelTable";
@@ -23,26 +22,29 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 
 	const firstDay = history?.buckets[0]?.day;
 	const lastDay = history?.buckets[history.buckets.length - 1]?.day;
-	const caption =
-		firstDay && lastDay && history
-			? `${formatDayLabel(firstDay)} – ${formatDayLabel(lastDay)} · estimated from local session logs at API list rates (updated ${history.pricingTableUpdated})`
-			: "Estimated from this host's local session logs at API list rates.";
 
 	return (
-		<SectionPanel
-			title="Token usage"
-			caption={caption}
-			actions={
-				<>
+		<div className="flex flex-col gap-3 border-t pt-3">
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+				<h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+					Token usage
+				</h2>
+				{firstDay && lastDay && (
+					<span className="text-[10px] text-muted-foreground">
+						{formatDayLabel(firstDay)} – {formatDayLabel(lastDay)} · API-rate
+						estimate from local session logs
+					</span>
+				)}
+				<div className="ml-auto flex items-center gap-1.5">
 					<Tabs
 						value={metric}
 						onValueChange={(value) => setMetric(value as HistoryMetric)}
 					>
-						<TabsList className="h-7">
-							<TabsTrigger value="usd" className="h-5 px-2 text-[11px]">
+						<TabsList className="h-6">
+							<TabsTrigger value="usd" className="h-4 px-1.5 text-[10px]">
 								Cost
 							</TabsTrigger>
-							<TabsTrigger value="tokens" className="h-5 px-2 text-[11px]">
+							<TabsTrigger value="tokens" className="h-4 px-1.5 text-[10px]">
 								Tokens
 							</TabsTrigger>
 						</TabsList>
@@ -51,54 +53,54 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 						value={String(days)}
 						onValueChange={(value) => setDays(Number(value))}
 					>
-						<TabsList className="h-7">
+						<TabsList className="h-6">
 							{RANGE_OPTIONS.map((option) => (
 								<TabsTrigger
 									key={option}
 									value={String(option)}
-									className="h-5 px-2 text-[11px]"
+									className="h-4 px-1.5 text-[10px]"
 								>
 									{option}d
 								</TabsTrigger>
 							))}
 						</TabsList>
 					</Tabs>
-				</>
-			}
-		>
+				</div>
+			</div>
+
 			{!history ? (
-				<div className="py-10 text-center text-sm text-muted-foreground">
+				<div className="py-6 text-center text-xs text-muted-foreground">
 					{historyQuery.isError
 						? "Couldn't read usage history from this host."
 						: "Scanning transcript logs…"}
 				</div>
 			) : (
-				<div className="flex flex-col gap-4">
-					<div
-						className={cn(
-							"grid gap-6 md:grid-cols-[16rem_1fr]",
-							historyQuery.isFetching && "opacity-70",
-						)}
-					>
-						<div className="flex flex-col gap-3">
+				<div
+					className={cn(
+						"flex flex-col gap-3",
+						historyQuery.isFetching && "opacity-70",
+					)}
+				>
+					<div className="grid gap-4 md:grid-cols-[13rem_1fr]">
+						<div className="flex flex-col gap-2">
 							<div>
-								<div className="text-4xl font-semibold tabular-nums">
+								<div className="text-2xl font-semibold tabular-nums leading-tight">
 									{metric === "usd"
 										? `${formatUsd(history.totals.usd)}*`
 										: formatTokens(history.totals.tokens)}
 								</div>
-								<div className="mt-1 text-xs text-muted-foreground">
+								<div className="text-[10px] text-muted-foreground">
 									{metric === "usd"
 										? "* if billed at full API rate"
 										: "input, cache and output tokens"}
 								</div>
 								{metric === "usd" && (
-									<div className="mt-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-										Cost to you: $0 — covered by your subscriptions
+									<div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+										Cost to you: $0
 									</div>
 								)}
 							</div>
-							<div className="flex flex-col gap-2.5">
+							<div className="flex flex-col gap-1.5">
 								{PROVIDER_ORDER.map((provider) => {
 									const totalsFor = history.buckets.reduce(
 										(acc, bucket) => {
@@ -119,36 +121,26 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 												denominator
 											: 0;
 									return (
-										<div key={provider} className="flex flex-col gap-1">
-											<div className="flex items-baseline justify-between gap-2 text-xs">
-												<span className="flex items-center gap-1.5">
-													<span
-														className="size-2 rounded-[2px]"
-														style={{
-															background: PROVIDER_CHART_CONFIG[provider].color,
-														}}
-													/>
-													{PROVIDER_CHART_CONFIG[provider].label}
-												</span>
-												<span className="tabular-nums">
-													{metric === "usd"
-														? formatUsd(totalsFor.usd)
-														: formatTokens(totalsFor.tokens)}
-												</span>
-											</div>
-											<div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-												<div
-													className="h-full rounded-full"
-													style={{
-														width: `${Math.max(share > 0 ? 1 : 0, 100 * share)}%`,
-														background: PROVIDER_CHART_CONFIG[provider].color,
-													}}
-												/>
-											</div>
-											<span className="text-[11px] text-muted-foreground tabular-nums">
-												{Math.round(100 * share)}% of{" "}
-												{metric === "usd" ? "cost" : "tokens"} ·{" "}
-												{formatTokens(totalsFor.tokens)} tokens
+										<div
+											key={provider}
+											className="flex items-center gap-1.5 text-[11px]"
+										>
+											<span
+												className="size-2 shrink-0 rounded-[2px]"
+												style={{
+													background: PROVIDER_CHART_CONFIG[provider].color,
+												}}
+											/>
+											<span className="min-w-0 truncate">
+												{PROVIDER_CHART_CONFIG[provider].label}
+											</span>
+											<span className="ml-auto shrink-0 tabular-nums">
+												{metric === "usd"
+													? formatUsd(totalsFor.usd)
+													: formatTokens(totalsFor.tokens)}
+											</span>
+											<span className="w-8 shrink-0 text-right tabular-nums text-muted-foreground">
+												{Math.round(100 * share)}%
 											</span>
 										</div>
 									);
@@ -161,21 +153,11 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 					<UsageMetricTiles history={history} />
 
 					<div className="grid gap-4 md:grid-cols-2">
-						<div className="flex min-w-0 flex-col gap-2">
-							<h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-								By model
-							</h3>
-							<UsageModelTable history={history} />
-						</div>
-						<div className="flex min-w-0 flex-col gap-2">
-							<h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-								By project
-							</h3>
-							<UsageProjectBars history={history} />
-						</div>
+						<UsageModelTable history={history} />
+						<UsageProjectBars history={history} />
 					</div>
 				</div>
 			)}
-		</SectionPanel>
+		</div>
 	);
 }

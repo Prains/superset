@@ -49,8 +49,8 @@ export function UsageAreaChart({
 			: undefined;
 
 	return (
-		<div className="flex flex-col gap-2">
-			<ChartContainer config={PROVIDER_CHART_CONFIG} className="h-56 w-full">
+		<div className="flex flex-col">
+			<ChartContainer config={PROVIDER_CHART_CONFIG} className="h-36 w-full">
 				<AreaChart data={data} margin={{ left: 4, right: 4, top: 4 }}>
 					<CartesianGrid vertical={false} strokeOpacity={0.35} />
 					<XAxis
@@ -111,20 +111,6 @@ export function UsageAreaChart({
 					))}
 				</AreaChart>
 			</ChartContainer>
-			<div className="flex items-center justify-center gap-4">
-				{PROVIDER_ORDER.map((provider) => (
-					<span
-						key={provider}
-						className="flex items-center gap-1.5 text-xs text-muted-foreground"
-					>
-						<span
-							className="size-2 rounded-[2px]"
-							style={{ background: PROVIDER_CHART_CONFIG[provider].color }}
-						/>
-						{PROVIDER_CHART_CONFIG[provider].label}
-					</span>
-				))}
-			</div>
 		</div>
 	);
 }
