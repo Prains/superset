@@ -21,6 +21,8 @@ const commandRunSchema = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("action"), action: z.string().min(1) }),
 	// Opens one of the plugin's contributed sidebar tabs.
 	z.object({ type: z.literal("open-sidebar-tab"), tabId: z.string().min(1) }),
+	// Opens (or focuses) one of the plugin's contributed pane kinds.
+	z.object({ type: z.literal("open-pane"), kind: z.string().min(1) }),
 ]);
 
 const commandContributionSchema = z.object({
@@ -167,6 +169,14 @@ export function parsePluginManifest(raw: unknown): ParsedPluginManifest {
 			if (!tabs.some((t) => t.id === run.tabId)) {
 				throw new Error(
 					`Invalid ${PLUGIN_MANIFEST_FILENAME}: command "${command.id}" opens unknown sidebar tab "${run.tabId}"`,
+				);
+			}
+		}
+		if (run.type === "open-pane") {
+			const panes = manifest.contributes?.panes ?? [];
+			if (!panes.some((p) => p.kind === run.kind)) {
+				throw new Error(
+					`Invalid ${PLUGIN_MANIFEST_FILENAME}: command "${command.id}" opens unknown pane kind "${run.kind}"`,
 				);
 			}
 		}

@@ -12,6 +12,15 @@ export interface PluginUiContext {
 	invokeAction(name: string, params?: unknown): Promise<unknown>;
 	/** Payloads published by the plugin backend via `api.realtime.publish`. */
 	onRealtime(handler: (payload: unknown) => void): Unsubscribe;
+	/**
+	 * Broadcast to this plugin's OTHER mounted surfaces in the same workspace
+	 * (pane ↔ sidebar tab), renderer-local — no server round-trip. For
+	 * cross-window or cross-machine fan-out use the backend's
+	 * `api.realtime.publish` instead.
+	 */
+	postMessage(payload: unknown): void;
+	/** Messages posted by this plugin's other mounted surfaces. */
+	onMessage(handler: (payload: unknown) => void): Unsubscribe;
 }
 
 export interface PluginSlotProps {

@@ -9,6 +9,11 @@ import {
 	useRef,
 	useState,
 } from "react";
+import {
+	allocPluginMountId,
+	publishPluginLocal,
+	subscribePluginLocal,
+} from "../pluginLocalBus";
 import { loadPluginModule } from "../pluginModules";
 
 interface PluginSlotMountProps {
@@ -86,6 +91,8 @@ export function PluginSlotMount({
 		};
 	}, [pluginId, bundleVersion, componentName, utils]);
 
+	const mountIdRef = useRef(0);
+	if (mountIdRef.current === 0) mountIdRef.current = allocPluginMountId();
 	const realtimeHandlers = useRef(new Set<(payload: unknown) => void>());
 	usePluginEvents(pluginId, (_id, event) => {
 		for (const handler of realtimeHandlers.current) {
@@ -114,6 +121,16 @@ export function PluginSlotMount({
 					realtimeHandlers.current.delete(handler);
 				};
 			},
+			postMessage: (payload) => {
+				publishPluginLocal(pluginId, workspaceId, mountIdRef.current, payload);
+			},
+			onMessage: (handler) =>
+				subscribePluginLocal(
+					pluginId,
+					workspaceId,
+					mountIdRef.current,
+					handler,
+				),
 		}),
 		[pluginId, workspaceId, utils],
 	);

@@ -296,7 +296,7 @@ function V2WorkspaceContent() {
 
 	return (
 		<FileDocumentStoreProvider>
-			<PluginPaletteBridge workspaceId={workspaceId} />
+			<PluginPaletteBridge workspaceId={workspaceId} store={store} />
 			<WorkspaceGitStatusProvider
 				workspaceId={workspaceId}
 				store={store}

@@ -78,9 +78,9 @@ target must exist in `sidebarTabs`. Schema source of truth:
 | Point | What it does | Runs code? |
 |---|---|---|
 | `sidebarTabs` | A tab in the workspace right sidebar rendering your `app` component | UI |
-| `commands` | Command-palette entries; `run` either invokes a backend action or opens one of your tabs | backend / none |
+| `panes` | A full pane kind in the workspace pane grid (splittable, persists in the layout); open it via an `open-pane` command | UI |
+| `commands` | Command-palette entries; `run` invokes a backend action (`action`), opens a tab (`open-sidebar-tab`), or opens/focuses a pane (`open-pane`) | backend / none |
 | `events` | Spawn an argv command on a lifecycle event, with `SUPERSET_PLUGIN_*` env context — no backend needed | child process |
-| `panes` | Reserved (schema exists; the pane slot is not wired yet) | — |
 | `themes` | Reserved (not wired yet) | — |
 
 ## Backend (`server` entry)
@@ -149,6 +149,8 @@ export function BoardTab({ ctx }: PluginSlotProps) {
 	// ctx.pluginId, ctx.workspaceId
 	// ctx.invokeAction(name, params?) → your backend action
 	// ctx.onRealtime(handler) → payloads from api.realtime.publish (returns unsubscribe)
+	// ctx.postMessage(payload) / ctx.onMessage(handler) → your plugin's OTHER
+	//   mounted surfaces in this workspace (pane ↔ sidebar tab), renderer-local
 	const [state, setState] = useState<unknown>(null);
 	useEffect(() => ctx.onRealtime(setState), [ctx]);
 	return <div style={{ padding: 16 }}>{JSON.stringify(state)}</div>;
@@ -156,6 +158,13 @@ export function BoardTab({ ctx }: PluginSlotProps) {
 ```
 
 The `ctx` prop contract is additive-only within an SDK major.
+
+**Talking between your surfaces.** Two channels, pick by scope: `ctx.postMessage` /
+`ctx.onMessage` is renderer-local pub/sub between this plugin's mounted surfaces in the
+same workspace (instant, no server) — the agent-board example syncs card selection
+between its pane and its sidebar tab this way. `api.realtime.publish` → `ctx.onRealtime`
+goes through the host and reaches every window and machine attached to the host, and is
+the only channel the backend can send on.
 
 ## Installing plugins
 
@@ -185,8 +194,8 @@ deleted.
 
 ## Current limits (honest list)
 
-- Slots today: right-sidebar tab + palette commands. Pane kinds, file views, settings
-  pages, and keybindings are schema-reserved but not wired.
+- Slots today: right-sidebar tab, pane kinds, palette commands. File views, settings
+  pages, and keybindings are not wired yet.
 - `permissions` are declared and shown at install, not yet enforced — the backend runs
   with the host-service's full capability.
 - No marketplace/registry yet; install is path/git only.
