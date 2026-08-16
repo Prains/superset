@@ -169,6 +169,13 @@
       "when": 1786681360097,
       "tag": "0023_gorgeous_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1786904052884,
+      "tag": "0025_restore_workspace_cloud_synced_at",
+      "breakpoints": true
     }
   ]
 }

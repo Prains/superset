@@ -1,0 +1,1 @@
+ALTER TABLE `workspaces` ADD `cloud_synced_at` integer;
