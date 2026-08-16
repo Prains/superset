@@ -1,0 +1,40 @@
+import type { UsageHistory } from "../../../../hooks/useHostUsageHistory";
+import { formatTokens, formatUsd } from "../../utils/formatUsage";
+
+const MAX_ROWS = 6;
+
+/**
+ * Top projects by cost — the attribution no menu-bar tracker has. Project =
+ * the working directory agents ran in.
+ */
+export function UsageProjectBars({ history }: { history: UsageHistory }) {
+	const rows = history.projects.slice(0, MAX_ROWS);
+	if (rows.length === 0) return null;
+	const maxUsd = rows[0]?.usd ?? 0;
+
+	return (
+		<div className="flex flex-col gap-2">
+			{rows.map((row) => (
+				<div key={row.project} className="flex flex-col gap-1">
+					<div className="flex items-baseline justify-between gap-3 text-xs">
+						<span className="min-w-0 truncate">{row.project}</span>
+						<span className="flex shrink-0 items-baseline gap-2 tabular-nums">
+							<span className="text-muted-foreground">
+								{formatTokens(row.tokens)}
+							</span>
+							<span>{formatUsd(row.usd)}</span>
+						</span>
+					</div>
+					<div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+						<div
+							className="h-full rounded-full bg-primary/60"
+							style={{
+								width: `${maxUsd > 0 ? Math.max(1, (100 * row.usd) / maxUsd) : 0}%`,
+							}}
+						/>
+					</div>
+				</div>
+			))}
+		</div>
+	);
+}
