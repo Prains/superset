@@ -80,14 +80,13 @@ export const usageRouter = router({
 							id: projects.id,
 							repoPath: projects.repoPath,
 							name: projects.name,
-							repoName: projects.repoName,
 						})
 						.from(projects)
 						.all();
 					const projectNameById = new Map(
 						projectRows.map((row) => [
 							row.id,
-							row.name || row.repoName || basename(row.repoPath),
+							row.name || basename(row.repoPath),
 						]),
 					);
 					const cwdLabels = [
@@ -102,7 +101,7 @@ export const usageRouter = router({
 						// A repo checkout groups with its own project so the project
 						// rollup includes work done directly in the main checkout.
 						...projectRows.map((row) => {
-							const label = row.name || row.repoName || basename(row.repoPath);
+							const label = row.name || basename(row.repoPath);
 							return {
 								prefix: row.repoPath,
 								label,

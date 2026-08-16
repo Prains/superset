@@ -121,7 +121,11 @@ export function UsageView({ hostUrl }: { hostUrl: string | null }) {
 					disabled={isBusy || !hostUrl}
 					onClick={() => {
 						setIsRefreshing(true);
-						void quotaQuery.refresh().finally(() => setIsRefreshing(false));
+						void quotaQuery
+							.refresh()
+							// A failed refresh keeps the last good data; the next poll retries.
+							.catch(() => {})
+							.finally(() => setIsRefreshing(false));
 					}}
 				>
 					<LuRefreshCw className={cn("size-3", isBusy && "animate-spin")} />
