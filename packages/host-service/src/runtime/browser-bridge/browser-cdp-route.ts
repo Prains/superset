@@ -26,8 +26,13 @@ export function registerBrowserCdpRoute({
 			const workspaceId = c.req.query("workspaceId") ?? "";
 			const bridge = getBridge();
 			let upstream: WebSocket | null = null;
-			// Frames the client sends before the upstream socket is open.
+			// Frames the client sends before the upstream socket is open. Bounded
+			// so a client can't grow host memory without limit if the upstream
+			// stalls; overflow closes the socket (1009 = message too big).
 			const pending: string[] = [];
+			let pendingBytes = 0;
+			const MAX_PENDING_FRAMES = 64;
+			const MAX_PENDING_BYTES = 4 * 1024 * 1024;
 
 			return {
 				onOpen: (_event, ws) => {
@@ -57,14 +62,25 @@ export function registerBrowserCdpRoute({
 						ws.close(1011, "Bridge CDP connection failed");
 					});
 				},
-				onMessage: (event, _ws) => {
+				onMessage: (event, ws) => {
 					const data =
 						typeof event.data === "string" ? event.data : String(event.data);
 					if (upstream && upstream.readyState === WebSocket.OPEN) {
 						upstream.send(data);
-					} else {
-						pending.push(data);
+						return;
 					}
+					pendingBytes += data.length;
+					if (
+						pending.length >= MAX_PENDING_FRAMES ||
+						pendingBytes > MAX_PENDING_BYTES
+					) {
+						ws.close(1009, "CDP frame backlog exceeded");
+						upstream?.close();
+						upstream = null;
+						pending.length = 0;
+						return;
+					}
+					pending.push(data);
 				},
 				onClose: () => {
 					upstream?.close();

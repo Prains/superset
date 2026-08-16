@@ -23,6 +23,8 @@ interface RegistryEntry {
 	webview: Electron.WebviewTag;
 	state: BrowserRuntimeState;
 	onPersist: ((state: PersistableBrowserState) => void) | null;
+	/** Owning workspace — sent on register so the main process scopes pane ops. */
+	workspaceId: string;
 	webContentsId: number | null;
 	detachHandlers: () => void;
 	placeholder: HTMLElement | null;
@@ -223,6 +225,7 @@ class BrowserRuntimeRegistryImpl {
 			webview,
 			state: { ...EMPTY_STATE, currentUrl: initialUrl },
 			onPersist: null,
+			workspaceId,
 			webContentsId: null,
 			detachHandlers: () => {},
 			placeholder: null,
@@ -244,7 +247,7 @@ class BrowserRuntimeRegistryImpl {
 			if (entry.webContentsId !== webContentsId) {
 				entry.webContentsId = webContentsId;
 				electronTrpcClient.browser.register
-					.mutate({ paneId, webContentsId, workspaceId })
+					.mutate({ paneId, webContentsId, workspaceId: entry.workspaceId })
 					.catch((err) => {
 						console.error("[browserRuntimeRegistry] register failed:", err);
 					});
@@ -394,6 +397,26 @@ class BrowserRuntimeRegistryImpl {
 			this.entries.set(paneId, entry);
 			root.appendChild(entry.webview);
 		} else {
+			// A reused pane can move between workspaces (the attach effect keys on
+			// workspaceId). Keep the registration's workspace current so main-side
+			// pane scoping addresses it under the new workspace, not the old one.
+			if (entry.workspaceId !== workspaceId) {
+				entry.workspaceId = workspaceId;
+				if (entry.webContentsId != null) {
+					electronTrpcClient.browser.register
+						.mutate({
+							paneId,
+							webContentsId: entry.webContentsId,
+							workspaceId,
+						})
+						.catch((err) => {
+							console.error(
+								"[browserRuntimeRegistry] re-register failed:",
+								err,
+							);
+						});
+				}
+			}
 			this.refreshNavState(paneId);
 		}
 		entry.onPersist = onPersist;

@@ -1,4 +1,4 @@
-import { string } from "@superset/cli-framework";
+import { CLIError, string } from "@superset/cli-framework";
 import { command } from "../../../lib/command";
 import { resolveBrowserTarget } from "../shared";
 
@@ -12,6 +12,16 @@ export default command({
 	},
 	run: async ({ ctx, options }) => {
 		const { client } = await resolveBrowserTarget(ctx, options);
+		// Reject typos rather than silently falling back to current-tab.
+		if (
+			options.target &&
+			!["current-tab", "new-tab"].includes(options.target)
+		) {
+			throw new CLIError(
+				`Invalid --target: ${options.target}`,
+				"Use `current-tab` or `new-tab`",
+			);
+		}
 		const target = options.target === "new-tab" ? "new-tab" : "current-tab";
 		const result = await client.browser.open.mutate({
 			workspaceId: options.workspace,

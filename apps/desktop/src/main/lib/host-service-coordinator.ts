@@ -691,9 +691,13 @@ export class HostServiceCoordinator extends EventEmitter {
 			status: "starting",
 			spawnedAt: Date.now(),
 			outputTail: "",
-			redactions: [secret, config.authToken].filter((value): value is string =>
-				Boolean(value),
-			),
+			// Redact every live credential in the child env from crash tails
+			// shipped to Sentry — incl. the browser-bridge secret.
+			redactions: [
+				secret,
+				config.authToken,
+				getBrowserBridgeInfo()?.secret,
+			].filter((value): value is string => Boolean(value)),
 			owned: true,
 		};
 		this.instances.set(organizationId, instance);

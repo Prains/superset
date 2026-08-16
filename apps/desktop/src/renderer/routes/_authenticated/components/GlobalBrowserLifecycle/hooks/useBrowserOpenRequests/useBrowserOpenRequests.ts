@@ -24,12 +24,14 @@ export function useBrowserOpenRequests() {
 			undefined,
 			{
 				onData: (request: BrowserOpenRequest) => {
-					void navigateToV2Workspace(request.workspaceId, navigate, {
+					navigateToV2Workspace(request.workspaceId, navigate, {
 						search: {
 							openUrl: request.url,
 							openUrlTarget: request.target,
 							openUrlRequestId: request.requestId,
 						},
+					}).catch((err) => {
+						console.error("[useBrowserOpenRequests] navigate failed:", err);
 					});
 				},
 			},
