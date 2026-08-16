@@ -7,6 +7,7 @@ import {
 	ScrollTextIcon,
 	WrenchIcon,
 } from "lucide-react";
+import { usePresetIcon } from "renderer/assets/app-icons/preset-icons";
 import { track } from "renderer/lib/analytics";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { SAMPLE_PROMPTS } from "../SamplePrompts/constants";
@@ -21,6 +22,24 @@ const CARD_ICONS: Record<string, typeof WrenchIcon> = {
 };
 
 const CARD_COUNT = 4;
+
+/** Overlapping real agent logos — the agent-docs card is about the agents
+ * themselves, so their marks carry more signal than a generic glyph. */
+function AgentLogoCluster() {
+	const claudeIcon = usePresetIcon("claude");
+	const codexIcon = usePresetIcon("codex");
+	if (!claudeIcon || !codexIcon) {
+		return (
+			<ScrollTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
+		);
+	}
+	return (
+		<span className="flex shrink-0 items-center">
+			<img src={claudeIcon} alt="" className="size-3.5 object-contain" />
+			<img src={codexIcon} alt="" className="-ml-1 size-3.5 object-contain" />
+		</span>
+	);
+}
 
 interface SamplePromptCardsProps {
 	hostUrl: string | null;
@@ -56,32 +75,38 @@ export function SamplePromptCards({
 	).slice(0, CARD_COUNT);
 
 	return (
-		<div className="grid grid-cols-2 gap-2 px-1 pb-2">
-			{cards.map((sample) => {
-				const Icon = CARD_ICONS[sample.id] ?? WrenchIcon;
-				return (
-					<button
-						key={sample.id}
-						type="button"
-						className="flex cursor-pointer flex-col items-start gap-1.5 rounded-xl border-[0.5px] border-border bg-foreground/[0.02] p-3 text-left transition-colors hover:border-foreground/20 hover:bg-foreground/[0.05]"
-						onClick={() => {
-							track("new_workspace_sample_prompt_clicked", {
-								prompt_id: sample.id,
-								layout: "cards",
-							});
-							onSelect(sample.prompt);
-						}}
-					>
-						<Icon className="size-3.5 shrink-0 text-muted-foreground" />
-						<span className="text-sm font-medium text-foreground/90">
-							{sample.label}
-						</span>
-						<span className="text-xs text-muted-foreground">
-							{sample.description}
-						</span>
-					</button>
-				);
-			})}
+		<div className="px-1 pb-2">
+			<div className="grid grid-cols-2 gap-1.5 rounded-2xl border-[0.5px] border-border/60 bg-foreground/[0.03] p-1.5">
+				{cards.map((sample) => {
+					const Icon = CARD_ICONS[sample.id] ?? WrenchIcon;
+					return (
+						<button
+							key={sample.id}
+							type="button"
+							className="flex cursor-pointer flex-col items-start gap-1.5 rounded-[11px] bg-background/70 p-3 text-left transition-colors hover:bg-foreground/[0.06]"
+							onClick={() => {
+								track("new_workspace_sample_prompt_clicked", {
+									prompt_id: sample.id,
+									layout: "cards",
+								});
+								onSelect(sample.prompt);
+							}}
+						>
+							{sample.id === "improve-agent-docs" ? (
+								<AgentLogoCluster />
+							) : (
+								<Icon className="size-3.5 shrink-0 text-muted-foreground" />
+							)}
+							<span className="text-sm font-medium text-foreground/90">
+								{sample.label}
+							</span>
+							<span className="text-xs text-muted-foreground">
+								{sample.description}
+							</span>
+						</button>
+					);
+				})}
+			</div>
 		</div>
 	);
 }
