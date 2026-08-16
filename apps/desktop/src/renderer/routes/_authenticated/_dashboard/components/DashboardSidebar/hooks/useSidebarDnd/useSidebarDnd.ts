@@ -633,40 +633,19 @@ export function useSidebarDnd({
 			}
 
 			if (type === "section") {
-				// A section pickup collapses every grouped row, which shrinks the
-				// list and can clamp the scroller's scrollTop in the same frame.
-				// dnd-kit then scroll-compensates the active rect against droppable
-				// rects that were re-measured post-clamp, leaving `over` offset by
-				// the collapsed height for the whole drag. Bypass the cached rect
-				// store: compare the live pointer against live DOM rects, minus
-				// each candidate's own preview translate (using transformed rects
-				// would re-trigger collisions from the displacement they caused).
+				// Stock closestCenter is safe here because SectionDragSpacer keeps
+				// scrollHeight constant at pickup (no scrollTop clamp to desync
+				// dnd-kit's scroll compensation) and the drag-collapse is instant
+				// (the member-unregister re-measure sees the final layout).
 				const container = containerByIdRef.current.get(args.active.id);
-				const pointer = args.pointerCoordinates;
-				if (container == null || pointer == null) return [];
-				let bestId: UniqueIdentifier | null = null;
-				let bestDistance = Number.POSITIVE_INFINITY;
-				for (const candidate of args.droppableContainers) {
-					if (containerByIdRef.current.get(candidate.id) !== container) {
-						continue;
-					}
-					const node = candidate.node.current;
-					if (!node) continue;
-					const rect = node.getBoundingClientRect();
-					if (rect.height === 0) continue;
-					let translateY = 0;
-					const transform = getComputedStyle(node).transform;
-					if (transform && transform !== "none") {
-						translateY = new DOMMatrixReadOnly(transform).m42;
-					}
-					const centerY = rect.top + rect.height / 2 - translateY;
-					const distance = Math.abs(pointer.y - centerY);
-					if (distance < bestDistance) {
-						bestDistance = distance;
-						bestId = candidate.id;
-					}
-				}
-				return bestId != null ? [{ id: bestId }] : [];
+				return closestCenter({
+					...args,
+					droppableContainers: args.droppableContainers.filter(
+						(candidate) =>
+							container != null &&
+							containerByIdRef.current.get(candidate.id) === container,
+					),
+				});
 			}
 
 			if (type === "workspace") {
