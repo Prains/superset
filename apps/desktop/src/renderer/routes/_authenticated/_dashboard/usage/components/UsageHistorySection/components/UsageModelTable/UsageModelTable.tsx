@@ -2,7 +2,7 @@ import type { UsageHistory } from "../../../../hooks/useHostUsageHistory";
 import { PROVIDER_CHART_CONFIG } from "../../constants";
 import { formatTokens, formatUsd } from "../../utils/formatUsage";
 
-const MAX_ROWS = 4;
+const MAX_ROWS = 6;
 
 export function UsageModelTable({ history }: { history: UsageHistory }) {
 	const rows = history.models.slice(0, MAX_ROWS);

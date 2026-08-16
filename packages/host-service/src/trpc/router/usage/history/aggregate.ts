@@ -28,9 +28,18 @@ export interface UsageModelBreakdown {
 	approximate: boolean;
 }
 
+/** Maps a filesystem prefix to a display label for cwd attribution. */
+export interface CwdLabel {
+	prefix: string;
+	label: string;
+	kind: "workspace" | "project";
+}
+
 export interface UsageProjectBreakdown {
-	/** Directory basename of the cwd the work ran in. */
+	/** Workspace/project name when the cwd matched a known worktree or repo
+	 * path; otherwise a directory-derived fallback. */
 	project: string;
+	kind: "workspace" | "project" | "other";
 	usd: number;
 	tokens: number;
 }
@@ -74,8 +83,41 @@ function entryTokens(entry: UsageLogEntry): number {
 	);
 }
 
-export async function computeUsageHistory(days: number): Promise<UsageHistory> {
+/**
+ * Attributes a transcript cwd to a workspace/project. Known prefixes (the
+ * host's own workspace worktrees and project repos) win via longest-prefix
+ * match; unknown paths fall back to the worktree-name segment or basename.
+ */
+function attributeCwd(
+	cwd: string,
+	labelsByLength: CwdLabel[],
+): { label: string; kind: UsageProjectBreakdown["kind"] } {
+	for (const { prefix, label, kind } of labelsByLength) {
+		if (
+			cwd === prefix ||
+			(cwd.startsWith(prefix) && cwd[prefix.length] === "/")
+		) {
+			return { label, kind };
+		}
+	}
+	// `…/worktrees/<container>/<workspace-name>/…` → the workspace name.
+	const segments = cwd.split("/");
+	const worktreesIndex = segments.lastIndexOf("worktrees");
+	if (worktreesIndex >= 0 && segments.length > worktreesIndex + 2) {
+		const name = segments[worktreesIndex + 2];
+		if (name) return { label: name, kind: "other" };
+	}
+	return { label: basename(cwd), kind: "other" };
+}
+
+export async function computeUsageHistory(
+	days: number,
+	cwdLabels: CwdLabel[] = [],
+): Promise<UsageHistory> {
 	const home = homedir();
+	const labelsByLength = [...cwdLabels].sort(
+		(a, b) => b.prefix.length - a.prefix.length,
+	);
 	const cutoffMs = (() => {
 		// Align to local midnight `days - 1` days ago, so totals equal the sum
 		// of the daily buckets shown.
@@ -178,11 +220,11 @@ export async function computeUsageHistory(days: number): Promise<UsageHistory> {
 		model.tokens += tokens;
 
 		if (entry.cwd) {
-			const project = basename(entry.cwd);
-			let projectRow = projectsByKey.get(project);
+			const { label, kind } = attributeCwd(entry.cwd, labelsByLength);
+			let projectRow = projectsByKey.get(label);
 			if (!projectRow) {
-				projectRow = { project, usd: 0, tokens: 0 };
-				projectsByKey.set(project, projectRow);
+				projectRow = { project: label, kind, usd: 0, tokens: 0 };
+				projectsByKey.set(label, projectRow);
 			}
 			projectRow.usd += usd;
 			projectRow.tokens += tokens;

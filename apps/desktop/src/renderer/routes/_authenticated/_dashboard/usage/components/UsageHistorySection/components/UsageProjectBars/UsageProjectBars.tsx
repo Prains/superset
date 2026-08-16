@@ -1,11 +1,12 @@
 import type { UsageHistory } from "../../../../hooks/useHostUsageHistory";
 import { formatTokens, formatUsd } from "../../utils/formatUsage";
 
-const MAX_ROWS = 4;
+const MAX_ROWS = 7;
 
 /**
- * Top projects by cost — the attribution no menu-bar tracker has. Project =
- * the working directory agents ran in.
+ * Top workspaces/projects by cost — the attribution no menu-bar tracker
+ * has. Transcript cwds are joined against the host's own workspace worktree
+ * and project repo paths.
  */
 export function UsageProjectBars({ history }: { history: UsageHistory }) {
 	const rows = history.projects.slice(0, MAX_ROWS);
@@ -15,13 +16,20 @@ export function UsageProjectBars({ history }: { history: UsageHistory }) {
 	return (
 		<div className="flex flex-col gap-1.5">
 			<div className="flex items-baseline justify-between border-b py-1 text-[11px] text-muted-foreground">
-				<span className="font-medium">Project</span>
+				<span className="font-medium">Workspace</span>
 				<span className="font-medium">Cost</span>
 			</div>
 			{rows.map((row) => (
 				<div key={row.project} className="flex flex-col gap-0.5">
 					<div className="flex items-baseline justify-between gap-3 text-[11px]">
-						<span className="min-w-0 truncate">{row.project}</span>
+						<span className="flex min-w-0 items-baseline gap-1.5 truncate">
+							{row.project}
+							{row.kind === "project" && (
+								<span className="text-[9px] uppercase text-muted-foreground">
+									repo
+								</span>
+							)}
+						</span>
 						<span className="flex shrink-0 items-baseline gap-2 tabular-nums">
 							<span className="text-muted-foreground">
 								{formatTokens(row.tokens)}

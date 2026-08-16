@@ -1,4 +1,6 @@
+import { basename } from "node:path";
 import { z } from "zod";
+import { projects, workspaces } from "../../../db/schema";
 import { usageHistoryTask } from "../../../workers/tasks/usage";
 import { queryProcedure, router } from "../../index";
 import { offLoop } from "../../off-loop";
@@ -59,7 +61,39 @@ export const usageRouter = router({
 		.query(
 			offLoop({
 				task: usageHistoryTask,
-				prepare: ({ input }) => ({ days: input.days }),
+				// Workspace/project rows from host.db let the worker attribute
+				// transcript cwds to real workspaces instead of guessing from
+				// directory names.
+				prepare: ({ ctx, input }) => {
+					const workspaceRows = ctx.db
+						.select({
+							worktreePath: workspaces.worktreePath,
+							name: workspaces.name,
+						})
+						.from(workspaces)
+						.all();
+					const projectRows = ctx.db
+						.select({
+							repoPath: projects.repoPath,
+							name: projects.name,
+							repoName: projects.repoName,
+						})
+						.from(projects)
+						.all();
+					const cwdLabels = [
+						...workspaceRows.map((row) => ({
+							prefix: row.worktreePath,
+							label: row.name || basename(row.worktreePath),
+							kind: "workspace" as const,
+						})),
+						...projectRows.map((row) => ({
+							prefix: row.repoPath,
+							label: row.name || row.repoName || basename(row.repoPath),
+							kind: "project" as const,
+						})),
+					].filter((label) => label.prefix);
+					return { days: input.days, cwdLabels };
+				},
 				options: ({ input }) => ({
 					dedupeKey: `usage-history:${input.days}`,
 					timeoutMs: 110_000,

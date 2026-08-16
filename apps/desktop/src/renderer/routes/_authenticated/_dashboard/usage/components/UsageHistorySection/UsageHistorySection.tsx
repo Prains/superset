@@ -1,6 +1,7 @@
 import { Tabs, TabsList, TabsTrigger } from "@superset/ui/tabs";
 import { cn } from "@superset/ui/utils";
 import { useState } from "react";
+import { LuX } from "react-icons/lu";
 import { useHostUsageHistory } from "../../hooks/useHostUsageHistory";
 import { UsageAreaChart } from "./components/UsageAreaChart";
 import { UsageMetricTiles } from "./components/UsageMetricTiles";
@@ -14,17 +15,40 @@ import {
 } from "./constants";
 import { formatDayLabel, formatTokens, formatUsd } from "./utils/formatUsage";
 
+type Provider = (typeof PROVIDER_ORDER)[number];
+
 export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 	const [days, setDays] = useState<number>(30);
 	const [metric, setMetric] = useState<HistoryMetric>("usd");
+	const [hiddenProviders, setHiddenProviders] = useState<Set<Provider>>(
+		new Set(),
+	);
+	const [selectedDay, setSelectedDay] = useState<string | null>(null);
 	const historyQuery = useHostUsageHistory(hostUrl, days);
 	const history = historyQuery.data ?? null;
 
 	const firstDay = history?.buckets[0]?.day;
 	const lastDay = history?.buckets[history.buckets.length - 1]?.day;
+	const selectedBucket =
+		selectedDay && history
+			? (history.buckets.find((bucket) => bucket.day === selectedDay) ?? null)
+			: null;
+
+	const toggleProvider = (provider: Provider) => {
+		setHiddenProviders((previous) => {
+			const next = new Set(previous);
+			if (next.has(provider)) {
+				next.delete(provider);
+			} else if (next.size < PROVIDER_ORDER.length - 1) {
+				// Never hide the last visible series — an empty chart reads as broken.
+				next.add(provider);
+			}
+			return next;
+		});
+	};
 
 	return (
-		<div className="flex flex-col gap-3 border-t pt-3">
+		<div className="flex min-h-0 flex-1 flex-col gap-3 border-t pt-3">
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
 				<h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 					Token usage
@@ -77,11 +101,11 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 			) : (
 				<div
 					className={cn(
-						"flex flex-col gap-3",
+						"flex min-h-0 flex-1 flex-col gap-3",
 						historyQuery.isFetching && "opacity-70",
 					)}
 				>
-					<div className="grid gap-4 md:grid-cols-[13rem_1fr]">
+					<div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[13rem_1fr]">
 						<div className="flex flex-col gap-2">
 							<div>
 								<div className="text-2xl font-semibold tabular-nums leading-tight">
@@ -120,13 +144,23 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 											? (metric === "usd" ? totalsFor.usd : totalsFor.tokens) /
 												denominator
 											: 0;
+									const hidden = hiddenProviders.has(provider);
 									return (
-										<div
+										<button
 											key={provider}
-											className="flex items-center gap-1.5 text-[11px]"
+											type="button"
+											onClick={() => toggleProvider(provider)}
+											title={hidden ? "Show in chart" : "Hide from chart"}
+											className={cn(
+												"flex items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] transition-colors hover:bg-muted/60",
+												hidden && "opacity-40",
+											)}
 										>
 											<span
-												className="size-2 shrink-0 rounded-[2px]"
+												className={cn(
+													"size-2 shrink-0 rounded-[2px]",
+													hidden && "opacity-40",
+												)}
 												style={{
 													background: PROVIDER_CHART_CONFIG[provider].color,
 												}}
@@ -142,12 +176,62 @@ export function UsageHistorySection({ hostUrl }: { hostUrl: string | null }) {
 											<span className="w-8 shrink-0 text-right tabular-nums text-muted-foreground">
 												{Math.round(100 * share)}%
 											</span>
-										</div>
+										</button>
 									);
 								})}
 							</div>
+							{selectedBucket && (
+								<div className="rounded-md border bg-card/60 p-2 text-[11px]">
+									<div className="flex items-center">
+										<span className="font-medium">
+											{formatDayLabel(selectedBucket.day)}
+										</span>
+										<button
+											type="button"
+											className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+											onClick={() => setSelectedDay(null)}
+											aria-label="Clear selected day"
+										>
+											<LuX className="size-3" />
+										</button>
+									</div>
+									{PROVIDER_ORDER.map((provider) => {
+										const slot = selectedBucket.providers[provider];
+										if (!slot) return null;
+										return (
+											<div
+												key={provider}
+												className="flex items-center gap-1.5 tabular-nums"
+											>
+												<span
+													className="size-1.5 rounded-[2px]"
+													style={{
+														background: PROVIDER_CHART_CONFIG[provider].color,
+													}}
+												/>
+												<span className="text-muted-foreground">
+													{PROVIDER_CHART_CONFIG[provider].label}
+												</span>
+												<span className="ml-auto">
+													{formatUsd(slot.usd)} · {formatTokens(slot.tokens)}
+												</span>
+											</div>
+										);
+									})}
+									<div className="mt-0.5 border-t pt-0.5 text-right font-medium tabular-nums">
+										{formatUsd(selectedBucket.usd)} ·{" "}
+										{formatTokens(selectedBucket.tokens)}
+									</div>
+								</div>
+							)}
 						</div>
-						<UsageAreaChart history={history} metric={metric} />
+						<UsageAreaChart
+							history={history}
+							metric={metric}
+							hiddenProviders={hiddenProviders}
+							selectedDay={selectedDay}
+							onSelectDay={setSelectedDay}
+						/>
 					</div>
 
 					<UsageMetricTiles history={history} />
