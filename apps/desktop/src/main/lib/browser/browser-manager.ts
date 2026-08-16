@@ -9,6 +9,32 @@ interface ConsoleEntry {
 	timestamp: number;
 }
 
+interface PaneRegistration {
+	webContentsId: number;
+	/** Null for panes registered by surfaces that predate workspace scoping (v1). */
+	workspaceId: string | null;
+}
+
+export interface BrowserPaneInfo {
+	paneId: string;
+	workspaceId: string | null;
+	url: string;
+	title: string;
+	isLoading: boolean;
+}
+
+export interface BrowserOpenRequest {
+	workspaceId: string;
+	url: string;
+	target: "current-tab" | "new-tab";
+	requestId: string;
+}
+
+export interface CdpSession {
+	send: (rawMessage: string) => void;
+	detach: () => void;
+}
+
 export interface ForwardedKey {
 	key: string;
 	code: string;
@@ -34,11 +60,12 @@ function sanitizeUrl(url: string): string {
 }
 
 class BrowserManager extends EventEmitter {
-	private paneWebContentsIds = new Map<string, number>();
+	private panes = new Map<string, PaneRegistration>();
 	private consoleLogs = new Map<string, ConsoleEntry[]>();
 	private consoleListeners = new Map<string, () => void>();
 	private contextMenuListeners = new Map<string, () => void>();
 	private beforeInputListeners = new Map<string, () => void>();
+	private cdpDetachers = new Map<string, () => void>();
 	// Canonical chords to suppress in the focused guest and forward for the
 	// renderer to replay. Kept override/layout-aware by the renderer.
 	private forwardableChords = new Set<string>();
@@ -47,11 +74,11 @@ class BrowserManager extends EventEmitter {
 		this.forwardableChords = new Set(chords);
 	}
 
-	register(paneId: string, webContentsId: number): void {
+	register(paneId: string, webContentsId: number, workspaceId?: string): void {
 		// Clean even when prevId === webContentsId so BrowserManager owns
 		// listener idempotency; callers can re-register without duplicating.
-		const prevId = this.paneWebContentsIds.get(paneId);
-		if (prevId != null) {
+		const prev = this.panes.get(paneId);
+		if (prev != null) {
 			for (const map of [
 				this.consoleListeners,
 				this.contextMenuListeners,
@@ -64,7 +91,10 @@ class BrowserManager extends EventEmitter {
 				}
 			}
 		}
-		this.paneWebContentsIds.set(paneId, webContentsId);
+		this.panes.set(paneId, {
+			webContentsId,
+			workspaceId: workspaceId ?? prev?.workspaceId ?? null,
+		});
 		const wc = webContents.fromId(webContentsId);
 		if (wc) {
 			// Keep throttling enabled so parked/offscreen persistent webviews don't
@@ -80,6 +110,10 @@ class BrowserManager extends EventEmitter {
 			this.setupContextMenu(paneId, wc);
 			this.setupBeforeInput(paneId, wc);
 		}
+		this.emit("pane-registered", {
+			paneId,
+			workspaceId: workspaceId ?? prev?.workspaceId ?? null,
+		});
 	}
 
 	unregister(paneId: string): void {
@@ -94,22 +128,165 @@ class BrowserManager extends EventEmitter {
 				map.delete(paneId);
 			}
 		}
-		this.paneWebContentsIds.delete(paneId);
+		this.cdpDetachers.get(paneId)?.();
+		this.panes.delete(paneId);
 		this.consoleLogs.delete(paneId);
 	}
 
 	unregisterAll(): void {
-		for (const paneId of [...this.paneWebContentsIds.keys()]) {
+		for (const paneId of [...this.panes.keys()]) {
 			this.unregister(paneId);
 		}
 	}
 
 	getWebContents(paneId: string): Electron.WebContents | null {
-		const id = this.paneWebContentsIds.get(paneId);
+		const id = this.panes.get(paneId)?.webContentsId;
 		if (id == null) return null;
 		const wc = webContents.fromId(id);
 		if (!wc || wc.isDestroyed()) return null;
 		return wc;
+	}
+
+	/** Live panes (dead webContents are skipped), optionally workspace-scoped. */
+	listPanes(workspaceId?: string): BrowserPaneInfo[] {
+		const panes: BrowserPaneInfo[] = [];
+		for (const [paneId, reg] of this.panes) {
+			if (workspaceId && reg.workspaceId !== workspaceId) continue;
+			const wc = this.getWebContents(paneId);
+			if (!wc) continue;
+			panes.push({
+				paneId,
+				workspaceId: reg.workspaceId,
+				url: wc.getURL(),
+				title: wc.getTitle(),
+				isLoading: wc.isLoading(),
+			});
+		}
+		return panes;
+	}
+
+	/**
+	 * Ask the renderer to open a URL in a workspace's browser pane. Consumed by
+	 * the `browser.onOpenRequest` subscription; the resulting pane announces
+	 * itself back through a `pane-registered` event.
+	 */
+	requestOpen(request: BrowserOpenRequest): void {
+		this.emit("open-request", request);
+	}
+
+	/**
+	 * Attach a raw CDP session to the pane's guest webContents. One session per
+	 * pane: the platform allows a single debugger per webContents, so a second
+	 * attach throws until the first detaches.
+	 */
+	attachCdp(
+		paneId: string,
+		onMessage: (payload: string) => void,
+		onDetach: (reason: string) => void,
+	): CdpSession {
+		const wc = this.getWebContents(paneId);
+		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
+		if (this.cdpDetachers.has(paneId)) {
+			throw new Error(`A CDP session is already attached to pane ${paneId}`);
+		}
+		wc.debugger.attach("1.3");
+
+		let closed = false;
+		const handleMessage = (
+			_event: Electron.Event,
+			method: string,
+			params: unknown,
+			sessionId?: string,
+		) => {
+			onMessage(
+				JSON.stringify({
+					method,
+					params,
+					...(sessionId ? { sessionId } : {}),
+				}),
+			);
+		};
+		const handleDetach = (_event: Electron.Event, reason: string) => {
+			cleanup();
+			onDetach(reason);
+		};
+		const cleanup = () => {
+			if (closed) return;
+			closed = true;
+			wc.debugger.off("message", handleMessage);
+			wc.debugger.off("detach", handleDetach);
+			this.cdpDetachers.delete(paneId);
+		};
+		wc.debugger.on("message", handleMessage);
+		wc.debugger.on("detach", handleDetach);
+
+		const detach = () => {
+			cleanup();
+			try {
+				wc.debugger.detach();
+			} catch {
+				// webContents may be destroyed
+			}
+		};
+		this.cdpDetachers.set(paneId, detach);
+
+		return {
+			send: (rawMessage: string) => {
+				let parsed: {
+					id?: number;
+					method?: string;
+					params?: unknown;
+					sessionId?: string;
+				};
+				try {
+					parsed = JSON.parse(rawMessage);
+				} catch {
+					onMessage(
+						JSON.stringify({
+							error: { code: -32700, message: "Invalid JSON" },
+						}),
+					);
+					return;
+				}
+				const { id, method, params, sessionId } = parsed;
+				if (typeof method !== "string") {
+					onMessage(
+						JSON.stringify({
+							id,
+							error: { code: -32600, message: "Missing method" },
+							...(sessionId ? { sessionId } : {}),
+						}),
+					);
+					return;
+				}
+				wc.debugger
+					.sendCommand(method, params, sessionId)
+					.then((result) => {
+						if (closed) return;
+						onMessage(
+							JSON.stringify({
+								id,
+								result: result ?? {},
+								...(sessionId ? { sessionId } : {}),
+							}),
+						);
+					})
+					.catch((err: unknown) => {
+						if (closed) return;
+						onMessage(
+							JSON.stringify({
+								id,
+								error: {
+									code: -32000,
+									message: err instanceof Error ? err.message : String(err),
+								},
+								...(sessionId ? { sessionId } : {}),
+							}),
+						);
+					});
+			},
+			detach,
+		};
 	}
 
 	navigate(paneId: string, url: string): void {
@@ -123,6 +300,14 @@ class BrowserManager extends EventEmitter {
 		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
 		const image = await wc.capturePage();
 		clipboard.writeImage(image);
+		return image.toPNG().toString("base64");
+	}
+
+	/** Screenshot for programmatic callers — must not clobber the clipboard. */
+	async capturePng(paneId: string): Promise<string> {
+		const wc = this.getWebContents(paneId);
+		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
+		const image = await wc.capturePage();
 		return image.toPNG().toString("base64");
 	}
 

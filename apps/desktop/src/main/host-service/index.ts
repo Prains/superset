@@ -102,6 +102,13 @@ async function main(): Promise<void> {
 				`http://localhost:${env.DESKTOP_VITE_PORT}`,
 				`http://127.0.0.1:${env.DESKTOP_VITE_PORT}`,
 			],
+			browserBridge:
+				env.BROWSER_BRIDGE_URL && env.BROWSER_BRIDGE_SECRET
+					? {
+							url: env.BROWSER_BRIDGE_URL,
+							secret: env.BROWSER_BRIDGE_SECRET,
+						}
+					: undefined,
 		},
 		providers: {
 			auth: authProvider,

@@ -70,6 +70,13 @@ async function main(): Promise<void> {
 			cloudApiUrl: env.SUPERSET_API_URL,
 			migrationsFolder: env.HOST_MIGRATIONS_FOLDER,
 			allowedOrigins: env.CORS_ORIGINS ?? [],
+			browserBridge:
+				env.BROWSER_BRIDGE_URL && env.BROWSER_BRIDGE_SECRET
+					? {
+							url: env.BROWSER_BRIDGE_URL,
+							secret: env.BROWSER_BRIDGE_SECRET,
+						}
+					: undefined,
 		},
 		providers: {
 			auth: authProvider,

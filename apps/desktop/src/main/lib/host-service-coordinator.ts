@@ -12,6 +12,7 @@ import { env as sharedEnv } from "shared/env.shared";
 import { getProcessEnvWithShellPath } from "../../lib/trpc/routers/workspaces/utils/shell-env";
 import { env as mainEnv } from "../env.main";
 import { SUPERSET_HOME_DIR } from "./app-environment";
+import { getBrowserBridgeInfo } from "./browser/browser-bridge-info";
 import { acquireSpawnLock } from "./host-service-lock";
 import {
 	isProcessAlive,
@@ -807,6 +808,7 @@ export class HostServiceCoordinator extends EventEmitter {
 		const organizationDir = manifestDir(organizationId);
 		const row = localDb.select().from(settings).get();
 		const exposeViaRelay = row?.exposeHostServiceViaRelay ?? false;
+		const browserBridge = getBrowserBridgeInfo();
 
 		const childEnv = await getProcessEnvWithShellPath({
 			...(process.env as Record<string, string>),
@@ -844,6 +846,15 @@ export class HostServiceCoordinator extends EventEmitter {
 			SUPERSET_LEGACY_WORKTREE_BASE_DIR: row?.worktreeBaseDir ?? "",
 			SUPERSET_AGENT_HOOK_PORT: String(sharedEnv.DESKTOP_NOTIFICATIONS_PORT),
 			SUPERSET_AGENT_HOOK_VERSION: HOOK_PROTOCOL_VERSION,
+			// Loopback control surface for the in-app browser panes; the child's
+			// `browser.*` router proxies here. Absent on standalone (CLI-spawned)
+			// hosts, which therefore have no browser to drive.
+			...(browserBridge
+				? {
+						BROWSER_BRIDGE_URL: browserBridge.endpoint,
+						BROWSER_BRIDGE_SECRET: browserBridge.secret,
+					}
+				: {}),
 			AUTH_TOKEN: config.authToken,
 			SUPERSET_AUTH_CONFIG_PATH: path.join(SUPERSET_HOME_DIR, "config.json"),
 			SUPERSET_API_URL: config.cloudApiUrl,
