@@ -146,11 +146,28 @@ export const GlassComposer = forwardRef<
 	// The draft lives in a ref, never state — otherwise each keystroke
 	// re-renders the SwiftUI Host.
 	const draftRef = useRef("");
+	const selectionRef = useRef({ start: 0, end: 0 });
 	const [hasText, setHasText] = useState(false);
 
 	const writeDraft = (text: string) => {
 		draftRef.current = text;
 		setHasText(text.trim().length > 0);
+	};
+
+	// Replaces the current selection (or splits at the caret) and leaves the
+	// caret after the inserted text.
+	const replaceSelection = (insert: string) => {
+		const text = draftRef.current;
+		const length = text.length;
+		const start = Math.min(selectionRef.current.start, length);
+		const end = Math.min(Math.max(selectionRef.current.end, start), length);
+		const next = text.slice(0, start) + insert + text.slice(end);
+		const caret = start + insert.length;
+		writeDraft(next);
+		selectionRef.current = { start: caret, end: caret };
+		void fieldRef.current
+			?.setText(next)
+			.then(() => fieldRef.current?.setSelection(caret, caret));
 	};
 
 	const attachments = showAttachments
@@ -184,6 +201,7 @@ export const GlassComposer = forwardRef<
 		},
 		clear: () => {
 			writeDraft("");
+			selectionRef.current = { start: 0, end: 0 };
 			controller.attachments.clear();
 			void fieldRef.current?.clear();
 		},
@@ -240,6 +258,7 @@ export const GlassComposer = forwardRef<
 		read: () => draftRef.current,
 		write: (text) => {
 			writeDraft(text);
+			selectionRef.current = { start: text.length, end: text.length };
 			void fieldRef.current
 				?.setText(text)
 				.then(() => fieldRef.current?.setSelection(text.length, text.length));
@@ -280,6 +299,29 @@ export const GlassComposer = forwardRef<
 		>
 			<Image
 				systemName="plus"
+				size={16}
+				modifiers={[frame({ width: 16, height: 16 })]}
+			/>
+		</Button>
+	);
+
+	// Explicit line break for multi-line messages: expo-ui's TextField exposes
+	// nothing for the soft keyboard's return key, so this is the only way to
+	// put a newline in a draft.
+	const newlineButton = (
+		<Button
+			onPress={() => {
+				void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+				replaceSelection("\n");
+			}}
+			modifiers={[
+				buttonStyle("bordered"),
+				buttonBorderShape("circle"),
+				tint(FOREGROUND),
+			]}
+		>
+			<Image
+				systemName="return"
 				size={16}
 				modifiers={[frame({ width: 16, height: 16 })]}
 			/>
@@ -458,6 +500,9 @@ export const GlassComposer = forwardRef<
 								placeholder={placeholder ?? "Plan, ask, build..."}
 								onTextChange={writeDraft}
 								onFocusChange={setFocused}
+								onSelectionChange={(selection) => {
+									selectionRef.current = selection;
+								}}
 								modifiers={[
 									padding({ horizontal: expanded ? 12 : 4 }),
 									frame({ minHeight: expanded ? 56 : 38 }),
@@ -495,6 +540,7 @@ export const GlassComposer = forwardRef<
 							>
 								{plusButton}
 							</HStack>
+							{newlineButton}
 							{toolbarLeading}
 							<Spacer />
 							{/* Bordered buttons carry ~6pt of invisible tap-target inset
