@@ -19,6 +19,8 @@
 				"run": { "type": "open-sidebar-tab", "tabId": "hello" }
 			}
 		],
-		"sidebarTabs": [{ "id": "hello", "label": "Hello", "component": "HelloTab" }]
+		"sidebarTabs": [
+			{ "id": "hello", "label": "Hello", "component": "HelloTab" }
+		]
 	}
 }

@@ -407,10 +407,19 @@ actions and open the tab; counter survives full app restart (SQLite KV + boot au
 live disable/enable propagates ~2s via lifecycle events; a plugin that throws at load
 lands `status:error` with message surfaced while other plugins and the host stay healthy.
 
-**Not yet built** (next slices): pane-kind + file-view slots, declarative
-themes/skills/agents wiring from manifests, keybinding contributions, plugin-scoped
-tokens (plugins currently share host auth), permissions enforcement, settings UI page,
-marketplace index, jiti-under-bundled-host verification for TS dev entries.
+**Shipped since (08-16, later commits):** pane-kind slot (defs spread before builtins;
+`open-pane` command run type focuses-not-duplicates), `ctx.postMessage`/`onMessage`
+renderer-local bus between a plugin's surfaces, `"*"` wildcard pane fallback with
+state-aware recovery (Enable/Reload/Close), `worktreePath` on `api.workspaces.list()`,
+the Plugins page (dashboard sidebar nav, Mobbin-informed rows + install dialog), docs
+page (`apps/docs/content/docs/plugins.mdx`), the `plugin-authoring` managed skill, and
+five example plugins (hello-superset, agent-board, flock, fleet-review, agent-usage).
+
+**Not yet built** (next slices): file-view slot, plugin detail view + marketplace/browse
+tab (Mobbin AI-native research in flight), declarative themes/skills/agents wiring from
+manifests, keybinding contributions, plugin-scoped tokens (plugins currently share host
+auth), permissions enforcement + install-consent UI, marketplace index,
+jiti-under-bundled-host verification for TS dev entries.
 
 ## 6. Effort estimate (2026-08-15, rev 2 scope)
 

@@ -47,7 +47,9 @@ function drawSheep(
 ): void {
 	const { status } = c.data;
 	const moving = SPEED[status] > 0 && (c.x !== c.tx || c.y !== c.ty);
-	const hop = moving ? Math.abs(Math.sin(now / (status === "working" ? 70 : 180))) * 2 * S : 0;
+	const hop = moving
+		? Math.abs(Math.sin(now / (status === "working" ? 70 : 180))) * 2 * S
+		: 0;
 	const shake = status === "blocked" ? Math.sin(now / 45) * 1.2 : 0;
 	const sitting = status === "done";
 	const grazing = status === "idle" && now < c.grazeUntil;
@@ -110,7 +112,13 @@ function drawSheep(
 	g.globalAlpha = 1;
 	g.fillStyle = STATUS_COLOR[status];
 	g.beginPath();
-	g.arc(c.x - g.measureText(`${cap} · ${c.data.workspaceName}`).width / 2 - 8, c.y + 8 * S + 8.5, 3, 0, Math.PI * 2);
+	g.arc(
+		c.x - g.measureText(`${cap} · ${c.data.workspaceName}`).width / 2 - 8,
+		c.y + 8 * S + 8.5,
+		3,
+		0,
+		Math.PI * 2,
+	);
 	g.fill();
 	g.restore();
 }
@@ -279,7 +287,10 @@ export function Flock({ ctx }: PluginSlotProps) {
 				}}
 			>
 				{(["working", "blocked", "done", "idle"] as const).map((s) => (
-					<span key={s} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+					<span
+						key={s}
+						style={{ display: "flex", alignItems: "center", gap: 4 }}
+					>
 						<span
 							style={{
 								width: 7,

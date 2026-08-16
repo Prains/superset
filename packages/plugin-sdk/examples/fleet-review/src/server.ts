@@ -84,7 +84,9 @@ export default async function plugin(api: SupersetPluginApi) {
 
 		reviews.sort(
 			(a, b) =>
-				b.insertions + b.deletions + b.untracked -
+				b.insertions +
+				b.deletions +
+				b.untracked -
 				(a.insertions + a.deletions + a.untracked),
 		);
 		return { workspaces: reviews };

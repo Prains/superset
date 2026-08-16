@@ -28,6 +28,7 @@ import { toast } from "@superset/ui/sonner";
 import { Switch } from "@superset/ui/switch";
 import { cn } from "@superset/ui/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
 	LuEllipsis,
@@ -141,13 +142,17 @@ function PluginRow({
 	return (
 		<div
 			data-testid="plugin-row"
-			className="flex flex-col gap-1.5 border-b border-border/60 px-4 py-3.5 last:border-b-0"
+			className="flex flex-col gap-1.5 border-b border-border/60 px-4 py-3.5 transition-colors last:border-b-0 hover:bg-fill-hover/30"
 		>
 			<div className="flex items-center gap-3">
 				<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-fill-hover">
 					<LuPuzzle className="size-4 text-muted-foreground" />
 				</div>
-				<div className="min-w-0 flex-1">
+				<Link
+					to="/plugins/$pluginId"
+					params={{ pluginId: plugin.id }}
+					className="min-w-0 flex-1"
+				>
 					<div className="flex items-baseline gap-2">
 						<span className="truncate text-sm font-medium">{plugin.name}</span>
 						<span className="text-xs text-muted-foreground">
@@ -173,7 +178,7 @@ function PluginRow({
 							{summary ? ` · ${summary}` : ""}
 						</span>
 					</div>
-				</div>
+				</Link>
 				<div className="flex shrink-0 items-center gap-1">
 					<Button
 						variant="ghost"
@@ -291,10 +296,26 @@ function InstallDialog({
 					</DialogTitle>
 					<DialogDescription>
 						{mode === "git"
-							? "Clones the repository, validates its manifest, and loads it. Plugins run with full access on this host — install from authors you trust."
+							? "Clones the repository, validates its manifest, and loads it."
 							: "Registers a plugin directory in place — edits apply on reload. This is the dev flow."}
 					</DialogDescription>
 				</DialogHeader>
+				<div className="flex flex-col gap-1.5 rounded-md bg-fill-hover/50 px-3 py-2.5 text-xs text-muted-foreground">
+					<p>
+						<span className="font-medium text-foreground">
+							Plugins may introduce elevated risk.
+						</span>{" "}
+						They run with full access on this host, the same as your setup
+						scripts — install from authors you trust.
+					</p>
+					<p>
+						<span className="font-medium text-foreground">
+							You stay in control.
+						</span>{" "}
+						Review the declared permissions after install, and disable or
+						uninstall any plugin at any time.
+					</p>
+				</div>
 				<form
 					className="flex flex-col gap-3"
 					onSubmit={(event) => {

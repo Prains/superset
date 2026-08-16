@@ -20,7 +20,12 @@ const SECTIONS = [
 		statuses: ["blocked", "failed"],
 	},
 	{ key: "done", title: "Done", color: "#22c55e", statuses: ["done"] },
-	{ key: "quiet", title: "Idle", color: "#71717a", statuses: ["idle", "ended"] },
+	{
+		key: "quiet",
+		title: "Idle",
+		color: "#71717a",
+		statuses: ["idle", "ended"],
+	},
 ] as const;
 
 function timeAgo(at: number, now: number): string {
