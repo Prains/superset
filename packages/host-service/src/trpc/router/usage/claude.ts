@@ -95,15 +95,57 @@ async function readKeychainCredential(): Promise<ClaudeOauthCredential | null> {
 	}
 }
 
+function isLive(credential: ClaudeOauthCredential): boolean {
+	return credential.expiresAt === null || credential.expiresAt > Date.now();
+}
+
+/** Live beats expired; among equals the latest expiry wins. */
+function pickFreshest(
+	candidates: Array<ClaudeOauthCredential | null>,
+): ClaudeOauthCredential | null {
+	let best: ClaudeOauthCredential | null = null;
+	for (const candidate of candidates) {
+		if (!candidate) continue;
+		if (
+			!best ||
+			(isLive(candidate) && !isLive(best)) ||
+			(isLive(candidate) === isLive(best) &&
+				(candidate.expiresAt ?? Number.POSITIVE_INFINITY) >
+					(best.expiresAt ?? Number.POSITIVE_INFINITY))
+		) {
+			best = candidate;
+		}
+	}
+	return best;
+}
+
+/** Identity of the default login, readable even when its token is expired. */
+async function readDefaultLoginEmail(): Promise<string | null> {
+	try {
+		const parsed = JSON.parse(
+			await readFile(join(homedir(), ".claude.json"), "utf-8"),
+		) as { oauthAccount?: { emailAddress?: string } };
+		return parsed.oauthAccount?.emailAddress ?? null;
+	} catch {
+		return null;
+	}
+}
+
 /**
  * Discovers Claude logins on this machine: the default config locations,
  * any CLAUDE_CONFIG_DIR entries (comma-list supported), auto-discovered
  * profile dirs (runway's multi-account model — see profiles.ts), and the
  * Claude Code Keychain items. Deduped by token.
+ *
+ * The Keychain item, `~/.claude/.credentials.json`, and
+ * `~/.config/claude/credentials.json` are ONE login slot: /login rewrites
+ * whichever store the CLI prefers and leaves stale copies in the others, so
+ * only the freshest of the three surfaces (a stale sibling would otherwise
+ * render as a phantom expired account).
  */
 async function discoverClaudeCredentials(): Promise<ClaudeOauthCredential[]> {
 	const home = homedir();
-	const fileCandidates: Array<{ path: string; sourceLabel: string }> = [
+	const defaultCandidates: Array<{ path: string; sourceLabel: string }> = [
 		{
 			path: join(home, ".claude", ".credentials.json"),
 			sourceLabel: "~/.claude",
@@ -113,10 +155,11 @@ async function discoverClaudeCredentials(): Promise<ClaudeOauthCredential[]> {
 			sourceLabel: "~/.config/claude",
 		},
 	];
+	const explicitCandidates: Array<{ path: string; sourceLabel: string }> = [];
 	for (const dir of (process.env.CLAUDE_CONFIG_DIR ?? "").split(",")) {
 		const configDir = dir.trim();
 		if (!configDir) continue;
-		fileCandidates.unshift({
+		explicitCandidates.push({
 			path: join(configDir, ".credentials.json"),
 			sourceLabel: configDir.replace(home, "~"),
 		});
@@ -144,16 +187,30 @@ async function discoverClaudeCredentials(): Promise<ClaudeOauthCredential[]> {
 	};
 
 	const profiles = await discoverClaudeProfiles();
-	const results = await Promise.all([
-		...fileCandidates.map(({ path, sourceLabel }) =>
-			readCredentialFile(path, sourceLabel),
-		),
-		readKeychainCredential(),
-		...profiles.map(readProfileCredential),
-	]);
+	const [defaultEmail, keychainCredential, defaultFiles, explicit, profiled] =
+		await Promise.all([
+			readDefaultLoginEmail(),
+			readKeychainCredential(),
+			Promise.all(
+				defaultCandidates.map(({ path, sourceLabel }) =>
+					readCredentialFile(path, sourceLabel),
+				),
+			),
+			Promise.all(
+				explicitCandidates.map(({ path, sourceLabel }) =>
+					readCredentialFile(path, sourceLabel),
+				),
+			),
+			Promise.all(profiles.map(readProfileCredential)),
+		]);
+
+	const defaultCredential = pickFreshest([keychainCredential, ...defaultFiles]);
+	if (defaultCredential && !defaultCredential.email && defaultEmail) {
+		defaultCredential.email = defaultEmail;
+	}
 
 	const byToken = new Map<string, ClaudeOauthCredential>();
-	for (const credential of results) {
+	for (const credential of [defaultCredential, ...explicit, ...profiled]) {
 		if (credential && !byToken.has(credential.accessToken)) {
 			byToken.set(credential.accessToken, credential);
 		}
@@ -270,8 +327,7 @@ async function fetchClaudeAccount(
 			...base,
 			email: credential.email ?? null,
 			status: "token_expired",
-			statusDetail:
-				"Saved Claude Code token expired — run /login inside Claude Code to save a fresh one.",
+			statusDetail: "Sign-in expired — run /login in Claude Code.",
 			windows: [],
 			extraUsage: null,
 		};
@@ -294,8 +350,7 @@ async function fetchClaudeAccount(
 				...base,
 				email: apiEmail ?? credential.email ?? null,
 				status: "token_expired",
-				statusDetail:
-					"Saved Claude Code token expired — run /login inside Claude Code to save a fresh one.",
+				statusDetail: "Sign-in expired — run /login in Claude Code.",
 				windows: [],
 				extraUsage: null,
 			};

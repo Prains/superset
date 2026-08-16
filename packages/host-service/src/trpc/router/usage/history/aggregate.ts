@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { discoverClaudeProfiles, discoverCodexHomes } from "../profiles";
 import type { UsageProvider } from "../types";
-import { collectLogFiles } from "./logs";
+import { collectLogFiles, dedupeLogFiles } from "./logs";
 import type { UsageLogEntry } from "./parse";
 import { parseClaudeLogFile, parseCodexLogFile } from "./parse";
 import {
@@ -180,8 +180,8 @@ export async function computeUsageHistory(
 			),
 		),
 	]);
-	const claudeFiles = claudeFileGroups.flat();
-	const codexFiles = codexFileGroups.flat();
+	const claudeFiles = dedupeLogFiles(claudeFileGroups.flat());
+	const codexFiles = dedupeLogFiles(codexFileGroups.flat());
 
 	const entries: UsageLogEntry[] = [];
 	const claudeEntriesByMessage = new Map<string, UsageLogEntry>();
@@ -258,10 +258,11 @@ export async function computeUsageHistory(
 			bucket = { day, providers: {}, usd: 0, tokens: 0 };
 			bucketsByDay.set(day, bucket);
 		}
-		const providerSlot = (bucket.providers[entry.provider] ??= {
-			usd: 0,
-			tokens: 0,
-		});
+		let providerSlot = bucket.providers[entry.provider];
+		if (!providerSlot) {
+			providerSlot = { usd: 0, tokens: 0 };
+			bucket.providers[entry.provider] = providerSlot;
+		}
 		providerSlot.usd += usd;
 		providerSlot.tokens += tokens;
 		bucket.usd += usd;

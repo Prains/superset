@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { UsageHistory } from "../../../../hooks/useHostUsageHistory";
-import { formatTokens, formatUsd } from "../../utils/formatUsage";
+import { WorkspaceUsageRow } from "../../../WorkspaceUsageRow";
 
 const MAX_ROWS = 7;
 
@@ -18,53 +18,25 @@ export function UsageProjectBars({ history }: { history: UsageHistory }) {
 		<div className="flex flex-col gap-1.5">
 			<div className="flex items-baseline justify-between border-b py-1 text-[11px] text-muted-foreground">
 				<span className="font-medium">Workspace</span>
-				<span className="font-medium">Cost</span>
-			</div>
-			{rows.map((row) => {
-				const drillable = row.project in history.projectDetails;
-				const content = (
-					<>
-						<div className="flex items-baseline justify-between gap-3 text-[11px]">
-							<span className="flex min-w-0 items-baseline gap-1.5 truncate">
-								{row.project}
-								{row.kind === "project" && (
-									<span className="text-[9px] uppercase text-muted-foreground">
-										repo
-									</span>
-								)}
-							</span>
-							<span className="flex shrink-0 items-baseline gap-2 tabular-nums">
-								<span className="text-muted-foreground">
-									{formatTokens(row.tokens)}
-								</span>
-								<span>{formatUsd(row.usd)}</span>
-							</span>
-						</div>
-						<div className="h-0.5 w-full overflow-hidden rounded-full bg-muted">
-							<div
-								className="h-full rounded-full bg-primary/60"
-								style={{
-									width: `${maxUsd > 0 ? Math.max(1, (100 * row.usd) / maxUsd) : 0}%`,
-								}}
-							/>
-						</div>
-					</>
-				);
-				return drillable ? (
+				<span className="flex items-baseline gap-2">
 					<Link
-						key={row.project}
-						to="/usage/workspace/$workspaceName"
-						params={{ workspaceName: row.project }}
-						className="flex flex-col gap-0.5 rounded px-1 py-0.5 transition-colors hover:bg-muted/60"
+						to="/usage/workspaces"
+						className="rounded px-1 text-[10px] transition-colors hover:bg-muted hover:text-foreground"
 					>
-						{content}
+						All {history.projects.length} →
 					</Link>
-				) : (
-					<div key={row.project} className="flex flex-col gap-0.5 px-1 py-0.5">
-						{content}
-					</div>
-				);
-			})}
+					<span className="font-medium">Cost</span>
+				</span>
+			</div>
+			{rows.map((row) => (
+				<WorkspaceUsageRow
+					key={row.project}
+					row={row}
+					maxValue={maxUsd}
+					metric="usd"
+					drillable={row.project in history.projectDetails}
+				/>
+			))}
 		</div>
 	);
 }

@@ -48,7 +48,20 @@ async function forEachLine(
 }
 
 function num(value: unknown): number {
-	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+	// Clamp negatives — a corrupt count must not subtract from totals.
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? value
+		: 0;
+}
+
+/** Entry timestamp: parseable and not in the future (26h clock-skew
+ * tolerance) wins; otherwise the file's mtime; never NaN. */
+function entryTimestamp(raw: string | undefined, mtimeMs: number): number {
+	const parsed = raw ? Date.parse(raw) : Number.NaN;
+	if (Number.isFinite(parsed) && parsed <= Date.now() + 26 * 60 * 60 * 1000) {
+		return parsed;
+	}
+	return mtimeMs;
 }
 
 interface ClaudeLine {
@@ -103,10 +116,8 @@ export async function parseClaudeLogFile(
 		const model = parsed.message?.model;
 		if (!usage || !model || model === "<synthetic>") return;
 
-		const timestampMs = parsed.timestamp
-			? Date.parse(parsed.timestamp)
-			: file.mtimeMs;
-		if (!Number.isFinite(timestampMs) || timestampMs < cutoffMs) return;
+		const timestampMs = entryTimestamp(parsed.timestamp, file.mtimeMs);
+		if (timestampMs < cutoffMs) return;
 
 		const cacheWriteTotal = num(usage.cache_creation_input_tokens);
 		const write5m = num(usage.cache_creation?.ephemeral_5m_input_tokens);
@@ -196,10 +207,8 @@ export async function parseCodexLogFile(
 		if (signature === previousDeltaSignature) return;
 		previousDeltaSignature = signature;
 
-		const timestampMs = parsed.timestamp
-			? Date.parse(parsed.timestamp)
-			: file.mtimeMs;
-		if (!Number.isFinite(timestampMs) || timestampMs < cutoffMs) return;
+		const timestampMs = entryTimestamp(parsed.timestamp, file.mtimeMs);
+		if (timestampMs < cutoffMs) return;
 
 		const input = num(usage.input_tokens);
 		const cached = num(usage.cached_input_tokens);
