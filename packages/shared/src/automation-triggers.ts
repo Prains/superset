@@ -33,7 +33,9 @@ export type TriggerScope = z.infer<typeof triggerScopeSchema>;
 
 export const triggerActorSchema = z.union([
 	z.literal("anyone"),
-	z.literal("org_members"),
+	// Resolves to the automation's owner at match time rather than being
+	// expanded to an id on save, so it survives the owner being renamed.
+	z.literal("me"),
 	z.object({ ids: z.array(z.string().min(1)).max(200) }),
 ]);
 export type TriggerActor = z.infer<typeof triggerActorSchema>;
@@ -50,24 +52,40 @@ export function isEmptyActor(actor: TriggerActor): boolean {
 const rrule = z.string().min(1).max(500);
 const iana = z.string().min(1);
 
+/** A free-text match over a comment body, optionally as a regex. */
+export const textFilterSchema = z.object({
+	pattern: z.string().max(500),
+	isRegex: z.boolean().default(false),
+});
+export type TextFilter = z.infer<typeof textFilterSchema>;
+
 /**
  * GitHub events carry different filters, so the config is a union on the event
- * rather than one flat shape: a comment has both a comment author and a PR
- * author, and a push has neither.
+ * rather than one flat shape: a comment filters on two independent people and a
+ * body pattern, while a push filters on neither.
  */
 export const githubTriggerEventValues = [
+	"draft_opened",
 	"pull_request.opened",
-	"pull_request.draft_opened",
-	"pull_request.ready_for_review",
-	"pull_request.closed",
+	"pull_request.pushed",
 	"pull_request.merged",
-	"pull_request.labeled",
-	"pull_request.review_submitted",
-	"pull_request.comment_created",
-	"issue.opened",
-	"issue.comment_created",
-	"push",
-	"check_suite.failed",
+	"comment_added",
+	"push_to_branch",
+	"label_change",
+	"checks_completed",
+	"issue_comment",
+	"pr_review_comment",
+	"pr_review_submitted.approved",
+	"pr_review_submitted.changes_requested",
+	"pr_review_submitted.commented",
+	"pr_review_submitted.any",
+	"review_thread.resolved",
+	"review_thread.unresolved",
+	"review_thread.any",
+	"workflow_run.success",
+	"workflow_run.failure",
+	"workflow_run.cancelled",
+	"workflow_run.any",
 ] as const;
 export type GithubTriggerEvent = (typeof githubTriggerEventValues)[number];
 
@@ -82,36 +100,47 @@ const githubCommon = {
 	includeForks: z.literal(false).default(false),
 };
 
-const githubPullRequestEvent = z.object({
+/** Events describing one action by one person. */
+const githubSimpleEvent = z.object({
 	...githubCommon,
 	event: z.enum([
+		"draft_opened",
 		"pull_request.opened",
-		"pull_request.draft_opened",
-		"pull_request.ready_for_review",
-		"pull_request.closed",
+		"pull_request.pushed",
 		"pull_request.merged",
-		"pull_request.labeled",
-		"push",
-		"check_suite.failed",
-		"issue.opened",
+		"push_to_branch",
+		"label_change",
+		"checks_completed",
+		"pr_review_comment",
+		"pr_review_submitted.approved",
+		"pr_review_submitted.changes_requested",
+		"pr_review_submitted.commented",
+		"pr_review_submitted.any",
+		"review_thread.resolved",
+		"review_thread.unresolved",
+		"review_thread.any",
+		"workflow_run.success",
+		"workflow_run.failure",
+		"workflow_run.cancelled",
+		"workflow_run.any",
 	]),
 	actor: triggerActorSchema,
 });
 
-/** Comments and reviews filter on two independent people. */
+/**
+ * Comments filter on two independent people — who wrote the comment, and who
+ * opened the thing it is on — plus an optional pattern over the body.
+ */
 const githubCommentEvent = z.object({
 	...githubCommon,
-	event: z.enum([
-		"pull_request.comment_created",
-		"pull_request.review_submitted",
-		"issue.comment_created",
-	]),
+	event: z.enum(["comment_added", "issue_comment"]),
 	actor: triggerActorSchema,
 	subjectAuthor: triggerActorSchema,
+	commentFilter: textFilterSchema.nullable().default(null),
 });
 
 export const githubTriggerConfigSchema = z.union([
-	githubPullRequestEvent,
+	githubSimpleEvent,
 	githubCommentEvent,
 ]);
 
@@ -126,25 +155,47 @@ export const webhookTriggerConfigSchema = z.object({
 	kind: z.literal("webhook"),
 });
 
+export const slackTriggerEventValues = [
+	"message_in_channel",
+	"reaction_added",
+	"channel_created",
+] as const;
+
 export const slackTriggerConfigSchema = z.object({
 	kind: z.literal("slack"),
-	events: z.array(z.string().min(1)).max(50),
+	event: z.enum(slackTriggerEventValues),
 	channels: triggerScopeSchema,
+	// Only meaningful for reaction_added; null elsewhere.
 	emoji: triggerScopeSchema,
 	actor: triggerActorSchema,
-	keyword: z.string().min(1).max(200).optional(),
+	messageFilter: textFilterSchema.nullable().default(null),
 });
+
+export const linearTriggerEventValues = [
+	"issue.created",
+	"issue.status_changed",
+	"cycle.ended",
+] as const;
 
 export const linearTriggerConfigSchema = z.object({
 	kind: z.literal("linear"),
-	events: z.array(z.string().min(1)).max(50),
+	event: z.enum(linearTriggerEventValues),
 	teams: triggerScopeSchema,
 	projects: triggerScopeSchema,
 });
 
+export const sentryTriggerEventValues = [
+	"issue.created",
+	"issue.resolved",
+	"issue.assigned",
+	"issue.archived",
+	"issue.unresolved",
+	"issue.any",
+] as const;
+
 export const sentryTriggerConfigSchema = z.object({
 	kind: z.literal("sentry"),
-	events: z.array(z.string().min(1)).max(50),
+	event: z.enum(sentryTriggerEventValues),
 	projects: triggerScopeSchema,
 	level: triggerScopeSchema,
 });
@@ -223,26 +274,17 @@ export function describeTriggerProblems(
 				break;
 			}
 			case "slack": {
-				if (config.events.length === 0) {
-					add(index, "events", "Choose at least one Slack event.");
-				}
 				if (isEmptyScope(config.channels)) {
 					add(index, "channels", "Specify at least one channel.");
 				}
-				break;
-			}
-			case "linear": {
-				if (config.events.length === 0) {
-					add(index, "events", "Choose at least one Linear event.");
+				if (config.event === "reaction_added" && isEmptyScope(config.emoji)) {
+					add(index, "emoji", "Specify at least one reaction.");
 				}
 				break;
 			}
-			case "sentry": {
-				if (config.events.length === 0) {
-					add(index, "events", "Choose at least one Sentry event.");
-				}
+			case "linear":
+			case "sentry":
 				break;
-			}
 			case "schedule":
 			case "webhook":
 				break;
