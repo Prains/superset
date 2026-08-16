@@ -78,7 +78,7 @@ export function SamplePromptCards({
 			>
 				<XIcon className="size-3" />
 			</button>
-			<div className="grid grid-cols-2 gap-1.5 rounded-2xl border-[0.5px] border-border/60 bg-foreground/[0.03] p-1.5">
+			<div className="grid grid-cols-2 gap-1.5 rounded-2xl bg-foreground/[0.03] p-1.5">
 				{cards.map((sample) => {
 					const Icon = CARD_ICONS[sample.id] ?? WrenchIcon;
 					return (
