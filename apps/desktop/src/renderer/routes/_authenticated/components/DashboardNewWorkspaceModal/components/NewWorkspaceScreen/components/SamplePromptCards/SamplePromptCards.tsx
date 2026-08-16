@@ -1,5 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { BookOpenIcon, BugIcon, WrenchIcon } from "lucide-react";
+import {
+	BookOpenIcon,
+	BugIcon,
+	FlaskConicalIcon,
+	ListChecksIcon,
+	ScrollTextIcon,
+	WrenchIcon,
+} from "lucide-react";
 import { track } from "renderer/lib/analytics";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { SAMPLE_PROMPTS } from "../SamplePrompts/constants";
@@ -8,9 +15,12 @@ const CARD_ICONS: Record<string, typeof WrenchIcon> = {
 	"set-up-project": WrenchIcon,
 	"explain-repo": BookOpenIcon,
 	"fix-small-bug": BugIcon,
+	"improve-agent-docs": ScrollTextIcon,
+	"add-missing-tests": FlaskConicalIcon,
+	"clean-up-todos": ListChecksIcon,
 };
 
-const CARD_COUNT = 2;
+const CARD_COUNT = 4;
 
 interface SamplePromptCardsProps {
 	hostUrl: string | null;

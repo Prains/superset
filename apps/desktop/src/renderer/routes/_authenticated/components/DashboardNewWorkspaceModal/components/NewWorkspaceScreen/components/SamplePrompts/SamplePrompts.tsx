@@ -6,10 +6,13 @@ interface SamplePromptsProps {
 	onSelect: (prompt: string) => void;
 }
 
+/** The rows layout stays scannable at 4; the pool is bigger for the cards. */
+const ROW_COUNT = 4;
+
 export function SamplePrompts({ onSelect }: SamplePromptsProps) {
 	return (
 		<div className="flex flex-col items-start gap-0.5 px-1 pb-2">
-			{SAMPLE_PROMPTS.map((sample) => (
+			{SAMPLE_PROMPTS.slice(0, ROW_COUNT).map((sample) => (
 				<button
 					key={sample.id}
 					type="button"
