@@ -93,8 +93,8 @@ function AgentCard({
 	onSelect: (terminalId: string) => void;
 }) {
 	return (
-		// biome-ignore lint/a11y/useKeyWithClickEvents: example plugin
-		<div
+		<button
+			type="button"
 			data-testid="board-card"
 			data-selected={selected || undefined}
 			data-terminal-id={card.terminalId}
@@ -105,6 +105,11 @@ function AgentCard({
 				gap: 3,
 				padding: "8px 10px",
 				borderRadius: 8,
+				textAlign: "left",
+				width: "100%",
+				background: "transparent",
+				color: "inherit",
+				font: "inherit",
 				border: selected
 					? `1px solid ${color}`
 					: "1px solid rgba(128,128,128,0.25)",
@@ -126,7 +131,7 @@ function AgentCard({
 					{card.branch}
 				</div>
 			) : null}
-		</div>
+		</button>
 	);
 }
 

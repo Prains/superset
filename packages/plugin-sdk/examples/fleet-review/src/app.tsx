@@ -58,8 +58,8 @@ function ReviewCard({
 	onSelect: (workspaceId: string) => void;
 }) {
 	return (
-		// biome-ignore lint/a11y/useKeyWithClickEvents: example plugin
-		<div
+		<button
+			type="button"
 			data-testid="review-card"
 			data-selected={selected || undefined}
 			data-workspace-id={review.id}
@@ -75,6 +75,10 @@ function ReviewCard({
 					: "1px solid rgba(128,128,128,0.25)",
 				background: selected ? "rgba(128,128,128,0.12)" : "transparent",
 				cursor: "pointer",
+				textAlign: "left",
+				width: "100%",
+				color: "inherit",
+				font: "inherit",
 			}}
 		>
 			<div style={{ fontWeight: 600 }}>{review.name}</div>
@@ -82,7 +86,7 @@ function ReviewCard({
 				{review.branch}
 			</div>
 			<Diffstat review={review} />
-		</div>
+		</button>
 	);
 }
 
@@ -138,7 +142,6 @@ function DiffView({
 				>
 					{lines.slice(0, MAX_RENDERED_LINES).map((line, index) => (
 						<div
-							// biome-ignore lint/suspicious/noArrayIndexKey: static diff lines
 							key={index}
 							style={{
 								padding: "0 16px",

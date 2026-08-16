@@ -31,7 +31,8 @@ import { useLocalHostService } from "renderer/routes/_authenticated/providers/Lo
 const QUERY_KEY = ["host-plugins"] as const;
 
 const PERMISSION_HELP: Record<string, string> = {
-	"events:subscribe": "Receives workspace, agent, and terminal lifecycle events",
+	"events:subscribe":
+		"Receives workspace, agent, and terminal lifecycle events",
 	"workspaces:read": "Reads workspace names, branches, and worktree paths",
 	"git:read": "Reads git state inside your worktrees",
 };
