@@ -1,5 +1,5 @@
 import { db } from "@superset/db/client";
-import { usersSlackUsers } from "@superset/db/schema";
+import { userIdentities } from "@superset/db/schema";
 import { and, eq } from "drizzle-orm";
 import { posthog } from "@/lib/analytics";
 import { DEFAULT_SLACK_MODEL } from "../constants";
@@ -96,10 +96,11 @@ async function handleModelSelect({
 	slackUserId: string;
 	selectedModel: string;
 }): Promise<void> {
-	const existing = await db.query.usersSlackUsers.findFirst({
+	const existing = await db.query.userIdentities.findFirst({
 		where: and(
-			eq(usersSlackUsers.slackUserId, slackUserId),
-			eq(usersSlackUsers.teamId, teamId),
+			eq(userIdentities.provider, "slack"),
+			eq(userIdentities.externalId, slackUserId),
+			eq(userIdentities.externalScopeId, teamId),
 		),
 	});
 
@@ -112,9 +113,9 @@ async function handleModelSelect({
 	}
 
 	await db
-		.update(usersSlackUsers)
-		.set({ modelPreference: selectedModel })
-		.where(eq(usersSlackUsers.id, existing.id));
+		.update(userIdentities)
+		.set({ metadata: { provider: "slack", modelPreference: selectedModel } })
+		.where(eq(userIdentities.id, existing.id));
 
 	posthog.capture({
 		distinctId: existing.userId,
@@ -130,20 +131,22 @@ async function handleDisconnectAccount({
 	teamId: string;
 	slackUserId: string;
 }): Promise<void> {
-	const existing = await db.query.usersSlackUsers.findFirst({
+	const existing = await db.query.userIdentities.findFirst({
 		where: and(
-			eq(usersSlackUsers.slackUserId, slackUserId),
-			eq(usersSlackUsers.teamId, teamId),
+			eq(userIdentities.provider, "slack"),
+			eq(userIdentities.externalId, slackUserId),
+			eq(userIdentities.externalScopeId, teamId),
 		),
 		columns: { userId: true },
 	});
 
 	await db
-		.delete(usersSlackUsers)
+		.delete(userIdentities)
 		.where(
 			and(
-				eq(usersSlackUsers.slackUserId, slackUserId),
-				eq(usersSlackUsers.teamId, teamId),
+				eq(userIdentities.provider, "slack"),
+				eq(userIdentities.externalId, slackUserId),
+				eq(userIdentities.externalScopeId, teamId),
 			),
 		);
 
