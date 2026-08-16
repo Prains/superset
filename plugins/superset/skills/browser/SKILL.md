@@ -110,18 +110,28 @@ await send("Page.enable");
 await send("Runtime.enable");
 await send("DOM.enable");
 
-// Click an element by resolving its center, then dispatching a real mouse event.
+// Focus a text field by resolving its center, then dispatching a real click.
+const sel = "#email";
 const { result } = await send("Runtime.evaluate", {
-  expression: `(()=>{const el=document.querySelector('#submit');const b=el.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};})()`,
+  expression: `(()=>{const el=document.querySelector(${JSON.stringify(sel)});if(!el)return null;const b=el.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};})()`,
   returnByValue: true,
 });
+if (!result.value) throw new Error(`not found: ${sel}`);
 const { x, y } = result.value;
 await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
 await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
 
-// Type into the focused field.
-await send("Input.insertText", { text: "hello@example.com" });
+// Confirm the field is focused before typing, then type into it.
+const focused = await send("Runtime.evaluate", {
+  expression: `document.activeElement === document.querySelector(${JSON.stringify(sel)})`,
+  returnByValue: true,
+});
+if (focused.result.value) await send("Input.insertText", { text: "ada@example.com" });
 ```
+
+Clicking a button that submits a form, makes a purchase, or takes another
+consequential action is a step to confirm with the user first — not something to
+model in an unattended example.
 
 Conventions that keep CDP flows reliable:
 
