@@ -14,7 +14,12 @@ import log from "electron-log";
 import express, { type Request, type Response } from "express";
 import { type WebSocket, WebSocketServer } from "ws";
 import { setBrowserBridgeInfo } from "./browser-bridge-info";
-import { type BrowserOpenRequest, browserManager } from "./browser-manager";
+import {
+	type BrowserOpenRequest,
+	browserManager,
+	CdpBusyError,
+	resolveGuestUrl,
+} from "./browser-manager";
 
 const OPEN_PANE_TIMEOUT_MS = 15_000;
 const MAX_CDP_MESSAGE_BYTES = 4 * 1024 * 1024;
@@ -26,6 +31,10 @@ let server: Server | null = null;
 // workspace run one at a time (see the handler for why). Keyed by workspaceId;
 // entries delete themselves once the chain drains.
 const openQueues = new Map<string, Promise<void>>();
+// How many opens are queued per workspace, so a stuck renderer (each open waits
+// up to OPEN_PANE_TIMEOUT_MS) can't let the chain grow without bound.
+const openDepth = new Map<string, number>();
+const MAX_QUEUED_OPENS = 8;
 
 function isAuthorized(secret: string, req: IncomingMessage): boolean {
 	const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -102,6 +111,24 @@ export async function startBrowserBridge(): Promise<void> {
 		}
 		const resolvedTarget = target === "new-tab" ? "new-tab" : "current-tab";
 
+		// Reject a disallowed scheme up front (clear error, no pane created) and
+		// normalize bare input the same way the pane will.
+		let resolvedUrl: string;
+		try {
+			resolvedUrl = resolveGuestUrl(url);
+		} catch (err) {
+			res.status(400).json({ error: errorMessage(err) });
+			return;
+		}
+
+		if ((openDepth.get(workspaceId) ?? 0) >= MAX_QUEUED_OPENS) {
+			res.status(429).json({
+				error:
+					"Too many pending browser-open requests for this workspace. Try again once the earlier ones settle.",
+			});
+			return;
+		}
+
 		// Each open resolves to "the first pane registered in this workspace that
 		// wasn't already open". The registration event can't tell us which request
 		// it belongs to, so two concurrent opens in one workspace would both latch
@@ -147,7 +174,7 @@ export async function startBrowserBridge(): Promise<void> {
 					finish(() =>
 						res.json({
 							paneId: event.paneId,
-							url: info?.url ?? url,
+							url: info?.url ?? resolvedUrl,
 							title: info?.title ?? "",
 						}),
 					);
@@ -156,16 +183,19 @@ export async function startBrowserBridge(): Promise<void> {
 
 				browserManager.requestOpen({
 					workspaceId,
-					url,
+					url: resolvedUrl,
 					target: resolvedTarget,
 					requestId,
 				} satisfies BrowserOpenRequest);
 			});
 
+		openDepth.set(workspaceId, (openDepth.get(workspaceId) ?? 0) + 1);
 		const prev = openQueues.get(workspaceId) ?? Promise.resolve();
 		const next = prev.then(run, run);
 		openQueues.set(workspaceId, next);
 		void next.finally(() => {
+			openDepth.set(workspaceId, (openDepth.get(workspaceId) ?? 1) - 1);
+			if ((openDepth.get(workspaceId) ?? 0) <= 0) openDepth.delete(workspaceId);
 			if (openQueues.get(workspaceId) === next) openQueues.delete(workspaceId);
 		});
 	});
@@ -178,8 +208,16 @@ export async function startBrowserBridge(): Promise<void> {
 			res.status(400).json({ error: "url is required" });
 			return;
 		}
+		// A disallowed scheme is a bad request (400); a missing pane is a 404.
+		let resolvedUrl: string;
 		try {
-			browserManager.navigate(scope.paneId, url, scope.workspaceId);
+			resolvedUrl = resolveGuestUrl(url);
+		} catch (err) {
+			res.status(400).json({ error: errorMessage(err) });
+			return;
+		}
+		try {
+			browserManager.navigate(scope.paneId, resolvedUrl, scope.workspaceId);
 			res.json({ ok: true });
 		} catch (err) {
 			res.status(404).json({ error: errorMessage(err) });
@@ -292,7 +330,10 @@ function handleCdpSocket(
 			},
 		);
 	} catch (err) {
-		ws.close(1011, errorMessage(err).slice(0, 100));
+		// 1013 (Try Again Later) tells the client the pane is busy with another
+		// CDP session and to retry once it disconnects; 1011 = genuine failure.
+		const code = err instanceof CdpBusyError ? 1013 : 1011;
+		ws.close(code, errorMessage(err).slice(0, 100));
 		return;
 	}
 	ws.on("message", (data) => {

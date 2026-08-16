@@ -74,6 +74,36 @@ function isAllowedGuestUrl(url: string): boolean {
 	}
 }
 
+/**
+ * Resolve address-bar input to a URL the guest may load, or throw if it names
+ * an explicit disallowed scheme (`file:`, `chrome:`, `data:`, `javascript:`,
+ * …). Bare input keeps the address-bar heuristic (`sanitizeUrl`: host[:port] →
+ * http, a dotted token → https, anything else → web search) — only an explicit
+ * unsupported scheme is rejected, so a programmatic caller gets a clear error
+ * instead of silently landing on a search page.
+ */
+export function resolveGuestUrl(input: string): string {
+	const trimmed = input.trim();
+	const schemeMatch = trimmed.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+	if (schemeMatch) {
+		const scheme = `${(schemeMatch[1] as string).toLowerCase()}:`;
+		const rest = trimmed.slice((schemeMatch[0] as string).length);
+		// Tell a real scheme ("file:///…", "data:…") apart from a bare host:port
+		// ("localhost:3000"), where the "scheme" is a hostname and the rest is a
+		// port — only the former should be scheme-checked.
+		const looksLikeHostPort = /^\d+(?:[/?#]|$)/.test(rest);
+		if (!looksLikeHostPort && !ALLOWED_GUEST_SCHEMES.has(scheme)) {
+			throw new Error(
+				`Refusing to open a ${scheme} URL in the browser pane. Only http, https, and about: URLs are allowed.`,
+			);
+		}
+	}
+	return sanitizeUrl(trimmed);
+}
+
+/** Thrown when a pane already has a live CDP session (a single one is allowed). */
+export class CdpBusyError extends Error {}
+
 class BrowserManager extends EventEmitter {
 	private panes = new Map<string, PaneRegistration>();
 	private consoleLogs = new Map<string, ConsoleEntry[]>();
@@ -218,7 +248,9 @@ class BrowserManager extends EventEmitter {
 		const wc = this.getWebContents(paneId, workspaceId);
 		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
 		if (this.cdpDetachers.has(paneId)) {
-			throw new Error(`A CDP session is already attached to pane ${paneId}`);
+			throw new CdpBusyError(
+				`A CDP session is already attached to pane ${paneId}`,
+			);
 		}
 		wc.debugger.attach("1.3");
 
@@ -340,9 +372,12 @@ class BrowserManager extends EventEmitter {
 	}
 
 	navigate(paneId: string, url: string, workspaceId?: string): void {
+		// Resolve first: a disallowed scheme throws here rather than silently
+		// becoming a web search, so the caller gets a clear error.
+		const resolved = resolveGuestUrl(url);
 		const wc = this.getWebContents(paneId, workspaceId);
 		if (!wc) throw new Error(`No webContents for pane ${paneId}`);
-		wc.loadURL(sanitizeUrl(url));
+		wc.loadURL(resolved);
 	}
 
 	async screenshot(paneId: string): Promise<string> {

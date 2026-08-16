@@ -68,8 +68,11 @@ superset browser eval --workspace <id> --pane <paneId> \
 ```
 
 `eval` is the ergonomic path for reading or nudging the DOM (`.textContent`,
-`.value = …`, `element.click()`, `location.href`). Only `http(s)` and `about:`
-URLs load — `file://`, `chrome://`, and custom schemes are blocked in the pane.
+`.value = …`, `element.click()`, `location.href`); an expression that throws
+comes back as a command error, not a value. `open` and `navigate` accept only
+`http(s)` and `about:` URLs — bare input like `example.com` or `localhost:3000`
+is upgraded, but a `file://`, `chrome://`, `data:`, or other scheme is rejected
+with a clear error instead of silently turning into a web search.
 
 Take a screenshot to *see* state, `eval` to *read* structured data, and
 `console` to check for page errors. Prefer these over raw CDP unless you need
@@ -135,8 +138,9 @@ model in an unattended example.
 
 Conventions that keep CDP flows reliable:
 
-- One CDP session per pane. A second concurrent attach is rejected until the
-  first disconnects (close the socket when done).
+- One CDP session per pane. A second concurrent attach is rejected with
+  WebSocket close code 1013 (Try Again Later) until the first disconnects —
+  close the socket when done, then retry.
 - After a click that should focus a field, verify `document.activeElement`
   before `Input.insertText`, and poll a selector/state check after each action
   rather than sleeping a fixed time — the guest can repaint slowly when the
