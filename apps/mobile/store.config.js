@@ -12,10 +12,6 @@ module.exports = {
 				subtitle: "Run AI agents from anywhere",
 				description:
 					"Superset lets you run and manage AI coding agents from anywhere. Kick off tasks, review progress, and chat with agents working across your projects — all from your phone.\n\n- Start and monitor agent sessions in isolated workspaces\n- Chat with agents and attach images to your messages\n- Track tasks and pull requests across your organization\n- Stay in sync with your team in real time",
-				// No third-party marks: naming other vendors' products here is a
-				// standard metadata rejection, and App Store Connect already
-				// carries a cleaned list — keep this in step with it, since
-				// `eas metadata:push` overwrites ASC from this file.
 				keywords: [
 					"coding agent",
 					"AI agent",
