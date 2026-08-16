@@ -293,6 +293,67 @@ export function UsageDrilldownPage({
 							);
 						})}
 					</div>
+
+					{kind === "workspace" &&
+						detail.sessions &&
+						detail.sessions.length > 0 && (
+							<div className="flex flex-col gap-1.5">
+								<div className="flex items-baseline justify-between border-b py-1 text-[11px] text-muted-foreground">
+									<span className="font-medium">
+										Sessions · top {detail.sessions.length} by cost
+									</span>
+									<span className="font-medium">Cost</span>
+								</div>
+								{detail.sessions.map((session) => {
+									const sessionMax = detail.sessions?.[0]?.usd ?? 0;
+									return (
+										<div
+											key={session.id}
+											className="flex flex-col gap-0.5 px-1 py-0.5"
+										>
+											<div className="flex items-baseline justify-between gap-3 text-[11px]">
+												<span className="flex min-w-0 items-center gap-1.5">
+													<span
+														className="size-1.5 shrink-0 rounded-[2px]"
+														style={{
+															background:
+																PROVIDER_CHART_CONFIG[session.provider]?.color,
+														}}
+													/>
+													<span className="truncate">
+														{session.label ??
+															`Session ${session.id.slice(0, 8)}`}
+													</span>
+													<span className="shrink-0 text-muted-foreground">
+														{new Date(session.lastMs).toLocaleDateString(
+															undefined,
+															{ month: "short", day: "numeric" },
+														)}
+													</span>
+												</span>
+												<span className="flex shrink-0 items-baseline gap-2 tabular-nums">
+													<span className="text-muted-foreground">
+														{formatTokens(session.tokens)}
+													</span>
+													<span>{formatUsd(session.usd)}</span>
+												</span>
+											</div>
+											<div className="h-0.5 w-full overflow-hidden rounded-full bg-muted">
+												<div
+													className="h-full rounded-full"
+													style={{
+														width: `${sessionMax > 0 ? Math.max(1, (100 * session.usd) / sessionMax) : 0}%`,
+														background:
+															PROVIDER_CHART_CONFIG[session.provider]?.color,
+														opacity: 0.6,
+													}}
+												/>
+											</div>
+										</div>
+									);
+								})}
+							</div>
+						)}
 				</>
 			)}
 		</div>

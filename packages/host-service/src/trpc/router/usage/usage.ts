@@ -71,28 +71,45 @@ export const usageRouter = router({
 						.select({
 							worktreePath: workspaces.worktreePath,
 							name: workspaces.name,
+							projectId: workspaces.projectId,
 						})
 						.from(workspaces)
 						.all();
 					const projectRows = ctx.db
 						.select({
+							id: projects.id,
 							repoPath: projects.repoPath,
 							name: projects.name,
 							repoName: projects.repoName,
 						})
 						.from(projects)
 						.all();
+					const projectNameById = new Map(
+						projectRows.map((row) => [
+							row.id,
+							row.name || row.repoName || basename(row.repoPath),
+						]),
+					);
 					const cwdLabels = [
 						...workspaceRows.map((row) => ({
 							prefix: row.worktreePath,
 							label: row.name || basename(row.worktreePath),
 							kind: "workspace" as const,
+							group: row.projectId
+								? (projectNameById.get(row.projectId) ?? null)
+								: null,
 						})),
-						...projectRows.map((row) => ({
-							prefix: row.repoPath,
-							label: row.name || row.repoName || basename(row.repoPath),
-							kind: "project" as const,
-						})),
+						// A repo checkout groups with its own project so the project
+						// rollup includes work done directly in the main checkout.
+						...projectRows.map((row) => {
+							const label = row.name || row.repoName || basename(row.repoPath);
+							return {
+								prefix: row.repoPath,
+								label,
+								kind: "project" as const,
+								group: label,
+							};
+						}),
 					].filter((label) => label.prefix);
 					return { days: input.days, cwdLabels };
 				},

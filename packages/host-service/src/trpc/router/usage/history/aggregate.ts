@@ -33,6 +33,8 @@ export interface CwdLabel {
 	prefix: string;
 	label: string;
 	kind: "workspace" | "project";
+	/** Owning project's display name — groups workspaces under a project. */
+	group?: string | null;
 }
 
 export interface UsageProjectBreakdown {
@@ -40,8 +42,20 @@ export interface UsageProjectBreakdown {
 	 * path; otherwise a directory-derived fallback. */
 	project: string;
 	kind: "workspace" | "project" | "other";
+	/** Owning project's display name, when known. */
+	group: string | null;
 	usd: number;
 	tokens: number;
+}
+
+export interface UsageSessionBreakdown {
+	id: string;
+	/** First user prompt of the session, when one was found. */
+	label: string | null;
+	provider: UsageProvider;
+	usd: number;
+	tokens: number;
+	lastMs: number;
 }
 
 export interface UsageDrilldownSlice {
@@ -60,6 +74,8 @@ export interface UsageDrilldownEntry {
 		usd: number;
 		tokens: number;
 	}>;
+	/** Per-session costs — present on workspace cubes only. */
+	sessions?: UsageSessionBreakdown[];
 	usd: number;
 	tokens: number;
 }
@@ -115,13 +131,17 @@ function entryTokens(entry: UsageLogEntry): number {
 function attributeCwd(
 	cwd: string,
 	labelsByLength: CwdLabel[],
-): { label: string; kind: UsageProjectBreakdown["kind"] } {
-	for (const { prefix, label, kind } of labelsByLength) {
+): {
+	label: string;
+	kind: UsageProjectBreakdown["kind"];
+	group: string | null;
+} {
+	for (const { prefix, label, kind, group } of labelsByLength) {
 		if (
 			cwd === prefix ||
 			(cwd.startsWith(prefix) && cwd[prefix.length] === "/")
 		) {
-			return { label, kind };
+			return { label, kind, group: group ?? null };
 		}
 	}
 	// `…/worktrees/<container>/<workspace-name>/…` → the workspace name.
@@ -129,9 +149,9 @@ function attributeCwd(
 	const worktreesIndex = segments.lastIndexOf("worktrees");
 	if (worktreesIndex >= 0 && segments.length > worktreesIndex + 2) {
 		const name = segments[worktreesIndex + 2];
-		if (name) return { label: name, kind: "other" };
+		if (name) return { label: name, kind: "other", group: null };
 	}
-	return { label: basename(cwd), kind: "other" };
+	return { label: basename(cwd), kind: "other", group: null };
 }
 
 export async function computeUsageHistory(
@@ -185,12 +205,19 @@ export async function computeUsageHistory(
 
 	const entries: UsageLogEntry[] = [];
 	const claudeEntriesByMessage = new Map<string, UsageLogEntry>();
+	const sessionLabels = new Map<string, string>();
 	for (const file of claudeFiles) {
-		await parseClaudeLogFile(file, claudeEntriesByMessage, cutoffMs, entries);
+		await parseClaudeLogFile(
+			file,
+			claudeEntriesByMessage,
+			cutoffMs,
+			entries,
+			sessionLabels,
+		);
 	}
 	entries.push(...claudeEntriesByMessage.values());
 	for (const file of codexFiles) {
-		await parseCodexLogFile(file, cutoffMs, entries);
+		await parseCodexLogFile(file, cutoffMs, entries, sessionLabels);
 	}
 
 	const bucketsByDay = new Map<string, UsageDailyBucket>();
@@ -211,6 +238,10 @@ export async function computeUsageHistory(
 	const modelProjects = new Map<
 		string,
 		Map<string, Slice & { provider: UsageProvider }>
+	>();
+	const projectSessions = new Map<
+		string,
+		Map<string, Slice & { provider: UsageProvider; lastMs: number }>
 	>();
 	const bump = <K>(
 		map: Map<K, Slice>,
@@ -286,10 +317,10 @@ export async function computeUsageHistory(
 		bump(nested(modelDays, modelKey), day, usd, tokens);
 
 		if (entry.cwd) {
-			const { label, kind } = attributeCwd(entry.cwd, labelsByLength);
+			const { label, kind, group } = attributeCwd(entry.cwd, labelsByLength);
 			let projectRow = projectsByKey.get(label);
 			if (!projectRow) {
-				projectRow = { project: label, kind, usd: 0, tokens: 0 };
+				projectRow = { project: label, kind, group, usd: 0, tokens: 0 };
 				projectsByKey.set(label, projectRow);
 			}
 			projectRow.usd += usd;
@@ -310,6 +341,17 @@ export async function computeUsageHistory(
 				tokens,
 			) as Slice & { provider: UsageProvider };
 			projectSlice.provider = entry.provider;
+			const sessionSlice = bump(
+				nested(projectSessions, label),
+				entry.sessionId,
+				usd,
+				tokens,
+			) as Slice & { provider: UsageProvider; lastMs: number };
+			sessionSlice.provider = entry.provider;
+			sessionSlice.lastMs = Math.max(
+				sessionSlice.lastMs ?? 0,
+				entry.timestampMs,
+			);
 		}
 
 		totals.usd += usd;
@@ -369,12 +411,25 @@ export async function computeUsageHistory(
 		};
 	};
 
+	const TOP_SESSIONS = 20;
 	const projectDetails: Record<string, UsageDrilldownEntry> = {};
 	for (const row of sortedProjects.slice(0, TOP_PROJECT_DETAILS)) {
-		projectDetails[row.project] = buildDetail(
+		const detail = buildDetail(
 			projectDays.get(row.project),
 			projectModels.get(row.project),
 		);
+		detail.sessions = [...(projectSessions.get(row.project) ?? new Map())]
+			.map(([id, slice]) => ({
+				id,
+				label: sessionLabels.get(id) ?? null,
+				provider: slice.provider,
+				usd: slice.usd,
+				tokens: slice.tokens,
+				lastMs: slice.lastMs,
+			}))
+			.sort((a, b) => b.usd - a.usd)
+			.slice(0, TOP_SESSIONS);
+		projectDetails[row.project] = detail;
 	}
 	const modelDetails: Record<string, UsageDrilldownEntry> = {};
 	for (const row of sortedModels) {

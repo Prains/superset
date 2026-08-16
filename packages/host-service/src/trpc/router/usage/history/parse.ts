@@ -15,6 +15,7 @@
  */
 
 import { createReadStream } from "node:fs";
+import { basename } from "node:path";
 import { createInterface } from "node:readline";
 import type { UsageProvider } from "../types";
 import type { LogFile } from "./logs";
@@ -24,12 +25,40 @@ export interface UsageLogEntry {
 	model: string;
 	timestampMs: number;
 	cwd: string | null;
+	/** Transcript file identity — one file is one CLI session. */
+	sessionId: string;
 	uncachedInput: number;
 	cachedInput: number;
 	cacheWrite5m: number;
 	cacheWrite1h: number;
 	output: number;
 	reasoningOutput: number;
+}
+
+export function sessionIdForFile(path: string): string {
+	return basename(path).replace(/\.jsonl$/, "");
+}
+
+const SESSION_LABEL_MAX = 80;
+
+/** First real user prompt of a session, trimmed to one short line. Command
+ * invocations, caveats, and system-reminder wrappers don't count. */
+function toSessionLabel(text: unknown): string | null {
+	if (typeof text !== "string") return null;
+	const trimmed = text.trim();
+	if (
+		!trimmed ||
+		trimmed.startsWith("<") ||
+		trimmed.startsWith("#") ||
+		trimmed.startsWith("Caveat:")
+	) {
+		return null;
+	}
+	const line = trimmed.split("\n", 1)[0] ?? "";
+	if (!line) return null;
+	return line.length > SESSION_LABEL_MAX
+		? `${line.slice(0, SESSION_LABEL_MAX - 1)}…`
+		: line;
 }
 
 async function forEachLine(
@@ -68,11 +97,13 @@ interface ClaudeLine {
 	type?: string;
 	requestId?: string;
 	isSidechain?: boolean;
+	isMeta?: boolean;
 	timestamp?: string;
 	cwd?: string;
 	message?: {
 		id?: string;
 		model?: string;
+		content?: string | Array<{ type?: string; text?: string }>;
 		usage?: {
 			input_tokens?: number;
 			output_tokens?: number;
@@ -102,14 +133,31 @@ export async function parseClaudeLogFile(
 	entriesByMessage: Map<string, UsageLogEntry>,
 	cutoffMs: number,
 	out: UsageLogEntry[],
+	sessionLabels?: Map<string, string>,
 ): Promise<void> {
+	const sessionId = sessionIdForFile(file.path);
 	await forEachLine(file.path, (line) => {
-		if (!line.includes('"assistant"')) return;
+		const wantLabel = sessionLabels ? !sessionLabels.has(sessionId) : false;
+		if (
+			!line.includes('"assistant"') &&
+			!(wantLabel && line.includes('"user"'))
+		) {
+			return;
+		}
 		let parsed: ClaudeLine;
 		try {
 			parsed = JSON.parse(line);
 		} catch {
 			return;
+		}
+		if (wantLabel && parsed.type === "user" && !parsed.isMeta) {
+			const content = parsed.message?.content;
+			const text =
+				typeof content === "string"
+					? content
+					: content?.find((block) => block.type === "text")?.text;
+			const label = toSessionLabel(text);
+			if (label) sessionLabels?.set(sessionId, label);
 		}
 		if (parsed.type !== "assistant") return;
 		const usage = parsed.message?.usage;
@@ -127,6 +175,7 @@ export async function parseClaudeLogFile(
 			model,
 			timestampMs,
 			cwd: typeof parsed.cwd === "string" ? parsed.cwd : null,
+			sessionId,
 			// Anthropic's input_tokens excludes cache reads and writes.
 			uncachedInput: num(usage.input_tokens),
 			cachedInput: num(usage.cache_read_input_tokens),
@@ -153,6 +202,7 @@ interface CodexLine {
 		type?: string;
 		model?: string;
 		cwd?: string;
+		message?: string;
 		info?: {
 			last_token_usage?: {
 				input_tokens?: number;
@@ -170,7 +220,9 @@ export async function parseCodexLogFile(
 	file: LogFile,
 	cutoffMs: number,
 	out: UsageLogEntry[],
+	sessionLabels?: Map<string, string>,
 ): Promise<void> {
+	const sessionId = sessionIdForFile(file.path);
 	let currentModel: string | null = null;
 	let currentCwd: string | null = null;
 	// Codex occasionally re-emits the same token_count event back-to-back;
@@ -179,13 +231,26 @@ export async function parseCodexLogFile(
 	let previousDeltaSignature: string | null = null;
 
 	await forEachLine(file.path, (line) => {
+		const wantLabel = sessionLabels ? !sessionLabels.has(sessionId) : false;
 		const isContext =
 			line.includes('"turn_context"') || line.includes('"session_meta"');
-		if (!isContext && !line.includes('"token_count"')) return;
+		if (
+			!isContext &&
+			!line.includes('"token_count"') &&
+			!(wantLabel && line.includes('"user_message"'))
+		) {
+			return;
+		}
 		let parsed: CodexLine;
 		try {
 			parsed = JSON.parse(line);
 		} catch {
+			return;
+		}
+
+		if (wantLabel && parsed.payload?.type === "user_message") {
+			const label = toSessionLabel(parsed.payload.message);
+			if (label) sessionLabels?.set(sessionId, label);
 			return;
 		}
 
@@ -217,6 +282,7 @@ export async function parseCodexLogFile(
 			model: currentModel ?? "unknown",
 			timestampMs,
 			cwd: currentCwd,
+			sessionId,
 			// OpenAI's input_tokens includes cached tokens; split them out.
 			uncachedInput: Math.max(0, input - cached),
 			cachedInput: cached,
