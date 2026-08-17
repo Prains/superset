@@ -22,16 +22,18 @@ export function selectWorktreesToPlace(
 	localWorkspaces: readonly LocalWorkspaceForPlacement[],
 	placedWorkspaceIds: ReadonlySet<string>,
 ): Array<{ id: string; projectId: string | null }> {
-	return localWorkspaces.flatMap((workspace) => {
-		if (placedWorkspaceIds.has(workspace.id)) return [];
-		if (workspace.type === "worktree" && workspace.projectId !== null) {
-			return [{ id: workspace.id, projectId: workspace.projectId }];
-		}
-		// Sessions are project-less; they land in the top-level Sessions
-		// section, so placement carries no project.
-		if (workspace.type === "session") {
-			return [{ id: workspace.id, projectId: null }];
-		}
-		return [];
-	});
+	return localWorkspaces.flatMap(
+		(workspace): Array<{ id: string; projectId: string | null }> => {
+			if (placedWorkspaceIds.has(workspace.id)) return [];
+			if (workspace.type === "worktree" && workspace.projectId !== null) {
+				return [{ id: workspace.id, projectId: workspace.projectId }];
+			}
+			// Sessions are project-less; they land in the top-level Sessions
+			// section, so placement carries no project.
+			if (workspace.type === "session") {
+				return [{ id: workspace.id, projectId: null }];
+			}
+			return [];
+		},
+	);
 }
