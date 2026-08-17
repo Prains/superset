@@ -24,6 +24,13 @@ export const env = createEnv({
 		// set when a desktop app spawned this host; absent on standalone hosts.
 		BROWSER_BRIDGE_URL: z.string().url().optional(),
 		BROWSER_BRIDGE_SECRET: z.string().min(1).optional(),
+		/**
+		 * "sandbox" when running inside a cloud sandbox. A sandbox is reached
+		 * directly at its provider preview URL, so it must not register as a
+		 * host or hold a relay socket — that would put it in the device picker
+		 * and keep it awake against the provider's wake-on-inbound sleep.
+		 */
+		SUPERSET_HOST_RUN_MODE: z.enum(["local", "sandbox"]).default("local"),
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,
