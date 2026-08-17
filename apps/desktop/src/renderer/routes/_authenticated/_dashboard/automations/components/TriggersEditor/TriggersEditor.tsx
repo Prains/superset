@@ -8,21 +8,15 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuPortal,
-	DropdownMenuSub,
-	DropdownMenuSubContent,
-	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@superset/ui/dropdown-menu";
+import { Input } from "@superset/ui/input";
 import { Separator } from "@superset/ui/separator";
 import { type ReactNode, useMemo, useState } from "react";
 import { LuCirclePlus, LuTriangleAlert } from "react-icons/lu";
-import {
-	GITHUB_MENU,
-	newGithubConfig,
-	type ScopeOption,
-	TriggerSentence,
-} from "../TriggerSentence";
+import { type ScopeOption, TriggerSentence } from "../TriggerSentence";
+import { TriggerMenuItems } from "./TriggerMenuItems";
+import { flattenTriggerMenu, matchesQuery, TRIGGER_MENU } from "./triggerMenu";
 
 interface TriggersEditorProps {
 	triggers: DraftTrigger[];
@@ -33,13 +27,6 @@ interface TriggersEditorProps {
 	nextRun?: ReactNode;
 	readOnly?: boolean;
 }
-
-const DEFAULT_SCHEDULE = {
-	kind: "schedule" as const,
-	rrule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0",
-	dtstart: new Date().toISOString(),
-	timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-};
 
 /**
  * The trigger list for an automation.
@@ -73,7 +60,11 @@ export function TriggersEditor({
 
 	const problems = useMemo(() => describeTriggerProblems(drafts), [drafts]);
 	const banner = summarizeTriggerProblems(problems);
-	const hasSchedule = drafts.some((t) => t.config.kind === "schedule");
+	const [query, setQuery] = useState("");
+	const leaves = useMemo(() => flattenTriggerMenu(), []);
+	const results = query
+		? leaves.filter((leaf) => matchesQuery(leaf, query))
+		: [];
 
 	/** Saves only a set the API would accept; anything else stays a draft. */
 	const apply = (next: DraftTrigger[]) => {
@@ -111,7 +102,7 @@ export function TriggersEditor({
 					<Separator className="mx-2 bg-border/60 data-[orientation=horizontal]:w-auto" />
 				)}
 
-				<DropdownMenu>
+				<DropdownMenu onOpenChange={() => setQuery("")}>
 					<DropdownMenuTrigger asChild disabled={readOnly}>
 						<Button
 							type="button"
@@ -123,60 +114,55 @@ export function TriggersEditor({
 							Add Trigger
 						</Button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-56">
-						<DropdownMenuItem
-							disabled={hasSchedule}
-							onSelect={() => add(DEFAULT_SCHEDULE)}
-						>
-							Scheduled
-							{hasSchedule && (
-								<span className="ml-auto text-muted-foreground text-xs">
-									already set
-								</span>
-							)}
-						</DropdownMenuItem>
-						<DropdownMenuSub>
-							<DropdownMenuSubTrigger>GitHub</DropdownMenuSubTrigger>
-							<DropdownMenuPortal>
-								<DropdownMenuSubContent className="max-h-96 overflow-y-auto">
-									{GITHUB_MENU.map((entry) =>
-										entry.children ? (
-											<DropdownMenuSub key={entry.label}>
-												<DropdownMenuSubTrigger>
-													{entry.label}
-												</DropdownMenuSubTrigger>
-												<DropdownMenuPortal>
-													<DropdownMenuSubContent>
-														{entry.children.map((child) => (
-															<DropdownMenuItem
-																key={child.event}
-																onSelect={() =>
-																	add(newGithubConfig(child.event))
-																}
-															>
-																{child.label}
-															</DropdownMenuItem>
-														))}
-													</DropdownMenuSubContent>
-												</DropdownMenuPortal>
-											</DropdownMenuSub>
-										) : (
-											<DropdownMenuItem
-												key={entry.label}
-												onSelect={() =>
-													entry.event && add(newGithubConfig(entry.event))
-												}
-											>
-												{entry.label}
-											</DropdownMenuItem>
-										),
-									)}
-								</DropdownMenuSubContent>
-							</DropdownMenuPortal>
-						</DropdownMenuSub>
-						<DropdownMenuItem onSelect={() => add({ kind: "webhook" })}>
-							Webhook Triggered
-						</DropdownMenuItem>
+					<DropdownMenuContent align="start" className="w-70">
+						{/* Radix runs a typeahead on printable keys and would swallow what
+					    is being typed here; Escape and the arrows still need to reach
+					    the menu, so only the characters are stopped. */}
+						<Input
+							autoFocus
+							value={query}
+							placeholder="Search triggers..."
+							onChange={(event) => setQuery(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key.length === 1 || event.key === "Backspace") {
+									event.stopPropagation();
+								}
+							}}
+							className="mb-1 h-8 border-none bg-transparent px-2 text-[13px] shadow-none focus-visible:ring-0 dark:bg-transparent"
+						/>
+
+						{query ? (
+							<>
+								{results.map((leaf) => {
+									const Icon = leaf.icon;
+									return (
+										<DropdownMenuItem
+											key={leaf.path.join(">")}
+											onSelect={() => add(leaf.config())}
+										>
+											{Icon && <Icon className="size-3.5 shrink-0 opacity-60" />}
+											{/* The trail disambiguates "Approved" from the other three
+											    review outcomes, but it is the trail that gives way when
+											    the row is too narrow — truncating the leaf would hide
+											    the word that was searched for. */}
+											{leaf.path.length > 1 && (
+												<span className="truncate text-muted-foreground">
+													{`${leaf.path.slice(0, -1).join(" › ")} › `}
+												</span>
+											)}
+											<span className="shrink-0">{leaf.path.at(-1)}</span>
+										</DropdownMenuItem>
+									);
+								})}
+								{results.length === 0 && (
+									<DropdownMenuItem disabled>
+										No matching trigger
+									</DropdownMenuItem>
+								)}
+							</>
+						) : (
+							<TriggerMenuItems entries={TRIGGER_MENU} onPick={add} />
+						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>

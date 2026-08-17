@@ -1,4 +1,8 @@
-import { isValidRrule, type Weekday } from "@superset/shared/rrule";
+import {
+	isValidRrule,
+	timezoneAbbreviation,
+	type Weekday,
+} from "@superset/shared/rrule";
 import { Input } from "@superset/ui/input";
 import { cn } from "@superset/ui/utils";
 import { type ReactNode, useMemo, useRef, useState } from "react";
@@ -13,14 +17,12 @@ import {
 	type SchedulePickerState,
 	stateFromRrule,
 } from "../SchedulePicker/scheduleState";
-import { TimezonePicker } from "../TimezonePicker";
 import { CHIP, SelectChip } from "../TriggerSentence/chips";
 
 interface ScheduleSentenceProps {
 	rrule: string;
 	onRruleChange: (rrule: string) => void;
 	timezone: string;
-	onTimezoneChange: (timezone: string) => void;
 	/** Trailing "Next run ..." text, shown inline at the end of the sentence. */
 	nextRun?: ReactNode;
 	className?: string;
@@ -36,7 +38,6 @@ export function ScheduleSentence({
 	rrule,
 	onRruleChange,
 	timezone,
-	onTimezoneChange,
 	nextRun,
 	className,
 	disabled,
@@ -132,11 +133,16 @@ export function ScheduleSentence({
 					</>
 				)}
 
-				<TimezonePicker
-					value={timezone}
-					disabled={disabled}
-					onChange={onTimezoneChange}
-				/>
+				{/* Read-only: the zone is captured from the browser when the trigger
+				    is created. Rebinding it to whoever is looking would silently
+				    move when the automation fires — create it in Los Angeles, open
+				    it from London, and an 11:00 job becomes a 19:00 one. */}
+				<span
+					className="text-muted-foreground"
+					title={timezone.replace(/_/g, " ")}
+				>
+					{timezoneAbbreviation(timezone)}
+				</span>
 
 				{nextRun && (
 					<span className="ml-1 truncate text-muted-foreground">{nextRun}</span>

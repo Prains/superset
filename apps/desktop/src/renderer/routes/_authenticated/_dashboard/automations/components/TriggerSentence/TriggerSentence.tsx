@@ -154,7 +154,6 @@ export function TriggerSentence({
 					rrule={config.rrule}
 					onRruleChange={(rrule) => set({ rrule })}
 					timezone={config.timezone}
-					onTimezoneChange={(timezone) => set({ timezone })}
 					nextRun={nextRun}
 					disabled={disabled}
 				/>
