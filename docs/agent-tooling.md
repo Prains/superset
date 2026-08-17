@@ -57,6 +57,13 @@ then runs the dev CLI with `SUPERSET_HOME_DIR` (the dev data dir),
 host. `SUPERSET_ORGANIZATION_ID` is a general CLI override (mirrors
 `SUPERSET_API_KEY`), not dev-only.
 
+The whole dev stack binds fixed ports off `SUPERSET_PORT_BASE=3960`, so only one
+`dev:desktop` (or `dev`) stack runs at a time across all worktrees. A `predev`
+preflight (`scripts/check-dev-ports.ts`) runs automatically: it frees ports left
+by a crashed stack in *this* worktree, and if another worktree/process holds
+them it aborts with the offending pids instead of the cryptic
+`Address already in use` crash. To run a second worktree's stack, stop the first.
+
 ## MCP
 
 There is currently no committed repo-level MCP config. MCP servers are configured per tool by the
