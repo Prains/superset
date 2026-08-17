@@ -89,9 +89,9 @@ export function GitHubStarPill({
 	// and reset again if `surface` itself changes so a re-purposed mounted
 	// instance still gets its own impression instead of inheriting the prior
 	// surface's guard.
-	const trackedShownSurfaceRef = useRef<
-		NonNullable<GitHubStarPillProps["surface"]> | null
-	>(null);
+	const trackedShownSurfaceRef = useRef<NonNullable<
+		GitHubStarPillProps["surface"]
+	> | null>(null);
 	useEffect(() => {
 		if (state === "starred") {
 			trackedShownSurfaceRef.current = null;
