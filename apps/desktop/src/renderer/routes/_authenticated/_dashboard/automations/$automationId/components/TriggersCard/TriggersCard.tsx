@@ -97,7 +97,7 @@ export function TriggersCard({
 	]);
 
 	return (
-		<div className="flex flex-col rounded-xl border border-border bg-card/40 px-4 py-3">
+		<div className="flex flex-col gap-1">
 			<TriggersEditor
 				triggers={automation.triggers.map((t) => ({
 					id: t.id,
@@ -109,7 +109,7 @@ export function TriggersCard({
 				people={people}
 				readOnly={readOnly}
 			/>
-			<div className="ml-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-l border-border pl-4 pt-1 text-sm text-muted-foreground">
+			<div className="flex flex-wrap items-center gap-x-1 gap-y-1 px-2 pt-1 text-[13px] text-muted-foreground">
 				<span>in</span>
 				<ProjectPicker
 					selectedProject={selectedProject}
@@ -153,7 +153,7 @@ export function TriggersCard({
 			{nextRunDate && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<span className="mt-3 w-fit text-xs text-muted-foreground">
+						<span className="w-fit px-2 pt-1 text-muted-foreground text-xs">
 							{automation.enabled ? "Next run " : "Would run "}
 							{formatDistanceStrict(nextRunDate, new Date(), {
 								addSuffix: true,
@@ -168,7 +168,7 @@ export function TriggersCard({
 					</TooltipContent>
 				</Tooltip>
 			)}
-			<RelayOfflineNotice hostId={hostId} className="mt-2" />
+			<RelayOfflineNotice hostId={hostId} className="mt-1" />
 		</div>
 	);
 }

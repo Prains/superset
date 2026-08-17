@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@superset/ui/popover";
 import { useMemo, useState } from "react";
 import { HiCheck } from "react-icons/hi2";
 import { LuGlobe } from "react-icons/lu";
-import { PickerTrigger } from "renderer/components/PickerTrigger";
+import { ChipButton } from "../TriggerSentence/chips";
 
 interface TimezonePickerProps {
 	value: string;
@@ -57,12 +57,14 @@ export function TimezonePicker({
 		// which Chromium still dispatches to fieldset-disabled buttons.
 		<Popover open={open} onOpenChange={(next) => !disabled && setOpen(next)}>
 			<PopoverTrigger asChild>
-				<PickerTrigger
-					disabled={disabled}
-					className={className}
-					icon={<LuGlobe className="size-4 shrink-0" />}
-					label={shortTimezoneLabel(value)}
-				/>
+				<span>
+					<ChipButton
+						disabled={disabled}
+						className={className}
+						icon={<LuGlobe className="size-3 shrink-0 opacity-60" />}
+						label={shortTimezoneLabel(value)}
+					/>
+				</span>
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"

@@ -1,12 +1,5 @@
 import { isValidRrule, type Weekday } from "@superset/shared/rrule";
 import { Input } from "@superset/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@superset/ui/select";
 import { cn } from "@superset/ui/utils";
 import { useMemo, useRef, useState } from "react";
 import { LuClock } from "react-icons/lu";
@@ -21,9 +14,7 @@ import {
 	stateFromRrule,
 } from "../SchedulePicker/scheduleState";
 import { TimezonePicker } from "../TimezonePicker";
-
-const CHIP =
-	"w-auto min-w-0 gap-1 rounded-md border-none bg-transparent px-1.5 text-sm font-medium shadow-none hover:bg-accent focus-visible:ring-1 dark:bg-transparent dark:hover:bg-accent";
+import { CHIP, SelectChip } from "../TriggerSentence/chips";
 
 interface ScheduleSentenceProps {
 	rrule: string;
@@ -97,45 +88,25 @@ export function ScheduleSentence({
 
 	return (
 		<div className={cn("flex flex-col gap-1.5", className)}>
-			<div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
-				<LuClock className="mr-1.5 size-4 shrink-0 text-muted-foreground" />
+			<div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px]">
+				<LuClock className="mr-0.5 size-4 shrink-0 text-muted-foreground" />
 
-				<Select
+				<SelectChip
 					value={state.kind}
 					disabled={disabled}
-					onValueChange={(value) => update({ kind: value as PresetKind })}
-				>
-					<SelectTrigger size="sm" className={CHIP}>
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{PRESET_OPTIONS.map((option) => (
-							<SelectItem key={option.value} value={option.value}>
-								{option.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+					options={PRESET_OPTIONS}
+					onChange={(value) => update({ kind: value as PresetKind })}
+				/>
 
 				{showsDay && (
 					<>
 						<span className="text-muted-foreground">on</span>
-						<Select
+						<SelectChip
 							value={state.day}
 							disabled={disabled}
-							onValueChange={(value) => update({ day: value as Weekday })}
-						>
-							<SelectTrigger size="sm" className={CHIP}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{DAY_OPTIONS.map((option) => (
-									<SelectItem key={option.value} value={option.value}>
-										{option.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							options={DAY_OPTIONS}
+							onChange={(value) => update({ day: value as Weekday })}
+						/>
 					</>
 				)}
 
@@ -145,7 +116,10 @@ export function ScheduleSentence({
 						<input
 							type="time"
 							disabled={disabled}
-							className="h-8 rounded-md px-1.5 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 disabled:opacity-50 dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden"
+							className={cn(
+								CHIP,
+								"px-2 disabled:opacity-50 dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden",
+							)}
 							value={formatTimeInputValue(state.hour, state.minute)}
 							onChange={(event) => {
 								const parsed = parseTimeInputValue(event.target.value);
@@ -156,7 +130,6 @@ export function ScheduleSentence({
 				)}
 
 				<TimezonePicker
-					className="text-muted-foreground"
 					value={timezone}
 					disabled={disabled}
 					onChange={onTimezoneChange}

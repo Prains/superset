@@ -2,53 +2,120 @@ import type {
 	TriggerActor,
 	TriggerScope,
 } from "@superset/shared/automation-triggers";
-import { Button } from "@superset/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
 	DropdownMenuTrigger,
 } from "@superset/ui/dropdown-menu";
 import { cn } from "@superset/ui/utils";
+import type { ReactNode } from "react";
 import { LuChevronDown } from "react-icons/lu";
 
 /**
  * The chips a trigger sentence is built from.
  *
- * Same visual language as ScheduleSentence: inline controls that read as part
- * of a sentence rather than a form, so "Draft opened in [repos] by [anyone]"
- * stays legible as one line.
+ * Filled rather than outlined, and always visible rather than appearing on
+ * hover: a trigger reads as a sentence with editable words in it, and an
+ * invisible control gives no hint that the word is a choice.
  */
 
+/**
+ * 24px tall, 13px text, tighter on the right where the chevron sits.
+ *
+ * A plain button rather than the shared Button: its size variants set height,
+ * padding and font size, and a chip needs all three smaller than any variant
+ * offers. Fighting that through class merging is how the first attempt ended up
+ * 32px tall with the wrong padding.
+ */
 export const CHIP =
-	"h-auto w-auto min-w-0 gap-1 rounded-md border-none bg-transparent px-1.5 py-0.5 text-sm font-medium shadow-none hover:bg-accent focus-visible:ring-1";
+	"inline-flex h-6 w-auto min-w-0 shrink-0 items-center gap-1 rounded-[6px] bg-foreground/[0.06] py-0 pr-1.5 pl-2 text-[13px] leading-none transition-colors hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
 
-/** A chip whose value is unset, which blocks saving. */
-export const CHIP_EMPTY = "text-muted-foreground ring-1 ring-warning/60";
+/** Unset reads as dimmer text, not as an error — nothing is wrong yet. */
+export const CHIP_EMPTY = "text-muted-foreground";
+
+/**
+ * Marks the chips a save is blocked on.
+ *
+ * There is no Save button — the set saves itself once it is valid — so this is
+ * the only thing that says which word is holding it back. A sentence can have
+ * three chips where only one is empty, and the banner names the problem without
+ * pointing at it.
+ */
+export const CHIP_INVALID = "ring-1 ring-warning/60 text-warning";
 
 export function ChipButton({
 	label,
+	icon,
 	empty,
 	disabled,
 	className,
 }: {
 	label: string;
+	icon?: ReactNode;
 	empty?: boolean;
 	disabled?: boolean;
 	className?: string;
 }) {
 	return (
-		<Button
+		<button
 			type="button"
-			variant="ghost"
-			size="sm"
 			disabled={disabled}
 			className={cn(CHIP, empty && CHIP_EMPTY, className)}
 		>
-			{label}
-			<LuChevronDown className="size-3 opacity-60" />
-		</Button>
+			{icon}
+			<span className="truncate">{label}</span>
+			<LuChevronDown className="size-3 shrink-0 opacity-50" />
+		</button>
+	);
+}
+
+/**
+ * One choice from a short, known list.
+ *
+ * A dropdown rather than a Select: Select's trigger carries its own height,
+ * padding and font size that a chip has to fight, and the sentence already
+ * speaks in dropdowns everywhere else.
+ */
+export function SelectChip({
+	value,
+	onChange,
+	options,
+	disabled,
+	className,
+}: {
+	value: string;
+	onChange: (value: string) => void;
+	options: readonly { value: string; label: string }[];
+	disabled?: boolean;
+	className?: string;
+}) {
+	const current = options.find((o) => o.value === value);
+
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild disabled={disabled}>
+				<span>
+					<ChipButton
+						label={current?.label ?? value}
+						disabled={disabled}
+						className={className}
+					/>
+				</span>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
+				<DropdownMenuRadioGroup value={value} onValueChange={onChange}>
+					{options.map((option) => (
+						<DropdownMenuRadioItem key={option.value} value={option.value}>
+							{option.label}
+						</DropdownMenuRadioItem>
+					))}
+				</DropdownMenuRadioGroup>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 
@@ -73,9 +140,9 @@ function scopeLabel(
 /**
  * Multi-select over a known set, plus an explicit "any".
  *
- * "Any" is its own menu entry rather than the empty state, because an empty
+ * "Any" is its own entry rather than the empty state, because an empty
  * selection matches nothing — that asymmetry is what stops a half-built trigger
- * firing on everything, so the UI has to make choosing "any" deliberate.
+ * firing on everything, so choosing "any" has to be deliberate.
  */
 export function ScopeChip({
 	scope,
@@ -84,6 +151,7 @@ export function ScopeChip({
 	emptyLabel,
 	anyLabel,
 	disabled,
+	className,
 }: {
 	scope: TriggerScope;
 	onChange: (next: TriggerScope) => void;
@@ -91,6 +159,7 @@ export function ScopeChip({
 	emptyLabel: string;
 	anyLabel: string;
 	disabled?: boolean;
+	className?: string;
 }) {
 	const selected = scope !== null && scope.mode === "list" ? scope.ids : [];
 	const isAny = scope !== null && scope.mode === "any";
@@ -111,6 +180,7 @@ export function ScopeChip({
 						label={scopeLabel(scope, options, emptyLabel, anyLabel)}
 						empty={empty}
 						disabled={disabled}
+						className={className}
 					/>
 				</span>
 			</DropdownMenuTrigger>
@@ -154,11 +224,13 @@ export function ActorChip({
 	onChange,
 	people,
 	disabled,
+	className,
 }: {
 	actor: TriggerActor;
 	onChange: (next: TriggerActor) => void;
 	people: ScopeOption[];
 	disabled?: boolean;
+	className?: string;
 }) {
 	const ids = typeof actor === "string" ? [] : actor.ids;
 	const empty = typeof actor !== "string" && ids.length === 0;
@@ -171,6 +243,7 @@ export function ActorChip({
 						label={actorLabel(actor, people)}
 						empty={empty}
 						disabled={disabled}
+						className={className}
 					/>
 				</span>
 			</DropdownMenuTrigger>
@@ -201,6 +274,9 @@ export function ActorChip({
 						{person.label}
 					</DropdownMenuCheckboxItem>
 				))}
+				{people.length === 0 && (
+					<DropdownMenuItem disabled>No linked accounts yet</DropdownMenuItem>
+				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

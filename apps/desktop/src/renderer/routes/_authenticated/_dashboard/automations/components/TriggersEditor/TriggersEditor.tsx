@@ -14,7 +14,7 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@superset/ui/dropdown-menu";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { LuCirclePlus, LuTriangleAlert } from "react-icons/lu";
 import {
 	GITHUB_MENU,
@@ -53,32 +53,51 @@ export function TriggersEditor({
 	people,
 	readOnly,
 }: TriggersEditorProps) {
-	const problems = useMemo(() => describeTriggerProblems(triggers), [triggers]);
+	// Local, because a trigger is invalid the moment it is added — "Comment
+	// added" with no repository chosen yet — and the API rejects the whole set.
+	// Sending every keystroke upstream meant a new row was saved, refused, and
+	// dropped on the next render, so it could never be filled in at all.
+	const [drafts, setDrafts] = useState(triggers);
+	const savedKey = JSON.stringify(triggers);
+	const [prevSavedKey, setPrevSavedKey] = useState(savedKey);
+	if (savedKey !== prevSavedKey) {
+		setPrevSavedKey(savedKey);
+		// Adopt what was saved — it carries the ids the server assigned — unless
+		// there is unsaved work here, which by definition was never sent.
+		if (describeTriggerProblems(drafts).length === 0) setDrafts(triggers);
+	}
+
+	const problems = useMemo(() => describeTriggerProblems(drafts), [drafts]);
 	const banner = summarizeTriggerProblems(problems);
-	const hasSchedule = triggers.some((t) => t.config.kind === "schedule");
+	const hasSchedule = drafts.some((t) => t.config.kind === "schedule");
+
+	/** Saves only a set the API would accept; anything else stays a draft. */
+	const apply = (next: DraftTrigger[]) => {
+		setDrafts(next);
+		if (describeTriggerProblems(next).length === 0) onChange(next);
+	};
 
 	const add = (config: DraftTrigger["config"]) =>
-		onChange([...triggers, { enabled: true, config }]);
+		apply([...drafts, { enabled: true, config }]);
 
 	return (
-		<div className="space-y-1">
-			<div className="rounded-lg border border-border/60">
-				{triggers.map((trigger, index) => (
-					<div
+		<div className="flex flex-col gap-1">
+			{/* A filled surface, not an outlined box: the rows are the structure, and
+			    a border around them competes with the card they already sit in. */}
+			<div className="rounded-[12px] bg-foreground/[0.04] p-1">
+				{drafts.map((trigger, index) => (
+					<TriggerSentence
 						key={trigger.id ?? `draft-${index}`}
-						className="border-border/60 border-b px-3 last:border-b-0"
-					>
-						<TriggerSentence
-							trigger={trigger}
-							onChange={(next) =>
-								onChange(triggers.map((t, i) => (i === index ? next : t)))
-							}
-							onRemove={() => onChange(triggers.filter((_, i) => i !== index))}
-							repositories={repositories}
-							people={people}
-							disabled={readOnly}
-						/>
-					</div>
+						trigger={trigger}
+						onChange={(next) =>
+							apply(drafts.map((t, i) => (i === index ? next : t)))
+						}
+						onRemove={() => apply(drafts.filter((_, i) => i !== index))}
+						repositories={repositories}
+						people={people}
+						problems={problems.filter((p) => p.index === index)}
+						disabled={readOnly}
+					/>
 				))}
 
 				<DropdownMenu>
@@ -87,7 +106,7 @@ export function TriggersEditor({
 							type="button"
 							variant="ghost"
 							size="sm"
-							className="w-full justify-start gap-2 rounded-none px-3 py-2 text-muted-foreground hover:text-foreground"
+							className="h-10 w-full justify-start gap-2 rounded-[8px] px-2 font-normal text-[13px] text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
 						>
 							<LuCirclePlus className="size-4" />
 							Add Trigger
@@ -151,8 +170,10 @@ export function TriggersEditor({
 				</DropdownMenu>
 			</div>
 
+			{/* Below the surface, not inside it — this is commentary on the set,
+			    not another row of it. */}
 			{banner && (
-				<p className="flex items-center gap-1.5 px-1 text-sm text-warning">
+				<p className="flex items-center gap-1.5 px-2 pt-1 text-sm text-warning">
 					<LuTriangleAlert className="size-3.5 shrink-0" />
 					{banner}
 				</p>

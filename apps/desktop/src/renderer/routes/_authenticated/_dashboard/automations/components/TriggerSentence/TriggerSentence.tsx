@@ -1,9 +1,12 @@
-import type { DraftTrigger } from "@superset/shared/automation-triggers";
+import type {
+	DraftTrigger,
+	TriggerProblem,
+} from "@superset/shared/automation-triggers";
 import { Button } from "@superset/ui/button";
 import { Input } from "@superset/ui/input";
 import { LuGithub, LuTrash2, LuWebhook } from "react-icons/lu";
 import { ScheduleSentence } from "../ScheduleSentence";
-import { ActorChip, ScopeChip, type ScopeOption } from "./chips";
+import { ActorChip, CHIP_INVALID, ScopeChip, type ScopeOption } from "./chips";
 import { GITHUB_SENTENCES, type SentencePart } from "./sentence";
 
 interface TriggerSentenceProps {
@@ -12,6 +15,8 @@ interface TriggerSentenceProps {
 	onRemove: () => void;
 	repositories: ScopeOption[];
 	people: ScopeOption[];
+	/** This row's problems, already filtered to it by the editor. */
+	problems?: TriggerProblem[];
 	disabled?: boolean;
 }
 
@@ -27,16 +32,22 @@ export function TriggerSentence({
 	onRemove,
 	repositories,
 	people,
+	problems,
 	disabled,
 }: TriggerSentenceProps) {
 	const config = trigger.config;
+	// A banner naming the row is not enough when a sentence has three chips that
+	// could each be the empty one.
+	const invalid = new Set((problems ?? []).map((p) => p.field));
+	const mark = (field: string) =>
+		invalid.has(field) ? CHIP_INVALID : undefined;
 	const set = (patch: Record<string, unknown>) =>
 		onChange({ ...trigger, config: { ...config, ...patch } as never });
 
 	const renderPart = (part: SentencePart, index: number) => {
 		if ("text" in part) {
 			return (
-				<span key={index} className="text-muted-foreground text-sm">
+				<span key={index} className="text-[13px] text-muted-foreground">
 					{part.text}
 				</span>
 			);
@@ -50,6 +61,7 @@ export function TriggerSentence({
 						key={index}
 						scope={c.repositories}
 						onChange={(v) => set({ repositories: v })}
+						className={mark("repositories")}
 						options={repositories}
 						emptyLabel="Select repos"
 						anyLabel="Any repo"
@@ -86,6 +98,7 @@ export function TriggerSentence({
 						key={index}
 						actor={c.actor}
 						onChange={(v) => set({ actor: v })}
+						className={mark("actor")}
 						people={people}
 						disabled={disabled}
 					/>
@@ -96,6 +109,7 @@ export function TriggerSentence({
 						key={index}
 						actor={c.subjectAuthor}
 						onChange={(v) => set({ subjectAuthor: v })}
+						className={mark("subjectAuthor")}
 						people={people}
 						disabled={disabled}
 					/>
@@ -118,7 +132,7 @@ export function TriggerSentence({
 									: null,
 							})
 						}
-						className="h-7 w-40 px-1.5 text-sm"
+						className="h-6 w-40 rounded-[6px] border-none bg-foreground/[0.06] px-2 text-[13px] shadow-none focus-visible:ring-1"
 					/>
 				);
 			}
@@ -126,7 +140,7 @@ export function TriggerSentence({
 	};
 
 	return (
-		<div className="flex flex-wrap items-center gap-1.5 py-1.5">
+		<div className="group flex min-h-10 flex-wrap items-center gap-1.5 rounded-[8px] px-2 py-1.5 hover:bg-foreground/[0.03]">
 			{config.kind === "github" && (
 				<LuGithub className="size-4 shrink-0 text-muted-foreground" />
 			)}
@@ -160,7 +174,7 @@ export function TriggerSentence({
 				aria-label="Remove trigger"
 				disabled={disabled}
 				onClick={onRemove}
-				className="ml-auto size-7 text-muted-foreground hover:text-foreground"
+				className="ml-auto size-6 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:text-foreground"
 			>
 				<LuTrash2 className="size-3.5" />
 			</Button>
