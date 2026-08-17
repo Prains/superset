@@ -9,14 +9,6 @@ export type OrgPullRequest =
 const PULL_REQUESTS_REFETCH_INTERVAL_MS = 60_000;
 const NO_PULL_REQUESTS: OrgPullRequest[] = [];
 
-/** Prefix of the per-organization key, for invalidating after a PR changes. */
-export const PULL_REQUESTS_QUERY_KEY = [
-	"cloud",
-	"integration",
-	"github",
-	"listPullRequests",
-] as const;
-
 /**
  * Every synced pull request in the active organization, any state — rows are
  * matched to workspaces by repo coordinates and branch, and merged/closed PRs
@@ -27,7 +19,13 @@ export function usePullRequests(): OrgPullRequest[] {
 	const organizationId = session?.session?.activeOrganizationId ?? null;
 
 	const query = useQuery({
-		queryKey: [...PULL_REQUESTS_QUERY_KEY, organizationId],
+		queryKey: [
+			"cloud",
+			"integration",
+			"github",
+			"listPullRequests",
+			organizationId,
+		],
 		enabled: organizationId !== null,
 		refetchInterval: PULL_REQUESTS_REFETCH_INTERVAL_MS,
 		staleTime: 30_000,
