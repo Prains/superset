@@ -159,7 +159,6 @@ export function AutomationBody({
 
 				{tab === "settings" ? (
 					<fieldset disabled={readOnly} className="contents">
-						<span className="mb-2 text-sm text-muted-foreground">Triggers</span>
 						<TriggersCard
 							automation={automation}
 							hostId={hostId}

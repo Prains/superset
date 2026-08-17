@@ -99,6 +99,14 @@ export function TriggersCard({
 		return entries;
 	}, [automation.triggers, automation.enabled]);
 
+	// The scope line is the same grammar as a trigger sentence — "in X on Y using
+	// Z" — so it uses the same chips. Left alone, the three pickers render at
+	// 36px/12px, 22px/11px and 36px/12px, none of which match the 24px/13px chips
+	// directly above them. Passed per call site, so the pickers keep their own
+	// look everywhere else they are used.
+	const SCOPE_CHIP =
+		"h-6 gap-1 rounded-[6px] bg-foreground/[0.06] px-2 text-[13px] font-normal hover:bg-foreground/10";
+
 	const renderNextRun = (triggerId?: string) => {
 		const date = triggerId ? nextRunByTriggerId.get(triggerId) : undefined;
 		if (!date) return null;
@@ -134,6 +142,7 @@ export function TriggersCard({
 			<div className="flex flex-wrap items-center gap-x-1 gap-y-1 px-2 pt-1 text-[13px] text-muted-foreground">
 				<span>in</span>
 				<ProjectPicker
+					className={SCOPE_CHIP}
 					selectedProject={selectedProject}
 					sessionSelected={automation.v2ProjectId === null}
 					recentProjects={recentProjects}
@@ -142,6 +151,7 @@ export function TriggersCard({
 				/>
 				<span>on</span>
 				<DevicePicker
+					className={SCOPE_CHIP}
 					hostId={hostId}
 					showLocalOnlineState
 					disabled={readOnly}
@@ -151,6 +161,7 @@ export function TriggersCard({
 				/>
 				<span>using</span>
 				<WorkspacePicker
+					className={SCOPE_CHIP}
 					hostId={hostId}
 					projectId={automation.v2ProjectId}
 					value={automation.v2WorkspaceId}

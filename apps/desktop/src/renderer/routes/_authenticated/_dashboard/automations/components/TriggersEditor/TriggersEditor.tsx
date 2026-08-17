@@ -44,18 +44,22 @@ export function TriggersEditor({
 	renderNextRun,
 	readOnly,
 }: TriggersEditorProps) {
-	// Local, because a trigger is invalid the moment it is added — "Comment
-	// added" with no repository chosen yet — and the API rejects the whole set.
-	// Sending every keystroke upstream meant a new row was saved, refused, and
-	// dropped on the next render, so it could never be filled in at all.
+	// Edited locally and saved on request, unlike the rest of this page.
+	//
+	// A trigger is invalid the moment it is added — "Comment added" with no
+	// repository chosen yet — and the API rejects the whole set, so autosaving
+	// meant a new row was saved, refused, and dropped on the next render. Saving
+	// silently once it happened to become valid is no better: nothing tells you
+	// which edit crossed the line, or that anything was written at all.
 	const [drafts, setDrafts] = useState(triggers);
+	const [dirty, setDirty] = useState(false);
 	const savedKey = JSON.stringify(triggers);
 	const [prevSavedKey, setPrevSavedKey] = useState(savedKey);
 	if (savedKey !== prevSavedKey) {
 		setPrevSavedKey(savedKey);
 		// Adopt what was saved — it carries the ids the server assigned — unless
-		// there is unsaved work here, which by definition was never sent.
-		if (describeTriggerProblems(drafts).length === 0) setDrafts(triggers);
+		// there are edits here, which by definition were never sent.
+		if (!dirty) setDrafts(triggers);
 	}
 
 	const problems = useMemo(() => describeTriggerProblems(drafts), [drafts]);
@@ -66,17 +70,67 @@ export function TriggersEditor({
 		? leaves.filter((leaf) => matchesQuery(leaf, query))
 		: [];
 
-	/** Saves only a set the API would accept; anything else stays a draft. */
-	const apply = (next: DraftTrigger[]) => {
+	const edit = (next: DraftTrigger[]) => {
 		setDrafts(next);
-		if (describeTriggerProblems(next).length === 0) onChange(next);
+		setDirty(true);
+	};
+
+	const save = () => {
+		if (problems.length > 0) return;
+		onChange(drafts);
+		setDirty(false);
+	};
+
+	const discard = () => {
+		setDrafts(triggers);
+		setDirty(false);
 	};
 
 	const add = (config: DraftTrigger["config"]) =>
-		apply([...drafts, { enabled: true, config }]);
+		edit([...drafts, { enabled: true, config }]);
 
 	return (
 		<div className="flex flex-col gap-1">
+			{/* The section label lives here rather than in the page, so the actions
+			    for the set can sit on its line. Above the surface, not below it: a
+			    Save that trails the rows drifts down the page as triggers are added,
+			    and the reason it is disabled goes with it. */}
+			<div className="mb-2 flex min-h-7 items-center gap-3">
+				<span className="shrink-0 text-muted-foreground text-sm">Triggers</span>
+
+				{banner && (
+					<p className="flex min-w-0 items-center gap-1.5 text-[13px] text-amber-600 dark:text-amber-400">
+						<LuTriangleAlert className="size-3.5 shrink-0" />
+						<span className="truncate">{banner}</span>
+					</p>
+				)}
+
+				{dirty && (
+					<div className="ml-auto flex shrink-0 items-center gap-1.5">
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							onClick={discard}
+							className="h-7 text-[13px]"
+						>
+							Discard
+						</Button>
+						{/* Disabled rather than hidden: the banner on this line says what
+						    is missing, and a button that vanishes reads as saved. */}
+						<Button
+							type="button"
+							size="sm"
+							onClick={save}
+							disabled={problems.length > 0}
+							className="h-7 text-[13px]"
+						>
+							Save triggers
+						</Button>
+					</div>
+				)}
+			</div>
+
 			{/* A filled surface, not an outlined box: the rows are the structure, and
 			    a border around them competes with the card they already sit in. */}
 			<div className="rounded-[12px] bg-foreground/[0.04] p-1">
@@ -85,9 +139,9 @@ export function TriggersEditor({
 						key={trigger.id ?? `draft-${index}`}
 						trigger={trigger}
 						onChange={(next) =>
-							apply(drafts.map((t, i) => (i === index ? next : t)))
+							edit(drafts.map((t, i) => (i === index ? next : t)))
 						}
-						onRemove={() => apply(drafts.filter((_, i) => i !== index))}
+						onRemove={() => edit(drafts.filter((_, i) => i !== index))}
 						repositories={repositories}
 						people={people}
 						problems={problems.filter((p) => p.index === index)}
@@ -174,15 +228,6 @@ export function TriggersEditor({
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
-
-			{/* Below the surface, not inside it — this is commentary on the set,
-			    not another row of it. */}
-			{banner && (
-				<p className="flex items-center gap-1.5 px-2 pt-1 text-[13px] text-amber-600 dark:text-amber-400">
-					<LuTriangleAlert className="size-3.5 shrink-0" />
-					{banner}
-				</p>
-			)}
 		</div>
 	);
 }
