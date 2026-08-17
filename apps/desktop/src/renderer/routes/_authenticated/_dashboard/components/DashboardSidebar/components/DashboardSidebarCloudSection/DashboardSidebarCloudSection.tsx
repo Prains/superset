@@ -103,6 +103,10 @@ export function DashboardSidebarCloudSection({
 					taskId: null,
 					isPinned: false,
 					pendingTransaction: null,
+					parentWorkspaceId: null,
+					lineageDepth: 0,
+					lineageChildCount: 0,
+					lineageCollapsed: false,
 				};
 			});
 	}, [cloudWorkspaces, hostWorkspaces, localStateRows]);
