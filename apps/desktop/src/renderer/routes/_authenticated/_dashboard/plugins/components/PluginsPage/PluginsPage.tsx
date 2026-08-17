@@ -39,14 +39,13 @@ import {
 	LuSearch,
 	LuSparkles,
 } from "react-icons/lu";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { PluginTile } from "renderer/plugins/PluginTile";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 import { EXTERNAL_LINKS } from "shared/constants";
 
 const QUERY_KEY = ["host-plugins"] as const;
-
-type InstallMode = "git" | "path";
 
 function usePluginsQuery(hostUrl: string | null) {
 	return useQuery({
@@ -158,12 +157,10 @@ function PluginRow({
 }
 
 function InstallDialog({
-	mode,
 	hostUrl,
 	onClose,
 	onInstalled,
 }: {
-	mode: InstallMode;
 	hostUrl: string;
 	onClose: () => void;
 	onInstalled: () => void;
@@ -174,9 +171,6 @@ function InstallDialog({
 		mutationFn: async (input: string) => {
 			const client = getHostServiceClientByUrl(hostUrl);
 			const trimmed = input.trim();
-			if (mode === "path") {
-				return client.plugins.link.mutate({ path: trimmed });
-			}
 			const url = /^(https?:\/\/|git@)/.test(trimmed)
 				? trimmed
 				: `https://github.com/${trimmed}.git`;
@@ -196,13 +190,10 @@ function InstallDialog({
 		<Dialog modal={false} open onOpenChange={(open) => !open && onClose()}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>
-						{mode === "git" ? "Install from git" : "Link a local plugin"}
-					</DialogTitle>
+					<DialogTitle>Install from git</DialogTitle>
 					<DialogDescription>
-						{mode === "git"
-							? "Plugins run with full access on this host, the same as setup scripts. Install from authors you trust."
-							: "Registers a plugin directory in place. Edits apply on reload — this is the dev flow."}
+						Plugins run with full access on this host, the same as setup
+						scripts. Install from authors you trust.
 					</DialogDescription>
 				</DialogHeader>
 				<form
@@ -217,11 +208,7 @@ function InstallDialog({
 						data-testid="plugin-install-input"
 						value={source}
 						onChange={(event) => setSource(event.target.value)}
-						placeholder={
-							mode === "git"
-								? "owner/repo or https://…"
-								: "/path/to/plugin-directory"
-						}
+						placeholder="owner/repo or https://…"
 					/>
 					<DialogFooter>
 						<Button type="button" variant="outline" onClick={onClose}>
@@ -235,7 +222,7 @@ function InstallDialog({
 							{install.isPending ? (
 								<LuLoaderCircle className="size-3.5 animate-spin" />
 							) : null}
-							{mode === "git" ? "Install" : "Link"}
+							Install
 						</Button>
 					</DialogFooter>
 				</form>
@@ -337,13 +324,36 @@ export function PluginsPage() {
 	const { activeHostUrl } = useLocalHostService();
 	const queryClient = useQueryClient();
 	const pluginsQuery = usePluginsQuery(activeHostUrl);
-	const [installMode, setInstallMode] = useState<InstallMode | null>(null);
+	const [gitDialogOpen, setGitDialogOpen] = useState(false);
 	const [buildOpen, setBuildOpen] = useState(false);
+	const [dropActive, setDropActive] = useState(false);
 	const [search, setSearch] = useState("");
 	const [scope, setScope] = useState<"all" | "enabled" | "errors">("all");
 
 	const invalidate = () => {
 		void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+	};
+
+	const linkPath = useMutation({
+		mutationFn: async (path: string) => {
+			if (!activeHostUrl) throw new Error("Host service is not available");
+			return getHostServiceClientByUrl(activeHostUrl).plugins.link.mutate({
+				path,
+			});
+		},
+		onSettled: invalidate,
+		onSuccess: (result) => {
+			toast.success(`Linked ${result?.snapshot?.name ?? "plugin"}`);
+			for (const warning of result?.warnings ?? []) toast.warning(warning);
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	const selectDirectory = electronTrpc.window.selectDirectory.useMutation();
+	const pickAndLink = async () => {
+		const result = await selectDirectory.mutateAsync({
+			title: "Select a plugin directory",
+		});
+		if (!result.canceled && result.path) linkPath.mutate(result.path);
 	};
 
 	const plugins = pluginsQuery.data ?? [];
@@ -363,7 +373,32 @@ export function PluginsPage() {
 	const errorCount = plugins.filter((p) => p.status === "error").length;
 
 	return (
-		<div className="flex h-full flex-col overflow-y-auto">
+		// biome-ignore lint/a11y/noStaticElementInteractions: drop target only
+		<div
+			className="relative flex h-full w-full flex-1 flex-col overflow-y-auto"
+			onDragOver={(event) => {
+				if (event.dataTransfer.types.includes("Files")) {
+					event.preventDefault();
+					setDropActive(true);
+				}
+			}}
+			onDragLeave={(event) => {
+				if (event.currentTarget === event.target) setDropActive(false);
+			}}
+			onDrop={(event) => {
+				event.preventDefault();
+				setDropActive(false);
+				const file = event.dataTransfer.files[0];
+				if (!file) return;
+				const path = window.webUtils.getPathForFile(file);
+				if (path) linkPath.mutate(path);
+			}}
+		>
+			{dropActive ? (
+				<div className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-foreground/30 bg-background/70 text-sm text-muted-foreground">
+					Drop a plugin folder to link it
+				</div>
+			) : null}
 			<div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-10">
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex flex-col gap-0.5">
@@ -389,13 +424,13 @@ export function PluginsPage() {
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
-								<DropdownMenuItem onSelect={() => setInstallMode("git")}>
+								<DropdownMenuItem onSelect={() => setGitDialogOpen(true)}>
 									<LuGitBranch className="size-3.5" />
 									From git URL…
 								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={() => setInstallMode("path")}>
+								<DropdownMenuItem onSelect={() => void pickAndLink()}>
 									<LuFolderGit2 className="size-3.5" />
-									From local path…
+									Link local folder…
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
@@ -493,11 +528,10 @@ export function PluginsPage() {
 					</div>
 				)}
 			</div>
-			{installMode && activeHostUrl ? (
+			{gitDialogOpen && activeHostUrl ? (
 				<InstallDialog
-					mode={installMode}
 					hostUrl={activeHostUrl}
-					onClose={() => setInstallMode(null)}
+					onClose={() => setGitDialogOpen(false)}
 					onInstalled={invalidate}
 				/>
 			) : null}
