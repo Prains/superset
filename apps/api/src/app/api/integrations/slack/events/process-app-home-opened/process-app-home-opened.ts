@@ -37,6 +37,7 @@ export async function processAppHomeOpened({
 	}
 
 	const slackUserLink = await findSlackUserLink({
+		organizationId: connection.organizationId,
 		slackUserId: event.user,
 		teamId,
 	});

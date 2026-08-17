@@ -10,6 +10,7 @@ import { and, eq } from "drizzle-orm";
  * rather than part of the id.
  */
 export async function findSlackUserLink(params: {
+	organizationId: string;
 	slackUserId: string;
 	teamId: string;
 }): Promise<
@@ -31,6 +32,9 @@ export async function findSlackUserLink(params: {
 		.innerJoin(users, eq(users.id, userIdentities.userId))
 		.where(
 			and(
+				// Scoped: the unique constraint includes the organization, so a
+				// Slack user id and team alone no longer identify one row.
+				eq(userIdentities.organizationId, params.organizationId),
 				eq(userIdentities.provider, "slack"),
 				eq(userIdentities.externalId, params.slackUserId),
 				eq(userIdentities.externalScopeId, params.teamId),

@@ -79,7 +79,11 @@ export async function processSlackMention({
 
 	const [slackUserLink, activeSubscription] = await Promise.all([
 		event.user
-			? findSlackUserLink({ slackUserId: event.user, teamId })
+			? findSlackUserLink({
+					organizationId: connection.organizationId,
+					slackUserId: event.user,
+					teamId,
+				})
 			: undefined,
 		db.query.subscriptions.findFirst({
 			where: and(

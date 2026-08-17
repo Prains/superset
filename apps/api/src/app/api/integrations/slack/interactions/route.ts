@@ -1,6 +1,6 @@
 import { db } from "@superset/db/client";
-import { userIdentities } from "@superset/db/schema";
-import { and, eq } from "drizzle-orm";
+import { integrationConnections, userIdentities } from "@superset/db/schema";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { posthog } from "@/lib/analytics";
 import { DEFAULT_SLACK_MODEL } from "../constants";
 import { processAppHomeOpened } from "../events/process-app-home-opened";
@@ -68,6 +68,27 @@ export async function POST(request: Request) {
 			return new Response("ok", { status: 200 });
 		}
 
+		// The identity is scoped by organization, and an interaction payload only
+		// names the Slack workspace — so resolve the connection to get one.
+		const connection = await db.query.integrationConnections.findFirst({
+			where: and(
+				eq(integrationConnections.provider, "slack"),
+				eq(integrationConnections.externalOrgId, teamId),
+				isNull(integrationConnections.disconnectedAt),
+			),
+			columns: { organizationId: true },
+			orderBy: [
+				desc(integrationConnections.updatedAt),
+				desc(integrationConnections.id),
+			],
+		});
+		if (!connection) {
+			console.warn("[slack/interactions] No active connection for team:", {
+				teamId,
+			});
+			return new Response("ok", { status: 200 });
+		}
+
 		const actions = Array.isArray(payload.actions)
 			? payload.actions.filter(isSlackInteractionAction)
 			: [];
@@ -75,11 +96,20 @@ export async function POST(request: Request) {
 			if (action.action_id === "model_select") {
 				const selectedModel =
 					action.selected_option?.value ?? DEFAULT_SLACK_MODEL;
-				await handleModelSelect({ teamId, slackUserId, selectedModel });
+				await handleModelSelect({
+					organizationId: connection.organizationId,
+					teamId,
+					slackUserId,
+					selectedModel,
+				});
 			}
 
 			if (action.action_id === "disconnect_account") {
-				await handleDisconnectAccount({ teamId, slackUserId });
+				await handleDisconnectAccount({
+					organizationId: connection.organizationId,
+					teamId,
+					slackUserId,
+				});
 			}
 		}
 	}
@@ -88,16 +118,19 @@ export async function POST(request: Request) {
 }
 
 async function handleModelSelect({
+	organizationId,
 	teamId,
 	slackUserId,
 	selectedModel,
 }: {
+	organizationId: string;
 	teamId: string;
 	slackUserId: string;
 	selectedModel: string;
 }): Promise<void> {
 	const existing = await db.query.userIdentities.findFirst({
 		where: and(
+			eq(userIdentities.organizationId, organizationId),
 			eq(userIdentities.provider, "slack"),
 			eq(userIdentities.externalId, slackUserId),
 			eq(userIdentities.externalScopeId, teamId),
@@ -125,14 +158,17 @@ async function handleModelSelect({
 }
 
 async function handleDisconnectAccount({
+	organizationId,
 	teamId,
 	slackUserId,
 }: {
+	organizationId: string;
 	teamId: string;
 	slackUserId: string;
 }): Promise<void> {
 	const existing = await db.query.userIdentities.findFirst({
 		where: and(
+			eq(userIdentities.organizationId, organizationId),
 			eq(userIdentities.provider, "slack"),
 			eq(userIdentities.externalId, slackUserId),
 			eq(userIdentities.externalScopeId, teamId),
@@ -144,6 +180,7 @@ async function handleDisconnectAccount({
 		.delete(userIdentities)
 		.where(
 			and(
+				eq(userIdentities.organizationId, organizationId),
 				eq(userIdentities.provider, "slack"),
 				eq(userIdentities.externalId, slackUserId),
 				eq(userIdentities.externalScopeId, teamId),
