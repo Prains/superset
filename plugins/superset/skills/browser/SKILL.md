@@ -15,7 +15,10 @@ logged-in session — treat it accordingly (see Safety).
 
 1. Run `superset browser --help` and require `list`, `open`, `navigate`,
    `screenshot`, `eval`, `console`, and `cdp`. If absent, run `superset update`
-   and recheck. Do not substitute unsupported commands.
+   and recheck. Do not substitute unsupported commands. The app-bundled CLI
+   (`~/.superset/bin/superset`) updates only with the desktop app — if it lacks
+   `browser`, updating the app (not the CLI) is the fix; check `type -a superset`
+   for another install before giving up.
 2. Resolve the workspace. Inside a workspace, use `$SUPERSET_WORKSPACE_ID`;
    otherwise `superset workspaces list --local --json` and pick the target.
    Pass `--host <id>` for a remote host.
@@ -23,11 +26,10 @@ logged-in session — treat it accordingly (see Safety).
    (a standalone `superset start`) has no panes and every command errors
    clearly — surface that rather than retrying.
 
-When developing inside the Superset monorepo, use
-`bun scripts/dev-cli.ts browser …` in place of `superset browser …`. It points
-the dev CLI at the running dev desktop app's local host; a plain
-`bun run --cwd packages/cli dev` authenticates as your API org, which the
-local-first desktop host isn't registered under, so it can't find any panes.
+When developing against a dev build of the desktop app in the Superset monorepo,
+drive it with `bun scripts/dev-cli.ts browser …` (from the worktree) instead of
+`superset browser …` — a plain dev CLI authenticates as your API org, not the
+local-first dev host, so it finds no panes. See `docs/agent-tooling.md`.
 
 ## Find or open a pane
 
@@ -148,6 +150,11 @@ Conventions that keep CDP flows reliable:
   before `Input.insertText`, and poll a selector/state check after each action
   rather than sleeping a fixed time — the guest can repaint slowly when the
   window is backgrounded.
+- To submit with Enter, the `keyDown` must carry the character:
+  `Input.dispatchKeyEvent` with `{type: "keyDown", key: "Enter", code: "Enter",
+  text: "\r", unmodifiedText: "\r", windowsVirtualKeyCode: 13}` followed by the
+  matching `keyUp`. Without `text: "\r"` the event fires but no char is
+  generated, so forms silently don't submit.
 - `Page.navigate` obeys the same scheme allowlist as the CLI; `file://` and
   `chrome://` are refused.
 
