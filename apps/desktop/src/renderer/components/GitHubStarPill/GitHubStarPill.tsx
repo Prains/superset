@@ -125,6 +125,7 @@ export function GitHubStarPill({
 				transition={{ duration: 0.32, ease: "easeOut" }}
 				style={{ pointerEvents: isVisible ? "auto" : "none" }}
 				aria-hidden={!isVisible}
+				inert={!isVisible}
 				className={cn("flex items-center justify-center", className)}
 			>
 				<AnimatedStarButton
