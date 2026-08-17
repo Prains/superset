@@ -1,7 +1,7 @@
 {
 	"name": "@superset/plugin-sdk",
 	"version": "0.1.0",
-	"private": true,
+	"private": false,
 	"type": "module",
 	"exports": {
 		".": {
@@ -22,7 +22,9 @@
 	"scripts": {
 		"clean": "git clean -xdf .cache .turbo dist node_modules",
 		"typecheck": "tsc --noEmit --emitDeclarationOnly false",
-		"test": "bun test"
+		"test": "bun test",
+		"build": "rm -rf dist && bunx esbuild src/index.ts src/manifest.ts src/ui.ts src/backend.ts --outdir=dist --format=esm --platform=neutral --bundle --external:zod --external:react && bunx -p typescript@5.9.3 tsc -p tsconfig.build.json --emitDeclarationOnly",
+		"prepublishOnly": "bun run build"
 	},
 	"dependencies": {
 		"zod": "4.4.3"
@@ -32,5 +34,36 @@
 		"@types/bun": "1.3.14",
 		"@types/react": "19.2.14",
 		"typescript": "6.0.3"
+	},
+	"description": "SDK for building Superset desktop plugins: manifest schema, backend and UI contracts, and build shims.",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/superset-sh/superset.git",
+		"directory": "packages/plugin-sdk"
+	},
+	"files": [
+		"dist",
+		"shims",
+		"README.md"
+	],
+	"publishConfig": {
+		"access": "public",
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"./manifest": {
+				"types": "./dist/manifest.d.ts",
+				"default": "./dist/manifest.js"
+			},
+			"./ui": {
+				"types": "./dist/ui.d.ts",
+				"default": "./dist/ui.js"
+			},
+			"./shims/react": "./shims/react-shim.cjs",
+			"./shims/react-jsx-runtime": "./shims/jsx-runtime-shim.cjs"
+		}
 	}
 }

@@ -320,10 +320,158 @@ function BuildWithAiDialog({
 	);
 }
 
+function MarketplaceBrowse({
+	hostUrl,
+	installedIds,
+	onInstalled,
+}: {
+	hostUrl: string;
+	installedIds: Set<string>;
+	onInstalled: () => void;
+}) {
+	const [query, setQuery] = useState("");
+	const [submitted, setSubmitted] = useState("");
+	const marketQuery = useQuery({
+		queryKey: ["plugin-marketplace", hostUrl, submitted] as const,
+		staleTime: 5 * 60_000,
+		queryFn: () =>
+			getHostServiceClientByUrl(hostUrl).plugins.searchMarketplace.query({
+				query: submitted,
+			}),
+	});
+	const install = useMutation({
+		mutationFn: (repo: string) =>
+			getHostServiceClientByUrl(hostUrl).plugins.install.mutate({
+				type: "git",
+				url: `https://github.com/${repo}.git`,
+			}),
+		onSettled: onInstalled,
+		onSuccess: (result) => {
+			toast.success(`Installed ${result?.snapshot?.name ?? "plugin"}`);
+			for (const warning of result?.warnings ?? []) toast.warning(warning);
+		},
+		onError: (error) => toast.error(error.message),
+	});
+
+	const entries = marketQuery.data ?? [];
+	return (
+		<div className="flex flex-col gap-4">
+			<form
+				className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/40 px-3 py-1.5"
+				onSubmit={(event) => {
+					event.preventDefault();
+					setSubmitted(query.trim());
+				}}
+			>
+				<LuSearch className="size-3.5 shrink-0 text-muted-foreground/60" />
+				<input
+					data-testid="marketplace-search"
+					value={query}
+					onChange={(event) => setQuery(event.target.value)}
+					placeholder="Search community plugins…"
+					className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+				/>
+			</form>
+			<p className="text-xs text-muted-foreground/70">
+				Community plugins are public repos tagged{" "}
+				<code className="rounded bg-fill-hover px-1 py-0.5 font-mono text-[10.5px]">
+					superset-plugin
+				</code>{" "}
+				on GitHub — unreviewed; they run with full access on this host. Publish
+				yours with{" "}
+				<code className="rounded bg-fill-hover px-1 py-0.5 font-mono text-[10.5px]">
+					superset plugin publish
+				</code>
+				.
+			</p>
+			{marketQuery.isPending ? (
+				<div className="grid grid-cols-2 gap-3">
+					<Skeleton className="h-28 w-full" />
+					<Skeleton className="h-28 w-full" />
+				</div>
+			) : marketQuery.isError ? (
+				<p className="py-6 text-center text-sm text-muted-foreground">
+					Marketplace unavailable: {marketQuery.error.message}
+				</p>
+			) : entries.length === 0 ? (
+				<p className="py-6 text-center text-sm text-muted-foreground">
+					No community plugins found
+					{submitted ? ` for "${submitted}"` : " yet — publish the first one"}.
+				</p>
+			) : (
+				<div
+					data-testid="marketplace-grid"
+					className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+				>
+					{entries.map((entry) => {
+						const installed = entry.manifest
+							? installedIds.has(entry.manifest.id)
+							: false;
+						return (
+							<div
+								key={entry.repo}
+								data-testid="marketplace-card"
+								className="flex flex-col gap-2.5 rounded-xl border border-border/60 bg-card/40 p-4"
+							>
+								<div className="flex items-center gap-3">
+									<PluginTile
+										pluginId={entry.manifest?.id ?? entry.repo}
+										name={
+											entry.manifest?.name ??
+											entry.repo.split("/")[1] ??
+											entry.repo
+										}
+										icon={entry.manifest?.icon}
+									/>
+									<div className="min-w-0 flex-1">
+										<div className="truncate text-sm font-medium">
+											{entry.manifest?.name ??
+												entry.repo.split("/")[1] ??
+												entry.repo}
+										</div>
+										<div className="truncate text-[11px] text-muted-foreground">
+											By {entry.owner} · ★ {entry.stars}
+											{entry.manifest ? "" : " · no manifest"}
+										</div>
+									</div>
+								</div>
+								<p className="line-clamp-2 min-h-8 text-xs text-muted-foreground">
+									{entry.manifest?.description ??
+										entry.description ??
+										entry.repo}
+								</p>
+								<div className="flex items-center justify-between gap-2">
+									<a
+										href={entry.url}
+										target="_blank"
+										rel="noopener noreferrer"
+										className="text-[11px] text-muted-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground"
+									>
+										View source
+									</a>
+									<Button
+										size="sm"
+										variant={installed ? "outline" : "default"}
+										disabled={installed || install.isPending}
+										onClick={() => install.mutate(entry.repo)}
+									>
+										{installed ? "Installed" : "Install"}
+									</Button>
+								</div>
+							</div>
+						);
+					})}
+				</div>
+			)}
+		</div>
+	);
+}
+
 export function PluginsPage() {
 	const { activeHostUrl } = useLocalHostService();
 	const queryClient = useQueryClient();
 	const pluginsQuery = usePluginsQuery(activeHostUrl);
+	const [view, setView] = useState<"installed" | "browse">("installed");
 	const [gitDialogOpen, setGitDialogOpen] = useState(false);
 	const [buildOpen, setBuildOpen] = useState(false);
 	const [dropActive, setDropActive] = useState(false);
@@ -444,7 +592,39 @@ export function PluginsPage() {
 					</div>
 				</div>
 
-				{plugins.length > 0 ? (
+				<div className="flex items-center gap-0.5 self-start rounded-lg border border-border/60 bg-card/40 p-0.5">
+					{(
+						[
+							["installed", "Installed"],
+							["browse", "Browse"],
+						] as const
+					).map(([key, label]) => (
+						<button
+							key={key}
+							type="button"
+							data-testid={`plugins-view-${key}`}
+							onClick={() => setView(key)}
+							className={cn(
+								"rounded-md px-3 py-1 text-xs transition-colors",
+								view === key
+									? "bg-fill-selected text-foreground"
+									: "text-muted-foreground hover:text-foreground",
+							)}
+						>
+							{label}
+						</button>
+					))}
+				</div>
+
+				{view === "browse" && activeHostUrl ? (
+					<MarketplaceBrowse
+						hostUrl={activeHostUrl}
+						installedIds={new Set(plugins.map((p) => p.id))}
+						onInstalled={invalidate}
+					/>
+				) : null}
+
+				{view === "installed" && plugins.length > 0 ? (
 					<div className="flex items-center gap-2.5">
 						<div className="flex flex-1 items-center gap-2 rounded-lg border border-border/60 bg-card/40 px-3 py-1.5">
 							<LuSearch className="size-3.5 shrink-0 text-muted-foreground/60" />
@@ -485,7 +665,7 @@ export function PluginsPage() {
 					</div>
 				) : null}
 
-				{pluginsQuery.isPending ? (
+				{view !== "installed" ? null : pluginsQuery.isPending ? (
 					<div className="flex flex-col gap-2">
 						<Skeleton className="h-16 w-full" />
 						<Skeleton className="h-16 w-full" />

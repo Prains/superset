@@ -92,7 +92,7 @@ function packageJsonTemplate(name: string): string {
 			type: "module",
 			scripts: { build: "superset plugin build" },
 			devDependencies: {
-				"@superset/plugin-sdk": "workspace:*",
+				"@superset/plugin-sdk": "^0.1.0",
 				"@types/react": "19.2.14",
 				typescript: "6.0.3",
 			},

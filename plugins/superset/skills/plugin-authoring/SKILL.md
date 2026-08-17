@@ -159,3 +159,11 @@ Verification recipe: after `link`, run `list` and confirm `status: running`. If 
 - `contributes.cli: [{ name, description?, action }]`: exposes an action as `superset x <name>` (bare `superset x` lists all plugin commands).
 - `api.http.route(method, path, handler)`: HTTP endpoints at `http://<host>/plugins/<id>/http/<path>`. Unauthenticated by design (webhooks) — validate signatures yourself. Handlers are time-boxed at 10s.
 - `contributes.themes: ["themes/x.json"]`: theme JSON (same format as custom theme import) applied automatically while the plugin runs, id-prefixed with the plugin id.
+
+## Publishing to the marketplace
+
+```bash
+superset plugin publish        # commit, push to GitHub, tag the superset-plugin topic
+```
+
+The marketplace is the `superset-plugin` GitHub topic: publishing is adding the topic to a public repo (`plugin publish` does the whole flow via `gh`, creating the repo if needed). The in-app **Plugins → Browse** tab searches the topic and parses each repo's manifest, so name, icon, and permissions are visible before install. Listings are unreviewed; installs record the resolved commit. A `minSupersetVersion` in your manifest is enforced as a floor at install time.

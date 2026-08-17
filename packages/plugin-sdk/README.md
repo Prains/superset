@@ -197,6 +197,14 @@ State lives in the host DB (`plugins`, `plugin_kv`), so plugin data survives app
 host restarts; `uninstall` removes the managed checkout but a linked directory is never
 deleted.
 
+## Publishing to the marketplace
+
+```bash
+superset plugin publish        # commit, push to GitHub, tag the superset-plugin topic
+```
+
+The marketplace is the `superset-plugin` GitHub topic: publishing is adding the topic to a public repo (`plugin publish` does the whole flow via `gh`, creating the repo if needed). The in-app **Plugins → Browse** tab searches the topic and parses each repo's manifest, so name, icon, and permissions are visible before install. Listings are unreviewed; installs record the resolved commit. A `minSupersetVersion` in your manifest is enforced as a floor at install time.
+
 ## Examples
 
 - [`examples/hello-superset`](./examples/hello-superset) — minimal: counter tab,
@@ -222,7 +230,6 @@ where a prebuilt backend is referenced) before linking.
   not wired yet.
 - `permissions` are declared and shown at install, not yet enforced — the backend runs
   with the host-service's full capability.
-- No marketplace/registry yet; install is path/git only.
 - SDK version is 0.x: contracts may change until the first tagged release.
 
 ## How this compares (for the curious)

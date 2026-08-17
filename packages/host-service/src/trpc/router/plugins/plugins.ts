@@ -9,6 +9,7 @@ import {
 	linkFromPath,
 	removeManagedCheckout,
 } from "../../../plugins/install";
+import { searchMarketplace } from "../../../plugins/marketplace";
 import type { HostServiceContext } from "../../../types";
 import { protectedProcedure, router } from "../../index";
 
@@ -160,6 +161,12 @@ export const pluginsRouter = router({
 				});
 			}
 		}),
+
+	/** Search the superset-plugin GitHub topic (manifest-parsed, cached). */
+	searchMarketplace: protectedProcedure
+		.meta({ timeoutMs: 20_000 })
+		.input(z.object({ query: z.string().max(200).default("") }))
+		.query(({ input }) => searchMarketplace(input.query)),
 
 	/** Raw contents of a plugin's declared theme JSON files. */
 	getThemes: protectedProcedure

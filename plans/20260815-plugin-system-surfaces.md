@@ -415,10 +415,19 @@ the Plugins page (dashboard sidebar nav, Mobbin-informed rows + install dialog),
 page (`apps/docs/content/docs/plugins.mdx`), the `plugin-authoring` managed skill, and
 five example plugins (hello-superset, agent-board, flock, fleet-review, agent-usage).
 
-**Not yet built** (next slices): file-view slot, plugin detail view + marketplace/browse
-tab (Mobbin AI-native research in flight), declarative themes/skills/agents wiring from
-manifests, keybinding contributions, plugin-scoped tokens (plugins currently share host
-auth), permissions enforcement + install-consent UI, marketplace index,
+**Shipped 08-16 later commits (2):** plugin detail view + Plugins page/nav + docs +
+authoring skill + Build with AI; field-guide UI redesign (tiles/toolbar/hero, artifact
+"Plugins UI Field Guide"); bb-gap tier: manifest `skills` (managed-skills extraSkills,
+verified provisioning into a live agent session), `contributes.cli` → `superset x`,
+`api.http.route` webhooks, `contributes.themes` auto-import; flywheel tier:
+`minSupersetVersion` install floor, marketplace = `superset-plugin` GitHub topic
+(host-side manifest-parsing search proc + in-app Browse tab), `superset plugin publish`
+(gh-driven repo+topic), SDK publish-prep (dist build via esbuild + TS 5.9 declarations —
+in-repo TS 6.0.3 refuses project emit; npm publish itself pending Kiet).
+
+**Not yet built:** file-view slot, plugin-scoped tokens / permissions enforcement +
+consent dialog, settings.define + secrets, durable cron, agent-dispatch loopback API,
+chat/composer surfaces (post Chat v3 GA), remote-host management UI for plugins,
 jiti-under-bundled-host verification for TS dev entries.
 
 ## 6. Effort estimate (2026-08-15, rev 2 scope)

@@ -10,7 +10,22 @@ import {
 	parsePluginManifest,
 } from "@superset/plugin-sdk/manifest";
 
+import hostServicePackageJson from "../../package.json" with { type: "json" };
+
 const execFileAsync = promisify(execFile);
+
+const HOST_VERSION: string = hostServicePackageJson.version;
+
+function versionAtLeast(current: string, minimum: string): boolean {
+	const a = current.split(".").map(Number);
+	const b = minimum.split(".").map(Number);
+	for (let i = 0; i < 3; i++) {
+		const ai = a[i] ?? 0;
+		const bi = b[i] ?? 0;
+		if (ai !== bi) return ai > bi;
+	}
+	return true;
+}
 
 export function managedPluginsDir(): string {
 	return path.join(homedir(), ".superset", "plugins");
@@ -39,6 +54,14 @@ export async function loadManifestFromDir(
 		);
 	}
 	const parsed = parsePluginManifest(json);
+	// Floor, not ceiling (the go.sum/engines lesson): only reject when the
+	// plugin requires a NEWER Superset than this host runs.
+	const minimum = parsed.manifest.minSupersetVersion;
+	if (minimum && !versionAtLeast(HOST_VERSION, minimum)) {
+		throw new Error(
+			`Plugin ${parsed.manifest.id} requires Superset ${minimum}; this host runs ${HOST_VERSION}. Update Superset to install it.`,
+		);
+	}
 	for (const entry of [parsed.manifest.server, parsed.manifest.app]) {
 		if (entry && !existsSync(path.join(dir, entry))) {
 			throw new Error(`Manifest entry "${entry}" does not exist in ${dir}`);
