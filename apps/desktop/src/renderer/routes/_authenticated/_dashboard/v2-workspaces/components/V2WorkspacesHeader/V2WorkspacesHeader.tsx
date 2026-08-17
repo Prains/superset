@@ -25,6 +25,7 @@ import {
 	LuList,
 	LuMonitor,
 	LuMonitorSmartphone,
+	LuPin,
 	LuSearch,
 	LuSquareKanban,
 	LuTerminal,
@@ -41,11 +42,14 @@ import {
 	useV2WorkspacesFilterStore,
 	V2_WORKSPACES_AGENT_STATUS_FILTERS,
 	V2_WORKSPACES_AGENT_STATUS_LABELS,
+	V2_WORKSPACES_PIN_FILTER_LABELS,
+	V2_WORKSPACES_PIN_FILTERS,
 	V2_WORKSPACES_PR_STATE_FILTERS,
 	V2_WORKSPACES_SORT_LABELS,
 	V2_WORKSPACES_SORT_MODES,
 	type V2WorkspacesAgentStatusFilter,
 	type V2WorkspacesArchivedWindow,
+	type V2WorkspacesPinFilter,
 	type V2WorkspacesPrStateFilter,
 	type V2WorkspacesSortMode,
 } from "renderer/routes/_authenticated/_dashboard/v2-workspaces/stores/v2WorkspacesFilterStore";
@@ -112,6 +116,10 @@ export function V2WorkspacesHeader({
 	);
 	const setAgentStatusFilters = useV2WorkspacesFilterStore(
 		(state) => state.setAgentStatusFilters,
+	);
+	const pinFilter = useV2WorkspacesFilterStore((state) => state.pinFilter);
+	const setPinFilter = useV2WorkspacesFilterStore(
+		(state) => state.setPinFilter,
 	);
 	const viewMode = useV2WorkspacesFilterStore((state) => state.viewMode);
 	const setViewMode = useV2WorkspacesFilterStore((state) => state.setViewMode);
@@ -231,6 +239,33 @@ export function V2WorkspacesHeader({
 							setAgentStatusFilters(next as V2WorkspacesAgentStatusFilter[])
 						}
 					/>
+
+					<Select
+						value={pinFilter}
+						onValueChange={(next) =>
+							setPinFilter(next as V2WorkspacesPinFilter)
+						}
+					>
+						<SelectTrigger
+							size="sm"
+							className="min-w-[9rem]"
+							aria-label="Filter by sidebar pin"
+						>
+							<SelectValue>
+								<span className="flex items-center gap-1.5">
+									<LuPin className="size-3.5" />
+									{V2_WORKSPACES_PIN_FILTER_LABELS[pinFilter]}
+								</span>
+							</SelectValue>
+						</SelectTrigger>
+						<SelectContent align="end">
+							{V2_WORKSPACES_PIN_FILTERS.map((filter) => (
+								<SelectItem key={filter} value={filter}>
+									{V2_WORKSPACES_PIN_FILTER_LABELS[filter]}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 
 					<Select value={deviceFilter} onValueChange={setDeviceFilter}>
 						<SelectTrigger size="sm" className="min-w-[10rem]">
