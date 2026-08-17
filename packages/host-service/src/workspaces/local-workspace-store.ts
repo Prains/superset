@@ -365,13 +365,13 @@ export function getTagsByWorkspaceId(
 		})
 		.from(workspaceTags)
 		.where(inArray(workspaceTags.workspaceId, workspaceIds))
-		.orderBy(workspaceTags.tag)
 		.all();
 	for (const row of rows) {
 		const tags = byId.get(row.workspaceId);
 		if (tags) tags.push(row.tag);
 		else byId.set(row.workspaceId, [row.tag]);
 	}
+	for (const tags of byId.values()) tags.sort();
 	return byId;
 }
 
