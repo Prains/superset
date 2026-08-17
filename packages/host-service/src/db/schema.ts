@@ -5,6 +5,7 @@ import type {
 import type { BranchPrefixMode } from "@superset/shared/workspace-launch";
 import { sql } from "drizzle-orm";
 import {
+	type AnySQLiteColumn,
 	index,
 	integer,
 	sqliteTable,
@@ -232,6 +233,17 @@ export const workspaces = sqliteTable(
 			.default("worktree"),
 		taskId: text("task_id"),
 		createdByUserId: text("created_by_user_id"),
+		// Lineage: the workspace this one was spawned from (same project).
+		// Metadata only — never affects the git base branch. Null = top-level.
+		parentWorkspaceId: text("parent_workspace_id").references(
+			(): AnySQLiteColumn => workspaces.id,
+			{ onDelete: "set null" },
+		),
+		// Who initiated the create; null for rows that predate tracking and
+		// for desktop-UI creates (the UI never sets a parent today).
+		spawnOrigin: text("spawn_origin").$type<
+			"ui" | "cli" | "mcp" | "automation"
+		>(),
 		createdAt: integer("created_at")
 			.notNull()
 			.$defaultFn(() => Date.now()),
@@ -254,6 +266,7 @@ export const workspaces = sqliteTable(
 			table.upstreamBranch,
 		),
 		index("workspaces_pull_request_id_idx").on(table.pullRequestId),
+		index("workspaces_parent_workspace_id_idx").on(table.parentWorkspaceId),
 		uniqueIndex("workspaces_one_main_per_project")
 			.on(table.projectId)
 			.where(sql`type = 'main'`),

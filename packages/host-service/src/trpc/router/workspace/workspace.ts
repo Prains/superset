@@ -67,6 +67,7 @@ export const workspaceRouter = router({
 			return rows.map((row) => ({
 				...toCloudShape(row, ctx.organizationId),
 				worktreePath: row.worktreePath,
+				parentWorkspaceId: row.parentWorkspaceId,
 				// Tombstones' worktrees are gone by definition; stat-checking an
 				// unbounded, forever-growing archive on every poll adds up.
 				worktreeExists:

@@ -10,6 +10,7 @@ import type { HostServiceContext } from "../../../../types";
 import {
 	getLocalWorkspace,
 	insertLocalWorkspace,
+	resolveParentWorkspaceId,
 	toCloudShape,
 	updateLocalWorkspace,
 } from "../../../../workspaces/local-workspace-store";
@@ -41,6 +42,10 @@ const createSessionInputSchema = z.object({
 	agents: z.array(agentLaunchSchema).optional(),
 	command: z.string().min(1).optional(),
 	namingPrompt: z.string().min(1).optional(),
+	// Lineage: the (project-less) workspace this session was spawned from.
+	// Invalid parents are dropped, not errored.
+	parentWorkspaceId: z.string().uuid().optional(),
+	spawnOrigin: z.enum(["ui", "cli", "mcp", "automation"]).optional(),
 });
 
 /** Names already claimed: session dirs on disk plus session rows in the DB.
@@ -145,6 +150,12 @@ export const createSession = protectedProcedure
 				branch: "main",
 				name: typedName || folderName,
 				type: "session",
+				parentWorkspaceId: resolveParentWorkspaceId(
+					ctx.db,
+					input.parentWorkspaceId,
+					null,
+				),
+				spawnOrigin: input.spawnOrigin ?? null,
 			});
 		} catch (err) {
 			// The folder was allocated this call and holds only the scaffold —

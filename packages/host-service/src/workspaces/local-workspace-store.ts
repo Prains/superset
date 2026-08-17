@@ -48,6 +48,8 @@ function trackWorkspaceEvent(
 					host_id: getHostId(),
 					branch: row.branch,
 					type: row.type,
+					parent_present: row.parentWorkspaceId != null,
+					spawn_origin: row.spawnOrigin,
 					host_kind: clientMachineId === getHostId() ? "local" : "remote",
 					client_machine_id: clientMachineId,
 					host_service_version: hostServicePackageJson.version,
@@ -89,6 +91,7 @@ export function toWorkspaceSnapshot(row: HostWorkspaceRow): WorkspaceSnapshot {
 		worktreePath: row.worktreePath,
 		taskId: row.taskId,
 		createdByUserId: row.createdByUserId,
+		parentWorkspaceId: row.parentWorkspaceId,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt || row.createdAt,
 	};
@@ -132,6 +135,9 @@ export interface InsertLocalWorkspaceValues {
 	type?: "main" | "worktree" | "session";
 	taskId?: string | null;
 	createdByUserId?: string | null;
+	/** Pre-validated by the caller (resolveParentWorkspaceId). */
+	parentWorkspaceId?: string | null;
+	spawnOrigin?: "ui" | "cli" | "mcp" | "automation" | null;
 }
 
 /**
@@ -155,6 +161,8 @@ export function insertLocalWorkspace(
 			type: values.type ?? "worktree",
 			taskId: values.taskId ?? null,
 			createdByUserId: values.createdByUserId ?? null,
+			parentWorkspaceId: values.parentWorkspaceId ?? null,
+			spawnOrigin: values.spawnOrigin ?? null,
 			createdAt: now,
 			updatedAt: now,
 		})
@@ -203,6 +211,14 @@ export function deleteLocalWorkspace(
 	id: string,
 ): void {
 	const existing = getLocalWorkspace(ctx.db, id);
+	// The parent_workspace_id FK was added via ALTER TABLE, where SQLite
+	// records no ON DELETE action — detach children here so the delete
+	// can't trip enforcement, matching the schema's set-null intent.
+	ctx.db
+		.update(workspaces)
+		.set({ parentWorkspaceId: null })
+		.where(eq(workspaces.parentWorkspaceId, id))
+		.run();
 	ctx.db.delete(workspaces).where(eq(workspaces.id, id)).run();
 	if (existing) {
 		ctx.eventBus.broadcastWorkspaceChanged({
@@ -281,6 +297,41 @@ export function unarchiveLocalWorkspace(
 	}
 	const row = getLocalWorkspace(ctx.db, id);
 	if (row) emitWorkspaceChanged(ctx.eventBus, "created", row);
+}
+
+/**
+ * Validate a requested lineage parent for a workspace about to be created
+ * in `projectId`. A parent that doesn't exist, is archived, or belongs to a
+ * different project records NO lineage (null) with a warning — a wrong edge
+ * is worse than a flat row, and callers often infer the parent from
+ * environment rather than an explicit flag.
+ */
+export function resolveParentWorkspaceId(
+	db: HostDb,
+	requestedParentId: string | undefined,
+	projectId: string | null,
+): string | null {
+	if (!requestedParentId) return null;
+	const parent = getLocalWorkspace(db, requestedParentId);
+	if (!parent) {
+		console.warn(
+			`[workspaces] ignoring unknown parent workspace ${requestedParentId}`,
+		);
+		return null;
+	}
+	if (parent.archivedAt != null) {
+		console.warn(
+			`[workspaces] ignoring archived parent workspace ${requestedParentId}`,
+		);
+		return null;
+	}
+	if (parent.projectId !== projectId) {
+		console.warn(
+			`[workspaces] ignoring cross-project parent workspace ${requestedParentId}`,
+		);
+		return null;
+	}
+	return parent.id;
 }
 
 function emitWorkspaceChanged(

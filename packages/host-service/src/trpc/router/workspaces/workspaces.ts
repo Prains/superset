@@ -17,6 +17,7 @@ import {
 	type CloudShapedWorkspace,
 	getLocalWorkspace,
 	insertLocalWorkspace,
+	resolveParentWorkspaceId,
 	toCloudShape,
 } from "../../../workspaces/local-workspace-store";
 import {
@@ -110,6 +111,11 @@ const createInputSchema = z
 		// When false, skip the setup terminal. Used by worktree import,
 		// where the worktree is usually already set up.
 		runSetup: z.boolean().optional(),
+		// Lineage: the workspace this create was spawned from (CLI/MCP infer
+		// it from SUPERSET_WORKSPACE_ID). Metadata only — never affects the
+		// git base branch. Invalid parents are dropped, not errored.
+		parentWorkspaceId: z.string().uuid().optional(),
+		spawnOrigin: z.enum(["ui", "cli", "mcp", "automation"]).optional(),
 	})
 	.refine((value) => !(value.branch && value.pr), {
 		message: "`branch` and `pr` cannot both be set",
@@ -465,6 +471,8 @@ async function registerLocalWorkspace(args: {
 	branch: string;
 	worktreePath: string;
 	taskId: string | undefined;
+	parentWorkspaceId?: string | null;
+	spawnOrigin?: "ui" | "cli" | "mcp" | "automation" | null;
 	rollbackWorktree: () => Promise<void>;
 }): Promise<CloudWorkspace> {
 	const { ctx } = args;
@@ -478,6 +486,8 @@ async function registerLocalWorkspace(args: {
 			branch: args.branch,
 			name: args.name,
 			taskId: args.taskId ?? null,
+			parentWorkspaceId: args.parentWorkspaceId ?? null,
+			spawnOrigin: args.spawnOrigin ?? null,
 		});
 	} catch (err) {
 		await args.rollbackWorktree();
@@ -516,6 +526,15 @@ export const workspacesRouter = router({
 			}
 
 			const localProject = requireLocalProject(ctx, input.projectId);
+
+			// Resolve lineage up front; an invalid parent silently degrades to
+			// a top-level workspace rather than failing the create.
+			const lineageParentId = resolveParentWorkspaceId(
+				ctx.db,
+				input.parentWorkspaceId,
+				input.projectId,
+			);
+			const spawnOrigin = input.spawnOrigin ?? null;
 
 			// Kick off AI naming when the user supplied a prompt but no
 			// workspace name. The worktree add and registration run with an
@@ -775,6 +794,8 @@ export const workspacesRouter = router({
 								branch: resolvedBranch,
 								worktreePath,
 								taskId: input.taskId,
+								parentWorkspaceId: lineageParentId,
+								spawnOrigin,
 								rollbackWorktree: rollbackCreatedWorktree,
 							});
 
@@ -1050,6 +1071,8 @@ export const workspacesRouter = router({
 								branch: resolvedBranch,
 								worktreePath,
 								taskId: input.taskId,
+								parentWorkspaceId: lineageParentId,
+								spawnOrigin,
 								rollbackWorktree,
 							});
 							aiCanRenameBranch = !typedBranch;
