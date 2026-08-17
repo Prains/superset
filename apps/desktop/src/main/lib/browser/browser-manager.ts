@@ -601,11 +601,14 @@ class BrowserManager extends EventEmitter {
 	}
 
 	private setupConsoleCapture(paneId: string, wc: Electron.WebContents): void {
+		// Electron's console-message `level` is 0..3 = verbose, info, warning,
+		// error (per electron.d.ts). console.log fires level 1 (info), so a naive
+		// 0:log,1:warn,… map mislabels every message by one.
 		const LEVEL_MAP: Record<number, ConsoleEntry["level"]> = {
-			0: "log",
-			1: "warn",
-			2: "error",
-			3: "info",
+			0: "debug",
+			1: "log",
+			2: "warn",
+			3: "error",
 		};
 
 		const handler = (
