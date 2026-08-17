@@ -63,7 +63,16 @@ export function TriggersEditor({
 	}
 
 	const problems = useMemo(() => describeTriggerProblems(drafts), [drafts]);
-	const banner = summarizeTriggerProblems(problems);
+
+	// Nothing is wrong until someone says they are done. Every trigger is
+	// incomplete the instant it is added, so validating as you type marks a row
+	// before anyone has had the chance to fill it in — the complaint lands
+	// before the work. After a rejected save the problems stay live, so they
+	// clear as each one is fixed rather than only on the next attempt.
+	const [submitted, setSubmitted] = useState(false);
+	const shownProblems = submitted ? problems : [];
+	const banner = submitted ? summarizeTriggerProblems(problems) : null;
+
 	const [query, setQuery] = useState("");
 	const leaves = useMemo(() => flattenTriggerMenu(), []);
 	const results = query
@@ -76,14 +85,19 @@ export function TriggersEditor({
 	};
 
 	const save = () => {
+		// Always clickable: the button is what asks for validation, so disabling
+		// it while the set is invalid would leave no way to find out why.
+		setSubmitted(true);
 		if (problems.length > 0) return;
 		onChange(drafts);
 		setDirty(false);
+		setSubmitted(false);
 	};
 
 	const discard = () => {
 		setDrafts(triggers);
 		setDirty(false);
+		setSubmitted(false);
 	};
 
 	const add = (config: DraftTrigger["config"]) =>
@@ -94,7 +108,7 @@ export function TriggersEditor({
 			{/* The section label lives here rather than in the page, so the actions
 			    for the set can sit on its line. Above the surface, not below it: a
 			    Save that trails the rows drifts down the page as triggers are added,
-			    and the reason it is disabled goes with it. */}
+			    and takes the reason it was refused with it. */}
 			<div className="mb-2 flex min-h-7 items-center gap-3">
 				<span className="shrink-0 text-muted-foreground text-sm">Triggers</span>
 
@@ -116,13 +130,10 @@ export function TriggersEditor({
 						>
 							Discard
 						</Button>
-						{/* Disabled rather than hidden: the banner on this line says what
-						    is missing, and a button that vanishes reads as saved. */}
 						<Button
 							type="button"
 							size="sm"
 							onClick={save}
-							disabled={problems.length > 0}
 							className="h-7 text-[13px]"
 						>
 							Save triggers
@@ -144,7 +155,7 @@ export function TriggersEditor({
 						onRemove={() => edit(drafts.filter((_, i) => i !== index))}
 						repositories={repositories}
 						people={people}
-						problems={problems.filter((p) => p.index === index)}
+						problems={shownProblems.filter((p) => p.index === index)}
 						nextRun={
 							trigger.config.kind === "schedule"
 								? renderNextRun?.(trigger.id)
