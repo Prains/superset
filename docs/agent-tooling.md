@@ -34,6 +34,29 @@ Everything else links to those:
 Agents other than Claude Code should read the relevant `.agents/skills/*/SKILL.md` when its
 description matches the task.
 
+## Testing the CLI and skills against the dev app
+
+The dev desktop app is local-first: it registers its host service under a
+local-db organization (e.g. `a1b2c3d4-…`), which is unrelated to the org your
+`superset auth login` lands in. So a plain `bun run --cwd packages/cli dev …`
+authenticates as the wrong org and can't find the running dev host — host-scoped
+commands (`browser`, `terminals`, …) fail with "host service isn't running".
+
+Use the wrapper instead:
+
+```bash
+bun scripts/dev-cli.ts browser list --workspace <id> --json
+bun run cli:dev -- browser open --workspace <id> --url http://localhost:3000
+```
+
+It finds the live host manifest under `<worktree>/superset-dev-data/host/*`,
+then runs the dev CLI with `SUPERSET_HOME_DIR` (the dev data dir),
+`SUPERSET_ORGANIZATION_ID` (the live host's org), and a placeholder
+`SUPERSET_API_KEY` (local host commands use the manifest token, not this). Start
+`bun run dev:desktop` and open a workspace first, or the wrapper reports no live
+host. `SUPERSET_ORGANIZATION_ID` is a general CLI override (mirrors
+`SUPERSET_API_KEY`), not dev-only.
+
 ## MCP
 
 There is currently no committed repo-level MCP config. MCP servers are configured per tool by the

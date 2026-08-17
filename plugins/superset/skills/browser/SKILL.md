@@ -24,7 +24,10 @@ logged-in session — treat it accordingly (see Safety).
    clearly — surface that rather than retrying.
 
 When developing inside the Superset monorepo, use
-`bun run --cwd packages/cli dev -- browser …` in place of `superset browser …`.
+`bun scripts/dev-cli.ts browser …` in place of `superset browser …`. It points
+the dev CLI at the running dev desktop app's local host; a plain
+`bun run --cwd packages/cli dev` authenticates as your API org, which the
+local-first desktop host isn't registered under, so it can't find any panes.
 
 ## Find or open a pane
 
