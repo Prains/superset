@@ -29,16 +29,18 @@ import { Textarea } from "@superset/ui/textarea";
 import { cn } from "@superset/ui/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	LuFolderGit2,
 	LuGitBranch,
 	LuLoaderCircle,
 	LuPlus,
 	LuPuzzle,
+	LuSearch,
 	LuSparkles,
 } from "react-icons/lu";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
+import { PluginTile } from "renderer/plugins/PluginTile";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 import { EXTERNAL_LINKS } from "shared/constants";
 
@@ -57,6 +59,17 @@ function usePluginsQuery(hostUrl: string | null) {
 			return getHostServiceClientByUrl(hostUrl).plugins.list.query();
 		},
 	});
+}
+
+function contributionShorthand(plugin: PluginSnapshot): string {
+	const c = plugin.manifest.contributes;
+	const parts: string[] = [];
+	const commands = c?.commands?.length ?? 0;
+	if (commands) parts.push(`${commands} cmd${commands === 1 ? "" : "s"}`);
+	if (c?.panes?.length) parts.push("pane");
+	if (c?.sidebarTabs?.length) parts.push("tab");
+	if (c?.events?.length) parts.push("hooks");
+	return parts.join(" · ");
 }
 
 function PluginRow({
@@ -87,9 +100,11 @@ function PluginRow({
 				aria-label={plugin.name}
 				className="absolute inset-0"
 			/>
-			<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-fill-hover">
-				<LuPuzzle className="size-4 text-muted-foreground" />
-			</div>
+			<PluginTile
+				pluginId={plugin.id}
+				name={plugin.name}
+				icon={plugin.manifest.icon}
+			/>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
 					<span className="truncate text-sm font-medium">{plugin.name}</span>
@@ -128,6 +143,9 @@ function PluginRow({
 						: plugin.description || plugin.id}
 				</div>
 			</div>
+			<span className="shrink-0 font-mono text-[11px] text-muted-foreground/60">
+				{contributionShorthand(plugin)}
+			</span>
 			<Switch
 				aria-label={`${plugin.enabled ? "Disable" : "Enable"} ${plugin.name}`}
 				checked={plugin.enabled}
@@ -321,12 +339,28 @@ export function PluginsPage() {
 	const pluginsQuery = usePluginsQuery(activeHostUrl);
 	const [installMode, setInstallMode] = useState<InstallMode | null>(null);
 	const [buildOpen, setBuildOpen] = useState(false);
+	const [search, setSearch] = useState("");
+	const [scope, setScope] = useState<"all" | "enabled" | "errors">("all");
 
 	const invalidate = () => {
 		void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
 	};
 
 	const plugins = pluginsQuery.data ?? [];
+	const filtered = useMemo(() => {
+		const query = search.trim().toLowerCase();
+		return plugins.filter((plugin) => {
+			if (scope === "enabled" && !plugin.enabled) return false;
+			if (scope === "errors" && plugin.status !== "error") return false;
+			if (!query) return true;
+			return (
+				plugin.name.toLowerCase().includes(query) ||
+				plugin.id.toLowerCase().includes(query) ||
+				(plugin.description ?? "").toLowerCase().includes(query)
+			);
+		});
+	}, [plugins, search, scope]);
+	const errorCount = plugins.filter((p) => p.status === "error").length;
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -375,6 +409,47 @@ export function PluginsPage() {
 					</div>
 				</div>
 
+				{plugins.length > 0 ? (
+					<div className="flex items-center gap-2.5">
+						<div className="flex flex-1 items-center gap-2 rounded-lg border border-border/60 bg-card/40 px-3 py-1.5">
+							<LuSearch className="size-3.5 shrink-0 text-muted-foreground/60" />
+							<input
+								data-testid="plugin-search"
+								value={search}
+								onChange={(event) => setSearch(event.target.value)}
+								placeholder="Search plugins…"
+								className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+							/>
+						</div>
+						<div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/60 bg-card/40 p-0.5">
+							{(
+								[
+									["all", "All"],
+									["enabled", "Enabled"],
+									[
+										"errors",
+										errorCount > 0 ? `Errors (${errorCount})` : "Errors",
+									],
+								] as const
+							).map(([key, label]) => (
+								<button
+									key={key}
+									type="button"
+									onClick={() => setScope(key)}
+									className={cn(
+										"rounded-md px-2.5 py-1 text-xs transition-colors",
+										scope === key
+											? "bg-fill-selected text-foreground"
+											: "text-muted-foreground hover:text-foreground",
+									)}
+								>
+									{label}
+								</button>
+							))}
+						</div>
+					</div>
+				) : null}
+
 				{pluginsQuery.isPending ? (
 					<div className="flex flex-col gap-2">
 						<Skeleton className="h-16 w-full" />
@@ -400,7 +475,12 @@ export function PluginsPage() {
 						data-testid="plugins-list"
 						className="flex flex-col divide-y divide-border/50 overflow-hidden rounded-xl border border-border/60"
 					>
-						{plugins.map((plugin) =>
+						{filtered.length === 0 ? (
+							<div className="px-4 py-8 text-center text-sm text-muted-foreground">
+								No plugins match.
+							</div>
+						) : null}
+						{filtered.map((plugin) =>
 							activeHostUrl ? (
 								<PluginRow
 									key={plugin.id}

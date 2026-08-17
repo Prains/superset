@@ -89,6 +89,8 @@ export const pluginManifestSchema = z.object({
 		.string()
 		.regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z-.]+)?$/, "version must be semver"),
 	description: z.string().max(500).optional(),
+	/** Emoji rendered as the plugin's tile in the UI (monogram fallback). */
+	icon: z.string().min(1).max(8).optional(),
 	minSupersetVersion: z
 		.string()
 		.regex(/^\d+\.\d+\.\d+$/)

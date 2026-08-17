@@ -28,6 +28,7 @@ import {
 } from "react-icons/lu";
 import { useHotkeyDisplay } from "renderer/hotkeys";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
+import { PluginTile } from "renderer/plugins/PluginTile";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 
 const QUERY_KEY = ["host-plugins"] as const;
@@ -233,22 +234,25 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 					<LuArrowLeft className="size-3.5" /> Plugins
 				</Link>
 
-				<div className="flex items-center gap-4">
-					<div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-fill-hover">
-						<LuPuzzle className="size-6 text-muted-foreground" />
-					</div>
-					<div className="min-w-0 flex-1">
+				<div className="flex flex-col items-center gap-3 pt-2 text-center">
+					<PluginTile
+						pluginId={plugin.id}
+						name={plugin.name}
+						icon={plugin.manifest.icon}
+						size="lg"
+					/>
+					<div className="flex flex-col items-center gap-1">
 						<div className="flex items-baseline gap-2">
-							<h1 className="text-lg font-semibold">{plugin.name}</h1>
+							<h1 className="text-xl font-semibold">{plugin.name}</h1>
 							<span className="text-sm text-muted-foreground">
 								v{plugin.version}
 							</span>
 						</div>
-						<p className="text-sm text-muted-foreground">
+						<p className="max-w-md text-sm text-muted-foreground">
 							{plugin.description || plugin.id}
 						</p>
 					</div>
-					<div className="flex shrink-0 items-center gap-2">
+					<div className="flex items-center gap-2">
 						<Button
 							variant="ghost"
 							size="icon"
