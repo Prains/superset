@@ -84,18 +84,22 @@ export function GitHubStarPill({
 		}
 	}, [state]);
 
-	// Fire at most once per showing — reset once starred so a later unstar
-	// that re-shows the pill tracks a fresh "shown" impression instead of
-	// staying silent forever after the first one.
-	const trackedShownRef = useRef(false);
+	// Fire at most once per showing per surface — reset once starred so a
+	// later unstar re-shows the pill and tracks a fresh "shown" impression,
+	// and reset again if `surface` itself changes so a re-purposed mounted
+	// instance still gets its own impression instead of inheriting the prior
+	// surface's guard.
+	const trackedShownSurfaceRef = useRef<
+		NonNullable<GitHubStarPillProps["surface"]> | null
+	>(null);
 	useEffect(() => {
 		if (state === "starred") {
-			trackedShownRef.current = false;
+			trackedShownSurfaceRef.current = null;
 			return;
 		}
-		if (trackedShownRef.current) return;
+		if (trackedShownSurfaceRef.current === surface) return;
 		if (state !== "not_starred" && state !== "unknown") return;
-		trackedShownRef.current = true;
+		trackedShownSurfaceRef.current = surface;
 		track("star_nag_shown", { surface });
 	}, [state, surface]);
 
