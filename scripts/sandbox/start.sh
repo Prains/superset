@@ -55,5 +55,13 @@ if [ -n "$REPO_URL" ]; then
   unset GIT_ASKPASS
 fi
 
+# From here on git brokers its credential per operation through host-service
+# rather than holding one. Scoped to github.com in the config itself, so git
+# never even consults it for another host. Set globally because every git
+# invocation in the sandbox — a terminal, an agent, a hook — should get the
+# same answer, and none of them should have a token in their environment.
+git config --global credential.https://github.com.helper /app/git-credential-helper.sh
+git config --global credential.useHttpPath false
+
 cd /app
 exec node host-service.js
