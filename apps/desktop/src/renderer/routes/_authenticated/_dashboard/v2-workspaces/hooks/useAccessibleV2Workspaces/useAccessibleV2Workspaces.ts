@@ -192,6 +192,9 @@ function matchesPinFilter(
 	pinFilter: V2WorkspacesPinFilter,
 ): boolean {
 	if (pinFilter === "all") return true;
+	// Archived tombstones may keep stale sidebar metadata; they are never
+	// pinned regardless of what that metadata says.
+	if (workspace.archivedAt !== null) return pinFilter === "unpinned";
 	return pinFilter === "pinned"
 		? workspace.isInSidebar
 		: !workspace.isInSidebar;
