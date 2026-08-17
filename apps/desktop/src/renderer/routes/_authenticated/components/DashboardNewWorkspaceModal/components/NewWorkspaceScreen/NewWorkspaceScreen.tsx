@@ -656,7 +656,7 @@ export function NewWorkspaceScreen({
 				<h1 className="text-center text-3xl font-medium text-foreground/90">
 					What should we build next?
 				</h1>
-				<GitHubStarPill surface="new_workspace" />
+				<GitHubStarPill surface="new_workspace" reserveSpace />
 			</div>
 			<div className="relative flex w-full max-w-[640px] flex-col px-6 pb-8">
 				<AnimatePresence initial={false}>

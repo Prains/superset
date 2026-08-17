@@ -13,6 +13,15 @@ interface GitHubStarPillProps {
 	className?: string;
 	/** Analytics surface tag; defaults to "empty_state" for the original callers. */
 	surface?: "empty_state" | "new_workspace";
+	/**
+	 * Keep the pill's layout box mounted (just faded to invisible) instead of
+	 * unmounting it once starred. The empty-state screens sit at the bottom of
+	 * a plain block, so a height collapse there is harmless; the new-workspace
+	 * screen centers its content with `justify-center`, where that same
+	 * collapse re-centers everything above it. Off by default so the two
+	 * existing callers keep their original unmount-on-hide behavior.
+	 */
+	reserveSpace?: boolean;
 }
 
 /**
@@ -30,6 +39,7 @@ interface GitHubStarPillProps {
 export function GitHubStarPill({
 	className,
 	surface = "empty_state",
+	reserveSpace = false,
 }: GitHubStarPillProps) {
 	const { state, activate, isBusy } = useGithubStarAction();
 	const prevStateRef = useRef<GithubStarActionState | null>(null);
@@ -89,13 +99,11 @@ export function GitHubStarPill({
 		track("star_nag_shown", { surface });
 	}, [state, surface]);
 
-	if (state === "loading") return null;
+	if (state === "loading" && !reserveSpace) return null;
 
-	const isVisible = !(
-		state === "starred" &&
-		!justStarred &&
-		!staysVisibleForAnimation
-	);
+	const isVisible =
+		state !== "loading" &&
+		!(state === "starred" && !justStarred && !staysVisibleForAnimation);
 
 	const handleClick = () => {
 		track(state === "unknown" ? "star_nag_opened_web" : "star_nag_starred", {
@@ -103,6 +111,26 @@ export function GitHubStarPill({
 		});
 		activate();
 	};
+
+	if (reserveSpace) {
+		// Always mounted so the button's box keeps occupying its slot — only
+		// opacity/interactivity change, never the layout.
+		return (
+			<motion.div
+				animate={{ opacity: isVisible ? 1 : 0 }}
+				transition={{ duration: 0.32, ease: "easeOut" }}
+				style={{ pointerEvents: isVisible ? "auto" : "none" }}
+				aria-hidden={!isVisible}
+				className={cn("flex items-center justify-center", className)}
+			>
+				<AnimatedStarButton
+					state={state}
+					busy={isBusy}
+					onActivate={handleClick}
+				/>
+			</motion.div>
+		);
+	}
 
 	return (
 		<AnimatePresence>
