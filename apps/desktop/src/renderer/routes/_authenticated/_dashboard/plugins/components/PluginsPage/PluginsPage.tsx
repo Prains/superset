@@ -12,7 +12,6 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@superset/ui/dropdown-menu";
 import {
@@ -26,24 +25,24 @@ import { Input } from "@superset/ui/input";
 import { Skeleton } from "@superset/ui/skeleton";
 import { toast } from "@superset/ui/sonner";
 import { Switch } from "@superset/ui/switch";
+import { Textarea } from "@superset/ui/textarea";
 import { cn } from "@superset/ui/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-	LuEllipsis,
 	LuFolderGit2,
 	LuGitBranch,
 	LuLoaderCircle,
 	LuPlus,
 	LuPuzzle,
-	LuRotateCw,
-	LuTrash2,
+	LuSparkles,
 } from "react-icons/lu";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 
 const QUERY_KEY = ["host-plugins"] as const;
+const DOCS_URL = "https://docs.superset.sh/plugins";
 
 type InstallMode = "git" | "path";
 
@@ -60,54 +59,6 @@ function usePluginsQuery(hostUrl: string | null) {
 	});
 }
 
-function contributionSummary(plugin: PluginSnapshot): string {
-	const contributes = plugin.manifest.contributes;
-	const parts: string[] = [];
-	const push = (count: number | undefined, noun: string) => {
-		if (count) parts.push(`${count} ${noun}${count === 1 ? "" : "s"}`);
-	};
-	push(contributes?.commands?.length, "command");
-	push(contributes?.panes?.length, "pane");
-	push(contributes?.sidebarTabs?.length, "sidebar tab");
-	push(contributes?.events?.length, "event hook");
-	return parts.join(" · ");
-}
-
-function StatusBadge({ plugin }: { plugin: PluginSnapshot }) {
-	const status = plugin.status;
-	const styles =
-		status === "running"
-			? "bg-green-500/10 text-green-600 dark:text-green-400"
-			: status === "error"
-				? "bg-red-500/10 text-red-600 dark:text-red-400"
-				: "bg-muted text-muted-foreground";
-	return (
-		<span
-			data-testid="plugin-status"
-			className={cn(
-				"inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
-				styles,
-			)}
-		>
-			<span
-				className={cn(
-					"size-1.5 rounded-full",
-					status === "running"
-						? "bg-green-500"
-						: status === "error"
-							? "bg-red-500"
-							: "bg-muted-foreground/50",
-				)}
-			/>
-			{status === "running"
-				? "Running"
-				: status === "error"
-					? "Error"
-					: "Disabled"}
-		</span>
-	);
-}
-
 function PluginRow({
 	plugin,
 	hostUrl,
@@ -118,136 +69,72 @@ function PluginRow({
 	onChanged: () => void;
 }) {
 	const client = getHostServiceClientByUrl(hostUrl);
-
 	const setEnabled = useMutation({
 		mutationFn: (enabled: boolean) =>
 			client.plugins.setEnabled.mutate({ id: plugin.id, enabled }),
 		onSettled: onChanged,
 		onError: (error) => toast.error(error.message),
 	});
-	const reload = useMutation({
-		mutationFn: () => client.plugins.reload.mutate({ id: plugin.id }),
-		onSettled: onChanged,
-		onSuccess: () => toast.success(`Reloaded ${plugin.name}`),
-		onError: (error) => toast.error(error.message),
-	});
-	const uninstall = useMutation({
-		mutationFn: () => client.plugins.uninstall.mutate({ id: plugin.id }),
-		onSettled: onChanged,
-		onSuccess: () => toast.success(`Uninstalled ${plugin.name}`),
-		onError: (error) => toast.error(error.message),
-	});
 
-	const summary = contributionSummary(plugin);
 	return (
 		<div
 			data-testid="plugin-row"
-			className="flex flex-col gap-1.5 border-b border-border/60 px-4 py-3.5 transition-colors last:border-b-0 hover:bg-fill-hover/30"
+			className="group relative flex items-center gap-3.5 px-4 py-3 transition-colors hover:bg-fill-hover/40"
 		>
-			<div className="flex items-center gap-3">
-				<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-fill-hover">
-					<LuPuzzle className="size-4 text-muted-foreground" />
+			<Link
+				to="/plugins/$pluginId"
+				params={{ pluginId: plugin.id }}
+				aria-label={plugin.name}
+				className="absolute inset-0"
+			/>
+			<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-fill-hover">
+				<LuPuzzle className="size-4 text-muted-foreground" />
+			</div>
+			<div className="min-w-0 flex-1">
+				<div className="flex items-center gap-2">
+					<span className="truncate text-sm font-medium">{plugin.name}</span>
+					{plugin.status === "running" ? (
+						<span
+							data-testid="plugin-status"
+							aria-label="Running"
+							className="size-1.5 shrink-0 rounded-full bg-green-500"
+						/>
+					) : plugin.status === "error" ? (
+						<span
+							data-testid="plugin-status"
+							className="text-[11px] font-medium text-red-500"
+						>
+							Error
+						</span>
+					) : (
+						<span
+							data-testid="plugin-status"
+							className="text-[11px] text-muted-foreground/70"
+						>
+							Disabled
+						</span>
+					)}
 				</div>
-				<Link
-					to="/plugins/$pluginId"
-					params={{ pluginId: plugin.id }}
-					className="min-w-0 flex-1"
+				<div
+					className={cn(
+						"truncate text-xs",
+						plugin.status === "error"
+							? "text-red-500/90"
+							: "text-muted-foreground",
+					)}
 				>
-					<div className="flex items-baseline gap-2">
-						<span className="truncate text-sm font-medium">{plugin.name}</span>
-						<span className="text-xs text-muted-foreground">
-							v{plugin.version}
-						</span>
-						<StatusBadge plugin={plugin} />
-					</div>
-					<div className="truncate text-xs text-muted-foreground">
-						{plugin.description || plugin.id}
-					</div>
-					<div className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground/60">
-						{plugin.sourceType === "git" ? (
-							<LuGitBranch className="size-3 shrink-0" />
-						) : (
-							<LuFolderGit2 className="size-3 shrink-0" />
-						)}
-						<span className="truncate">
-							{plugin.sourceType === "link" ? "linked · " : ""}
-							{plugin.source}
-							{plugin.sourceCommit
-								? ` @ ${plugin.sourceCommit.slice(0, 7)}`
-								: ""}
-							{summary ? ` · ${summary}` : ""}
-						</span>
-					</div>
-				</Link>
-				<div className="flex shrink-0 items-center gap-1">
-					<Button
-						variant="ghost"
-						size="icon"
-						aria-label={`Reload ${plugin.name}`}
-						disabled={reload.isPending || !plugin.enabled}
-						onClick={() => reload.mutate()}
-					>
-						{reload.isPending ? (
-							<LuLoaderCircle className="size-3.5 animate-spin" />
-						) : (
-							<LuRotateCw className="size-3.5" />
-						)}
-					</Button>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label={`More actions for ${plugin.name}`}
-							>
-								<LuEllipsis className="size-3.5" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								onSelect={() => {
-									void navigator.clipboard.writeText(plugin.source);
-									toast.success("Source copied");
-								}}
-							>
-								Copy source
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								variant="destructive"
-								disabled={uninstall.isPending}
-								onSelect={() => uninstall.mutate()}
-							>
-								<LuTrash2 className="size-3.5" />
-								Uninstall
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-					<Switch
-						aria-label={`${plugin.enabled ? "Disable" : "Enable"} ${plugin.name}`}
-						checked={plugin.enabled}
-						disabled={setEnabled.isPending}
-						onCheckedChange={(checked) => setEnabled.mutate(checked)}
-					/>
+					{plugin.status === "error" && plugin.error
+						? plugin.error
+						: plugin.description || plugin.id}
 				</div>
 			</div>
-			{plugin.status === "error" && plugin.error ? (
-				<div className="ml-12 rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
-					{plugin.error}
-				</div>
-			) : null}
-			{plugin.manifest.permissions?.length ? (
-				<div className="ml-12 flex flex-wrap gap-1">
-					{plugin.manifest.permissions.map((permission) => (
-						<span
-							key={permission}
-							className="rounded bg-fill-hover px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
-						>
-							{permission}
-						</span>
-					))}
-				</div>
-			) : null}
+			<Switch
+				aria-label={`${plugin.enabled ? "Disable" : "Enable"} ${plugin.name}`}
+				checked={plugin.enabled}
+				disabled={setEnabled.isPending}
+				onCheckedChange={(checked) => setEnabled.mutate(checked)}
+				className="relative z-10 shrink-0"
+			/>
 		</div>
 	);
 }
@@ -296,26 +183,10 @@ function InstallDialog({
 					</DialogTitle>
 					<DialogDescription>
 						{mode === "git"
-							? "Clones the repository, validates its manifest, and loads it."
-							: "Registers a plugin directory in place — edits apply on reload. This is the dev flow."}
+							? "Plugins run with full access on this host, the same as setup scripts. Install from authors you trust."
+							: "Registers a plugin directory in place. Edits apply on reload — this is the dev flow."}
 					</DialogDescription>
 				</DialogHeader>
-				<div className="flex flex-col gap-1.5 rounded-md bg-fill-hover/50 px-3 py-2.5 text-xs text-muted-foreground">
-					<p>
-						<span className="font-medium text-foreground">
-							Plugins may introduce elevated risk.
-						</span>{" "}
-						They run with full access on this host, the same as your setup
-						scripts — install from authors you trust.
-					</p>
-					<p>
-						<span className="font-medium text-foreground">
-							You stay in control.
-						</span>{" "}
-						Review the declared permissions after install, and disable or
-						uninstall any plugin at any time.
-					</p>
-				</div>
 				<form
 					className="flex flex-col gap-3"
 					onSubmit={(event) => {
@@ -355,11 +226,101 @@ function InstallDialog({
 	);
 }
 
+/**
+ * Dispatches an agent session primed with the bundled plugin-authoring
+ * skill — the automations-style "create with AI" flow, for plugins.
+ */
+function BuildWithAiDialog({
+	hostUrl,
+	onClose,
+}: {
+	hostUrl: string;
+	onClose: () => void;
+}) {
+	const [idea, setIdea] = useState("");
+	const navigate = useNavigate();
+
+	const build = useMutation({
+		mutationFn: async (description: string) => {
+			const client = getHostServiceClientByUrl(hostUrl);
+			return client.workspaces.createSession.mutate({
+				name: "Build a plugin",
+				agents: [
+					{
+						agent: "claude",
+						prompt: `Build a Superset plugin using the plugin-authoring skill. What it should do: ${description.trim()}\n\nScaffold it with \`superset plugin new\`, implement it, build with \`superset plugin build .\`, register it with \`superset plugin link .\`, and verify it shows as running via \`superset plugin list\`. Iterate with \`superset plugin reload <id>\` until it works.`,
+					},
+				],
+			});
+		},
+		onSuccess: (result) => {
+			toast.success("Agent dispatched — building your plugin");
+			onClose();
+			const id = result.workspace?.id;
+			if (id) {
+				void navigate({
+					to: "/v2-workspace/$workspaceId",
+					params: { workspaceId: id },
+				});
+			}
+		},
+		onError: (error) => toast.error(error.message),
+	});
+
+	return (
+		<Dialog modal={false} open onOpenChange={(open) => !open && onClose()}>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Build a plugin with AI</DialogTitle>
+					<DialogDescription>
+						Describe what you want. An agent session starts with the
+						plugin-authoring skill and builds, links, and verifies it.
+					</DialogDescription>
+				</DialogHeader>
+				<form
+					className="flex flex-col gap-3"
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (idea.trim()) build.mutate(idea);
+					}}
+				>
+					<Textarea
+						autoFocus
+						data-testid="plugin-build-input"
+						value={idea}
+						onChange={(event) => setIdea(event.target.value)}
+						placeholder="A pane that shows my open PRs across all workspaces, with review status…"
+						rows={4}
+					/>
+					<DialogFooter>
+						<Button type="button" variant="outline" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button
+							type="submit"
+							data-testid="plugin-build-button"
+							disabled={build.isPending || !idea.trim()}
+						>
+							{build.isPending ? (
+								<LuLoaderCircle className="size-3.5 animate-spin" />
+							) : (
+								<LuSparkles className="size-3.5" />
+							)}
+							Build it
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 export function PluginsPage() {
 	const { activeHostUrl } = useLocalHostService();
 	const queryClient = useQueryClient();
 	const pluginsQuery = usePluginsQuery(activeHostUrl);
 	const [installMode, setInstallMode] = useState<InstallMode | null>(null);
+	const [buildOpen, setBuildOpen] = useState(false);
 
 	const invalidate = () => {
 		void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -369,39 +330,56 @@ export function PluginsPage() {
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
-			<div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-6 py-8">
-				<div className="flex items-start justify-between gap-4">
-					<div className="flex flex-col gap-1">
-						<h1 className="text-lg font-semibold">Plugins</h1>
+			<div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-10">
+				<div className="flex items-center justify-between gap-4">
+					<div className="flex flex-col gap-0.5">
+						<h1 className="text-xl font-semibold">Plugins</h1>
 						<p className="text-sm text-muted-foreground">
-							Extend Superset with panes, sidebar tabs, commands, and agent
-							automations.
+							Extend Superset and its agents.{" "}
+							<a
+								href={DOCS_URL}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground"
+							>
+								Learn more
+							</a>
 						</p>
 					</div>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button data-testid="plugin-install-menu">
-								<LuPlus className="size-3.5" />
-								Install plugin
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem onSelect={() => setInstallMode("git")}>
-								<LuGitBranch className="size-3.5" />
-								From git URL…
-							</DropdownMenuItem>
-							<DropdownMenuItem onSelect={() => setInstallMode("path")}>
-								<LuFolderGit2 className="size-3.5" />
-								From local path…
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					<div className="flex shrink-0 items-center gap-2">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button data-testid="plugin-install-menu" variant="outline">
+									<LuPlus className="size-3.5" />
+									Install
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem onSelect={() => setInstallMode("git")}>
+									<LuGitBranch className="size-3.5" />
+									From git URL…
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={() => setInstallMode("path")}>
+									<LuFolderGit2 className="size-3.5" />
+									From local path…
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+						<Button
+							data-testid="plugin-build-ai"
+							onClick={() => setBuildOpen(true)}
+						>
+							<LuSparkles className="size-3.5" />
+							Build with AI
+						</Button>
+					</div>
 				</div>
 
 				{pluginsQuery.isPending ? (
-					<div className="flex flex-col gap-3">
-						<Skeleton className="h-20 w-full" />
-						<Skeleton className="h-20 w-full" />
+					<div className="flex flex-col gap-2">
+						<Skeleton className="h-16 w-full" />
+						<Skeleton className="h-16 w-full" />
+						<Skeleton className="h-16 w-full" />
 					</div>
 				) : plugins.length === 0 ? (
 					<Empty>
@@ -411,16 +389,16 @@ export function PluginsPage() {
 							</EmptyMedia>
 							<EmptyTitle>No plugins installed</EmptyTitle>
 							<EmptyDescription>
-								Plugins add panes, sidebar tabs, palette commands, and event
-								hooks. Install one from a git repo, or scaffold your own with
-								`superset plugin new` — agents can build them too.
+								Plugins add panes, sidebar tabs, palette commands, and agent
+								skills. Install one from a git repo, or describe one and let an
+								agent build it.
 							</EmptyDescription>
 						</EmptyHeader>
 					</Empty>
 				) : (
 					<div
 						data-testid="plugins-list"
-						className="flex flex-col rounded-lg border border-border/70 bg-card/40"
+						className="flex flex-col divide-y divide-border/50 overflow-hidden rounded-xl border border-border/60"
 					>
 						{plugins.map((plugin) =>
 							activeHostUrl ? (
@@ -441,6 +419,12 @@ export function PluginsPage() {
 					hostUrl={activeHostUrl}
 					onClose={() => setInstallMode(null)}
 					onInstalled={invalidate}
+				/>
+			) : null}
+			{buildOpen && activeHostUrl ? (
+				<BuildWithAiDialog
+					hostUrl={activeHostUrl}
+					onClose={() => setBuildOpen(false)}
 				/>
 			) : null}
 		</div>
