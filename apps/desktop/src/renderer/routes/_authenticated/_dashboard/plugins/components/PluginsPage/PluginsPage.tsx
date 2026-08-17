@@ -96,7 +96,7 @@ function PluginRow({
 					{plugin.status === "running" ? (
 						<span
 							data-testid="plugin-status"
-							aria-label="Running"
+							title="Running"
 							className="size-1.5 shrink-0 rounded-full bg-green-500"
 						/>
 					) : plugin.status === "error" ? (
