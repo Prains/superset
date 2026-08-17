@@ -20,7 +20,8 @@ import { flattenTriggerMenu, matchesQuery, TRIGGER_MENU } from "./triggerMenu";
 
 interface TriggersEditorProps {
 	triggers: DraftTrigger[];
-	onChange: (next: DraftTrigger[]) => void;
+	/** Resolves once the set is written; rejects if it was refused. */
+	onChange: (next: DraftTrigger[]) => undefined | Promise<unknown>;
 	repositories: ScopeOption[];
 	people: ScopeOption[];
 	/** Trailing "Next run ..." text for one schedule row, by trigger id. */
@@ -84,14 +85,25 @@ export function TriggersEditor({
 		setDirty(true);
 	};
 
-	const save = () => {
+	const [saving, setSaving] = useState(false);
+
+	const save = async () => {
 		// Always clickable: the button is what asks for validation, so disabling
 		// it while the set is invalid would leave no way to find out why.
 		setSubmitted(true);
 		if (problems.length > 0) return;
-		onChange(drafts);
-		setDirty(false);
-		setSubmitted(false);
+
+		setSaving(true);
+		try {
+			await onChange(drafts);
+			setDirty(false);
+			setSubmitted(false);
+		} catch {
+			// Stay dirty and keep the edits: this editor holds the only copy of
+			// them, and the mutation has already reported why it failed.
+		} finally {
+			setSaving(false);
+		}
 	};
 
 	const discard = () => {
@@ -126,6 +138,7 @@ export function TriggersEditor({
 							variant="ghost"
 							size="sm"
 							onClick={discard}
+							disabled={saving}
 							className="h-7 text-[13px]"
 						>
 							Discard
@@ -134,9 +147,10 @@ export function TriggersEditor({
 							type="button"
 							size="sm"
 							onClick={save}
+							disabled={saving}
 							className="h-7 text-[13px]"
 						>
-							Save triggers
+							{saving ? "Saving..." : "Save triggers"}
 						</Button>
 					</div>
 				)}

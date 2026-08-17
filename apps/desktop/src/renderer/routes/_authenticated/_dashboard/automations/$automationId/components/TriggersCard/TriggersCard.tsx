@@ -27,6 +27,8 @@ interface TriggersCardProps {
 	hostId: string | null;
 	readOnly?: boolean;
 	onUpdate: (patch: AutomationUpdatePatch) => void;
+	/** Resolves once the write lands, so the editor knows the set is saved. */
+	onSaveTriggers: (triggers: DraftTrigger[]) => Promise<unknown>;
 }
 
 /**
@@ -38,6 +40,7 @@ export function TriggersCard({
 	hostId,
 	readOnly,
 	onUpdate,
+	onSaveTriggers,
 }: TriggersCardProps) {
 	const recentProjects = useRecentProjects();
 	// repoId is GitHub's numeric id, which is what the matcher compares against —
@@ -133,7 +136,7 @@ export function TriggersCard({
 					enabled: t.enabled,
 					config: t.config as DraftTrigger["config"],
 				}))}
-				onChange={(triggers) => onUpdate({ triggers })}
+				onChange={onSaveTriggers}
 				repositories={repositories}
 				people={people}
 				renderNextRun={renderNextRun}
