@@ -7,13 +7,11 @@ import type { ReactNode } from "react";
 import { FaGithub } from "react-icons/fa";
 import { LuTrash2, LuWebhook } from "react-icons/lu";
 import { ScheduleSentence } from "../ScheduleSentence";
-import {
-	ActorChip,
-	CHIP_INVALID,
-	ScopeChip,
-	type ScopeOption,
-	TextFilterChip,
-} from "./chips";
+import { CHIP_INVALID } from "./chipStyles";
+import { ActorChip } from "./components/ActorChip";
+import { ScopeChip } from "./components/ScopeChip";
+import { TextFilterChip } from "./components/TextFilterChip";
+import type { ScopeOption } from "./scopeOption";
 import { GITHUB_SENTENCES, type SentencePart } from "./sentence";
 
 interface TriggerSentenceProps {
@@ -83,7 +81,9 @@ export function TriggerSentence({
 					<ScopeChip
 						key={index}
 						scope={c.branches}
-						onChange={(v) => set({ branches: v })}
+						// Clearing an optional filter means "any", not "none": the chip
+						// says "Any branch" either way, and null would make that a lie.
+						onChange={(v) => set({ branches: v ?? { mode: "any" } })}
 						options={[]}
 						emptyLabel="Any branch"
 						anyLabel="Any branch"
@@ -95,7 +95,9 @@ export function TriggerSentence({
 					<ScopeChip
 						key={index}
 						scope={c.labels}
-						onChange={(v) => set({ labels: v })}
+						// Clearing an optional filter means "any", not "none": the chip
+						// says "Any label" either way, and null would make that a lie.
+						onChange={(v) => set({ labels: v ?? { mode: "any" } })}
 						options={[]}
 						emptyLabel="Any label"
 						anyLabel="Any label"

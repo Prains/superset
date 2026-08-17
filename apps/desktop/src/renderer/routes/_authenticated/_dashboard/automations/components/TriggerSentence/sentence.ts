@@ -33,7 +33,7 @@ export const GITHUB_SENTENCES: Record<GithubTriggerEvent, SentencePart[]> = {
 		{ slot: "actor" },
 	],
 	"pull_request.pushed": [
-		{ text: "PR pushed to in" },
+		{ text: "PR pushed in" },
 		{ slot: "repositories" },
 		{ text: "by" },
 		{ slot: "actor" },
@@ -198,18 +198,23 @@ const COMMENT_EVENTS = new Set<GithubTriggerEvent>([
 	"issue_comment",
 ]);
 
-/** A new trigger of this event, with every filter unset. */
+/**
+ * A new trigger of this event: the repository still to be chosen, every
+ * optional filter wide open.
+ */
 export function newGithubConfig(event: GithubTriggerEvent) {
-	const slots = new Set(
-		GITHUB_SENTENCES[event].flatMap((p) => ("slot" in p ? [p.slot] : [])),
-	);
 	const base = {
 		kind: "github" as const,
+		// Null matches nothing, which is the safety property for repositories: an
+		// unfinished trigger must not fire on every repo, and the form refuses to
+		// save until one is chosen.
 		repositories: null,
-		// Only the filters this event actually shows start unset; the rest are
-		// "any", so a slot nobody can see never silently narrows the match.
-		branches: slots.has("branches") ? null : { mode: "any" as const },
-		labels: slots.has("labels") ? null : { mode: "any" as const },
+		// Branches and labels are optional narrowings, so they start at "any" —
+		// shown or not. Null here would render as "Any branch" while matching
+		// nothing, and nothing validates them, so the trigger would look complete
+		// and never fire.
+		branches: { mode: "any" as const },
+		labels: { mode: "any" as const },
 		actor: "anyone" as const,
 		includeForks: false as const,
 	};

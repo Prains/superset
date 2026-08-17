@@ -17,7 +17,8 @@ import {
 	type SchedulePickerState,
 	stateFromRrule,
 } from "../SchedulePicker/scheduleState";
-import { CHIP, SelectChip } from "../TriggerSentence/chips";
+import { CHIP } from "../TriggerSentence/chipStyles";
+import { SelectChip } from "../TriggerSentence/components/SelectChip";
 
 interface ScheduleSentenceProps {
 	rrule: string;

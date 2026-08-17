@@ -70,7 +70,10 @@ export function TriggersCard({
 	// and the automation-level nextRunAt is only the soonest of them — showing it
 	// on every row claims they all fire at the same time.
 	const nextRunByTriggerId = useMemo(() => {
-		const entries = new Map<string, Date>();
+		// The zone travels with the date: schedules on one automation can sit in
+		// different timezones, so formatting them all in the automation-level one
+		// would label the tooltip wrongly for every schedule but the soonest.
+		const entries = new Map<string, { at: Date; timezone: string }>();
 
 		for (const trigger of automation.triggers) {
 			const config = trigger.config as DraftTrigger["config"];
@@ -79,8 +82,12 @@ export function TriggersCard({
 			// A paused automation keeps a stale nextRunAt, so compute what this
 			// schedule would fire next — the row is previewable before resuming.
 			if (automation.enabled) {
-				if (trigger.nextRunAt)
-					entries.set(trigger.id, new Date(trigger.nextRunAt));
+				if (trigger.nextRunAt) {
+					entries.set(trigger.id, {
+						at: new Date(trigger.nextRunAt),
+						timezone: config.timezone,
+					});
+				}
 				continue;
 			}
 			try {
@@ -90,7 +97,8 @@ export function TriggersCard({
 					timezone: config.timezone,
 					after: new Date(),
 				});
-				if (next) entries.set(trigger.id, next);
+				if (next)
+					entries.set(trigger.id, { at: next, timezone: config.timezone });
 			} catch (error) {
 				console.warn(
 					`[TriggersCard] failed to compute next occurrence for trigger ${trigger.id}`,
@@ -111,18 +119,18 @@ export function TriggersCard({
 		"h-6 gap-1 rounded-[6px] bg-foreground/[0.06] px-2 text-[13px] font-normal hover:bg-foreground/10";
 
 	const renderNextRun = (triggerId?: string) => {
-		const date = triggerId ? nextRunByTriggerId.get(triggerId) : undefined;
-		if (!date) return null;
+		const run = triggerId ? nextRunByTriggerId.get(triggerId) : undefined;
+		if (!run) return null;
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<span>
 						{automation.enabled ? "Next run " : "Would run "}
-						{formatDistanceStrict(date, new Date(), { addSuffix: true })}
+						{formatDistanceStrict(run.at, new Date(), { addSuffix: true })}
 					</span>
 				</TooltipTrigger>
 				<TooltipContent side="right">
-					{formatDateTimeInTimezone(date, automation.timezone ?? "UTC")}
+					{formatDateTimeInTimezone(run.at, run.timezone)}
 				</TooltipContent>
 			</Tooltip>
 		);

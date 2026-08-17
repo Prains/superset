@@ -1,3 +1,3 @@
-export type { ScopeOption } from "./chips";
+export type { ScopeOption } from "./scopeOption";
 export { GITHUB_MENU, newGithubConfig } from "./sentence";
 export { TriggerSentence } from "./TriggerSentence";
