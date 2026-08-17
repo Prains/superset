@@ -2,7 +2,7 @@ import type { TriggerConfigInput } from "@superset/shared/automation-triggers";
 import type { IconType } from "react-icons";
 import { FaGithub } from "react-icons/fa";
 import { LuClock, LuWebhook } from "react-icons/lu";
-import { GITHUB_MENU, createGithubConfig } from "../TriggerSentence";
+import { createGithubConfig, GITHUB_MENU } from "../TriggerSentence";
 
 /**
  * The Add Trigger menu.
