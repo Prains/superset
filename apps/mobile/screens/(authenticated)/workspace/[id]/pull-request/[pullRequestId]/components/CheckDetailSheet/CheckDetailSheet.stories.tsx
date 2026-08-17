@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-native";
 import { View } from "react-native";
 import { action } from "storybook/actions";
-import { SCENARIOS } from "../PullRequestCard/fixtures";
+import { SCENARIOS } from "../fixtures";
 import { CheckDetailSheet } from "./CheckDetailSheet";
 
 const FAILING = SCENARIOS.openTwoChecksFailed.checks[0];

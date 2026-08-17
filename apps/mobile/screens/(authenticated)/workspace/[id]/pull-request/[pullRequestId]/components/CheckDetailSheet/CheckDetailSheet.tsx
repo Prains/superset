@@ -10,6 +10,7 @@ import {
 	type PullRequestCheck,
 } from "../../../../utils/pullRequest";
 import { checkDuration } from "../../utils/checkDuration";
+import { Row } from "./components/Row";
 
 const STATUS_LABEL = {
 	passed: { label: "Passed", className: "bg-green-500/15 text-green-500" },
@@ -24,15 +25,6 @@ const STATUS_LABEL = {
 		className: "bg-secondary text-muted-foreground",
 	},
 } as const;
-
-function Row({ label, value }: { label: string; value: string }) {
-	return (
-		<View className="border-border/60 flex-row items-center justify-between border-b py-4">
-			<Text className="text-[17px]">{label}</Text>
-			<Text className="text-muted-foreground text-[17px]">{value}</Text>
-		</View>
-	);
-}
 
 /**
  * One check, close up. Leaving for GitHub is the last option rather than the

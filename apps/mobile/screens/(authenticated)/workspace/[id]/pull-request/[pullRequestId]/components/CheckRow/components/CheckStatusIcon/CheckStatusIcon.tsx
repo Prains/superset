@@ -17,7 +17,10 @@ export function CheckStatusIcon({ outcome }: { outcome: CheckOutcome }) {
 	const turn = useRef(new Animated.Value(0)).current;
 
 	useEffect(() => {
-		if (outcome !== "running") return;
+		if (outcome !== "running") {
+			turn.setValue(0);
+			return;
+		}
 		const spin = Animated.loop(
 			Animated.timing(turn, {
 				toValue: 1,

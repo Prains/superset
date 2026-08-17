@@ -61,7 +61,14 @@ export function useMergePullRequest({
 	});
 
 	function confirmAndMerge(detail: PullRequestDetail) {
-		const method = detail.mergeability.allowedMergeMethods[0] ?? "squash";
+		const method = detail.mergeability.allowedMergeMethods[0];
+		if (!method) {
+			Alert.alert(
+				"No merge method allowed",
+				"This repository does not allow merging from here.",
+			);
+			return;
+		}
 		Alert.alert(
 			METHOD_LABEL[method],
 			`#${detail.pullRequest.number} ${detail.pullRequest.title}\n\nThis merges into ${detail.pullRequest.baseBranch} and cannot be undone here.`,

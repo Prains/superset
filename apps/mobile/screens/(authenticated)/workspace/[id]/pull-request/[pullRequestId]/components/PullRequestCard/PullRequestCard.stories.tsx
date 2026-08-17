@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-native";
 import { View } from "react-native";
 import { action } from "storybook/actions";
 import { Text } from "@/components/ui/text";
-import { SCENARIOS, type ScenarioName } from "./fixtures";
+import { SCENARIOS, type ScenarioName } from "../fixtures";
 import { PullRequestCard } from "./PullRequestCard";
 
 /**

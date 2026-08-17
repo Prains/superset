@@ -22,7 +22,7 @@ export function CheckRow({
 	const took = checkDuration(check);
 	return (
 		<Pressable
-			accessibilityLabel={check.name}
+			accessibilityLabel={`${check.name}, ${outcome}${took ? `, ${took}` : ""}`}
 			accessibilityRole={onPress ? "button" : undefined}
 			className="flex-row items-center gap-2.5 active:opacity-60"
 			disabled={onPress === undefined}

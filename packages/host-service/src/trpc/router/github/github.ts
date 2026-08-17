@@ -477,6 +477,8 @@ function mergeRejectionError(error: unknown): TRPCError {
 		case 405:
 		case 409:
 			return new TRPCError({ code: "CONFLICT", message, cause: error });
+		case 401:
+			return new TRPCError({ code: "UNAUTHORIZED", message, cause: error });
 		case 403:
 			return new TRPCError({ code: "FORBIDDEN", message, cause: error });
 		case 404:

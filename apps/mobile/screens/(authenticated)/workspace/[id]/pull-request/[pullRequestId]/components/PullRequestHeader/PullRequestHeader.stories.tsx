@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-native";
-import { SCENARIOS, type ScenarioName } from "../PullRequestCard/fixtures";
+import { SCENARIOS, type ScenarioName } from "../fixtures";
 import { PullRequestHeader } from "./PullRequestHeader";
 
 const meta = {

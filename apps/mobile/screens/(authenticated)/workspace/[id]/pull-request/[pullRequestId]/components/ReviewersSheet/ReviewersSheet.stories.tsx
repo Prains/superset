@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-native";
 import { View } from "react-native";
-import { SCENARIOS, type ScenarioName } from "../PullRequestCard/fixtures";
+import { SCENARIOS, type ScenarioName } from "../fixtures";
 import { ReviewersSheet } from "./ReviewersSheet";
 
 const meta = {

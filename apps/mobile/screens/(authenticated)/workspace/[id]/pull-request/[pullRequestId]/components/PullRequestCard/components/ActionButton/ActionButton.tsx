@@ -40,7 +40,7 @@ export function ActionButton({
 		<Pressable
 			accessibilityLabel={label}
 			accessibilityRole="button"
-			accessibilityState={{ busy: busy === true }}
+			accessibilityState={{ busy: busy === true, disabled: busy === true }}
 			// 34pt to match the design, with the touch target padded back out to
 			// the 44pt minimum so the compact look doesn't cost a tap.
 			className={cn(

@@ -4,7 +4,7 @@ import type {
 	PullRequestCheck,
 	PullRequestMergeability,
 	PullRequestReviewer,
-} from "../../../../utils/pullRequest";
+} from "../../../utils/pullRequest";
 
 /**
  * One fixture per reference screen, named for the design it reproduces, so a
@@ -93,8 +93,6 @@ const MERGEABILITY: PullRequestMergeability = {
 	mergeStateStatus: "CLEAN",
 	approvals: 0,
 	requiredApprovals: 1,
-	// Null on the shared base: these fixtures express review through the
-	// approval counts, the way a branch-protected repository reports it.
 	reviewDecision: null,
 	unresolvedThreads: 0,
 	requiresThreadResolution: false,

@@ -63,7 +63,7 @@ export function ChecksSection({
 
 	return (
 		<CardRow
-			label="All Checks Passed"
+			label={tally.passed > 0 ? "All Checks Passed" : "Checks Skipped"}
 			leading={
 				<View className="size-[26px] items-center justify-center rounded-full bg-green-500">
 					<Icon

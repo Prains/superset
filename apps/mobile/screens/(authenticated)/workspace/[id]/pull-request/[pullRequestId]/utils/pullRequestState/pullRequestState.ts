@@ -112,7 +112,7 @@ export function resolveActions(
 	}
 
 	const actions: ActionId[] = [];
-	// Merge stays offered through running or failed checks; only GitHub refusals remove it.
+	// Merge stays offered through running or failed checks; conflicts, a missing review or branch rules remove it.
 	if (capabilities.merge && !MERGE_REFUSED.includes(state)) {
 		actions.push("merge");
 	}
