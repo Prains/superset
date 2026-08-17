@@ -13,12 +13,6 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@superset/ui/dropdown-menu";
-import {
-	InputGroup,
-	InputGroupAddon,
-	InputGroupButton,
-	InputGroupInput,
-} from "@superset/ui/input-group";
 import { cn } from "@superset/ui/utils";
 import {
 	LuArchive,
@@ -32,11 +26,10 @@ import {
 	LuMonitor,
 	LuMonitorSmartphone,
 	LuPin,
-	LuSearch,
 	LuSquareKanban,
 	LuTerminal,
-	LuX,
 } from "react-icons/lu";
+import { WorkItemsSearch } from "renderer/routes/_authenticated/_dashboard/components/WorkItemsSearch";
 import type {
 	V2WorkspaceHostOption,
 	V2WorkspaceProjectOption,
@@ -195,37 +188,12 @@ export function V2WorkspacesHeader({
 	};
 
 	return (
-		<div className="border-b border-border">
-			<div className="flex w-full flex-wrap items-center justify-between gap-3 px-6 py-4">
-				<h1 className="text-sm font-semibold tracking-tight">Workspaces</h1>
-
-				{/* Window-drag leaf standing in for the hidden TopBar. */}
-				<div className="drag -my-4 min-w-0 flex-1 self-stretch" />
-
-				<div className="flex flex-wrap items-center gap-2">
-					<InputGroup className="w-64">
-						<InputGroupAddon align="inline-start">
-							<LuSearch className="size-4" />
-						</InputGroupAddon>
-						<InputGroupInput
-							type="text"
-							placeholder="Search workspaces…"
-							value={searchQuery}
-							onChange={(event) => setSearchQuery(event.target.value)}
-						/>
-						{searchQuery ? (
-							<InputGroupAddon align="inline-end">
-								<InputGroupButton
-									size="icon-xs"
-									aria-label="Clear search"
-									onClick={() => setSearchQuery("")}
-								>
-									<LuX />
-								</InputGroupButton>
-							</InputGroupAddon>
-						) : null}
-					</InputGroup>
-
+		<div
+			data-workspaces-toolbar
+			className="@container shrink-0 border-b border-border px-4 py-2"
+		>
+			<div className="flex flex-col items-stretch gap-2 @4xl:flex-row @4xl:items-center @4xl:justify-between">
+				<div className="flex min-w-0 items-center gap-3 overflow-x-auto hide-scrollbar">
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -245,7 +213,7 @@ export function V2WorkspacesHeader({
 								) : null}
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="min-w-[14rem]">
+						<DropdownMenuContent align="start" className="min-w-[14rem]">
 							<DropdownMenuSub>
 								<DropdownMenuSubTrigger>
 									<span className="flex items-center gap-2">
@@ -447,6 +415,8 @@ export function V2WorkspacesHeader({
 						</DropdownMenuContent>
 					</DropdownMenu>
 
+					<div className="h-4 w-px shrink-0 bg-border" />
+
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -458,7 +428,7 @@ export function V2WorkspacesHeader({
 								Display
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="min-w-[12rem]">
+						<DropdownMenuContent align="start" className="min-w-[12rem]">
 							<DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 								Sort by
 							</DropdownMenuLabel>
@@ -499,39 +469,52 @@ export function V2WorkspacesHeader({
 							</DropdownMenuRadioGroup>
 						</DropdownMenuContent>
 					</DropdownMenu>
+				</div>
 
-					<div className="flex items-center rounded-md border border-border p-0.5">
-						<Button
-							variant="ghost"
-							size="sm"
+				{/* Window-drag leaf standing in for the hidden TopBar. */}
+				<div className="drag hidden min-w-0 flex-1 self-stretch @4xl:block" />
+
+				<div className="flex shrink-0 items-center gap-2">
+					<fieldset
+						className="flex items-center rounded-md border bg-muted/30 p-0.5"
+						aria-label="Workspace layout"
+					>
+						<button
+							type="button"
 							aria-pressed={viewMode === "list"}
 							className={cn(
-								"h-7 gap-1.5 px-2 font-normal",
+								"flex h-6 items-center gap-1.5 rounded-sm px-2 text-xs transition-colors",
 								viewMode === "list"
-									? "bg-accent text-accent-foreground"
-									: "text-muted-foreground",
+									? "bg-background text-foreground shadow-sm"
+									: "text-muted-foreground hover:text-foreground",
 							)}
 							onClick={() => setViewMode("list")}
 						>
-							<LuList className="size-4" />
+							<LuList className="size-3.5" />
 							List
-						</Button>
-						<Button
-							variant="ghost"
-							size="sm"
+						</button>
+						<button
+							type="button"
 							aria-pressed={viewMode === "board"}
 							className={cn(
-								"h-7 gap-1.5 px-2 font-normal",
+								"flex h-6 items-center gap-1.5 rounded-sm px-2 text-xs transition-colors",
 								viewMode === "board"
-									? "bg-accent text-accent-foreground"
-									: "text-muted-foreground",
+									? "bg-background text-foreground shadow-sm"
+									: "text-muted-foreground hover:text-foreground",
 							)}
 							onClick={() => setViewMode("board")}
 						>
-							<LuSquareKanban className="size-4" />
+							<LuSquareKanban className="size-3.5" />
 							Board
-						</Button>
-					</div>
+						</button>
+					</fieldset>
+
+					<WorkItemsSearch
+						value={searchQuery}
+						onChange={setSearchQuery}
+						placeholder="Search workspaces…"
+						label="Search workspaces"
+					/>
 				</div>
 			</div>
 		</div>
