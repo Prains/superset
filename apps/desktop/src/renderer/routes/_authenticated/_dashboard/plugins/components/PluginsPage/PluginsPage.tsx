@@ -40,9 +40,9 @@ import {
 } from "react-icons/lu";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
+import { EXTERNAL_LINKS } from "shared/constants";
 
 const QUERY_KEY = ["host-plugins"] as const;
-const DOCS_URL = "https://docs.superset.sh/plugins";
 
 type InstallMode = "git" | "path";
 
@@ -337,7 +337,7 @@ export function PluginsPage() {
 						<p className="text-sm text-muted-foreground">
 							Extend Superset and its agents.{" "}
 							<a
-								href={DOCS_URL}
+								href={EXTERNAL_LINKS.PLUGINS_DOCS}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground"

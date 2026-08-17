@@ -70,4 +70,5 @@ export const DEFAULT_EXPOSE_HOST_SERVICE_VIA_RELAY = false;
 // External links (documentation, help resources, etc.)
 export const EXTERNAL_LINKS = {
 	SETUP_TEARDOWN_SCRIPTS: `${process.env.NEXT_PUBLIC_DOCS_URL}/setup-teardown-scripts`,
+	PLUGINS_DOCS: `${process.env.NEXT_PUBLIC_DOCS_URL}/plugins`,
 } as const;
