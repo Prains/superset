@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import {
 	type SamplePrompt,
+	type SamplePromptTier,
 	selectSamplePrompts,
 } from "../../components/SamplePrompts/constants";
 
@@ -22,6 +23,7 @@ interface SamplePromptSelection {
  * same setup-first rule, only `count` changes.
  */
 export function useSamplePromptSelection(
+	tier: SamplePromptTier,
 	hostUrl: string | null,
 	projectId: string | null,
 	count: number,
@@ -43,7 +45,7 @@ export function useSamplePromptSelection(
 	if (canCheckSetup && isPending) return { prompts: [], isPending: true };
 
 	return {
-		prompts: selectSamplePrompts(needsSetupScripts === true, count),
+		prompts: selectSamplePrompts(tier, needsSetupScripts === true, count),
 		isPending: false,
 	};
 }

@@ -7,7 +7,10 @@ import {
 } from "lucide-react";
 import { track } from "renderer/lib/analytics";
 import { DismissSuggestionsButton } from "../DismissSuggestionsButton";
-import type { SamplePrompt } from "../SamplePrompts/constants";
+import type {
+	SamplePrompt,
+	SamplePromptTier,
+} from "../SamplePrompts/constants";
 import { AgentLogoCluster } from "./components/AgentLogoCluster";
 
 const CARD_ICONS: Record<string, typeof WrenchIcon> = {
@@ -25,6 +28,7 @@ interface SamplePromptCardsProps {
 	canDismiss: boolean;
 	/** Distinguishes the 2-card and 4-card arms in the click event. */
 	layout: string;
+	tier: SamplePromptTier;
 }
 
 export function SamplePromptCards({
@@ -33,6 +37,7 @@ export function SamplePromptCards({
 	onDismiss,
 	canDismiss,
 	layout,
+	tier,
 }: SamplePromptCardsProps) {
 	return (
 		<div className="group relative px-1 pb-2">
@@ -49,6 +54,7 @@ export function SamplePromptCards({
 								track("new_workspace_sample_prompt_clicked", {
 									prompt_id: sample.id,
 									layout,
+									tier,
 								});
 								onSelect(sample.prompt);
 							}}

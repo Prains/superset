@@ -387,21 +387,23 @@ export function NewWorkspaceScreen({
 	const promptCardsVariant = useNewWorkspacePromptCardsVariant(isOpen);
 	const promptLayout =
 		promptCardsVariant === null ? "rows" : PROMPT_LAYOUTS[promptCardsVariant];
+
+	// One signal drives both the prompt tier and the dismiss affordance: has
+	// this person shipped anything yet. `main` is auto-created for every new
+	// account, so it cannot count.
+	const { workspaces: hostWorkspaces } = useHostWorkspaces();
+	const hasRealWorkspace = hostWorkspaces.some(
+		(workspace) => workspace.type !== "main",
+	);
+
+	const samplePromptTier = hasRealWorkspace ? "returning" : "first-run";
 	const { prompts: samplePrompts, isPending: samplePromptsPending } =
 		useSamplePromptSelection(
+			samplePromptTier,
 			launchHostUrl,
 			projectId,
 			promptCardsVariant === null ? 0 : PROMPT_COUNTS[promptCardsVariant],
 		);
-
-	// The experiment measures the cold-start population, and dismissal removes
-	// the surface it measures — so the escape hatch only appears once the user
-	// has a real workspace. `main` is auto-created for every new account, so
-	// gating on it would open this for everyone immediately.
-	const { workspaces: hostWorkspaces } = useHostWorkspaces();
-	const canDismissSamplePrompts = hostWorkspaces.some(
-		(workspace) => workspace.type !== "main",
-	);
 
 	// Logged so the prompt-cards experiment can account for lost exposure.
 	const handleDismissSamplePrompts = useCallback(() => {
@@ -672,15 +674,17 @@ export function NewWorkspaceScreen({
 										prompts={samplePrompts}
 										onSelect={applyPrompt}
 										onDismiss={handleDismissSamplePrompts}
-										canDismiss={canDismissSamplePrompts}
+										canDismiss={hasRealWorkspace}
+										tier={samplePromptTier}
 									/>
 								) : (
 									<SamplePromptCards
 										prompts={samplePrompts}
 										onSelect={applyPrompt}
 										onDismiss={handleDismissSamplePrompts}
-										canDismiss={canDismissSamplePrompts}
+										canDismiss={hasRealWorkspace}
 										layout={promptLayout}
+										tier={samplePromptTier}
 									/>
 								)}
 							</motion.div>
