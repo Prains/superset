@@ -11,21 +11,26 @@ import { track } from "renderer/lib/analytics";
 
 interface GitHubStarPillProps {
 	className?: string;
+	/** Analytics surface tag; defaults to "empty_state" for the original callers. */
+	surface?: "empty_state" | "new_workspace";
 }
 
 /**
  * Small, always-optional "Star Superset on GitHub" pill for the empty
- * "no pane open" screens (v1 EmptyTabView and v2 WorkspaceEmptyState).
- * Renders straight from live `state`, with no nag-suppression layer — unlike
- * the sidebar card/toast, this is a low-key status indicator, not an
- * interruptive campaign, so it's allowed to be fully truthful: it hides the
- * instant `state` is "starred" and reappears the instant a later unstar is
- * confirmed, without waiting on any mute grace window. It briefly stays
- * mounted past that point so the confetti/label animation on a fresh star
- * has time to play, then dissolves out (fade + soft blur) instead of
- * vanishing instantly.
+ * "no pane open" screens (v1 EmptyTabView and v2 WorkspaceEmptyState) and
+ * the new-workspace screen. Renders straight from live `state`, with no
+ * nag-suppression layer — unlike the sidebar card/toast, this is a low-key
+ * status indicator, not an interruptive campaign, so it's allowed to be
+ * fully truthful: it hides the instant `state` is "starred" and reappears
+ * the instant a later unstar is confirmed, without waiting on any mute
+ * grace window. It briefly stays mounted past that point so the
+ * confetti/label animation on a fresh star has time to play, then
+ * dissolves out (fade + soft blur) instead of vanishing instantly.
  */
-export function GitHubStarPill({ className }: GitHubStarPillProps) {
+export function GitHubStarPill({
+	className,
+	surface = "empty_state",
+}: GitHubStarPillProps) {
 	const { state, activate, isBusy } = useGithubStarAction();
 	const prevStateRef = useRef<GithubStarActionState | null>(null);
 
@@ -81,8 +86,8 @@ export function GitHubStarPill({ className }: GitHubStarPillProps) {
 		if (trackedShownRef.current) return;
 		if (state !== "not_starred" && state !== "unknown") return;
 		trackedShownRef.current = true;
-		track("star_nag_shown", { surface: "empty_state" });
-	}, [state]);
+		track("star_nag_shown", { surface });
+	}, [state, surface]);
 
 	if (state === "loading") return null;
 
@@ -94,7 +99,7 @@ export function GitHubStarPill({ className }: GitHubStarPillProps) {
 
 	const handleClick = () => {
 		track(state === "unknown" ? "star_nag_opened_web" : "star_nag_starred", {
-			surface: "empty_state",
+			surface,
 		});
 		activate();
 	};
