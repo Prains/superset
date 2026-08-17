@@ -30,6 +30,7 @@
 		"skills",
 		"mcp-server",
 		"plugins",
+		"building-plugins",
 		"---CLI---",
 		"cli/getting-started",
 		"cli/cli-reference",

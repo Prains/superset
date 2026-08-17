@@ -1,0 +1,133 @@
+---
+title: Building Plugins
+description: Author a Superset plugin, from scaffold to running
+---
+
+## Quickstart
+
+```bash
+superset plugin new my-plugin   # scaffold: manifest + server.ts + app.tsx
+cd my-plugin
+superset plugin build .         # esbuild the UI bundle into dist/app.js
+superset plugin link .          # register the directory in place (dev mode)
+```
+
+Open any v2 workspace: your sidebar tab appears next to Files/Changes/Review and your commands appear in the command palette. After edits:
+
+```bash
+superset plugin build .              # if you changed the UI
+superset plugin reload my.plugin-id  # re-reads manifest + reloads backend and UI
+```
+
+You can also let an agent do all of this: the **Build with AI** button on the Plugins page dispatches a session primed with the bundled `plugin-authoring` skill, and any connected agent can be asked to build a plugin directly.
+
+## The Manifest
+
+```json
+{
+  "id": "acme.hello",
+  "name": "Hello",
+  "version": "0.1.0",
+  "description": "One line about what it does",
+  "permissions": ["events:subscribe", "workspaces:read"],
+  "server": "src/server.ts",
+  "app": "dist/app.js",
+  "contributes": {
+    "sidebarTabs": [{ "id": "hello", "label": "Hello", "component": "HelloTab" }],
+    "panes": [{ "kind": "acme.hello.pane", "title": "Hello", "component": "HelloPane" }],
+    "commands": [
+      { "id": "open", "title": "Hello: Open", "run": { "type": "open-sidebar-tab", "tabId": "hello" } },
+      { "id": "open-pane", "title": "Hello: Open as Pane", "run": { "type": "open-pane", "kind": "acme.hello.pane" } },
+      { "id": "refresh", "title": "Hello: Refresh", "run": { "type": "action", "action": "refresh" } }
+    ],
+    "events": [
+      { "on": "workspace.created", "command": ["./hooks/on-create.sh"] }
+    ]
+  }
+}
+```
+
+Rules the validator enforces:
+
+- Ids are lowercase and dot-namespaced (`author.plugin-name`); pane kinds should be prefixed with the plugin id
+- Entry paths are relative, with no `..` segments
+- UI contributions (`sidebarTabs`, `panes`) require an `app` entry
+- A command's `open-sidebar-tab` / `open-pane` target must exist in the matching contribution list
+
+A TypeScript `server` entry works for dev links; publish prebuilt JS (`dist/server.js`) for installs.
+
+## The Backend
+
+Default-export a factory. It runs in-process inside the host-service, full trust, with contained failures.
+
+```ts
+import type { SupersetPluginApi } from "@superset/plugin-sdk";
+
+export default async function plugin(api: SupersetPluginApi) {
+  api.actions.register("refresh", async (params, { workspaceId }) => ({ ok: true }));
+
+  api.events.on("agent.lifecycle", (event) => {
+    api.realtime.publish({ type: "update", event });
+  });
+
+  await api.storage.set("count", 1);
+  const workspaces = await api.workspaces.list();
+  api.background.interval(60_000, async () => {});
+}
+```
+
+| Namespace | Purpose |
+|-----------|---------|
+| `api.log(message, data?)` | Structured log line, attributed to the plugin in host logs |
+| `api.storage` | Persistent per-plugin KV (`get`/`set`/`delete`/`keys`, JSON values up to 256KB) |
+| `api.events.on(kind, handler)` | Lifecycle event subscription; `"*"` receives every kind |
+| `api.actions.register(name, handler)` | Named actions invokable from the UI, palette commands, and `superset plugin invoke` |
+| `api.realtime.publish(payload)` | Push ephemeral payloads to the plugin's mounted UI components |
+| `api.background.interval(ms, fn)` | Supervised repeating task, cleared on unload/reload |
+| `api.workspaces.list()` | Live workspaces on this host: id, name, branch, type, projectId, worktreePath |
+
+Event kinds: `workspace.created|updated|deleted`, `project.created|updated|deleted`, `agent.lifecycle` (normalized agent hook events: `Start`, `Stop`, `PermissionRequest`, `Failed`, `Attached`, `Detached`), `terminal.exit`, `port.added|removed`. High-volume streams (terminal output, filesystem events) are deliberately not exposed.
+
+Containment semantics: the factory has 10 seconds to return, action handlers are time-boxed at 10 seconds, event handlers at 5 seconds (fire-and-forget, errors logged). A failed load tears down everything the factory registered and the plugin shows `status: error` with the message.
+
+## The UI
+
+UI components are named exports of the `app` bundle, referenced by `component` in the manifest:
+
+```tsx
+import type { PluginSlotProps } from "@superset/plugin-sdk/ui";
+import { useEffect, useState } from "react";
+
+export function HelloTab({ ctx }: PluginSlotProps) {
+  const [state, setState] = useState<unknown>(null);
+  useEffect(() => ctx.onRealtime(setState), [ctx]);
+  return <div style={{ padding: 16 }}>{JSON.stringify(state)}</div>;
+}
+```
+
+The `ctx` prop: `ctx.pluginId` and `ctx.workspaceId`, `ctx.invokeAction(name, params?)` to call a backend action, `ctx.onRealtime(handler)` for backend pushes, and `ctx.postMessage(payload)` / `ctx.onMessage(handler)` for renderer-local messaging between the plugin's own mounted surfaces in the same workspace (pane to sidebar tab, for example).
+
+`superset plugin build` handles the bundling: components render in the host's React tree (hooks work, one React), so don't import `react-dom`. Tailwind classes aren't available; use inline styles or ship a `dist/app.css` sibling (auto-injected). Theme colors are available as the host's CSS variables.
+
+## Verify
+
+```bash
+superset plugin list                          # status per plugin: running / error / disabled
+superset plugin invoke my.plugin-id refresh   # smoke-test a backend action
+```
+
+A plugin that fails to load shows `status: error` with the load error message, in both `plugin list` and the Plugins page.
+
+## Examples
+
+Runnable examples live in [`packages/plugin-sdk/examples/`](https://github.com/superset-sh/superset/tree/main/packages/plugin-sdk/examples):
+
+- **hello-superset**: minimal counter tab, palette commands, realtime push, KV persistence
+- **agent-board**: live board of every agent across workspaces, with selection synced between its pane and sidebar tab via `postMessage`
+- **flock**: pixel-art pasture where every agent is a sheep whose behavior tracks its status
+- **fleet-review**: cross-workspace git-diff review queue, shelling `git` inside each worktree
+- **agent-usage**: per-agent activity gauges from lifecycle events
+
+Each ships source only: run `superset plugin build .` in its directory before linking.
+
+For the complete contract, see the [plugin SDK README](https://github.com/superset-sh/superset/tree/main/packages/plugin-sdk).
