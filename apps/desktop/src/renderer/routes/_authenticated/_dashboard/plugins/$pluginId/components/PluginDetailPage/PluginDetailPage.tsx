@@ -61,7 +61,7 @@ function PaletteMock({
 }) {
 	if (commands.length === 0) return null;
 	return (
-		<div className="flex flex-col gap-2" data-testid="palette-mock">
+		<div className="mx-auto flex w-full max-w-xl flex-col gap-2" data-testid="palette-mock">
 			<div className="flex items-baseline justify-between">
 				<h2 className="text-sm font-semibold">Try it</h2>
 				<span className="text-xs text-muted-foreground">in any workspace</span>
@@ -196,14 +196,14 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 
 	if (pluginsQuery.isPending) {
 		return (
-			<div className="mx-auto w-full max-w-3xl px-6 py-8">
+			<div className="mx-auto w-full max-w-5xl px-8 py-8">
 				<Skeleton className="h-32 w-full" />
 			</div>
 		);
 	}
 	if (!plugin) {
 		return (
-			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 py-8">
+			<div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-8 py-8">
 				<Link
 					to="/plugins"
 					className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -225,7 +225,7 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 		<div className="flex h-full w-full flex-1 flex-col overflow-y-auto">
 			<div
 				data-testid="plugin-detail"
-				className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8"
+				className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-8 py-8"
 			>
 				<Link
 					to="/plugins"
