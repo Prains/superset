@@ -101,9 +101,11 @@ export function TriggersEditor({
 				))}
 
 				{/* Separates the rows from the action, inset so it reads as a rule
-				    inside the surface rather than a division of the card. */}
+				    inside the surface rather than a division of the card. The bottom
+				    margin matches the row padding above it, so the rule sits centred
+				    in the gap rather than against the button. */}
 				{drafts.length > 0 && (
-					<Separator className="mx-2 bg-border/60 data-[orientation=horizontal]:w-auto" />
+					<Separator className="mx-2 mb-1.5 bg-border/60 data-[orientation=horizontal]:w-auto" />
 				)}
 
 				<DropdownMenu onOpenChange={() => setQuery("")}>
