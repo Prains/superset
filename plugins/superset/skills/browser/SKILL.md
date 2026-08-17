@@ -1,6 +1,6 @@
 ---
 name: browser
-description: Drive a workspace's in-app browser panes from the Superset CLI — list open panes, open/navigate URLs, screenshot, read console, evaluate JavaScript, and speak raw Chrome DevTools Protocol for click/type/scroll automation (browser-use / Playwright-class). Use when asked to open or navigate the in-app browser, screenshot or read a running web app, click or type through a web flow, fill or submit a form, scrape a page, or verify UI in the pane the user is watching. Do not use for the system browser, headless scraping outside Superset, or driving the desktop app's own UI (that's CDP UI verification, not this).
+description: "Drive a workspace's in-app browser panes from the Superset CLI: list panes, open and navigate URLs, screenshot, read the console, evaluate JavaScript, and speak raw Chrome DevTools Protocol for click/type/scroll automation (browser-use / Playwright-class). Use when asked to open or navigate the in-app browser, screenshot or read a running web app, click or type through a web flow, fill a form, or verify UI in the pane the user is watching. Not for the system browser or headless scraping."
 ---
 
 # Superset Browser Control
