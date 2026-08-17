@@ -31,17 +31,22 @@ export function PluginThemesBridge() {
 	const installedRef = useRef(new Map<string, string[]>());
 
 	const plugins = pluginsQuery.data;
-	const _themed = (plugins ?? [])
-		.filter(
-			(plugin) =>
-				plugin.status === "running" &&
-				(plugin.manifest.contributes?.themes?.length ?? 0) > 0,
-		)
-		.map((plugin) => `${plugin.id}:${plugin.updatedAt}`)
-		.join(",");
+	const appliedRef = useRef("");
 
 	useEffect(() => {
 		if (!plugins || !activeHostUrl) return;
+		// Poll results are new array identities; only act when the set of
+		// theme-bearing running plugins actually changed.
+		const fingerprint = plugins
+			.filter(
+				(plugin) =>
+					plugin.status === "running" &&
+					(plugin.manifest.contributes?.themes?.length ?? 0) > 0,
+			)
+			.map((plugin) => `${plugin.id}:${plugin.updatedAt}`)
+			.join(",");
+		if (fingerprint === appliedRef.current) return;
+		appliedRef.current = fingerprint;
 		let cancelled = false;
 		const { upsertCustomThemes, removeCustomTheme } = useThemeStore.getState();
 		const running = new Set(
@@ -91,8 +96,6 @@ export function PluginThemesBridge() {
 		return () => {
 			cancelled = true;
 		};
-		// `themed` fingerprints the plugins whose themes affect this effect.
-		// biome-ignore lint/correctness/useExhaustiveDependencies: fingerprint dep
 	}, [activeHostUrl, plugins]);
 
 	return null;
