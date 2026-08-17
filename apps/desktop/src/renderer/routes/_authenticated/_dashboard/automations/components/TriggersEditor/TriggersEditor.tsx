@@ -140,7 +140,9 @@ export function TriggersEditor({
 											key={leaf.path.join(">")}
 											onSelect={() => add(leaf.config())}
 										>
-											{Icon && <Icon className="size-3.5 shrink-0 opacity-60" />}
+											{Icon && (
+												<Icon className="size-3.5 shrink-0 opacity-60" />
+											)}
 											{/* The trail disambiguates "Approved" from the other three
 											    review outcomes, but it is the trail that gives way when
 											    the row is too narrow — truncating the leaf would hide
