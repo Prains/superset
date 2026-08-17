@@ -40,7 +40,6 @@ import {
 	LuRotateCw,
 	LuTrash2,
 } from "react-icons/lu";
-import { useHotkeyDisplay } from "renderer/hotkeys";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 
@@ -356,44 +355,6 @@ function InstallDialog({
 	);
 }
 
-function HowPluginsWork() {
-	const paletteKey = useHotkeyDisplay("OPEN_COMMAND_PALETTE").text;
-	const steps: { title: string; body: string }[] = [
-		{
-			title: "Install",
-			body: "From a git repo or local path here, or `superset plugin new` to build your own (agents can write them too).",
-		},
-		{
-			title: "Use inside a workspace",
-			body: `Sidebar tabs appear next to Files and Changes. Panes and commands live in the command palette (${paletteKey}).`,
-		},
-		{
-			title: "Manage here",
-			body: "Toggle, reload after edits, or uninstall. Click a plugin to see exactly what it adds.",
-		},
-	];
-	return (
-		<div
-			data-testid="plugins-how"
-			className="grid grid-cols-3 gap-3 rounded-lg border border-border/60 bg-card/30 px-4 py-3"
-		>
-			{steps.map((step, index) => (
-				<div key={step.title} className="flex gap-2.5">
-					<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-fill-hover text-[11px] font-semibold text-muted-foreground">
-						{index + 1}
-					</span>
-					<div className="flex min-w-0 flex-col gap-0.5">
-						<span className="text-xs font-medium">{step.title}</span>
-						<span className="text-[11px] leading-4 text-muted-foreground">
-							{step.body}
-						</span>
-					</div>
-				</div>
-			))}
-		</div>
-	);
-}
-
 export function PluginsPage() {
 	const { activeHostUrl } = useLocalHostService();
 	const queryClient = useQueryClient();
@@ -436,8 +397,6 @@ export function PluginsPage() {
 						</DropdownMenuContent>
 					</DropdownMenu>
 				</div>
-
-				<HowPluginsWork />
 
 				{pluginsQuery.isPending ? (
 					<div className="flex flex-col gap-3">

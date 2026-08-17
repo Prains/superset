@@ -10,6 +10,7 @@ import {
 import { Skeleton } from "@superset/ui/skeleton";
 import { toast } from "@superset/ui/sonner";
 import { Switch } from "@superset/ui/switch";
+import { cn } from "@superset/ui/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -20,6 +21,7 @@ import {
 	LuPanelRight,
 	LuPuzzle,
 	LuRotateCw,
+	LuSearch,
 	LuSquareTerminal,
 	LuTrash2,
 	LuZap,
@@ -37,14 +39,72 @@ const PERMISSION_HELP: Record<string, string> = {
 	"git:read": "Reads git state inside your worktrees",
 };
 
+function Kbd({ children }: { children: ReactNode }) {
+	return (
+		<span className="rounded border border-border/80 bg-fill-hover px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground shadow-[inset_0_-1px_0_rgba(0,0,0,0.2)]">
+			{children}
+		</span>
+	);
+}
+
+/**
+ * Visual teaching, not instructions: a mock of the command palette with
+ * this plugin's real commands in it (the ChatGPT-apps example-card pattern).
+ */
+function PaletteMock({
+	commands,
+	paletteKey,
+}: {
+	commands: { id: string; title: string }[];
+	paletteKey: string;
+}) {
+	if (commands.length === 0) return null;
+	return (
+		<div className="flex flex-col gap-2" data-testid="palette-mock">
+			<div className="flex items-baseline justify-between">
+				<h2 className="text-sm font-semibold">Try it</h2>
+				<span className="text-xs text-muted-foreground">in any workspace</span>
+			</div>
+			<div className="pointer-events-none select-none overflow-hidden rounded-lg border border-border/70 bg-background shadow-lg">
+				<div className="flex items-center gap-2 border-b border-border/60 px-3.5 py-2.5">
+					<LuSearch className="size-3.5 text-muted-foreground/70" />
+					<span className="flex-1 text-sm text-muted-foreground/60">
+						Type a command…
+					</span>
+					<Kbd>{paletteKey}</Kbd>
+				</div>
+				<div className="flex flex-col p-1.5">
+					{commands.slice(0, 3).map((command, index) => (
+						<div
+							key={command.id}
+							className={cn(
+								"flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm",
+								index === 0
+									? "bg-fill-selected text-foreground"
+									: "text-muted-foreground",
+							)}
+						>
+							<LuPuzzle className="size-3.5 shrink-0 opacity-70" />
+							<span className="flex-1">{command.title}</span>
+							{index === 0 ? <Kbd>↵</Kbd> : null}
+						</div>
+					))}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 function ContributionGroup({
 	icon,
 	title,
+	hint,
 	rows,
 }: {
 	icon: ReactNode;
 	title: string;
-	rows: { primary: string; secondary?: string; usage?: string }[];
+	hint?: string;
+	rows: { primary: string; secondary?: string }[];
 }) {
 	if (rows.length === 0) return null;
 	return (
@@ -53,23 +113,23 @@ function ContributionGroup({
 				{icon}
 				{title}
 				<span className="opacity-60">{rows.length}</span>
+				{hint ? (
+					<span className="ml-auto font-normal normal-case tracking-normal text-muted-foreground/70">
+						{hint}
+					</span>
+				) : null}
 			</div>
 			<div className="flex flex-col rounded-md border border-border/60">
 				{rows.map((row) => (
 					<div
 						key={row.primary + (row.secondary ?? "")}
-						className="flex flex-col gap-0.5 border-b border-border/40 px-3 py-2 last:border-b-0"
+						className="flex items-baseline gap-2 border-b border-border/40 px-3 py-2 text-sm last:border-b-0"
 					>
-						<div className="flex items-baseline gap-2 text-sm">
-							<span className="font-medium">{row.primary}</span>
-							{row.secondary ? (
-								<span className="truncate font-mono text-[11px] text-muted-foreground">
-									{row.secondary}
-								</span>
-							) : null}
-						</div>
-						{row.usage ? (
-							<span className="text-xs text-muted-foreground">{row.usage}</span>
+						<span className="font-medium">{row.primary}</span>
+						{row.secondary ? (
+							<span className="truncate font-mono text-[11px] text-muted-foreground">
+								{row.secondary}
+							</span>
 						) : null}
 					</div>
 				))}
@@ -159,17 +219,6 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 	const contributes = plugin.manifest.contributes;
 	const permissions = plugin.manifest.permissions ?? [];
 	const commands = contributes?.commands ?? [];
-	// The palette command that opens a given pane/tab, for usage instructions.
-	const openerFor = (target: { type: "pane" | "tab"; id: string }) =>
-		commands.find(
-			(c) =>
-				(target.type === "pane" &&
-					c.run.type === "open-pane" &&
-					c.run.kind === target.id) ||
-				(target.type === "tab" &&
-					c.run.type === "open-sidebar-tab" &&
-					c.run.tabId === target.id),
-		);
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -250,52 +299,44 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 					</div>
 				) : null}
 
+				<PaletteMock commands={commands} paletteKey={paletteKey} />
+
 				<div className="flex flex-col gap-4">
-					<h2 className="text-sm font-semibold">
-						What this plugin adds, and how to use it
-					</h2>
+					<h2 className="text-sm font-semibold">What this plugin adds</h2>
 					<ContributionGroup
 						icon={<LuZap className="size-3.5" />}
 						title="Commands"
+						hint="command palette"
 						rows={commands.map((c) => ({
 							primary: c.title,
 							secondary: c.id,
-							usage: `In any workspace, press ${paletteKey} and run "${c.title}".`,
 						}))}
 					/>
 					<ContributionGroup
 						icon={<LuLayoutPanelLeft className="size-3.5" />}
 						title="Panes"
-						rows={(contributes?.panes ?? []).map((p) => {
-							const opener = openerFor({ type: "pane", id: p.kind });
-							return {
-								primary: p.title,
-								secondary: p.kind,
-								usage: opener
-									? `Opens as a full pane next to your terminals: press ${paletteKey} in a workspace and run "${opener.title}".`
-									: "Opens as a full pane next to your terminals.",
-							};
-						})}
+						hint="workspace pane grid"
+						rows={(contributes?.panes ?? []).map((p) => ({
+							primary: p.title,
+							secondary: p.kind,
+						}))}
 					/>
 					<ContributionGroup
 						icon={<LuPanelRight className="size-3.5" />}
 						title="Sidebar tabs"
-						rows={(contributes?.sidebarTabs ?? []).map((t) => {
-							const opener = openerFor({ type: "tab", id: t.id });
-							return {
-								primary: t.label,
-								secondary: t.id,
-								usage: `Open any workspace: the "${t.label}" tab appears in the right sidebar next to Files and Changes${opener ? `, or run "${opener.title}" from the palette` : ""}.`,
-							};
-						})}
+						hint="workspace right sidebar"
+						rows={(contributes?.sidebarTabs ?? []).map((t) => ({
+							primary: t.label,
+							secondary: t.id,
+						}))}
 					/>
 					<ContributionGroup
 						icon={<LuSquareTerminal className="size-3.5" />}
 						title="Event hooks"
+						hint="runs automatically"
 						rows={(contributes?.events ?? []).map((e) => ({
 							primary: e.on,
 							secondary: e.command.join(" "),
-							usage: "Runs automatically when this event fires — nothing to do.",
 						}))}
 					/>
 					{!contributes?.commands?.length &&
@@ -362,7 +403,6 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 						))}
 					</div>
 				</div>
-
 			</div>
 		</div>
 	);
