@@ -49,7 +49,14 @@ bun scripts/dev-cli.ts browser list --workspace <id> --json
 bun run cli:dev -- browser open --workspace <id> --url http://localhost:3000
 ```
 
-It finds the live host manifest under `<worktree>/superset-dev-data/host/*`,
+To test in-development *skills* in Claude Code, run `bun run dev:skills`: it
+mirrors this worktree's `plugins/superset` into `~/.claude/skills/superset-dev`
+(a renamed copy so it doesn't collide with the installed prod `superset` plugin),
+exposing them as `/superset-dev:<skill>`. Re-run after editing a skill, then
+`/reload-plugins`. In production the skills ship inside the real `superset`
+plugin, so there's no collision — this is dev-only.
+
+`bun scripts/dev-cli.ts` finds the live host manifest under `<worktree>/superset-dev-data/host/*`,
 then runs the dev CLI with `SUPERSET_HOME_DIR` (the dev data dir),
 `SUPERSET_ORGANIZATION_ID` (the live host's org), and a placeholder
 `SUPERSET_API_KEY` (local host commands use the manifest token, not this). Start
