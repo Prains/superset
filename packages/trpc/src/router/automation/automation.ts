@@ -24,10 +24,12 @@ import { dispatchAutomation } from "./dispatch";
 import {
 	automationBaseColumns,
 	getAutomationForUser,
-	onScheduleTrigger,
+	NO_SCHEDULE,
 	promptSourceFromSession,
 	recordPromptVersion,
-	scheduleTriggerColumns,
+	refreshScheduleNextRuns,
+	scheduleSummariesFor,
+	summarizeSchedules,
 	syncScheduleTrigger,
 } from "./helpers";
 import {
@@ -195,9 +197,8 @@ export const automationRouter = {
 			const organizationId = await requireActiveOrgMembership(ctx);
 
 			const rows = await db
-				.select({ ...automationBaseColumns, ...scheduleTriggerColumns })
+				.select(automationBaseColumns)
 				.from(automations)
-				.leftJoin(automationTriggers, onScheduleTrigger)
 				.where(
 					and(
 						eq(automations.organizationId, organizationId),
@@ -208,10 +209,18 @@ export const automationRouter = {
 				)
 				.orderBy(desc(automations.createdAt));
 
-			return rows.map((row) => ({
-				...row,
-				scheduleText: safeDescribeRrule(row),
-			}));
+			// Fetched separately rather than joined: an automation can hold more
+			// than one schedule, and a join would list it once per schedule.
+			const summaries = await scheduleSummariesFor(rows.map((row) => row.id));
+
+			return rows.map((row) => {
+				const schedule = summaries.get(row.id) ?? NO_SCHEDULE;
+				return {
+					...row,
+					...schedule,
+					scheduleText: safeDescribeRrule(schedule),
+				};
+			});
 		}),
 
 	/**
@@ -225,9 +234,8 @@ export const automationRouter = {
 			const organizationId = await requireActiveOrgMembership(ctx);
 
 			const [row] = await db
-				.select({ ...automationBaseColumns, ...scheduleTriggerColumns })
+				.select(automationBaseColumns)
 				.from(automations)
-				.leftJoin(automationTriggers, onScheduleTrigger)
 				.where(
 					and(
 						eq(automations.id, input.id),
@@ -259,7 +267,14 @@ export const automationRouter = {
 				.where(eq(automationTriggers.automationId, input.id))
 				.orderBy(asc(automationTriggers.createdAt));
 
-			return { ...row, triggers, scheduleText: safeDescribeRrule(row) };
+			// Derived from the set just fetched rather than a second query.
+			const schedule = summarizeSchedules(triggers);
+			return {
+				...row,
+				...schedule,
+				triggers,
+				scheduleText: safeDescribeRrule(schedule),
+			};
 		}),
 
 	create: protectedProcedure
@@ -547,7 +562,7 @@ export const automationRouter = {
 			return withSchedule(
 				updated,
 				input.triggers ?? null,
-				nextRrule && recomputedNextRunAt
+				nextRrule && nextDtstart && recomputedNextRunAt
 					? {
 							rrule: nextRrule,
 							dtstart: nextDtstart,
@@ -651,23 +666,7 @@ export const automationRouter = {
 				input.id,
 			);
 
-			// When resuming, recompute the next run from now so we don't fire stale
-			// occurrences that accumulated while paused.
-			// Only a scheduled automation has a next run to recompute; an
-			// event-only one simply resumes.
-			const resumedNextRunAt =
-				input.enabled &&
-				!existing.enabled &&
-				existing.rrule &&
-				existing.dtstart &&
-				existing.timezone
-					? parseRrule({
-							rrule: existing.rrule,
-							dtstart: existing.dtstart,
-							timezone: existing.timezone,
-							after: new Date(),
-						}).nextRunAt
-					: existing.nextRunAt;
+			const resuming = input.enabled && !existing.enabled;
 
 			const updated = await dbWs.transaction(async (tx) => {
 				const [row] = await tx
@@ -683,28 +682,22 @@ export const automationRouter = {
 					});
 				}
 
-				if (existing.rrule && existing.dtstart && existing.timezone) {
-					await syncScheduleTrigger(tx, {
-						automationId: row.id,
-						organizationId,
-						rrule: existing.rrule,
-						dtstart: existing.dtstart,
-						timezone: existing.timezone,
-						nextRunAt: resumedNextRunAt,
-						enabled: row.enabled,
-					});
-				}
+				// Every schedule, not the soonest one: rewriting through the
+				// single-schedule shape would collapse the rest into it.
+				if (resuming) await refreshScheduleNextRuns(tx, row.id);
 
 				return row;
 			});
 
+			// Re-read rather than echo the input: the resume just recomputed every
+			// schedule's next run, and the soonest of them is what changed.
+			const schedule =
+				(await scheduleSummariesFor([updated.id])).get(updated.id) ??
+				NO_SCHEDULE;
 			return {
 				...updated,
-				rrule: existing.rrule,
-				dtstart: existing.dtstart,
-				timezone: existing.timezone,
-				nextRunAt: resumedNextRunAt,
-				scheduleText: safeDescribeRrule(existing),
+				...schedule,
+				scheduleText: safeDescribeRrule(schedule),
 			};
 		}),
 

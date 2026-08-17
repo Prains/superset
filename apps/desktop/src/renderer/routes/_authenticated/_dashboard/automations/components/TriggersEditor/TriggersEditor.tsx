@@ -23,8 +23,8 @@ interface TriggersEditorProps {
 	onChange: (next: DraftTrigger[]) => void;
 	repositories: ScopeOption[];
 	people: ScopeOption[];
-	/** Trailing "Next run ..." text, rendered on the schedule row. */
-	nextRun?: ReactNode;
+	/** Trailing "Next run ..." text for one schedule row, by trigger id. */
+	renderNextRun?: (triggerId?: string) => ReactNode;
 	readOnly?: boolean;
 }
 
@@ -41,7 +41,7 @@ export function TriggersEditor({
 	onChange,
 	repositories,
 	people,
-	nextRun,
+	renderNextRun,
 	readOnly,
 }: TriggersEditorProps) {
 	// Local, because a trigger is invalid the moment it is added — "Comment
@@ -91,7 +91,11 @@ export function TriggersEditor({
 						repositories={repositories}
 						people={people}
 						problems={problems.filter((p) => p.index === index)}
-						nextRun={trigger.config.kind === "schedule" ? nextRun : undefined}
+						nextRun={
+							trigger.config.kind === "schedule"
+								? renderNextRun?.(trigger.id)
+								: undefined
+						}
 						disabled={readOnly}
 					/>
 				))}

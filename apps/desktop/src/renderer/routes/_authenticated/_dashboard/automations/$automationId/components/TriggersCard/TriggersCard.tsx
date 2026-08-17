@@ -63,38 +63,59 @@ export function TriggersCard({
 		(p) => p.id === automation.v2ProjectId,
 	);
 
-	// Paused automations keep a stale nextRunAt; compute what the schedule
-	// would fire next so edits are previewable before resuming.
-	const nextRunDate = useMemo(() => {
-		if (automation.enabled) {
-			return automation.nextRunAt ? new Date(automation.nextRunAt) : null;
+	// Per trigger, not per automation: an automation can hold several schedules,
+	// and the automation-level nextRunAt is only the soonest of them — showing it
+	// on every row claims they all fire at the same time.
+	const nextRunByTriggerId = useMemo(() => {
+		const entries = new Map<string, Date>();
+
+		for (const trigger of automation.triggers) {
+			const config = trigger.config as DraftTrigger["config"];
+			if (config.kind !== "schedule") continue;
+
+			// A paused automation keeps a stale nextRunAt, so compute what this
+			// schedule would fire next — the row is previewable before resuming.
+			if (automation.enabled) {
+				if (trigger.nextRunAt)
+					entries.set(trigger.id, new Date(trigger.nextRunAt));
+				continue;
+			}
+			try {
+				const next = nextOccurrenceAfter({
+					rrule: config.rrule,
+					dtstart: new Date(config.dtstart),
+					timezone: config.timezone,
+					after: new Date(),
+				});
+				if (next) entries.set(trigger.id, next);
+			} catch (error) {
+				console.warn(
+					`[TriggersCard] failed to compute next occurrence for trigger ${trigger.id}`,
+					error,
+				);
+			}
 		}
-		// An event-only automation has no schedule to preview.
-		if (!automation.rrule || !automation.dtstart || !automation.timezone) {
-			return null;
-		}
-		try {
-			return nextOccurrenceAfter({
-				rrule: automation.rrule,
-				dtstart: new Date(automation.dtstart),
-				timezone: automation.timezone,
-				after: new Date(),
-			});
-		} catch (error) {
-			console.warn(
-				`[TriggersCard] failed to compute next occurrence for automation ${automation.id}`,
-				error,
-			);
-			return null;
-		}
-	}, [
-		automation.enabled,
-		automation.nextRunAt,
-		automation.rrule,
-		automation.dtstart,
-		automation.timezone,
-		automation.id,
-	]);
+
+		return entries;
+	}, [automation.triggers, automation.enabled]);
+
+	const renderNextRun = (triggerId?: string) => {
+		const date = triggerId ? nextRunByTriggerId.get(triggerId) : undefined;
+		if (!date) return null;
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span>
+						{automation.enabled ? "Next run " : "Would run "}
+						{formatDistanceStrict(date, new Date(), { addSuffix: true })}
+					</span>
+				</TooltipTrigger>
+				<TooltipContent side="right">
+					{formatDateTimeInTimezone(date, automation.timezone ?? "UTC")}
+				</TooltipContent>
+			</Tooltip>
+		);
+	};
 
 	return (
 		<div className="flex flex-col gap-1">
@@ -107,26 +128,7 @@ export function TriggersCard({
 				onChange={(triggers) => onUpdate({ triggers })}
 				repositories={repositories}
 				people={people}
-				nextRun={
-					nextRunDate && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span>
-									{automation.enabled ? "Next run " : "Would run "}
-									{formatDistanceStrict(nextRunDate, new Date(), {
-										addSuffix: true,
-									})}
-								</span>
-							</TooltipTrigger>
-							<TooltipContent side="right">
-								{formatDateTimeInTimezone(
-									nextRunDate,
-									automation.timezone ?? "UTC",
-								)}
-							</TooltipContent>
-						</Tooltip>
-					)
-				}
+				renderNextRun={renderNextRun}
 				readOnly={readOnly}
 			/>
 			<div className="flex flex-wrap items-center gap-x-1 gap-y-1 px-2 pt-1 text-[13px] text-muted-foreground">
