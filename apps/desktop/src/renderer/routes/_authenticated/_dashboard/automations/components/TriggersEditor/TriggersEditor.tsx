@@ -14,7 +14,8 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@superset/ui/dropdown-menu";
-import { useMemo, useState } from "react";
+import { Separator } from "@superset/ui/separator";
+import { type ReactNode, useMemo, useState } from "react";
 import { LuCirclePlus, LuTriangleAlert } from "react-icons/lu";
 import {
 	GITHUB_MENU,
@@ -28,6 +29,8 @@ interface TriggersEditorProps {
 	onChange: (next: DraftTrigger[]) => void;
 	repositories: ScopeOption[];
 	people: ScopeOption[];
+	/** Trailing "Next run ..." text, rendered on the schedule row. */
+	nextRun?: ReactNode;
 	readOnly?: boolean;
 }
 
@@ -51,6 +54,7 @@ export function TriggersEditor({
 	onChange,
 	repositories,
 	people,
+	nextRun,
 	readOnly,
 }: TriggersEditorProps) {
 	// Local, because a trigger is invalid the moment it is added — "Comment
@@ -96,9 +100,16 @@ export function TriggersEditor({
 						repositories={repositories}
 						people={people}
 						problems={problems.filter((p) => p.index === index)}
+						nextRun={trigger.config.kind === "schedule" ? nextRun : undefined}
 						disabled={readOnly}
 					/>
 				))}
+
+				{/* Separates the rows from the action, inset so it reads as a rule
+				    inside the surface rather than a division of the card. */}
+				{drafts.length > 0 && (
+					<Separator className="mx-2 bg-border/60 data-[orientation=horizontal]:w-auto" />
+				)}
 
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild disabled={readOnly}>
@@ -173,7 +184,7 @@ export function TriggersEditor({
 			{/* Below the surface, not inside it — this is commentary on the set,
 			    not another row of it. */}
 			{banner && (
-				<p className="flex items-center gap-1.5 px-2 pt-1 text-sm text-warning">
+				<p className="flex items-center gap-1.5 px-2 pt-1 text-[13px] text-amber-600 dark:text-amber-400">
 					<LuTriangleAlert className="size-3.5 shrink-0" />
 					{banner}
 				</p>

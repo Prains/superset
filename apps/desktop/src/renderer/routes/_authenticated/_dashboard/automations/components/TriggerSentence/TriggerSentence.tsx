@@ -3,10 +3,16 @@ import type {
 	TriggerProblem,
 } from "@superset/shared/automation-triggers";
 import { Button } from "@superset/ui/button";
-import { Input } from "@superset/ui/input";
+import type { ReactNode } from "react";
 import { LuGithub, LuTrash2, LuWebhook } from "react-icons/lu";
 import { ScheduleSentence } from "../ScheduleSentence";
-import { ActorChip, CHIP_INVALID, ScopeChip, type ScopeOption } from "./chips";
+import {
+	ActorChip,
+	CHIP_INVALID,
+	ScopeChip,
+	type ScopeOption,
+	TextFilterChip,
+} from "./chips";
 import { GITHUB_SENTENCES, type SentencePart } from "./sentence";
 
 interface TriggerSentenceProps {
@@ -17,6 +23,8 @@ interface TriggerSentenceProps {
 	people: ScopeOption[];
 	/** This row's problems, already filtered to it by the editor. */
 	problems?: TriggerProblem[];
+	/** Trailing "Next run ..." text for a schedule row. */
+	nextRun?: ReactNode;
 	disabled?: boolean;
 }
 
@@ -33,6 +41,7 @@ export function TriggerSentence({
 	repositories,
 	people,
 	problems,
+	nextRun,
 	disabled,
 }: TriggerSentenceProps) {
 	const config = trigger.config;
@@ -114,28 +123,17 @@ export function TriggerSentence({
 						disabled={disabled}
 					/>
 				);
-			case "commentFilter": {
-				const filter = c.commentFilter as {
-					pattern: string;
-					isRegex: false;
-				} | null;
+			case "commentFilter":
 				return (
-					<Input
+					<TextFilterChip
 						key={index}
-						value={filter?.pattern ?? ""}
-						placeholder="Any comment"
+						value={c.commentFilter}
+						onChange={(v) => set({ commentFilter: v })}
+						emptyLabel="Any comment"
+						placeholder="Contains this text..."
 						disabled={disabled}
-						onChange={(e) =>
-							set({
-								commentFilter: e.target.value
-									? { pattern: e.target.value, isRegex: false }
-									: null,
-							})
-						}
-						className="h-6 w-40 rounded-[6px] border-none bg-foreground/[0.06] px-2 text-[13px] shadow-none focus-visible:ring-1"
 					/>
 				);
-			}
 		}
 	};
 
@@ -157,6 +155,7 @@ export function TriggerSentence({
 					onRruleChange={(rrule) => set({ rrule })}
 					timezone={config.timezone}
 					onTimezoneChange={(timezone) => set({ timezone })}
+					nextRun={nextRun}
 					disabled={disabled}
 				/>
 			)}

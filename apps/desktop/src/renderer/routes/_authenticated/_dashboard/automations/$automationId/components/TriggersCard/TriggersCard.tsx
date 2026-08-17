@@ -107,6 +107,26 @@ export function TriggersCard({
 				onChange={(triggers) => onUpdate({ triggers })}
 				repositories={repositories}
 				people={people}
+				nextRun={
+					nextRunDate && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span>
+									{automation.enabled ? "Next run " : "Would run "}
+									{formatDistanceStrict(nextRunDate, new Date(), {
+										addSuffix: true,
+									})}
+								</span>
+							</TooltipTrigger>
+							<TooltipContent side="right">
+								{formatDateTimeInTimezone(
+									nextRunDate,
+									automation.timezone ?? "UTC",
+								)}
+							</TooltipContent>
+						</Tooltip>
+					)
+				}
 				readOnly={readOnly}
 			/>
 			<div className="flex flex-wrap items-center gap-x-1 gap-y-1 px-2 pt-1 text-[13px] text-muted-foreground">
@@ -150,24 +170,6 @@ export function TriggersCard({
 					}
 				/>
 			</div>
-			{nextRunDate && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<span className="w-fit px-2 pt-1 text-muted-foreground text-xs">
-							{automation.enabled ? "Next run " : "Would run "}
-							{formatDistanceStrict(nextRunDate, new Date(), {
-								addSuffix: true,
-							})}
-						</span>
-					</TooltipTrigger>
-					<TooltipContent side="right">
-						{formatDateTimeInTimezone(
-							nextRunDate,
-							automation.timezone ?? "UTC",
-						)}
-					</TooltipContent>
-				</Tooltip>
-			)}
 			<RelayOfflineNotice hostId={hostId} className="mt-1" />
 		</div>
 	);

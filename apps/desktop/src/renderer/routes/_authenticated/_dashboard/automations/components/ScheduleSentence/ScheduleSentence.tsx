@@ -1,7 +1,7 @@
 import { isValidRrule, type Weekday } from "@superset/shared/rrule";
 import { Input } from "@superset/ui/input";
 import { cn } from "@superset/ui/utils";
-import { useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import { LuClock } from "react-icons/lu";
 import {
 	DAY_OPTIONS,
@@ -21,6 +21,8 @@ interface ScheduleSentenceProps {
 	onRruleChange: (rrule: string) => void;
 	timezone: string;
 	onTimezoneChange: (timezone: string) => void;
+	/** Trailing "Next run ..." text, shown inline at the end of the sentence. */
+	nextRun?: ReactNode;
 	className?: string;
 	disabled?: boolean;
 }
@@ -35,6 +37,7 @@ export function ScheduleSentence({
 	onRruleChange,
 	timezone,
 	onTimezoneChange,
+	nextRun,
 	className,
 	disabled,
 }: ScheduleSentenceProps) {
@@ -134,6 +137,10 @@ export function ScheduleSentence({
 					disabled={disabled}
 					onChange={onTimezoneChange}
 				/>
+
+				{nextRun && (
+					<span className="ml-1 truncate text-muted-foreground">{nextRun}</span>
+				)}
 			</div>
 
 			{state.kind === "custom" && (
