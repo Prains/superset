@@ -202,7 +202,7 @@ const COMMENT_EVENTS = new Set<GithubTriggerEvent>([
  * A new trigger of this event: the repository still to be chosen, every
  * optional filter wide open.
  */
-export function newGithubConfig(event: GithubTriggerEvent) {
+export function createGithubConfig(event: GithubTriggerEvent) {
 	const base = {
 		kind: "github" as const,
 		// Null matches nothing, which is the safety property for repositories: an

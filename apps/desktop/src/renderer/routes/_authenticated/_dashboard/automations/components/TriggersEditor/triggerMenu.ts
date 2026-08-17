@@ -2,7 +2,7 @@ import type { TriggerConfigInput } from "@superset/shared/automation-triggers";
 import type { IconType } from "react-icons";
 import { FaGithub } from "react-icons/fa";
 import { LuClock, LuWebhook } from "react-icons/lu";
-import { GITHUB_MENU, newGithubConfig } from "../TriggerSentence";
+import { GITHUB_MENU, createGithubConfig } from "../TriggerSentence";
 
 /**
  * The Add Trigger menu.
@@ -30,7 +30,7 @@ export type TriggerMenuEntry = {
  * rather than when this module loads — otherwise every schedule created in a
  * long-lived window shares the timestamp the app booted at.
  */
-function newScheduleConfig(): TriggerConfigInput {
+function createScheduleConfig(): TriggerConfigInput {
 	return {
 		kind: "schedule",
 		rrule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0",
@@ -40,7 +40,7 @@ function newScheduleConfig(): TriggerConfigInput {
 }
 
 export const TRIGGER_MENU: TriggerMenuEntry[] = [
-	{ label: "Scheduled", icon: LuClock, config: newScheduleConfig },
+	{ label: "Scheduled", icon: LuClock, config: createScheduleConfig },
 	{
 		label: "GitHub",
 		icon: FaGithub,
@@ -50,10 +50,10 @@ export const TRIGGER_MENU: TriggerMenuEntry[] = [
 				? {
 						children: entry.children.map((child) => ({
 							label: child.label,
-							config: () => newGithubConfig(child.event),
+							config: () => createGithubConfig(child.event),
 						})),
 					}
-				: { config: () => newGithubConfig(entry.event as never) }),
+				: { config: () => createGithubConfig(entry.event as never) }),
 		})),
 	},
 	{
