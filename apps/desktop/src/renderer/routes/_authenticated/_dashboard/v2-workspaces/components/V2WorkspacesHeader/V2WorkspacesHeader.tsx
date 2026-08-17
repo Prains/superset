@@ -503,29 +503,33 @@ export function V2WorkspacesHeader({
 					<div className="flex items-center rounded-md border border-border p-0.5">
 						<Button
 							variant="ghost"
-							size="icon-sm"
-							aria-label="List view"
+							size="sm"
 							aria-pressed={viewMode === "list"}
 							className={cn(
-								"size-7",
-								viewMode === "list" && "bg-accent text-accent-foreground",
+								"h-7 gap-1.5 px-2 font-normal",
+								viewMode === "list"
+									? "bg-accent text-accent-foreground"
+									: "text-muted-foreground",
 							)}
 							onClick={() => setViewMode("list")}
 						>
 							<LuList className="size-4" />
+							List
 						</Button>
 						<Button
 							variant="ghost"
-							size="icon-sm"
-							aria-label="Board view"
+							size="sm"
 							aria-pressed={viewMode === "board"}
 							className={cn(
-								"size-7",
-								viewMode === "board" && "bg-accent text-accent-foreground",
+								"h-7 gap-1.5 px-2 font-normal",
+								viewMode === "board"
+									? "bg-accent text-accent-foreground"
+									: "text-muted-foreground",
 							)}
 							onClick={() => setViewMode("board")}
 						>
 							<LuSquareKanban className="size-4" />
+							Board
 						</Button>
 					</div>
 				</div>
