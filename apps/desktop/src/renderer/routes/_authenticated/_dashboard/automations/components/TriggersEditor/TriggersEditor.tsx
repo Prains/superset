@@ -145,7 +145,7 @@ export function TriggersEditor({
 											onSelect={() => add(leaf.config())}
 										>
 											{Icon && (
-												<Icon className="size-3.5 shrink-0 opacity-60" />
+												<Icon className="size-3.5 shrink-0 text-current" />
 											)}
 											{/* The trail disambiguates "Approved" from the other three
 											    review outcomes, but it is the trail that gives way when

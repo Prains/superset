@@ -14,6 +14,11 @@ import type { TriggerMenuEntry } from "../triggerMenu";
  * Recursive rather than one level per provider: GitHub already nests twice
  * ("PR review submitted…" → "Approved"), and the next provider will nest
  * differently.
+ *
+ * `text-current` on the icons is load-bearing: DropdownMenuItem forces any svg
+ * without a `text-` class to muted-foreground, so brand marks would render grey
+ * and stay grey while the row highlights. Inheriting means they follow the
+ * row's colour on hover.
  */
 export function TriggerMenuItems({
 	entries,
@@ -31,7 +36,7 @@ export function TriggerMenuItems({
 					return (
 						<DropdownMenuSub key={entry.label}>
 							<DropdownMenuSubTrigger>
-								{Icon && <Icon className="size-3.5 opacity-60" />}
+								{Icon && <Icon className="size-3.5 text-current" />}
 								{entry.label}
 							</DropdownMenuSubTrigger>
 							<DropdownMenuPortal>
@@ -48,7 +53,7 @@ export function TriggerMenuItems({
 
 				return (
 					<DropdownMenuItem key={entry.label} onSelect={() => onPick(config())}>
-						{Icon && <Icon className="size-3.5 opacity-60" />}
+						{Icon && <Icon className="size-3.5 text-current" />}
 						{entry.label}
 					</DropdownMenuItem>
 				);

@@ -4,7 +4,8 @@ import type {
 } from "@superset/shared/automation-triggers";
 import { Button } from "@superset/ui/button";
 import type { ReactNode } from "react";
-import { LuGithub, LuTrash2, LuWebhook } from "react-icons/lu";
+import { FaGithub } from "react-icons/fa";
+import { LuTrash2, LuWebhook } from "react-icons/lu";
 import { ScheduleSentence } from "../ScheduleSentence";
 import {
 	ActorChip,
@@ -140,7 +141,7 @@ export function TriggerSentence({
 	return (
 		<div className="group flex min-h-10 flex-wrap items-center gap-1.5 rounded-[8px] px-2 py-1.5 hover:bg-foreground/[0.03]">
 			{config.kind === "github" && (
-				<LuGithub className="size-4 shrink-0 text-muted-foreground" />
+				<FaGithub className="size-4 shrink-0 text-muted-foreground" />
 			)}
 			{config.kind === "webhook" && (
 				<LuWebhook className="size-4 shrink-0 text-muted-foreground" />

@@ -1,6 +1,7 @@
 import type { TriggerConfigInput } from "@superset/shared/automation-triggers";
 import type { IconType } from "react-icons";
-import { LuClock, LuGithub, LuWebhook } from "react-icons/lu";
+import { FaGithub } from "react-icons/fa";
+import { LuClock, LuWebhook } from "react-icons/lu";
 import { GITHUB_MENU, newGithubConfig } from "../TriggerSentence";
 
 /**
@@ -13,6 +14,11 @@ import { GITHUB_MENU, newGithubConfig } from "../TriggerSentence";
  */
 export type TriggerMenuEntry = {
 	label: string;
+	/**
+	 * Brand marks for providers, matching the integrations settings page —
+	 * Lucide's outline glyphs are drawn to sit with the interface icons, so a
+	 * GitHub outline next to a real Slack logo reads as two different products.
+	 */
 	icon?: IconType;
 	/** Leaf: choosing it adds this trigger. */
 	config?: () => TriggerConfigInput;
@@ -37,7 +43,7 @@ export const TRIGGER_MENU: TriggerMenuEntry[] = [
 	{ label: "Scheduled", icon: LuClock, config: newScheduleConfig },
 	{
 		label: "GitHub",
-		icon: LuGithub,
+		icon: FaGithub,
 		children: GITHUB_MENU.map((entry) => ({
 			label: entry.label,
 			...(entry.children
