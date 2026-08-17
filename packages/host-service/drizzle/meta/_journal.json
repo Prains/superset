@@ -176,6 +176,13 @@
       "when": 1786942061790,
       "tag": "0024_lying_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1786997327613,
+      "tag": "0025_luxuriant_red_skull",
+      "breakpoints": true
     }
   ]
 }

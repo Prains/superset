@@ -11,6 +11,12 @@ export default command({
 		name: string().desc("Workspace name"),
 		taskId: string().desc("Link the workspace to a task by id"),
 		clearTask: boolean().desc("Unlink the workspace from its current task"),
+		tag: string()
+			.variadic()
+			.desc(
+				"Replace the workspace's tags with this set. Repeatable; tags are normalized (trimmed, lowercased). Tag-bound sidebar groups derive membership from tags",
+			),
+		clearTags: boolean().desc("Remove all tags from the workspace"),
 	},
 	run: async ({ ctx, args, options }) => {
 		const id = args.id as string;
@@ -32,10 +38,26 @@ export default command({
 				? options.taskId
 				: undefined;
 
-		if (options.name === undefined && taskId === undefined) {
+		if (options.tag && options.tag.length > 0 && options.clearTags) {
+			throw new CLIError(
+				"Cannot combine --tag and --clear-tags",
+				"Pass one or the other",
+			);
+		}
+		const tags = options.clearTags
+			? []
+			: options.tag && options.tag.length > 0
+				? options.tag
+				: undefined;
+
+		if (
+			options.name === undefined &&
+			taskId === undefined &&
+			tags === undefined
+		) {
 			throw new CLIError(
 				"No fields to update",
-				"Pass --name, --task-id, or --clear-task",
+				"Pass --name, --task-id, --clear-task, --tag, or --clear-tags",
 			);
 		}
 
@@ -49,6 +71,7 @@ export default command({
 			id,
 			...(options.name !== undefined ? { name: options.name } : {}),
 			...(taskId !== undefined ? { taskId } : {}),
+			...(tags !== undefined ? { tags } : {}),
 		});
 
 		return {

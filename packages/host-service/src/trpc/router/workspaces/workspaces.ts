@@ -17,6 +17,7 @@ import {
 	type CloudShapedWorkspace,
 	getLocalWorkspace,
 	insertLocalWorkspace,
+	normalizeWorkspaceTags,
 	resolveParentWorkspaceId,
 	toCloudShape,
 } from "../../../workspaces/local-workspace-store";
@@ -116,6 +117,8 @@ const createInputSchema = z
 		// git base branch. Invalid parents are dropped, not errored.
 		parentWorkspaceId: z.string().uuid().optional(),
 		spawnOrigin: z.enum(["ui", "cli", "mcp", "automation"]).optional(),
+		// Labels applied at creation; normalized server-side.
+		tags: z.array(z.string()).max(64).optional(),
 	})
 	.refine((value) => !(value.branch && value.pr), {
 		message: "`branch` and `pr` cannot both be set",
@@ -473,6 +476,7 @@ async function registerLocalWorkspace(args: {
 	taskId: string | undefined;
 	parentWorkspaceId?: string | null;
 	spawnOrigin?: "ui" | "cli" | "mcp" | "automation" | null;
+	tags?: string[];
 	rollbackWorktree: () => Promise<void>;
 }): Promise<CloudWorkspace> {
 	const { ctx } = args;
@@ -488,6 +492,7 @@ async function registerLocalWorkspace(args: {
 			taskId: args.taskId ?? null,
 			parentWorkspaceId: args.parentWorkspaceId ?? null,
 			spawnOrigin: args.spawnOrigin ?? null,
+			tags: args.tags,
 		});
 	} catch (err) {
 		await args.rollbackWorktree();
@@ -535,6 +540,7 @@ export const workspacesRouter = router({
 				input.projectId,
 			);
 			const spawnOrigin = input.spawnOrigin ?? null;
+			const tags = normalizeWorkspaceTags(input.tags ?? []);
 
 			// Kick off AI naming when the user supplied a prompt but no
 			// workspace name. The worktree add and registration run with an
@@ -798,6 +804,7 @@ export const workspacesRouter = router({
 								taskId: input.taskId,
 								parentWorkspaceId: lineageParentId,
 								spawnOrigin,
+								tags,
 								rollbackWorktree: rollbackCreatedWorktree,
 							});
 
@@ -1081,6 +1088,7 @@ export const workspacesRouter = router({
 								taskId: input.taskId,
 								parentWorkspaceId: lineageParentId,
 								spawnOrigin,
+								tags,
 								rollbackWorktree,
 							});
 							aiCanRenameBranch = !typedBranch;
