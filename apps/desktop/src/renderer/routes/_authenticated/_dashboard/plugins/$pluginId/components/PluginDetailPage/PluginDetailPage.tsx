@@ -61,7 +61,10 @@ function PaletteMock({
 }) {
 	if (commands.length === 0) return null;
 	return (
-		<div className="mx-auto flex w-full max-w-xl flex-col gap-2" data-testid="palette-mock">
+		<div
+			className="mx-auto flex w-full max-w-xl flex-col gap-2"
+			data-testid="palette-mock"
+		>
 			<div className="flex items-baseline justify-between">
 				<h2 className="text-sm font-semibold">Try it</h2>
 				<span className="text-xs text-muted-foreground">in any workspace</span>
