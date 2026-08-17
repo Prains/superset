@@ -46,6 +46,11 @@ export function TriggersCard({
 		{ organizationId: automation.organizationId },
 		{ enabled: Boolean(automation.organizationId) },
 	);
+	const peopleQuery = cloudTrpc.integration.github.listLinkedPeople.useQuery(
+		{ organizationId: automation.organizationId },
+		{ enabled: Boolean(automation.organizationId) },
+	);
+	const people = useMemo(() => peopleQuery.data ?? [], [peopleQuery.data]);
 	const repositories = useMemo(
 		() =>
 			(reposQuery.data ?? []).map((repo) => ({
@@ -101,7 +106,7 @@ export function TriggersCard({
 				}))}
 				onChange={(triggers) => onUpdate({ triggers })}
 				repositories={repositories}
-				people={[]}
+				people={people}
 				readOnly={readOnly}
 			/>
 			<div className="ml-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-l border-border pl-4 pt-1 text-sm text-muted-foreground">
