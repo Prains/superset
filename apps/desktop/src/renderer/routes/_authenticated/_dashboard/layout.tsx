@@ -12,6 +12,7 @@ import { Redirect } from "renderer/components/Redirect";
 import { useIsV2CloudEnabled } from "renderer/hooks/useIsV2CloudEnabled";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { PluginThemesBridge } from "renderer/plugins/PluginThemesBridge";
 import { DashboardSidebar } from "renderer/routes/_authenticated/_dashboard/components/DashboardSidebar";
 import { useDevSeedV2Sidebar } from "renderer/routes/_authenticated/hooks/useDevSeedV2Sidebar";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
@@ -217,6 +218,7 @@ function DashboardLayout() {
 	return (
 		<div className="flex h-full w-full overflow-hidden">
 			<CommandPaletteHost />
+			<PluginThemesBridge />
 			{sidebarOutsideColumn && sidebarPanel}
 			<div className="flex flex-1 flex-col min-w-0 min-h-0">
 				{!hideTopBar && <TopBar />}

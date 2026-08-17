@@ -74,6 +74,35 @@ export interface SupersetPluginApi {
 	workspaces: {
 		list(): Promise<PluginWorkspaceInfo[]>;
 	};
+	/**
+	 * HTTP endpoints under `http://<host>/plugins/<id>/http/<path>`.
+	 * UNAUTHENTICATED — meant for webhooks; validate signatures yourself.
+	 */
+	http: {
+		route(
+			method: "GET" | "POST" | "PUT" | "DELETE" | "*",
+			path: string,
+			handler: (
+				request: PluginHttpRequest,
+			) => PluginHttpResponse | Promise<PluginHttpResponse>,
+		): void;
+	};
+}
+
+export interface PluginHttpRequest {
+	method: string;
+	/** Path below `/plugins/<id>/http`, always starting with `/`. */
+	path: string;
+	query: Record<string, string>;
+	headers: Record<string, string>;
+	body: string;
+}
+
+export interface PluginHttpResponse {
+	status?: number;
+	headers?: Record<string, string>;
+	/** Objects are JSON-serialized with content-type application/json. */
+	body?: string | object;
 }
 
 export interface PluginBackendInstance {

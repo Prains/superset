@@ -30,7 +30,21 @@ const CLAUDE_PLUGIN_DIR_NAME = "superset";
  */
 const COMMAND_SKILLS = ["feedback", "10x", "setup", "doctor"] as const;
 
+export interface ManagedPluginSkill {
+	/** Final directory name under the skills roots (caller namespaces it). */
+	dirName: string;
+	/** Absolute directory containing SKILL.md (+ extras). */
+	skillDir: string;
+}
+
 export interface ManagedSkillsOptions {
+	/**
+	 * Skills contributed by installed Superset plugins. Provisioned alongside
+	 * the bundled ones with the same marker/reap lifecycle: an uninstalled
+	 * plugin's skills disappear on the next provisioning pass because they
+	 * leave the desired set.
+	 */
+	extraSkills?: ManagedPluginSkill[];
 	homeDir?: string;
 	templatesDir?: string;
 }
@@ -294,6 +308,40 @@ export async function createManagedSkills(
 		}
 	}
 
+	const claudeSkillsRoot = path.join(homeDir, ".claude", "skills");
+	const desiredClaudeDirs = new Set<string>([CLAUDE_PLUGIN_DIR_NAME]);
+	for (const extra of options.extraSkills ?? []) {
+		const sourceMd = path.join(extra.skillDir, "SKILL.md");
+		try {
+			if (!fs.existsSync(sourceMd)) continue;
+			const raw = fs.readFileSync(sourceMd, "utf-8");
+			for (const root of [agentsSkillsRoot, claudeSkillsRoot]) {
+				const targetDir = path.join(root, extra.dirName);
+				const skillMdPath = path.join(targetDir, "SKILL.md");
+				if (isUserOwnedFile(skillMdPath)) {
+					console.log(
+						`[agent-setup] Skipping user-owned skill at ${skillMdPath}`,
+					);
+					continue;
+				}
+				fs.mkdirSync(targetDir, { recursive: true });
+				writeFileIfChanged(
+					skillMdPath,
+					withManagedMarker(setFrontmatterName(raw, extra.dirName)),
+					0o644,
+				);
+				await copyBundledExtras(extra.skillDir, targetDir);
+			}
+			desiredAgentsDirs.add(extra.dirName);
+			desiredClaudeDirs.add(extra.dirName);
+		} catch (error) {
+			console.warn(
+				`[agent-setup] Failed to provision plugin skill ${extra.dirName}:`,
+				error,
+			);
+		}
+	}
+
 	const desiredCommandFiles = new Set<string>();
 	for (const pluginSkill of COMMAND_SKILLS) {
 		const fileName = `${pluginSkill}.md`;
@@ -319,10 +367,7 @@ export async function createManagedSkills(
 	try {
 		// ~/.claude/skills holds only the plugin dir; anything else marker-bearing
 		// there (including dirs from earlier versions of this mechanism) is stale.
-		await reapStaleSkillDirs(
-			path.join(homeDir, ".claude", "skills"),
-			new Set([CLAUDE_PLUGIN_DIR_NAME]),
-		);
+		await reapStaleSkillDirs(claudeSkillsRoot, desiredClaudeDirs);
 		await reapStaleSkillDirs(agentsSkillsRoot, desiredAgentsDirs);
 		await reapStaleCommands(commandNamespaceDir, desiredCommandFiles);
 	} catch (error) {

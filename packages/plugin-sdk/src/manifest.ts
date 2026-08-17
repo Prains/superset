@@ -66,6 +66,18 @@ export const PLUGIN_EVENT_KINDS = [
 
 export type PluginEventKind = (typeof PLUGIN_EVENT_KINDS)[number];
 
+const cliCommandContributionSchema = z.object({
+	/** Subcommand name for `superset x <name>`; unique per host in practice. */
+	name: z
+		.string()
+		.min(1)
+		.max(40)
+		.regex(/^[a-z0-9][a-z0-9-]*$/, "cli names are lowercase kebab-case"),
+	description: z.string().max(200).optional(),
+	/** Backend action invoked with the parsed --params JSON. */
+	action: z.string().min(1),
+});
+
 const eventHookContributionSchema = z.object({
 	on: z.enum(PLUGIN_EVENT_KINDS),
 	/** argv array spawned with SUPERSET_PLUGIN_* env-injected context. */
@@ -101,6 +113,8 @@ export const pluginManifestSchema = z.object({
 		.optional(),
 	/** Declared capabilities, shown at install time. Enforcement is server-side. */
 	permissions: z.array(z.string().min(1).max(120)).optional(),
+	/** Directories containing SKILL.md files, provisioned to every agent on the host. */
+	skills: z.array(relativeEntrySchema).max(20).optional(),
 	/** Backend entry (TS or JS), loaded in-process by the host-service. */
 	server: relativeEntrySchema.optional(),
 	/** Prebuilt ESM bundle of React slot components (`superset plugin build`). */
@@ -111,6 +125,7 @@ export const pluginManifestSchema = z.object({
 			sidebarTabs: z.array(sidebarTabContributionSchema).max(10).optional(),
 			panes: z.array(paneContributionSchema).max(10).optional(),
 			themes: z.array(relativeEntrySchema).max(20).optional(),
+			cli: z.array(cliCommandContributionSchema).max(20).optional(),
 			events: z.array(eventHookContributionSchema).max(50).optional(),
 		})
 		.optional(),
@@ -126,6 +141,9 @@ export type PluginSidebarTabContribution = z.infer<
 export type PluginPaneContribution = z.infer<typeof paneContributionSchema>;
 export type PluginEventHookContribution = z.infer<
 	typeof eventHookContributionSchema
+>;
+export type PluginCliContribution = z.infer<
+	typeof cliCommandContributionSchema
 >;
 
 export interface ParsedPluginManifest {

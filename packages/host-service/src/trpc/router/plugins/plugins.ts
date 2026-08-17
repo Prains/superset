@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import nodePath from "node:path";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { InstalledCheckout } from "../../../plugins/install";
@@ -157,6 +159,33 @@ export const pluginsRouter = router({
 					message: error instanceof Error ? error.message : String(error),
 				});
 			}
+		}),
+
+	/** Raw contents of a plugin's declared theme JSON files. */
+	getThemes: protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ ctx, input }) => {
+			const { pluginRuntime, pluginStore } = requirePluginServices(ctx);
+			const row = pluginStore.get(input.id);
+			if (!row) return [];
+			const manifest = JSON.parse(row.manifestJson) as {
+				contributes?: { themes?: string[] };
+			};
+			const rootDir = pluginRuntime.resolveRootDir(row);
+			const results: string[] = [];
+			for (const themePath of manifest.contributes?.themes ?? []) {
+				try {
+					results.push(
+						await readFile(nodePath.join(rootDir, themePath), "utf8"),
+					);
+				} catch (error) {
+					console.warn(
+						`[plugins] theme file unreadable for ${input.id}:`,
+						error,
+					);
+				}
+			}
+			return results;
 		}),
 
 	getAppBundle: protectedProcedure

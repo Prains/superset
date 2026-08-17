@@ -1,0 +1,11 @@
+{
+	"id": "pasture",
+	"name": "Pasture",
+	"type": "dark",
+	"colors": {
+		"background": "#101410",
+		"foreground": "#e4ece1",
+		"primary": "#7ed492",
+		"primaryForeground": "#0c130d"
+	}
+}

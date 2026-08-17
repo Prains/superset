@@ -66,4 +66,8 @@ export {
 	readSharedDisabledAgentIds,
 	writeSharedDisabledAgentIds,
 } from "./disabled-agent-hooks";
+export {
+	createManagedSkills,
+	type ManagedPluginSkill,
+} from "./managed-skills";
 export { getBinDir, resolveSupersetHomeDir } from "./paths";

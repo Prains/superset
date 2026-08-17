@@ -47,6 +47,14 @@
 				"title": "Agent Board",
 				"component": "AgentBoardPane"
 			}
+		],
+		"cli": [
+			{
+				"name": "board",
+				"description": "Live agent status cards",
+				"action": "get-board"
+			}
 		]
-	}
+	},
+	"skills": ["skills/board-usage"]
 }

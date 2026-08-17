@@ -1,6 +1,7 @@
 import { createNodeWebSocket } from "@hono/node-ws";
 import { trpcServer } from "@hono/trpc-server";
 import { Octokit } from "@octokit/rest";
+import { createManagedSkills } from "@superset/agent-setup";
 import { ChatService } from "@superset/provider-auth/server";
 import { TRPCError } from "@trpc/server";
 import { isNull } from "drizzle-orm";
@@ -188,6 +189,17 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 	const pluginRuntime = new PluginRuntime({
 		store: pluginStore,
 		eventBus,
+		// Re-provisions agent skills whenever enabled plugins change, so a
+		// plugin's declared skills reach every agent on this host (and are
+		// reaped when the plugin goes away). Fire-and-forget like boot
+		// provisioning; failures only warn.
+		onSkillsChanged: (skills) => {
+			void createManagedSkills({ extraSkills: skills }).catch(
+				(err: unknown) => {
+					console.warn("[host-service] plugin skill provisioning failed:", err);
+				},
+			);
+		},
 		listWorkspaces: () =>
 			db.query.workspaces
 				.findMany({ where: isNull(workspacesTable.archivedAt) })
@@ -257,6 +269,43 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 	app.use("/terminal/*", wsAuth);
 	app.use("/events", wsAuth);
 	app.use("/chat-v3/*", wsAuth);
+
+	// Plugin webhook endpoints. Unauthenticated by design (external services
+	// can't hold host tokens); plugins must validate their own signatures.
+	app.all("/plugins/:pluginId/http/*", async (c) => {
+		const pluginId = c.req.param("pluginId");
+		const prefix = `/plugins/${pluginId}/http`;
+		const subPath = c.req.path.slice(prefix.length) || "/";
+		const response = await pluginRuntime
+			.handleHttp(pluginId, {
+				method: c.req.method,
+				path: subPath,
+				query: c.req.query(),
+				headers: Object.fromEntries(c.req.raw.headers.entries()),
+				body: await c.req.text().catch(() => ""),
+			})
+			.catch(
+				(
+					error,
+				): {
+					status: number;
+					headers?: Record<string, string>;
+					body: object;
+				} => {
+					console.error(
+						`[plugins] http handler failed for ${pluginId}:`,
+						error,
+					);
+					return { status: 500, body: { error: "plugin handler failed" } };
+				},
+			);
+		if (!response) return c.json({ error: "not found" }, 404);
+		const status = response.status ?? 200;
+		if (typeof response.body === "object" && response.body !== null) {
+			return c.json(response.body, status as never, response.headers);
+		}
+		return c.text(response.body ?? "", status as never, response.headers);
+	});
 
 	registerEventBusRoute({ app, eventBus, upgradeWebSocket });
 	registerWorkspaceTerminalRoute({

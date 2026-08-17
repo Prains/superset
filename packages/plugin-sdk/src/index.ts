@@ -4,6 +4,8 @@ export type {
 	PluginBackendFactory,
 	PluginBackendInstance,
 	PluginEvent,
+	PluginHttpRequest,
+	PluginHttpResponse,
 	PluginWorkspaceInfo,
 	SupersetPluginApi,
 	Unsubscribe,
@@ -11,6 +13,7 @@ export type {
 export { definePlugin } from "./backend";
 export type {
 	ParsedPluginManifest,
+	PluginCliContribution,
 	PluginCommandContribution,
 	PluginEventHookContribution,
 	PluginEventKind,

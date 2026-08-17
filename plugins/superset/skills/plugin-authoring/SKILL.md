@@ -152,3 +152,10 @@ Verification recipe: after `link`, run `list` and confirm `status: running`. If 
 - `permissions` are declared and shown at install but NOT enforced; never assume they gate anything. Design as if the backend has the host-service's full capability, because it does.
 - Choose the right channel: `api.realtime.publish` → `ctx.onRealtime` for backend-to-UI (crosses windows/machines); `ctx.postMessage`/`ctx.onMessage` for surface-to-surface within one workspace's renderer.
 - Register everything inside the factory; state you want across restarts goes in `api.storage`, not module scope.
+
+## Agent and host surfaces
+
+- `skills: ["skills/<dir>"]` (manifest, top level): directories with a SKILL.md. Provisioned to every agent on the host when the plugin is enabled, reaped when it is disabled or uninstalled. The skill's directory name becomes `plugin-<plugin-id>-<dir>`.
+- `contributes.cli: [{ name, description?, action }]`: exposes an action as `superset x <name>` (bare `superset x` lists all plugin commands).
+- `api.http.route(method, path, handler)`: HTTP endpoints at `http://<host>/plugins/<id>/http/<path>`. Unauthenticated by design (webhooks) — validate signatures yourself. Handlers are time-boxed at 10s.
+- `contributes.themes: ["themes/x.json"]`: theme JSON (same format as custom theme import) applied automatically while the plugin runs, id-prefixed with the plugin id.

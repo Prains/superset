@@ -168,6 +168,13 @@ between its pane and its sidebar tab this way. `api.realtime.publish` → `ctx.o
 goes through the host and reaches every window and machine attached to the host, and is
 the only channel the backend can send on.
 
+## Agent and host surfaces
+
+- `skills: ["skills/<dir>"]` (manifest, top level): directories with a SKILL.md. Provisioned to every agent on the host when the plugin is enabled, reaped when it is disabled or uninstalled. The skill's directory name becomes `plugin-<plugin-id>-<dir>`.
+- `contributes.cli: [{ name, description?, action }]`: exposes an action as `superset x <name>` (bare `superset x` lists all plugin commands).
+- `api.http.route(method, path, handler)`: HTTP endpoints at `http://<host>/plugins/<id>/http/<path>`. Unauthenticated by design (webhooks) — validate signatures yourself. Handlers are time-boxed at 10s.
+- `contributes.themes: ["themes/x.json"]`: theme JSON (same format as custom theme import) applied automatically while the plugin runs, id-prefixed with the plugin id.
+
 ## Installing plugins
 
 In the app: **sidebar → Plugins** lists installed plugins with status, enable/disable,
@@ -210,8 +217,9 @@ where a prebuilt backend is referenced) before linking.
 
 ## Current limits (honest list)
 
-- Slots today: right-sidebar tab, pane kinds, palette commands. File views, settings
-  pages, and keybindings are not wired yet.
+- Slots today: right-sidebar tab, pane kinds, palette commands, themes, agent skills,
+  CLI commands, and webhook routes. File views, settings pages, and keybindings are
+  not wired yet.
 - `permissions` are declared and shown at install, not yet enforced — the backend runs
   with the host-service's full capability.
 - No marketplace/registry yet; install is path/git only.

@@ -8,6 +8,8 @@ import type {
 	PluginBackendFactory,
 	PluginBackendInstance,
 	PluginEvent,
+	PluginHttpRequest,
+	PluginHttpResponse,
 	PluginWorkspaceInfo,
 	SupersetPluginApi,
 } from "@superset/plugin-sdk";
@@ -36,6 +38,13 @@ interface LoadedPlugin {
 		Set<(event: PluginEvent) => void | Promise<void>>
 	>;
 	disposers: Array<() => void | Promise<void>>;
+	httpRoutes: Array<{
+		method: string;
+		path: string;
+		handler: (
+			request: PluginHttpRequest,
+		) => PluginHttpResponse | Promise<PluginHttpResponse>;
+	}>;
 	backend: PluginBackendInstance | null;
 	status: "running" | "error";
 	error: string | null;
@@ -121,10 +130,21 @@ function toPluginEvent(message: ServerMessage): PluginEvent | null {
 	}
 }
 
+export interface PluginSkillSource {
+	dirName: string;
+	skillDir: string;
+}
+
 export interface PluginRuntimeOptions {
 	store: PluginStore;
 	eventBus: EventBus;
 	listWorkspaces: () => PluginWorkspaceInfo[];
+	/**
+	 * Called (debounced) whenever the set of enabled plugins changes, with
+	 * every skill directory declared by enabled plugins — the host wires this
+	 * to agent-skill provisioning.
+	 */
+	onSkillsChanged?: (skills: PluginSkillSource[]) => void;
 }
 
 /**
@@ -138,6 +158,8 @@ export class PluginRuntime {
 	private readonly store: PluginStore;
 	private readonly eventBus: EventBus;
 	private readonly listWorkspaces: () => PluginWorkspaceInfo[];
+	private readonly onSkillsChanged?: (skills: PluginSkillSource[]) => void;
+	private skillsTimer: ReturnType<typeof setTimeout> | null = null;
 	private readonly loaded = new Map<string, LoadedPlugin>();
 	private readonly loadErrors = new Map<string, string>();
 	private removeBroadcastTap: (() => void) | null = null;
@@ -158,6 +180,59 @@ export class PluginRuntime {
 		this.store = options.store;
 		this.eventBus = options.eventBus;
 		this.listWorkspaces = options.listWorkspaces;
+		this.onSkillsChanged = options.onSkillsChanged;
+	}
+
+	/** Skill dirs declared by enabled plugins, namespaced per plugin. */
+	collectSkills(): PluginSkillSource[] {
+		const skills: PluginSkillSource[] = [];
+		for (const row of this.store.list()) {
+			if (!row.enabled) continue;
+			const manifest = JSON.parse(row.manifestJson) as PluginManifest;
+			const rootDir = this.resolveRootDir(row);
+			const shortId = row.id.replace(/\./g, "-");
+			for (const skillPath of manifest.skills ?? []) {
+				const base = path.basename(skillPath);
+				skills.push({
+					dirName: `plugin-${shortId}-${base}`,
+					skillDir: path.join(rootDir, skillPath),
+				});
+			}
+		}
+		return skills;
+	}
+
+	private scheduleSkillsRefresh(): void {
+		if (!this.onSkillsChanged) return;
+		if (this.skillsTimer) clearTimeout(this.skillsTimer);
+		this.skillsTimer = setTimeout(() => {
+			this.skillsTimer = null;
+			try {
+				this.onSkillsChanged?.(this.collectSkills());
+			} catch (error) {
+				console.error("[plugins] skill refresh failed:", error);
+			}
+		}, 500);
+	}
+
+	/** Dispatch an unauthenticated webhook request to a plugin's http routes. */
+	async handleHttp(
+		pluginId: string,
+		request: PluginHttpRequest,
+	): Promise<PluginHttpResponse | null> {
+		const plugin = this.loaded.get(pluginId);
+		if (!plugin || plugin.status !== "running") return null;
+		const route = plugin.httpRoutes.find(
+			(r) =>
+				(r.method === "*" || r.method === request.method) &&
+				r.path === request.path,
+		);
+		if (!route) return null;
+		return withTimeout(
+			Promise.resolve(route.handler(request)),
+			ACTION_TIMEOUT_MS,
+			`${pluginId} http ${request.path}`,
+		);
 	}
 
 	async start(): Promise<void> {
@@ -225,6 +300,7 @@ export class PluginRuntime {
 			actions: new Map(),
 			eventHandlers: new Map(),
 			disposers: [],
+			httpRoutes: [],
 			backend: null,
 			status: "running",
 			error: null,
@@ -277,6 +353,7 @@ export class PluginRuntime {
 
 	// Nudges clients to refetch the plugin list (enable/disable/reload/install).
 	private broadcastLifecycle(pluginId: string): void {
+		this.scheduleSkillsRefresh();
 		this.eventBus.broadcastPluginEvent({
 			pluginId,
 			payload: { type: "lifecycle" },
@@ -476,6 +553,11 @@ export class PluginRuntime {
 			},
 			workspaces: {
 				list: async () => this.listWorkspaces(),
+			},
+			http: {
+				route(method, routePath, handler) {
+					plugin.httpRoutes.push({ method, path: routePath, handler });
+				},
 			},
 			background: {
 				interval(ms, fn) {

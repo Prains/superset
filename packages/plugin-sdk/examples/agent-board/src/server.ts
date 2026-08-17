@@ -84,6 +84,10 @@ export default async function plugin(api: SupersetPluginApi) {
 
 	api.actions.register("get-board", async () => ({ cards: await enriched() }));
 
+	api.http.route("GET", "/board", async () => ({
+		body: { cards: await enriched() },
+	}));
+
 	api.actions.register("clear-finished", async () => {
 		for (const [id, card] of board) {
 			if (card.status === "done" || card.status === "ended") board.delete(id);
