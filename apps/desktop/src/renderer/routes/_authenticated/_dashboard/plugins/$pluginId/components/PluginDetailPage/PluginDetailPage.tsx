@@ -15,7 +15,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import {
 	LuArrowLeft,
-	LuChevronRight,
 	LuEllipsis,
 	LuLayoutPanelLeft,
 	LuPanelRight,
@@ -25,6 +24,7 @@ import {
 	LuTrash2,
 	LuZap,
 } from "react-icons/lu";
+import { useHotkeyDisplay } from "renderer/hotkeys";
 import { getHostServiceClientByUrl } from "renderer/lib/host-service-client";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 
@@ -44,7 +44,7 @@ function ContributionGroup({
 }: {
 	icon: ReactNode;
 	title: string;
-	rows: { primary: string; secondary?: string }[];
+	rows: { primary: string; secondary?: string; usage?: string }[];
 }) {
 	if (rows.length === 0) return null;
 	return (
@@ -58,13 +58,18 @@ function ContributionGroup({
 				{rows.map((row) => (
 					<div
 						key={row.primary + (row.secondary ?? "")}
-						className="flex items-baseline gap-2 border-b border-border/40 px-3 py-2 text-sm last:border-b-0"
+						className="flex flex-col gap-0.5 border-b border-border/40 px-3 py-2 last:border-b-0"
 					>
-						<span className="font-medium">{row.primary}</span>
-						{row.secondary ? (
-							<span className="truncate font-mono text-[11px] text-muted-foreground">
-								{row.secondary}
-							</span>
+						<div className="flex items-baseline gap-2 text-sm">
+							<span className="font-medium">{row.primary}</span>
+							{row.secondary ? (
+								<span className="truncate font-mono text-[11px] text-muted-foreground">
+									{row.secondary}
+								</span>
+							) : null}
+						</div>
+						{row.usage ? (
+							<span className="text-xs text-muted-foreground">{row.usage}</span>
 						) : null}
 					</div>
 				))}
@@ -74,6 +79,7 @@ function ContributionGroup({
 }
 
 export function PluginDetailPage({ pluginId }: { pluginId: string }) {
+	const paletteKey = useHotkeyDisplay("OPEN_COMMAND_PALETTE").text;
 	const { activeHostUrl } = useLocalHostService();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -152,6 +158,18 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 
 	const contributes = plugin.manifest.contributes;
 	const permissions = plugin.manifest.permissions ?? [];
+	const commands = contributes?.commands ?? [];
+	// The palette command that opens a given pane/tab, for usage instructions.
+	const openerFor = (target: { type: "pane" | "tab"; id: string }) =>
+		commands.find(
+			(c) =>
+				(target.type === "pane" &&
+					c.run.type === "open-pane" &&
+					c.run.kind === target.id) ||
+				(target.type === "tab" &&
+					c.run.type === "open-sidebar-tab" &&
+					c.run.tabId === target.id),
+		);
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -233,30 +251,43 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 				) : null}
 
 				<div className="flex flex-col gap-4">
-					<h2 className="text-sm font-semibold">What this plugin adds</h2>
+					<h2 className="text-sm font-semibold">
+						What this plugin adds, and how to use it
+					</h2>
 					<ContributionGroup
 						icon={<LuZap className="size-3.5" />}
 						title="Commands"
-						rows={(contributes?.commands ?? []).map((c) => ({
+						rows={commands.map((c) => ({
 							primary: c.title,
 							secondary: c.id,
+							usage: `In any workspace, press ${paletteKey} and run "${c.title}".`,
 						}))}
 					/>
 					<ContributionGroup
 						icon={<LuLayoutPanelLeft className="size-3.5" />}
 						title="Panes"
-						rows={(contributes?.panes ?? []).map((p) => ({
-							primary: p.title,
-							secondary: p.kind,
-						}))}
+						rows={(contributes?.panes ?? []).map((p) => {
+							const opener = openerFor({ type: "pane", id: p.kind });
+							return {
+								primary: p.title,
+								secondary: p.kind,
+								usage: opener
+									? `Opens as a full pane next to your terminals: press ${paletteKey} in a workspace and run "${opener.title}".`
+									: "Opens as a full pane next to your terminals.",
+							};
+						})}
 					/>
 					<ContributionGroup
 						icon={<LuPanelRight className="size-3.5" />}
 						title="Sidebar tabs"
-						rows={(contributes?.sidebarTabs ?? []).map((t) => ({
-							primary: t.label,
-							secondary: t.id,
-						}))}
+						rows={(contributes?.sidebarTabs ?? []).map((t) => {
+							const opener = openerFor({ type: "tab", id: t.id });
+							return {
+								primary: t.label,
+								secondary: t.id,
+								usage: `Open any workspace: the "${t.label}" tab appears in the right sidebar next to Files and Changes${opener ? `, or run "${opener.title}" from the palette` : ""}.`,
+							};
+						})}
 					/>
 					<ContributionGroup
 						icon={<LuSquareTerminal className="size-3.5" />}
@@ -264,6 +295,7 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 						rows={(contributes?.events ?? []).map((e) => ({
 							primary: e.on,
 							secondary: e.command.join(" "),
+							usage: "Runs automatically when this event fires — nothing to do.",
 						}))}
 					/>
 					{!contributes?.commands?.length &&
@@ -331,18 +363,6 @@ export function PluginDetailPage({ pluginId }: { pluginId: string }) {
 					</div>
 				</div>
 
-				{contributes?.commands?.length ? (
-					<div className="flex flex-col gap-2">
-						<h2 className="text-sm font-semibold">Try it</h2>
-						<p className="flex items-center gap-1 text-sm text-muted-foreground">
-							Open the command palette and run
-							<span className="rounded bg-fill-hover px-1.5 py-0.5 text-xs font-medium text-foreground">
-								{contributes.commands[0]?.title}
-							</span>
-							<LuChevronRight className="size-3.5" />
-						</p>
-					</div>
-				) : null}
 			</div>
 		</div>
 	);
