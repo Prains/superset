@@ -97,6 +97,13 @@ describe("free-solo-board", () => {
 		);
 	});
 
+	it("no-ops updating a card to the terminal it already points at, leaving cards unchanged", () => {
+		const cardId = add("term-1") as string;
+		const before = useFreeSoloBoardStore.getState().cards;
+		useFreeSoloBoardStore.getState().updateCardTerminal(cardId, "term-1");
+		expect(useFreeSoloBoardStore.getState().cards).toBe(before);
+	});
+
 	it("drops createOnAttach once the terminal is swapped, so a reload doesn't respawn", () => {
 		const cardId = useFreeSoloBoardStore
 			.getState()

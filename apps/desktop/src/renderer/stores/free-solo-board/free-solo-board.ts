@@ -178,14 +178,21 @@ export const useFreeSoloBoardStore = create<FreeSoloBoardState>()(
 				 *  and the resumed session already exists. (The host ignores a
 				 *  stale flag anyway — it honours create-on-attach only when no
 				 *  session row exists at all — so this is hygiene, not a guard.) */
-				updateCardTerminal: (cardId, terminalId) =>
+				updateCardTerminal: (cardId, terminalId) => {
+					const card = get().cards.find((c) => c.id === cardId);
+					// Every notification off the card's pane store runs through here,
+					// most of them re-reporting the same terminalId — skip the `set`
+					// entirely rather than rebuilding `cards` into an equal-looking
+					// array that still re-renders every subscriber.
+					if (!card || card.terminalId === terminalId) return;
 					set((state) => ({
-						cards: state.cards.map((card) =>
-							card.id === cardId && card.terminalId !== terminalId
-								? { ...card, terminalId, createOnAttach: undefined }
-								: card,
+						cards: state.cards.map((c) =>
+							c.id === cardId
+								? { ...c, terminalId, createOnAttach: undefined }
+								: c,
 						),
-					})),
+					}));
+				},
 
 				setMissing: (missingByCardId) =>
 					set((state) => ({

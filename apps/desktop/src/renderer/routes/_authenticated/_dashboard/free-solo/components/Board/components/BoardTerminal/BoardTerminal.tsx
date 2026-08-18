@@ -1,6 +1,6 @@
 import type { RendererContext } from "@superset/panes";
 import { createWorkspaceStore } from "@superset/panes";
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useOpenInExternalEditor } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/useOpenInExternalEditor";
 import { TerminalPane } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/TerminalPane";
@@ -87,6 +87,19 @@ function BoardTerminalInner({ card }: BoardTerminalProps) {
 		() => store.getState().tabs[0]?.panes[card.id],
 	);
 
+	// TerminalPane rebuilds xterm's link providers whenever these identities
+	// change (see its setLinkHandlers effect), so a fresh arrow function every
+	// render would tear down and reattach them on every keystroke.
+	const handleOpenFile = useCallback(
+		(path: string) => openInExternalEditor(path),
+		[openInExternalEditor],
+	);
+	const handleOpenUrl = useCallback((url: string) => {
+		electronTrpcClient.external.openUrl.mutate(url).catch((error) => {
+			console.error("[free-solo] failed to open URL", url, error);
+		});
+	}, []);
+
 	if (!pane) return null;
 
 	const ctx = {
@@ -102,13 +115,10 @@ function BoardTerminalInner({ card }: BoardTerminalProps) {
 			workspaceId={card.workspaceId}
 			// The board has no editor pane and no file tree, so both intents
 			// leave the app.
-			onOpenFile={(path) => openInExternalEditor(path)}
-			onRevealPath={(path, options) => revealInFinder(path, options)}
-			onOpenUrl={(url) => {
-				electronTrpcClient.external.openUrl.mutate(url).catch((error) => {
-					console.error("[free-solo] failed to open URL", url, error);
-				});
-			}}
+			onOpenFile={handleOpenFile}
+			// Signature matches revealInFinder's own — no wrapper needed.
+			onRevealPath={revealInFinder}
+			onOpenUrl={handleOpenUrl}
 		/>
 	);
 }

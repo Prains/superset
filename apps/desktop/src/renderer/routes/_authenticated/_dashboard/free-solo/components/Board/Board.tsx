@@ -1,8 +1,8 @@
 import { Button } from "@superset/ui/button";
 import { useFreeSoloBoardStore } from "renderer/stores/free-solo-board";
 import { BoardCard } from "../BoardCard";
-import { BoardCardTitle } from "../BoardCard/components/BoardCardTitle";
-import { BoardTerminal } from "../BoardCard/components/BoardTerminal";
+import { BoardCardTitle } from "./components/BoardCardTitle";
+import { BoardTerminal } from "./components/BoardTerminal";
 
 export function Board() {
 	const cards = useFreeSoloBoardStore((state) => state.cards);

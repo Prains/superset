@@ -157,7 +157,9 @@ export function BoardCard({ card, title, children }: BoardCardProps) {
 			</div>
 			{/* Bottom padding keeps the resize corner as the card's own, so the
 			    grip isn't buried under xterm's screen. */}
-			<div className="min-h-0 flex-1 overflow-hidden p-1 pb-3">{children}</div>
+			<div className="flex min-h-0 flex-1 overflow-hidden p-1 pb-3">
+				{children}
+			</div>
 		</div>
 	);
 }
