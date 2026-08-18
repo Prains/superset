@@ -8,18 +8,21 @@ import type { ProviderOptions } from "../types";
  * attendee filter. Empty until an account is connected.
  */
 export function useGoogleOptions(organizationId: string): ProviderOptions {
-	const enabled = Boolean(organizationId);
+	// Calendars and labels are read live from Google, not from a synced table
+	// like GitHub's repositories, so a stale-time keeps opening a card from
+	// spending two Google calls every time.
+	const query = { enabled: Boolean(organizationId), staleTime: 5 * 60_000 };
 	const calendars = cloudTrpc.integration.google.listCalendars.useQuery(
 		{ organizationId },
-		{ enabled },
+		query,
 	);
 	const labels = cloudTrpc.integration.google.listLabels.useQuery(
 		{ organizationId },
-		{ enabled },
+		query,
 	);
 	const people = cloudTrpc.integration.google.listLinkedPeople.useQuery(
 		{ organizationId },
-		{ enabled },
+		query,
 	);
 
 	return useMemo(
