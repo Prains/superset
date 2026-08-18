@@ -158,9 +158,10 @@ export async function POST(
 			organizationId: trigger.organizationId,
 			eventId: inserted.id,
 			// Addressed: Circleback was configured with this trigger's URL, so
-			// only its automation is a candidate — the other Circleback
-			// triggers in the organization each have their own URL.
+			// only this trigger is a candidate — every other Circleback trigger
+			// in the organization has its own URL and gets its own delivery.
 			automationId: trigger.automationId,
+			triggerId,
 			event: {
 				provider: "circleback",
 				eventType: EVENT_TYPE,
