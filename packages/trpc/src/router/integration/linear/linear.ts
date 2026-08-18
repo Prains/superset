@@ -4,6 +4,8 @@ import {
 	type LinearConfig,
 	taskStatuses,
 	tasks,
+	userIdentities,
+	users,
 } from "@superset/db/schema";
 import { seedDefaultStatuses } from "@superset/db/seed-default-statuses";
 import type { TRPCRouterRecord } from "@trpc/server";
@@ -12,6 +14,25 @@ import { z } from "zod";
 import { protectedProcedure } from "../../../trpc";
 import { verifyOrgAdmin, verifyOrgMembership } from "../utils";
 import { callLinear } from "./refresh";
+
+type TriggerOptionsQuery = {
+	teams: { nodes: Array<{ id: string; name: string }> };
+	projects: { nodes: Array<{ id: string; name: string }> };
+	issueLabels: {
+		nodes: Array<{ id: string; name: string; team: { key: string } | null }>;
+	};
+	workflowStates: {
+		nodes: Array<{ id: string; name: string; team: { key: string } | null }>;
+	};
+};
+
+// 250 is Linear's page cap; anything past it is out of reach of the picker.
+const TRIGGER_OPTIONS_QUERY = `query TriggerOptions {
+	teams(first: 250) { nodes { id name } }
+	projects(first: 250) { nodes { id name } }
+	issueLabels(first: 250) { nodes { id name team { key } } }
+	workflowStates(first: 250) { nodes { id name team { key } } }
+}`;
 
 export const linearRouter = {
 	getConnection: protectedProcedure
@@ -133,6 +154,75 @@ export const linearRouter = {
 			);
 			if (!teams) return [];
 			return teams.nodes.map((t) => ({ id: t.id, name: t.name, key: t.key }));
+		}),
+
+	/**
+	 * Everything a Linear trigger sentence can pick from, in one round trip.
+	 * Ids throughout: a team key or state name can be renamed, the id cannot.
+	 */
+	getTriggerOptions: protectedProcedure
+		.input(z.object({ organizationId: z.uuid() }))
+		.query(async ({ ctx, input }) => {
+			await verifyOrgMembership(ctx.session.user.id, input.organizationId);
+			const result = await callLinear(input.organizationId, (client) =>
+				client.client.request<TriggerOptionsQuery, Record<string, never>>(
+					TRIGGER_OPTIONS_QUERY,
+				),
+			);
+			if (!result) return { teams: [], projects: [], labels: [], statuses: [] };
+
+			// Workflow states and labels repeat their names across teams, so the
+			// team key is part of the label rather than a separate column.
+			const withTeam = (name: string, team: { key: string } | null) =>
+				team ? `${name} · ${team.key}` : name;
+			const byLabel = (options: Array<{ id: string; label: string }>) =>
+				options.sort((a, b) => a.label.localeCompare(b.label));
+			return {
+				teams: byLabel(
+					result.teams.nodes.map((t) => ({ id: t.id, label: t.name })),
+				),
+				projects: byLabel(
+					result.projects.nodes.map((p) => ({ id: p.id, label: p.name })),
+				),
+				labels: byLabel(
+					result.issueLabels.nodes.map((l) => ({
+						id: l.id,
+						label: withTeam(l.name, l.team),
+					})),
+				),
+				statuses: byLabel(
+					result.workflowStates.nodes.map((s) => ({
+						id: s.id,
+						label: withTeam(s.name, s.team),
+					})),
+				),
+			};
+		}),
+
+	/** People in the org who have linked a Linear account, as assignee options. */
+	listLinkedPeople: protectedProcedure
+		.input(z.object({ organizationId: z.uuid() }))
+		.query(async ({ ctx, input }) => {
+			await verifyOrgMembership(ctx.session.user.id, input.organizationId);
+			const rows = await db
+				.select({
+					linearUserId: userIdentities.externalId,
+					displayName: userIdentities.displayName,
+					name: users.name,
+					email: users.email,
+				})
+				.from(userIdentities)
+				.innerJoin(users, eq(users.id, userIdentities.userId))
+				.where(
+					and(
+						eq(userIdentities.organizationId, input.organizationId),
+						eq(userIdentities.provider, "linear"),
+					),
+				);
+			return rows.map((row) => ({
+				id: row.linearUserId,
+				label: row.displayName ?? row.name ?? row.email,
+			}));
 		}),
 
 	updateConfig: protectedProcedure
