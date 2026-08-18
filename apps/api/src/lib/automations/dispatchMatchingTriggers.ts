@@ -36,12 +36,16 @@ export async function dispatchMatchingTriggers(params: {
 	eventId: string;
 	event: MatchableEvent;
 	/**
-	 * Restrict candidates to one automation. Provider webhooks fan out across
-	 * the org because the provider does not know which automation cares; a
-	 * raw webhook is addressed to one automation by URL, so fanning out to
-	 * every webhook trigger in the org would be wrong.
+	 * Restrict candidates. Provider webhooks fan out across the org because
+	 * the provider does not know which automation cares. Two kinds of inbound
+	 * URL are narrower than that and must not fan out:
+	 * - a raw webhook is addressed to one AUTOMATION by URL → `automationId`
+	 * - a Circleback webhook is addressed to one TRIGGER by URL → `triggerId`
+	 * Without the narrowing, one automation holding two triggers of that kind
+	 * with overlapping filters would run once per URL.
 	 */
 	automationId?: string;
+	triggerId?: string;
 }): Promise<{ matched: number; considered: number }> {
 	const { event } = params;
 
@@ -65,6 +69,9 @@ export async function dispatchMatchingTriggers(params: {
 				eq(automations.enabled, true),
 				params.automationId
 					? eq(automations.id, params.automationId)
+					: undefined,
+				params.triggerId
+					? eq(automationTriggers.id, params.triggerId)
 					: undefined,
 			),
 		);
