@@ -7,6 +7,13 @@ import {
 } from "@superset/trpc/integrations/google";
 
 /** The domain of the connected account: what "external" is measured against. */
+/** The connected account's address, as the identity table stores it. */
+export function accountEmail(
+	connection: Pick<SelectIntegrationConnection, "externalOrgId">,
+): string {
+	return (connection.externalOrgId ?? "").toLowerCase();
+}
+
 export function accountDomain(
 	connection: Pick<SelectIntegrationConnection, "externalOrgId">,
 ): string | null {
@@ -29,6 +36,7 @@ export function resourceKeyFor(
  */
 export function matchableCalendarEvent(params: {
 	eventType: GoogleCalendarTriggerEvent;
+	accountEmail: string;
 	calendarId: string;
 	event: GoogleCalendarEvent;
 	domain: string | null;
@@ -40,6 +48,7 @@ export function matchableCalendarEvent(params: {
 		provider: "google_calendar",
 		identityProvider: "google",
 		eventType: params.eventType,
+		accountEmail: params.accountEmail,
 		actorId: organizer,
 		actorLogin: organizer,
 		body: params.event.description ?? null,

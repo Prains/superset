@@ -8,6 +8,7 @@ import { z } from "zod";
 import { dispatchMatchingTriggers } from "@/lib/automations/dispatchMatchingTriggers";
 import {
 	accountDomain,
+	accountEmail,
 	calendarPayload,
 	matchableCalendarEvent,
 	resourceKeyFor,
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
 		fire.fire === "starting_soon" ? "event.starting_soon" : "event.ended";
 	const matchable = matchableCalendarEvent({
 		eventType,
+		accountEmail: accountEmail(connection),
 		calendarId: fire.calendarId,
 		event,
 		domain: accountDomain(connection),

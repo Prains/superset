@@ -16,6 +16,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { dispatchMatchingTriggers } from "@/lib/automations/dispatchMatchingTriggers";
 import {
 	accountDomain,
+	accountEmail,
 	calendarPayload,
 	matchableCalendarEvent,
 	resourceKeyFor,
@@ -119,7 +120,10 @@ export async function applyCalendarChanges(
 	options: { watchedSince: Date; now?: Date },
 ): Promise<{ recorded: number; matched: number; scheduled: number }> {
 	const domain = accountDomain(connection);
-	const plan = await loadFirePlan(connection.organizationId);
+	const plan = await loadFirePlan(
+		connection.organizationId,
+		connection.connectedByUserId,
+	);
 	const now = options.now ?? new Date();
 
 	let recorded = 0;
@@ -223,6 +227,7 @@ async function recordChange(params: {
 
 	const matchable = matchableCalendarEvent({
 		eventType,
+		accountEmail: accountEmail(connection),
 		calendarId,
 		event,
 		domain: params.domain,

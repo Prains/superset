@@ -131,6 +131,7 @@ export function triggerMatches(
 			return gmailTriggerMatches(
 				config as Extract<TriggerConfigInput, { kind: "gmail" }>,
 				event,
+				context,
 			);
 	}
 	// Reached only when a provider is in the union but has no case above.

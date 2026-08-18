@@ -91,6 +91,7 @@ export async function recordMessage(
 		provider: "gmail",
 		identityProvider: "google",
 		eventType: "message.received",
+		accountEmail: (connection.externalOrgId ?? "").toLowerCase(),
 		actorId: fromAddress,
 		actorLogin: fromAddress,
 		// The body stays in the mailbox; the subject is the filterable text.

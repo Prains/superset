@@ -21,12 +21,19 @@ export function googleConfigOf(config: unknown): GoogleConfig {
 	return { provider: "google" };
 }
 
-/** Active Google connection for an org, or null. */
-export async function findGoogleConnection(organizationId: string) {
+/**
+ * One member's active Google connection in an org, or null. Per user, not per
+ * org: Calendar and Gmail are personal, and each member connects their own.
+ */
+export async function findGoogleConnection(
+	organizationId: string,
+	userId: string,
+) {
 	const connection = await db.query.integrationConnections.findFirst({
 		where: and(
 			eq(integrationConnections.organizationId, organizationId),
 			eq(integrationConnections.provider, "google"),
+			eq(integrationConnections.connectedByUserId, userId),
 			isNull(integrationConnections.disconnectedAt),
 		),
 	});

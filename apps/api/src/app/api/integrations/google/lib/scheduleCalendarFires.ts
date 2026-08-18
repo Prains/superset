@@ -30,10 +30,15 @@ export const FIRE_HORIZON_MS = 35 * 60 * 1000;
 const LATE_TOLERANCE_MS = 60 * 1000;
 
 /**
- * What the org's enabled triggers want fired, so the sweep lists only as far
- * ahead as the longest lead time and schedules nothing nobody asked for.
+ * What one member's enabled triggers want fired, so the sweep lists only as
+ * far ahead as the longest lead time and schedules nothing nobody asked for.
+ * Per owner because a Google connection is one member's: their automations
+ * are the only ones that will ever match fires off it.
  */
-export async function loadFirePlan(organizationId: string): Promise<{
+export async function loadFirePlan(
+	organizationId: string,
+	ownerUserId: string,
+): Promise<{
 	minutesBefore: number[];
 	ended: boolean;
 	allows: (calendarId: string) => boolean;
@@ -45,6 +50,7 @@ export async function loadFirePlan(organizationId: string): Promise<{
 		.where(
 			and(
 				eq(automationTriggers.organizationId, organizationId),
+				eq(automations.ownerUserId, ownerUserId),
 				eq(automationTriggers.kind, "google_calendar"),
 				eq(automationTriggers.enabled, true),
 				eq(automations.enabled, true),

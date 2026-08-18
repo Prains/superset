@@ -42,6 +42,14 @@ export function IntegrationsSettings({
 			{ enabled: !!activeOrganizationId },
 		);
 
+	// Google is per member, not per org, so the caller's own connection rather
+	// than whichever row integration.list happens to return first.
+	const { data: googleConnection, isPending: isGooglePending } =
+		cloudTrpc.integration.google.getConnection.useQuery(
+			{ organizationId: activeOrganizationId ?? "" },
+			{ enabled: !!activeOrganizationId },
+		);
+
 	const [githubInstallation, setGithubInstallation] =
 		useState<GithubInstallation | null>(null);
 	const [isLoadingGithub, setIsLoadingGithub] = useState(true);
@@ -80,10 +88,10 @@ export function IntegrationsSettings({
 
 	const linearConnection = integrations?.find((i) => i.provider === "linear");
 	const slackConnection = integrations?.find((i) => i.provider === "slack");
-	const googleConnection = integrations?.find((i) => i.provider === "google");
 	const isLinearConnected = !!linearConnection;
 	const isSlackConnected = !!slackConnection;
-	const isGoogleConnected = !!googleConnection;
+	const isGoogleConnected =
+		!!googleConnection && !googleConnection.needsReconnect;
 	const isGithubConnected =
 		!!githubInstallation && !githubInstallation.suspended;
 	const showSlack = isItemVisible(
@@ -167,8 +175,8 @@ export function IntegrationsSettings({
 						description="Trigger automations from Google Calendar and Gmail."
 						icon={<FaGoogle className="size-5" />}
 						isConnected={isGoogleConnected}
-						connectedOrgName={googleConnection?.externalOrgName}
-						isLoading={isIntegrationsPending}
+						connectedOrgName={googleConnection?.email}
+						isLoading={isGooglePending}
 						onManage={() => handleOpenWeb("/integrations/google")}
 					/>
 				)}

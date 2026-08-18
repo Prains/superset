@@ -26,6 +26,11 @@ export type GoogleCalendarMatchableEvent = BaseMatchableEvent & {
 	/** Both Google kinds share one connection, so `me` resolves through it. */
 	identityProvider: "google";
 	eventType: GoogleCalendarTriggerEvent;
+	/**
+	 * The Google account the event came from, lower-cased. Connections are
+	 * per member, so a trigger only sees events from its owner's account.
+	 */
+	accountEmail: string;
 	calendarId: string;
 	/** Organizer, creator and invitees together — everyone on the event. */
 	attendeeEmails: string[];
@@ -41,6 +46,7 @@ export type GmailMatchableEvent = BaseMatchableEvent & {
 	provider: "gmail";
 	identityProvider: "google";
 	eventType: GmailTriggerEvent;
+	accountEmail: string;
 	fromAddress: string | null;
 	toAddresses: string[];
 	subject: string | null;
@@ -51,8 +57,17 @@ export type GmailMatchableEvent = BaseMatchableEvent & {
 /**
  * `context.ownerIds` are addresses here: a calendar event names people by
  * email, so the Google identity's external id is the account address and `me`
- * resolves to the automation owner's linked addresses.
+ * resolves to the automation owner's linked addresses. The same ids say whose
+ * account the event came from — a Google connection is one member's, and only
+ * that member's automations see its events.
  */
+export function ownsAccount(
+	event: { accountEmail: string },
+	context: MatchContext,
+): boolean {
+	return context.ownerIds.includes(event.accountEmail);
+}
+
 export function googleCalendarTriggerMatches(
 	config: {
 		event: string;
@@ -66,6 +81,7 @@ export function googleCalendarTriggerMatches(
 	context: MatchContext,
 ): MatchResult {
 	if (config.event !== event.eventType) return no("event");
+	if (!ownsAccount(event, context)) return no("account");
 	if (!scopeAllows(config.calendars, event.calendarId)) return no("calendar");
 	if (
 		!attendeeAllows(config.attendee, event.attendeeEmails, context.ownerIds)
@@ -110,8 +126,10 @@ export function gmailTriggerMatches(
 		hasAttachment: boolean;
 	},
 	event: GmailMatchableEvent,
+	context: MatchContext,
 ): MatchResult {
 	if (config.event !== event.eventType) return no("event");
+	if (!ownsAccount(event, context)) return no("account");
 	if (
 		!addressScopeAllows(
 			config.from,

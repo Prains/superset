@@ -8,7 +8,7 @@ import type { TRPCRouterRecord } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure } from "../../../trpc";
-import { verifyOrgAdmin, verifyOrgMembership } from "../utils";
+import { verifyOrgMembership } from "../utils";
 import { listCalendars, stopChannel } from "./calendar";
 import { listLabels, stopMailboxWatch } from "./gmail";
 import { findGoogleConnection, googleConfigOf } from "./state";
@@ -19,10 +19,13 @@ export const googleRouter = {
 		.query(async ({ ctx, input }) => {
 			await verifyOrgMembership(ctx.session.user.id, input.organizationId);
 
+			// The caller's own connection: Google is per member, so another
+			// member's account is not this person's to see or manage.
 			const connection = await db.query.integrationConnections.findFirst({
 				where: and(
 					eq(integrationConnections.organizationId, input.organizationId),
 					eq(integrationConnections.provider, "google"),
+					eq(integrationConnections.connectedByUserId, ctx.session.user.id),
 				),
 				columns: {
 					id: true,
@@ -49,9 +52,12 @@ export const googleRouter = {
 	disconnect: protectedProcedure
 		.input(z.object({ organizationId: z.uuid() }))
 		.mutation(async ({ ctx, input }) => {
-			await verifyOrgAdmin(ctx.session.user.id, input.organizationId);
+			await verifyOrgMembership(ctx.session.user.id, input.organizationId);
 
-			const connection = await findGoogleConnection(input.organizationId);
+			const connection = await findGoogleConnection(
+				input.organizationId,
+				ctx.session.user.id,
+			);
 			if (connection) {
 				// Best effort: Google keeps pushing to a channel until it is stopped
 				// or expires, and the push route would only reject those with a
@@ -84,6 +90,7 @@ export const googleRouter = {
 					and(
 						eq(integrationConnections.organizationId, input.organizationId),
 						eq(integrationConnections.provider, "google"),
+						eq(integrationConnections.connectedByUserId, ctx.session.user.id),
 					),
 				)
 				.returning({ id: integrationConnections.id });
@@ -99,7 +106,10 @@ export const googleRouter = {
 		.input(z.object({ organizationId: z.uuid() }))
 		.query(async ({ ctx, input }) => {
 			await verifyOrgMembership(ctx.session.user.id, input.organizationId);
-			const connection = await findGoogleConnection(input.organizationId);
+			const connection = await findGoogleConnection(
+				input.organizationId,
+				ctx.session.user.id,
+			);
 			if (!connection) return [];
 			const calendars = await listCalendars(connection.id);
 			return calendars
@@ -117,7 +127,10 @@ export const googleRouter = {
 		.input(z.object({ organizationId: z.uuid() }))
 		.query(async ({ ctx, input }) => {
 			await verifyOrgMembership(ctx.session.user.id, input.organizationId);
-			const connection = await findGoogleConnection(input.organizationId);
+			const connection = await findGoogleConnection(
+				input.organizationId,
+				ctx.session.user.id,
+			);
 			if (!connection) return [];
 			const labels = await listLabels(connection.id);
 			return (

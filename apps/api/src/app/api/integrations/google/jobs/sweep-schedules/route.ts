@@ -17,9 +17,9 @@ export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 /**
- * Every fifteen minutes: for each org with an enabled `starting_soon` or
- * `ended` trigger, list the instances due inside the fire horizon on every
- * watched calendar and hand their fires to QStash. This is what catches
+ * Every fifteen minutes: for each member with an enabled `starting_soon` or
+ * `ended` trigger and a Google connection, list the instances due inside the
+ * fire horizon on every watched calendar and hand their fires to QStash. This is what catches
  * triggers created after the event was synced, and recurring instances the
  * incremental sync never sees individually.
  */
@@ -32,8 +32,11 @@ export async function POST(request: Request) {
 	);
 	if (rejected) return rejected;
 
-	const organizations = await dbWs
-		.selectDistinct({ organizationId: automationTriggers.organizationId })
+	const owners = await dbWs
+		.selectDistinct({
+			organizationId: automationTriggers.organizationId,
+			ownerUserId: automations.ownerUserId,
+		})
 		.from(automationTriggers)
 		.innerJoin(automations, eq(automations.id, automationTriggers.automationId))
 		.where(
@@ -50,10 +53,13 @@ export async function POST(request: Request) {
 
 	const now = new Date();
 	const results = [];
-	for (const { organizationId } of organizations) {
+	for (const { organizationId, ownerUserId } of owners) {
 		try {
-			const connection = await findGoogleConnection(organizationId);
-			const plan = await loadFirePlan(organizationId);
+			const connection = await findGoogleConnection(
+				organizationId,
+				ownerUserId,
+			);
+			const plan = await loadFirePlan(organizationId, ownerUserId);
 			if (!connection || !plan) continue;
 			const window = sweepWindow(plan, now);
 			let scheduled = 0;
@@ -74,17 +80,18 @@ export async function POST(request: Request) {
 					now,
 				});
 			}
-			results.push({ organizationId, scheduled });
+			results.push({ organizationId, ownerUserId, scheduled });
 		} catch (error) {
 			console.error(
-				`[google/sweep-schedules] ${organizationId} failed:`,
+				`[google/sweep-schedules] ${organizationId}/${ownerUserId} failed:`,
 				error,
 			);
 			results.push({
 				organizationId,
+				ownerUserId,
 				error: error instanceof Error ? error.message : String(error),
 			});
 		}
 	}
-	return Response.json({ organizations: organizations.length, results });
+	return Response.json({ owners: owners.length, results });
 }

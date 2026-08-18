@@ -1,9 +1,6 @@
 import { auth } from "@superset/auth/server";
-import { db } from "@superset/db/client";
-import { integrationConnections } from "@superset/db/schema";
 import { findOrgMembership } from "@superset/db/utils";
 import { GOOGLE_SCOPES } from "@superset/trpc/integrations/google";
-import { and, eq } from "drizzle-orm";
 
 import { env } from "@/env";
 import { createSignedState } from "@/lib/oauth-state";
@@ -30,24 +27,6 @@ export async function GET(request: Request) {
 	if (!membership) {
 		return Response.json(
 			{ error: "User is not a member of this organization" },
-			{ status: 403 },
-		);
-	}
-
-	// One connection per organization for now, and it is personal: whoever
-	// connected it (or an admin) may replace it, anyone else would be
-	// silently swapping a colleague's calendars for their own.
-	const existing = await db.query.integrationConnections.findFirst({
-		where: and(
-			eq(integrationConnections.organizationId, organizationId),
-			eq(integrationConnections.provider, "google"),
-		),
-		columns: { connectedByUserId: true },
-	});
-	const isAdmin = membership.role === "admin" || membership.role === "owner";
-	if (existing && existing.connectedByUserId !== session.user.id && !isAdmin) {
-		return Response.json(
-			{ error: "Google is already connected by another member" },
 			{ status: 403 },
 		);
 	}

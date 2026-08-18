@@ -125,10 +125,14 @@ export async function GET(request: Request) {
 			config: { provider: "google" },
 		})
 		.onConflictDoUpdate({
+			// One Google connection per member: the partial index on
+			// (org, provider, connected_by_user_id) WHERE provider = 'google'.
 			target: [
 				integrationConnections.organizationId,
 				integrationConnections.provider,
+				integrationConnections.connectedByUserId,
 			],
+			targetWhere: sql`${integrationConnections.provider} = 'google'`,
 			set: {
 				accessToken: tokens.access_token,
 				refreshToken: tokens.refresh_token,
@@ -137,7 +141,6 @@ export async function GET(request: Request) {
 				disconnectReason: null,
 				externalOrgId: email,
 				externalOrgName: email,
-				connectedByUserId: userId,
 				// Reconnecting the same account keeps its sync tokens and channels;
 				// a different account starts over. The old account's channels are
 				// then unknown to the push route and expire within a week.
