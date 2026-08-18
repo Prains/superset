@@ -1,5 +1,3 @@
-import type { SlackMatchableEvent } from "@superset/shared/automation-matching";
-import { slackEventNames } from "@superset/shared/automation-matching";
 import type {
 	BotMessageEvent,
 	ChannelCreatedEvent,
@@ -9,6 +7,10 @@ import type {
 	ReactionAddedEvent,
 	ThreadBroadcastMessageEvent,
 } from "@slack/types";
+import {
+	type SlackMatchableEvent,
+	slackEventNames,
+} from "@superset/shared/automation-matching";
 
 /**
  * The message subtypes that are still "a message in the channel". Edits,
