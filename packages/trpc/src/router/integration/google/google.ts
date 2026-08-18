@@ -136,7 +136,7 @@ export const googleRouter = {
 
 			const rows = await db
 				.select({
-					email: userIdentities.handle,
+					email: userIdentities.externalId,
 					name: users.name,
 				})
 				.from(userIdentities)
@@ -148,15 +148,9 @@ export const googleRouter = {
 					),
 				);
 
-			return rows.flatMap((row) =>
-				row.email
-					? [
-							{
-								id: row.email.toLowerCase(),
-								label: row.name ? `${row.name} (${row.email})` : row.email,
-							},
-						]
-					: [],
-			);
+			return rows.map((row) => ({
+				id: row.email.toLowerCase(),
+				label: row.name ? `${row.name} (${row.email})` : row.email,
+			}));
 		}),
 } satisfies TRPCRouterRecord;

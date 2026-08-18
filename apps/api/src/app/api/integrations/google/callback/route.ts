@@ -134,18 +134,20 @@ export async function GET(request: Request) {
 		.returning({ id: integrationConnections.id });
 
 	// The linked identity is what lets an attendee filter of "me" resolve to
-	// this person, and it names the address that a calendar event would.
+	// this person. Its external id is the address rather than Google's subject
+	// id because the matcher compares owner ids against what events carry, and
+	// calendar events name people by address.
 	await db
 		.insert(userIdentities)
 		.values({
 			provider: "google",
-			externalId: info.sub,
+			externalId: email,
 			externalScopeId: null,
 			userId,
 			organizationId,
 			handle: email,
 			displayName: info.name ?? null,
-			metadata: { provider: "google" },
+			metadata: { provider: "google", sub: info.sub },
 		})
 		.onConflictDoUpdate({
 			target: [
@@ -154,7 +156,12 @@ export async function GET(request: Request) {
 				userIdentities.externalScopeId,
 				userIdentities.externalId,
 			],
-			set: { userId, handle: email, displayName: info.name ?? null },
+			set: {
+				userId,
+				handle: email,
+				displayName: info.name ?? null,
+				metadata: { provider: "google", sub: info.sub },
+			},
 		});
 
 	if (connection) await enqueueWatchSetup(connection.id);

@@ -5,13 +5,13 @@ import {
 	getEvent,
 } from "@superset/trpc/integrations/google";
 import { z } from "zod";
+import { dispatchMatchingTriggers } from "@/lib/automations/dispatchMatchingTriggers";
 import {
 	accountDomain,
 	calendarPayload,
 	matchableCalendarEvent,
 	resourceKeyFor,
 } from "../../lib/calendarEvents";
-import { dispatchMatchingTriggers } from "@/lib/automations/dispatchMatchingTriggers";
 import { recordGoogleEvent } from "../../lib/recordGoogleEvent";
 import { verifyQstashRequest } from "../../lib/verifyQstash";
 

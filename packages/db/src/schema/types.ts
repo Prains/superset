@@ -127,4 +127,6 @@ export type GmailTriggerConfig = Extract<TriggerConfig, { kind: "gmail" }>;
 export type UserIdentityMetadata =
 	| { provider: "slack"; modelPreference?: string }
 	| { provider: "github" }
-	| { provider: "google" };
+	// The external id is the account address, since that is what calendar
+	// events and mail headers name people by; the stable subject id rides here.
+	| { provider: "google"; sub?: string };
