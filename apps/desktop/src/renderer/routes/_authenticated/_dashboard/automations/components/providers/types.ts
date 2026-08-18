@@ -59,6 +59,8 @@ export type SentenceContext = {
 	disabled?: boolean;
 	/** Trailing text for a schedule row ("Next run …"); other providers ignore it. */
 	nextRun?: ReactNode;
+	/** The saved row's id; absent until the trigger set is saved. */
+	triggerId?: string;
 };
 
 /**

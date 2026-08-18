@@ -57,6 +57,7 @@ export function TriggerSentence({
 				options,
 				disabled,
 				nextRun,
+				triggerId: trigger.id,
 			})}
 
 			<Button
