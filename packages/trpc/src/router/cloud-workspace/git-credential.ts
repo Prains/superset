@@ -16,12 +16,14 @@
  * docs/cloud-sandbox-considerations.md); the stronger design, injecting the
  * git credential at the egress proxy like the model keys, is what closes it.
  *
- * Whose identity: the workspace's creating user. If they have granted GitHub
- * `repo` access, the credential is their OAuth token and the commit lands as
- * them — that is what people actually want from a workspace. Otherwise the
- * GitHub App's installation token, so push works from day one, at the cost of
- * appearing as the App. Multi-user in one sandbox uses the owner's credential;
- * that is a documented posture, not an accident.
+ * Whose credential: the GitHub App's installation token, narrowed to the
+ * workspace's repo. Whose *identity*: the commit author is the creating user
+ * (git config set at boot), so attribution on GitHub is theirs regardless of
+ * which token pushed; only the push itself is the App's. Using the user's own
+ * OAuth token instead is deliberately not done here — sign-in requests no
+ * `repo` scope, so it would need a consent surface, and a user token has no
+ * expiry to bound a leak the way an installation token's hour does. That is a
+ * separate piece of work and must ship with its consent flow, not before it.
  *
  * Push scope: a credential is refused when the helper reports a push to the
  * repo's default branch from a workspace not created on it. This is an
@@ -35,7 +37,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { db, dbWs } from "@superset/db/client";
 import {
-	accounts,
 	cloudWorkspaces,
 	githubInstallations,
 	githubRepositories,
@@ -76,31 +77,7 @@ export interface GitCredential {
 	/** Unix seconds; emitted to git as `password_expiry_utc` (see GIT_CREDENTIAL_TTL_S). */
 	expiresAt: number;
 	/** Which identity the credential carries — surfaced, never silent. */
-	identity: { kind: "user"; githubUserId: string } | { kind: "app" };
-}
-
-async function userGithubToken(
-	userId: string,
-): Promise<{ token: string; githubUserId: string } | null> {
-	const account = await db.query.accounts.findFirst({
-		where: and(eq(accounts.userId, userId), eq(accounts.providerId, "github")),
-	});
-	if (!account?.accessToken) return null;
-	// An expired token handed out with a fresh password_expiry_utc would give
-	// git a credential it trusts for 50 minutes that GitHub rejects at once.
-	// Falling through to the App token here is the honest answer until a
-	// refresh flow exists.
-	if (
-		account.accessTokenExpiresAt &&
-		account.accessTokenExpiresAt.getTime() <= Date.now()
-	) {
-		return null;
-	}
-	// GitHub returns scopes space- or comma-separated depending on the flow.
-	const scopes = (account.scope ?? "").split(/[\s,]+/);
-	if (!scopes.includes("repo")) return null;
-	// better-auth stores GitHub's numeric user id as accountId, not the login.
-	return { token: account.accessToken, githubUserId: account.accountId };
+	identity: { kind: "app" };
 }
 
 async function appInstallationToken(projectId: string): Promise<string | null> {
@@ -200,18 +177,6 @@ export async function mintGitCredential(input: {
 	}
 
 	const expiresAt = Math.floor(Date.now() / 1000) + GIT_CREDENTIAL_TTL_S;
-
-	if (row.createdByUserId) {
-		const user = await userGithubToken(row.createdByUserId);
-		if (user) {
-			return {
-				username: "x-access-token",
-				password: user.token,
-				expiresAt,
-				identity: { kind: "user", githubUserId: user.githubUserId },
-			};
-		}
-	}
 
 	const app = await appInstallationToken(row.projectId);
 	if (!app) {

@@ -22,10 +22,13 @@ input=$(cat)
 host=$(printf '%s\n' "$input" | sed -n 's/^host=//p' | head -1)
 [ "$host" = "github.com" ] || exit 0
 
-# Push scope: git tells the helper which URL it is about to hit but not which
-# branch, so the branch is read from the checkout. host-service refuses to mint
-# for a push anywhere but the workspace's own branch; that refusal is the one
-# control that survives a prompt-injected agent, and it needs this to work.
+# Push scope hint: git tells the helper which URL it is about to hit but not
+# which branch or even whether this is a push, so the checked-out branch is
+# sent as a best guess and the API refuses a default-branch push from a
+# workspace created elsewhere. That is an accident guard, not a boundary —
+# `git push origin HEAD:main` sends the same hint and lands on main. What
+# actually keeps a prompt-injected agent off the default branch is branch
+# protection on the repo. Sent anyway because it stops the honest mistake.
 branch=$(git -C "${GIT_WORK_TREE:-$PWD}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
 
 printf '%s\n%s\n' "$input" "branch=$branch" |
