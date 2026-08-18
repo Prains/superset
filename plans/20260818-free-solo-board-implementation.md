@@ -908,6 +908,8 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 import { WorkspaceProvider } from "renderer/routes/_authenticated/_dashboard/v2-workspace/providers/WorkspaceProvider";
 import { TerminalPane } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/TerminalPane";
+import { useOpenInExternalEditor } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/useOpenInExternalEditor";
+import { useRevealInFinder } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/useRevealInFinder";
 import type { PaneViewerData } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/types";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import {
@@ -919,12 +921,28 @@ interface BoardTerminalProps {
 	card: BoardCardModel;
 }
 
+/** Outer half: resolves the workspace and mounts its provider. The inner half
+ *  runs below it because `useOpenInExternalEditor` issues a `workspaceTrpc`
+ *  query, which needs the workspace client in scope. */
 export function BoardTerminal({ card }: BoardTerminalProps) {
 	const { workspaces } = useHostWorkspaces();
 	const workspace = workspaces.find((item) => item.id === card.workspaceId);
+	if (!workspace) return null;
+	return (
+		<WorkspaceProvider workspace={workspace}>
+			<BoardTerminalInner card={card} />
+		</WorkspaceProvider>
+	);
+}
+
+function BoardTerminalInner({ card }: BoardTerminalProps) {
 	const isActive = useFreeSoloBoardStore(
 		(state) => state.activeCardId === card.id,
 	);
+	// Both hooks already refuse remote paths with a toast — reuse them rather
+	// than reaching for electronTrpc directly.
+	const openInExternalEditor = useOpenInExternalEditor(card.workspaceId);
+	const revealInFinder = useRevealInFinder(card.workspaceId);
 
 	const updateCardTerminal = useFreeSoloBoardStore(
 		(state) => state.updateCardTerminal,
@@ -974,7 +992,7 @@ export function BoardTerminal({ card }: BoardTerminalProps) {
 		() => store.getState().tabs[0]?.panes[card.id],
 	);
 
-	if (!workspace || !pane) return null;
+	if (!pane) return null;
 
 	const ctx = {
 		pane: { ...pane, parentDirection: null },
@@ -984,27 +1002,24 @@ export function BoardTerminal({ card }: BoardTerminalProps) {
 	} as unknown as RendererContext<PaneViewerData>;
 
 	return (
-		<WorkspaceProvider workspace={workspace}>
-			<TerminalPane
-				ctx={ctx}
-				workspaceId={card.workspaceId}
-				onOpenFile={(path) => {
-					// No editor pane on the board — hand the file to the OS editor.
-					void electronTrpcClient.external.openPath.mutate(path);
-				}}
-				onRevealPath={(path) => {
-					void electronTrpcClient.external.showItemInFolder.mutate(path);
-				}}
-				onOpenUrl={(url) => {
-					void electronTrpcClient.external.openUrl.mutate(url);
-				}}
-			/>
-		</WorkspaceProvider>
+		<TerminalPane
+			ctx={ctx}
+			workspaceId={card.workspaceId}
+			// The board has no editor pane and no file tree, so both intents
+			// leave the app.
+			onOpenFile={(path) => openInExternalEditor(path)}
+			onRevealPath={(path, options) => revealInFinder(path, options)}
+			onOpenUrl={(url) => {
+				electronTrpcClient.external.openUrl.mutate(url).catch((error) => {
+					console.error("[free-solo] failed to open URL", url, error);
+				});
+			}}
+		/>
 	);
 }
 ```
 
-Before writing this file, confirm the two `external` procedure names against `apps/desktop/src/lib/trpc/routers/external/` (`openUrl` is used in `TerminalPane` already; check the file/folder ones and use whatever that router actually exposes).
+Imports for the inner half: `useOpenInExternalEditor` from `renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/useOpenInExternalEditor` and `useRevealInFinder` from the sibling `hooks/useRevealInFinder`. `external.openUrl` is the same procedure `TerminalPane` already calls — verified present; `external.openPath` and `external.showItemInFolder` do **not** exist, do not invent them.
 
 Create the matching `index.ts`:
 
@@ -1017,9 +1032,8 @@ export { BoardTerminal } from "./BoardTerminal";
 Create `.../BoardCard/components/BoardCardTitle/BoardCardTitle.tsx`:
 
 ```tsx
+import { useHostProjects } from "renderer/hooks/host-projects/useHostProjects";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
-import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
-import { useLiveQuery } from "@tanstack/react-db";
 import type { BoardCard as BoardCardModel } from "renderer/stores/free-solo-board";
 
 interface BoardCardTitleProps {
@@ -1030,14 +1044,14 @@ interface BoardCardTitleProps {
  *  title carries the project as well as the workspace. */
 export function BoardCardTitle({ card }: BoardCardTitleProps) {
 	const { workspaces } = useHostWorkspaces();
-	const collections = useCollections();
+	const { projects } = useHostProjects();
 	const workspace = workspaces.find((item) => item.id === card.workspaceId);
-	const { data: projects = [] } = useLiveQuery(
-		(query) => query.from({ projects: collections.projects }),
-		[collections],
-	);
+	// Host projects are keyed by `projectKey`, which is what a workspace's
+	// `projectId` points at (see useAccessibleV2Workspaces). A workspace with
+	// no project is a scratch session.
 	const projectName = workspace?.projectId
-		? projects.find((project) => project.id === workspace.projectId)?.name
+		? projects.find((project) => project.projectKey === workspace.projectId)
+				?.name
 		: "Session";
 
 	return (
@@ -1048,8 +1062,6 @@ export function BoardCardTitle({ card }: BoardCardTitleProps) {
 	);
 }
 ```
-
-Confirm the projects collection's name and row shape in `CollectionsProvider/collections.ts` before writing this — use whatever that provider exposes rather than inventing a name.
 
 - [ ] **Step 5: Wire card content into the board**
 
