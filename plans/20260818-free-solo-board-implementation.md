@@ -949,9 +949,9 @@ export function BoardTerminal({ card }: BoardTerminalProps) {
 			],
 		});
 		return created;
-		// Card identity only — re-creating this on a terminalId change would
-		// fight the auto-resume write it exists to receive.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		// biome-ignore lint/correctness/useExhaustiveDependencies: card identity
+		// only — re-creating this store on a terminalId change would fight the
+		// auto-resume write it exists to receive.
 	}, [card.id]);
 
 	// Agent auto-resume swaps the pane's terminalId in this store. Mirror it
