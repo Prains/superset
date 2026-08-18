@@ -6,8 +6,8 @@ import {
 	automationTriggers,
 } from "@superset/db/schema";
 import {
-	type MatchableEvent,
 	triggerMatches,
+	type WebhookMatchableEvent,
 } from "@superset/shared/automation-matching";
 import {
 	bearerToken,
@@ -170,20 +170,17 @@ export async function POST(
 		return Response.json({ ok: true, duplicate: true, runs: 0 });
 	}
 
-	const event: MatchableEvent = {
+	const event: WebhookMatchableEvent = {
+		provider: "webhook",
 		eventType: EVENT_TYPE,
-		repositoryId: null,
-		ref: null,
 		actorId: null,
 		actorLogin: null,
-		actorIsExternal: null,
-		labels: [],
 		body: null,
-		isFork: false,
-		subjectAuthorId: null,
 	};
 	const matched = triggers.filter(
-		(t) => t.automationEnabled && triggerMatches(t.config, event, {}).matches,
+		(t) =>
+			t.automationEnabled &&
+			triggerMatches(t.config, event, { ownerIds: [] }).matches,
 	);
 
 	console.log(
