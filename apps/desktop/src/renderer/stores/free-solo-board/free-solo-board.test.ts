@@ -113,4 +113,22 @@ describe("free-solo-board", () => {
 		] as never);
 		expect(normalized.map((card) => card.z)).toEqual([1, 0, 2]);
 	});
+
+	it("no-ops raising a card already topmost and active, leaving cards unchanged", () => {
+		const cardId = add("term-1") as string;
+		const before = useFreeSoloBoardStore.getState().cards;
+		useFreeSoloBoardStore.getState().raiseCard(cardId);
+		expect(useFreeSoloBoardStore.getState().cards).toBe(before);
+	});
+
+	it("still raises a card that is not already topmost", () => {
+		const firstId = add("term-1") as string;
+		const secondId = add("term-2") as string;
+		useFreeSoloBoardStore.getState().raiseCard(firstId);
+		const state = useFreeSoloBoardStore.getState();
+		const first = state.cards.find((card) => card.id === firstId);
+		const second = state.cards.find((card) => card.id === secondId);
+		expect(first?.z).toBeGreaterThan(second?.z ?? 0);
+		expect(state.activeCardId).toBe(firstId);
+	});
 });

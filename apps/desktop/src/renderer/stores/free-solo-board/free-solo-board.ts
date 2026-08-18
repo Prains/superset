@@ -145,16 +145,29 @@ export const useFreeSoloBoardStore = create<FreeSoloBoardState>()(
 						),
 					})),
 
-				raiseCard: (cardId) =>
+				// The frame calls this on every pointerdown, including clicks into
+				// the card body, so an already-topmost-and-active card must no-op:
+				// otherwise every click remaps `cards` and re-renders the board.
+				raiseCard: (cardId) => {
+					const state = get();
+					const card = state.cards.find((c) => c.id === cardId);
+					if (
+						card &&
+						card.z === topZ(state.cards) &&
+						state.activeCardId === cardId
+					) {
+						return;
+					}
 					set((state) => {
 						const next = topZ(state.cards) + 1;
 						return {
-							cards: state.cards.map((card) =>
-								card.id === cardId ? { ...card, z: next } : card,
+							cards: state.cards.map((c) =>
+								c.id === cardId ? { ...c, z: next } : c,
 							),
 							activeCardId: cardId,
 						};
-					}),
+					});
+				},
 
 				setActiveCard: (cardId) => set({ activeCardId: cardId }),
 
