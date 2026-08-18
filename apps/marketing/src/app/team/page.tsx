@@ -130,10 +130,10 @@ export default function TeamPage() {
 						About Superset
 					</p>
 					<h1 className="text-4xl sm:text-5xl md:text-6xl font-normal leading-[1.05] text-foreground max-w-4xl mb-8">
-						Building the last piece of software.
+						Building the last piece of software
 						<br />
 						<span className="text-muted-foreground">
-							Give teams the tools to build software that improves itself.
+							by giving teams self-improving software factories.
 						</span>
 					</h1>
 					<p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl">
