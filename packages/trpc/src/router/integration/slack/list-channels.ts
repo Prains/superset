@@ -32,11 +32,22 @@ export async function listSlackChannels(
 		});
 		if (cursor) params.set("cursor", cursor);
 
-		const response = await fetch(
-			`https://slack.com/api/conversations.list?${params.toString()}`,
-			{ headers: { Authorization: `Bearer ${accessToken}` } },
-		);
-		const data = (await response.json()) as ConversationsListResponse;
+		let data: ConversationsListResponse;
+		try {
+			const response = await fetch(
+				`https://slack.com/api/conversations.list?${params.toString()}`,
+				{
+					headers: { Authorization: `Bearer ${accessToken}` },
+					signal: AbortSignal.timeout(5_000),
+				},
+			);
+			data = (await response.json()) as ConversationsListResponse;
+		} catch (error) {
+			// Slack unreachable or answering with something other than JSON: the
+			// picker shows what was fetched so far rather than the query failing.
+			console.error("[slack/listChannels] conversations.list failed:", error);
+			return channels;
+		}
 		if (!data.ok) {
 			// `missing_scope` until the app is reinstalled with channels:read; an
 			// empty picker is the honest state, not an error the editor can act on.

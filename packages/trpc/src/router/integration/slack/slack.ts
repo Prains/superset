@@ -66,6 +66,18 @@ export const slackRouter = {
 		.query(async ({ ctx, input }) => {
 			await verifyOrgMembership(ctx.session.user.id, input.organizationId);
 
+			// A Slack user id is only unique within a workspace, so only identities
+			// from the connected workspace can ever match an event from it.
+			const connection = await db.query.integrationConnections.findFirst({
+				where: and(
+					eq(integrationConnections.organizationId, input.organizationId),
+					eq(integrationConnections.provider, "slack"),
+					isNull(integrationConnections.disconnectedAt),
+				),
+				columns: { externalOrgId: true },
+			});
+			if (!connection?.externalOrgId) return [];
+
 			const rows = await db
 				.select({
 					slackUserId: userIdentities.externalId,
@@ -80,6 +92,7 @@ export const slackRouter = {
 					and(
 						eq(userIdentities.organizationId, input.organizationId),
 						eq(userIdentities.provider, "slack"),
+						eq(userIdentities.externalScopeId, connection.externalOrgId),
 					),
 				);
 
