@@ -126,6 +126,8 @@ export function PromptGroup({
 			params: { projectId: targetProjectId },
 			search: {
 				hostId: draft.hostId ?? machineId ?? undefined,
+				// Opens the setup modal directly on the settings page.
+				focus: "setup",
 			},
 		});
 	}, [closeModal, draft.hostId, machineId, navigate, selectedProject?.id]);

@@ -534,7 +534,12 @@ export function NewWorkspaceScreen({
 		void navigate({
 			to: "/settings/projects/$projectId",
 			params: { projectId: targetProjectId },
-			search: { hostId: draft.hostId ?? machineId ?? undefined },
+			// focus=setup opens the setup modal directly instead of stranding
+			// the user at the top of the settings page.
+			search: {
+				hostId: draft.hostId ?? machineId ?? undefined,
+				focus: "setup",
+			},
 		});
 	}, [closeModal, draft.hostId, machineId, navigate, selectedProject?.id]);
 
