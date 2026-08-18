@@ -1,11 +1,20 @@
 /**
  * Mints a git credential for a sandbox, on demand, for one operation.
  *
- * A sandbox holds no durable git credential. When git inside it needs one,
- * host-service asks here, proving which sandbox it is with the secret it was
- * handed at provision. The answer is minted fresh, scoped to the workspace's
- * repo, and short-lived — the same shape Coder uses (`GIT_ASKPASS` → agent →
- * control plane), which is the production design for exactly this.
+ * A sandbox holds no git *credential*. When git inside it needs one,
+ * host-service asks here, proving which sandbox it is with a secret it was
+ * handed at provision, and the answer is minted fresh, scoped to the
+ * workspace's repo, and short-lived — the same shape Coder uses (`GIT_ASKPASS`
+ * → agent → control plane).
+ *
+ * Be precise about what that secret is: a durable capability to mint. It sits
+ * in host-service's environment, readable by anything in the sandbox, and it
+ * works from anywhere until the workspace is deleted. So the credential's
+ * lifetime is bounded, but the *ability to obtain one* is not — a leaked
+ * secret is a leaked account-scoped mint until the row leaves `ready`. That is
+ * an accepted trade while creation is gated to the team (see
+ * docs/cloud-sandbox-considerations.md); the stronger design, injecting the
+ * git credential at the egress proxy like the model keys, is what closes it.
  *
  * Whose identity: the workspace's creating user. If they have granted GitHub
  * `repo` access, the credential is their OAuth token and the commit lands as
@@ -14,11 +23,14 @@
  * appearing as the App. Multi-user in one sandbox uses the owner's credential;
  * that is a documented posture, not an accident.
  *
- * Push scope: a credential is refused for any branch other than the
- * workspace's own. The recurring incident across every product in this space
- * is not token theft but a prompt-injected agent pushing somewhere it
- * shouldn't, and the token's permissions can't stop that — only refusing to
- * mint for the wrong target can.
+ * Push scope: a credential is refused when the helper reports a push to the
+ * repo's default branch from a workspace not created on it. This is an
+ * accident guard, not a security boundary — the branch is inferred by the
+ * helper from the checkout, git's credential protocol carries no refspec, and
+ * `git push origin HEAD:main` sidesteps it entirely. Once a push-capable token
+ * is in hand nothing here can revisit the decision. What actually holds a
+ * prompt-injected agent off `main` is branch protection on the repo; treat
+ * that as a prerequisite for cloud workspaces, not something this replaces.
  */
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { db, dbWs } from "@superset/db/client";
@@ -29,7 +41,7 @@ import {
 	githubRepositories,
 } from "@superset/db/schema";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { installationOctokit } from "../../lib/blaxel/clone-token";
 import { repoForProject } from "../../lib/blaxel/repo-for-project";
 
@@ -106,15 +118,25 @@ async function appInstallationToken(projectId: string): Promise<string | null> {
 	});
 	if (!installation) return null;
 	const octokit = await installationOctokit(installation.installationId);
-	const { token } = (await octokit.auth({ type: "installation" })) as {
-		token: string;
-	};
+	// Narrowed to this repo and to pushing it. Unnarrowed, an installation
+	// token covers every repo the App is installed on with every permission
+	// it holds — a sandbox for project A could push project B. The invariant
+	// clone-token.ts states for the initial clone holds here too: a leak must
+	// be one repo for one hour, not an installation.
+	const { token } = (await octokit.auth({
+		type: "installation",
+		repositoryNames: [repo.name],
+		permissions: { contents: "write" },
+	})) as { token: string };
 	return token;
 }
 
 /**
  * The push-scope rule, on its own so it can be reasoned about without a
- * database. Returns the refusal message, or null to allow.
+ * database. Returns the refusal message, or null to allow. An accident guard
+ * over a helper-supplied branch — see the header — and deliberately lenient
+ * when the branch is unknown: fetch and clone run outside a checkout, so an
+ * absent branch is the honest read path, not an attacker hiding a push.
  */
 export function pushRefusal(args: {
 	target: string;
@@ -206,12 +228,29 @@ export async function mintGitCredential(input: {
 	};
 }
 
-/** Rotates the secret a sandbox proves itself with; returned once, stored hashed. */
-export async function issueSandboxSecret(workspaceId: string): Promise<string> {
+/**
+ * Issues the secret a sandbox proves itself with; returned once, stored hashed.
+ *
+ * Only ever written when the row has none. Provisioning can run more than once
+ * for a row (a queued retry after the first attempt died mid-flight), and the
+ * sandbox's environment is fixed at creation — so a second issue would leave
+ * the row holding hash(B) while a live sandbox holds A, and every git
+ * operation in it would 401 forever. Returns null when a secret already
+ * exists, which callers treat as "keep the sandbox that has it".
+ */
+export async function issueSandboxSecret(
+	workspaceId: string,
+): Promise<string | null> {
 	const secret = generateSandboxSecret();
-	await dbWs
+	const [row] = await dbWs
 		.update(cloudWorkspaces)
 		.set({ sandboxSecretHash: hashSandboxSecret(secret) })
-		.where(eq(cloudWorkspaces.id, workspaceId));
-	return secret;
+		.where(
+			and(
+				eq(cloudWorkspaces.id, workspaceId),
+				isNull(cloudWorkspaces.sandboxSecretHash),
+			),
+		)
+		.returning({ id: cloudWorkspaces.id });
+	return row ? secret : null;
 }

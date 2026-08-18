@@ -88,6 +88,18 @@ env holds only `SANDBOX_CREDENTIAL_PLACEHOLDER`. The placeholder must still be
 *set* — an unset key reads as "not logged in" and produces no request for the
 proxy to rewrite.
 
+**The preview edge validates `Host` — measured, since the provider doesn't
+document it.** host-service serves both loopback and the preview URL from one
+Hono app, and the git-credential route is meant to be loopback-only. Probed
+from outside with a valid preview token: an honest `Host` reaches the route
+and is refused by its own check (`403 "forbidden"`); a spoofed
+`Host: 127.0.0.1` never reaches host-service at all — Blaxel's edge answers
+`403` with its own HTML page. So the edge does not forward a client-supplied
+`Host`. Worth knowing because a proxy that *rewrote* `Host` to the upstream
+address would pass a header-based loopback check for everything; ours doesn't,
+but that is a fact about the provider, not a guarantee. The structural fix is
+a second listener bound to 127.0.0.1 on a port the preview doesn't expose.
+
 **Credentials are fixed at creation, so a sandbox can't gain one later.** The
 routing rules that carry them are part of the create call, which is the
 property that stops a sandbox being re-pointed at a different secret mid-life.

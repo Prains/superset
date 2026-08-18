@@ -98,6 +98,11 @@ export async function provisionCloudWorkspace(
 			// as everything else.
 			issueSandboxSecret(row.id),
 		]);
+		// A null secret means the row already had one, so a sandbox already
+		// holds it: this is a retry after an earlier attempt died mid-flight.
+		// createIfNotExists hands that sandbox back with its env intact, which
+		// is exactly right — the one thing a retry must never do is re-issue
+		// the secret, because the sandbox's env can't be changed to match.
 		if (!clone) {
 			throw new Error("Project has no repository to clone");
 		}
@@ -146,7 +151,7 @@ export async function provisionCloudWorkspace(
 					// any other project clones instead of fetching, rather than
 					// silently serving the baked repo's code.
 					SUPERSET_SANDBOX_REPO_URL: clone.cloneUrl,
-					SUPERSET_SANDBOX_SECRET: sandboxSecret,
+					...(sandboxSecret ? { SUPERSET_SANDBOX_SECRET: sandboxSecret } : {}),
 					// Still handed over for the first fetch in start.sh, which runs
 					// before host-service is up to broker anything. It expires in
 					// ~1h and nothing after boot reads it; git operations from then

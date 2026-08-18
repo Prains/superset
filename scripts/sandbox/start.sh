@@ -54,6 +54,11 @@ if [ -n "$REPO_URL" ]; then
   fi
   unset GIT_ASKPASS
 fi
+# The provision-time token exists for that first fetch only. It expires in
+# ~1h regardless, but every git operation from here on brokers its own
+# credential, so it has no further job — and a token that no longer needs to
+# exist is one an agent shouldn't be able to read from this process.
+unset SUPERSET_SANDBOX_GIT_TOKEN
 
 # From here on git brokers its credential per operation through host-service
 # rather than holding one. Scoped to github.com in the config itself, so git
