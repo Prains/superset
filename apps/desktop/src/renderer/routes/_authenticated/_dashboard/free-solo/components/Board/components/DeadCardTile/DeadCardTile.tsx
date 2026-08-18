@@ -34,10 +34,15 @@ export function DeadCardTile({ card }: { card: BoardCardModel }) {
 						size="sm"
 						onClick={() => {
 							removeCard(card.id);
+							// A fresh card id is unavoidable — it is the runtime
+							// registry's instanceId, and the pane store is built
+							// from it once — but "here" means this spot at this
+							// size, so the geometry comes along.
 							addCard({
 								workspaceId: card.workspaceId,
 								terminalId: crypto.randomUUID(),
 								createOnAttach: true,
+								at: { x: card.x, y: card.y, w: card.w, h: card.h },
 							});
 						}}
 					>

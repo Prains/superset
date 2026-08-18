@@ -64,11 +64,36 @@ describe("free-solo-board", () => {
 	});
 
 	it("never moves a card off the top-left of the board", () => {
-		const cardId = add("term-1");
-		useFreeSoloBoardStore.getState().moveCard(cardId as string, -50, -50);
+		const cardId = add("term-1") as string;
+		// Move it off the origin first, or the clamp below would be a no-op
+		// against the cascade position this card already starts at.
+		useFreeSoloBoardStore.getState().moveCard(cardId, 100, 100);
+		useFreeSoloBoardStore.getState().moveCard(cardId, -50, -50);
 		const card = useFreeSoloBoardStore.getState().cards[0];
 		expect(card?.x).toBe(0);
 		expect(card?.y).toBe(0);
+	});
+
+	it("no-ops a move to the position the card already holds, so a plain title-bar click can't rewrite the board", () => {
+		// The frame sets a drag origin on every title-bar pointerdown and
+		// commits on release, so a click with no movement lands here with the
+		// unchanged position. Without this guard that rebuilds `cards`,
+		// re-renders every card and its terminal, and writes the whole board
+		// to localStorage — for a click.
+		const cardId = add("term-1") as string;
+		const before = useFreeSoloBoardStore.getState().cards;
+		const card = before[0];
+		useFreeSoloBoardStore
+			.getState()
+			.moveCard(cardId, card?.x ?? 0, card?.y ?? 0);
+		expect(useFreeSoloBoardStore.getState().cards).toBe(before);
+	});
+
+	it("no-ops a move that clamps back onto the position the card already holds", () => {
+		const cardId = add("term-1") as string;
+		const before = useFreeSoloBoardStore.getState().cards;
+		useFreeSoloBoardStore.getState().moveCard(cardId, -10, -10);
+		expect(useFreeSoloBoardStore.getState().cards).toBe(before);
 	});
 
 	it("removes a card and clears the active id when it was active", () => {
@@ -102,9 +127,7 @@ describe("free-solo-board", () => {
 
 	it("follows a terminal swapped in by agent auto-resume", () => {
 		const cardId = add("term-1") as string;
-		useFreeSoloBoardStore
-			.getState()
-			.updateCardTerminal(cardId, "term-resumed");
+		useFreeSoloBoardStore.getState().updateCardTerminal(cardId, "term-resumed");
 		expect(useFreeSoloBoardStore.getState().cards[0]?.terminalId).toBe(
 			"term-resumed",
 		);
@@ -118,11 +141,52 @@ describe("free-solo-board", () => {
 	});
 
 	it("drops createOnAttach once the terminal is swapped, so a reload doesn't respawn", () => {
-		const cardId = useFreeSoloBoardStore
-			.getState()
-			.addCard({ workspaceId: "ws-1", terminalId: "term-1", createOnAttach: true }) as string;
+		const cardId = useFreeSoloBoardStore.getState().addCard({
+			workspaceId: "ws-1",
+			terminalId: "term-1",
+			createOnAttach: true,
+		}) as string;
 		useFreeSoloBoardStore.getState().updateCardTerminal(cardId, "term-2");
-		expect(useFreeSoloBoardStore.getState().cards[0]?.createOnAttach).toBeUndefined();
+		expect(
+			useFreeSoloBoardStore.getState().cards[0]?.createOnAttach,
+		).toBeUndefined();
+	});
+
+	it("clears createOnAttach once the card's own host confirms the session is live", () => {
+		// The flag exempts a card from the dead-tile verdict. Left set forever
+		// it never expires, so a card added as "new terminal" never shows the
+		// tile when its session is closed — and every reattach carries
+		// `?create=1`, resurrecting a fresh shell instead of reattaching.
+		const cardId = useFreeSoloBoardStore.getState().addCard({
+			workspaceId: "ws-1",
+			terminalId: "term-1",
+			createOnAttach: true,
+		}) as string;
+		useFreeSoloBoardStore.getState().clearCreateOnAttach([cardId]);
+		expect(
+			useFreeSoloBoardStore.getState().cards[0]?.createOnAttach,
+		).toBeUndefined();
+	});
+
+	it("no-ops clearCreateOnAttach when no listed card still carries the flag", () => {
+		// Reconciliation calls this every settled pass; `cards` is one of that
+		// effect's dependencies, so a fresh array on a no-op pass is the same
+		// unbounded loop setMissing already guards against.
+		const cardId = add("term-1") as string;
+		const before = useFreeSoloBoardStore.getState().cards;
+		useFreeSoloBoardStore.getState().clearCreateOnAttach([cardId]);
+		expect(useFreeSoloBoardStore.getState().cards).toBe(before);
+	});
+
+	it("keeps a replaced card's geometry when one is added in place of another", () => {
+		// DeadCardTile's "Start a new terminal here" needs a fresh card id (it
+		// is the registry instanceId), but "here" has to mean the same spot
+		// and the same size.
+		const at = { x: 240, y: 180, w: 900, h: 500 };
+		useFreeSoloBoardStore
+			.getState()
+			.addCard({ workspaceId: "ws-1", terminalId: "term-1", at });
+		expect(useFreeSoloBoardStore.getState().cards[0]).toMatchObject(at);
 	});
 
 	it("renormalizes z so restored values cannot drift upward forever", () => {

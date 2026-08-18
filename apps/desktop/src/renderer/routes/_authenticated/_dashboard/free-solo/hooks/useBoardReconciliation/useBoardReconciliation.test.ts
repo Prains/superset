@@ -64,7 +64,7 @@ describe("computeMissingCards", () => {
 			sessionsByHost: {},
 			resolveHostUrl,
 		});
-		expect(result).toEqual({});
+		expect(result?.missing).toEqual({});
 	});
 
 	it("leaves a card untouched when its host has no resolvable URL", () => {
@@ -76,7 +76,7 @@ describe("computeMissingCards", () => {
 			sessionsByHost: { [HOST_A]: new Set(["term-1"]) },
 			resolveHostUrl: () => null,
 		});
-		expect(result).toEqual({});
+		expect(result?.missing).toEqual({});
 	});
 
 	it('marks "workspace" when the card\'s workspace is gone and the fan-out actually finished (isReady)', () => {
@@ -88,7 +88,7 @@ describe("computeMissingCards", () => {
 			sessionsByHost: {},
 			resolveHostUrl,
 		});
-		expect(result).toEqual({ "card-1": "workspace" });
+		expect(result?.missing).toEqual({ "card-1": "workspace" });
 	});
 
 	it('does NOT mark "workspace" when a host is unreachable with zero contributed rows — no hostReachable:false marker exists to catch it, only isReady can', () => {
@@ -104,7 +104,7 @@ describe("computeMissingCards", () => {
 			sessionsByHost: {},
 			resolveHostUrl,
 		});
-		expect(result).toEqual({});
+		expect(result?.missing).toEqual({});
 	});
 
 	it('does NOT mark "workspace" when the card\'s workspace is gone but some host is unreachable', () => {
@@ -118,7 +118,7 @@ describe("computeMissingCards", () => {
 			sessionsByHost: {},
 			resolveHostUrl,
 		});
-		expect(result).toEqual({});
+		expect(result?.missing).toEqual({});
 	});
 
 	it('marks "terminal" when the workspace exists but the terminal is absent from its own host\'s answered list', () => {
@@ -131,7 +131,7 @@ describe("computeMissingCards", () => {
 			sessionsByHost: { [HOST_A]: new Set(["term-other"]) },
 			resolveHostUrl,
 		});
-		expect(result).toEqual({ "card-1": "terminal" });
+		expect(result?.missing).toEqual({ "card-1": "terminal" });
 	});
 
 	it("does NOT mark a createOnAttach card whose session does not exist yet", () => {
@@ -143,7 +143,53 @@ describe("computeMissingCards", () => {
 			sessionsByHost: { [HOST_A]: new Set(["term-other"]) },
 			resolveHostUrl,
 		});
-		expect(result).toEqual({});
+		expect(result?.missing).toEqual({});
+		// Still waiting on its socket to spawn the session — nothing to
+		// confirm, so the exemption stands.
+		expect(result?.started).toEqual([]);
+	});
+
+	it("reports a createOnAttach card as started once its own host lists the session, so the exemption expires", () => {
+		// Without this the exemption is permanent: a card added via "New
+		// terminal in…" never earns the dead tile, and every reattach still
+		// carries `?create=1`.
+		const result = computeMissingCards({
+			hostsSettled: true,
+			isReady: true,
+			cards: [card({ createOnAttach: true })],
+			workspaces: [workspace()],
+			sessionsByHost: { [HOST_A]: new Set(["term-1"]) },
+			resolveHostUrl,
+		});
+		expect(result?.started).toEqual(["card-1"]);
+		expect(result?.missing).toEqual({});
+	});
+
+	it("does NOT confirm a createOnAttach card from a host that is not its own", () => {
+		const result = computeMissingCards({
+			hostsSettled: true,
+			isReady: true,
+			cards: [card({ createOnAttach: true })],
+			workspaces: [workspace()],
+			// Some other host happens to have a session with the same id; the
+			// card's own host has not answered.
+			sessionsByHost: { "http://host-b": new Set(["term-1"]) },
+			resolveHostUrl,
+		});
+		expect(result?.started).toEqual([]);
+		expect(result?.missing).toEqual({});
+	});
+
+	it("does not re-report a card that no longer carries the flag", () => {
+		const result = computeMissingCards({
+			hostsSettled: true,
+			isReady: true,
+			cards: [card()],
+			workspaces: [workspace()],
+			sessionsByHost: { [HOST_A]: new Set(["term-1"]) },
+			resolveHostUrl,
+		});
+		expect(result?.started).toEqual([]);
 	});
 
 	it("leaves a live card alone when its terminal is present in its host's answered list", () => {
@@ -155,6 +201,6 @@ describe("computeMissingCards", () => {
 			sessionsByHost: { [HOST_A]: new Set(["term-1"]) },
 			resolveHostUrl,
 		});
-		expect(result).toEqual({});
+		expect(result?.missing).toEqual({});
 	});
 });

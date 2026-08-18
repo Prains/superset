@@ -102,6 +102,12 @@ function BoardTerminalInner({ card }: BoardTerminalProps) {
 
 	if (!pane) return null;
 
+	// Deliberately partial: RendererContext also declares `actions` (close,
+	// focus, setTitle, pin, updateData, split) and `components`
+	// (PaneHeaderActions), none of which a board card has anywhere to put —
+	// the card frame owns close, and there is nothing to split into. TerminalPane
+	// reads neither today; if it starts to, this cast is what will hide it, so
+	// stub the field it reaches for rather than widening the cast.
 	const ctx = {
 		pane: { ...pane, parentDirection: null },
 		tab: { ...store.getState().tabs[0], position: 0 },

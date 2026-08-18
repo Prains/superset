@@ -29,14 +29,24 @@ interface ComputeMissingCardsInput {
 	resolveHostUrl: (hostId: string) => string | null;
 }
 
+export interface ReconciliationVerdict {
+	/** Cards with positive evidence the thing they point at is gone. */
+	missing: Record<string, CardMissingReason>;
+	/** Cards still carrying `createOnAttach` whose session their own host has
+	 *  now listed. The flag exempts a card from the "terminal" verdict, so it
+	 *  has to expire the moment the session it was waiting for exists —
+	 *  otherwise a card added via "New terminal in…" is exempt forever. */
+	started: string[];
+}
+
 /**
  * Pure decision core of reconciliation, split out so "silence is never
  * death" is checkable without mounting React or a store.
  *
- * Returns `null` — not `{}` — when hosts haven't settled. That distinction
- * matters: the caller must skip calling `setMissing` entirely in that case,
- * not call it with an empty map, or a transient not-settled render would
- * clear missing flags a previous, settled pass had already earned.
+ * Returns `null` — not an empty verdict — when hosts haven't settled. That
+ * distinction matters: the caller must skip calling `setMissing` entirely in
+ * that case, not call it with an empty map, or a transient not-settled render
+ * would clear missing flags a previous, settled pass had already earned.
  */
 export function computeMissingCards({
 	hostsSettled,
@@ -45,7 +55,7 @@ export function computeMissingCards({
 	workspaces,
 	sessionsByHost,
 	resolveHostUrl,
-}: ComputeMissingCardsInput): Record<string, CardMissingReason> | null {
+}: ComputeMissingCardsInput): ReconciliationVerdict | null {
 	// An early read is incomplete; reconciling against it would flash the
 	// dead tile on every card at boot.
 	if (!hostsSettled) return null;
@@ -54,6 +64,7 @@ export function computeMissingCards({
 		workspaces.map((workspace) => [workspace.id, workspace]),
 	);
 	const missing: Record<string, CardMissingReason> = {};
+	const started: string[] = [];
 
 	for (const card of cards) {
 		const workspace = workspaceById.get(card.workspaceId);
@@ -70,19 +81,25 @@ export function computeMissingCards({
 			if (!anyHostUnreachable) missing[card.id] = "workspace";
 			continue;
 		}
-		// Added as "new terminal": no session exists until its socket makes
-		// one. Absence here is expected, not death.
-		if (card.createOnAttach) continue;
-
 		const hostUrl = resolveHostUrl(workspace.hostId);
 		// No URL, or that host hasn't reported yet → no verdict this pass.
 		if (!hostUrl) continue;
 		const liveOnHost = sessionsByHost[hostUrl];
 		if (!liveOnHost) continue;
-		if (!liveOnHost.has(card.terminalId)) missing[card.id] = "terminal";
+		const isLive = liveOnHost.has(card.terminalId);
+
+		// Added as "new terminal": no session exists until its socket makes
+		// one, so absence is expected rather than death — but only until the
+		// card's OWN host lists it. That first sighting retires the exemption;
+		// after it, the card is reconciled like any other.
+		if (card.createOnAttach) {
+			if (isLive) started.push(card.id);
+			continue;
+		}
+		if (!isLive) missing[card.id] = "terminal";
 	}
 
-	return missing;
+	return { missing, started };
 }
 
 /**
@@ -99,9 +116,12 @@ export function useBoardReconciliation(
 	const { workspaces, hostsSettled, isReady, cache } = useHostWorkspaces();
 	const cards = useFreeSoloBoardStore((state) => state.cards);
 	const setMissing = useFreeSoloBoardStore((state) => state.setMissing);
+	const clearCreateOnAttach = useFreeSoloBoardStore(
+		(state) => state.clearCreateOnAttach,
+	);
 
 	useEffect(() => {
-		const missing = computeMissingCards({
+		const verdict = computeMissingCards({
 			hostsSettled,
 			isReady,
 			cards,
@@ -109,7 +129,14 @@ export function useBoardReconciliation(
 			sessionsByHost,
 			resolveHostUrl: cache.resolveHostUrl,
 		});
-		if (missing) setMissing(missing);
+		if (!verdict) return;
+		// Retire expired exemptions before the verdict lands, so a card
+		// confirmed live this pass is reconciled normally from the next one.
+		// Both actions return state unchanged when nothing moved, which is what
+		// keeps this effect — `cards` is one of its dependencies — from
+		// re-triggering itself.
+		clearCreateOnAttach(verdict.started);
+		setMissing(verdict.missing);
 	}, [
 		cards,
 		workspaces,
@@ -118,5 +145,6 @@ export function useBoardReconciliation(
 		sessionsByHost,
 		cache,
 		setMissing,
+		clearCreateOnAttach,
 	]);
 }

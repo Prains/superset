@@ -36,8 +36,12 @@ export function BoardCard({ card, title, children }: BoardCardProps) {
 	const resizeCard = useFreeSoloBoardStore((state) => state.resizeCard);
 
 	// Drag lives in local state so a gesture is one store write, not one per
-	// pointer event — every write hits localStorage through `persist`.
-	const dragOriginRef = useRef<DragOrigin | null>(null);
+	// pointer event — every write hits localStorage through `persist`. The
+	// pointerId rides along so a second pointer landing mid-drag can't hijack
+	// the gesture (same shape as usePanZoom's dragRef).
+	const dragOriginRef = useRef<(DragOrigin & { pointerId: number }) | null>(
+		null,
+	);
 	const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
 		null,
 	);
@@ -90,9 +94,15 @@ export function BoardCard({ card, title, children }: BoardCardProps) {
 	// position rather than leaving the card at an un-persisted local offset.
 	const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
 		const origin = dragOriginRef.current;
+		// Ignore an end for a pointer that isn't the one dragging. Releasing
+		// capture unconditionally, as this used to, throws NotFoundError out of
+		// the handler when the pointer was already released — which is exactly
+		// what a pointercancel following a pointerup is.
+		if (!origin || origin.pointerId !== event.pointerId) return;
 		dragOriginRef.current = null;
-		event.currentTarget.releasePointerCapture(event.pointerId);
-		if (!origin) return;
+		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+			event.currentTarget.releasePointerCapture(event.pointerId);
+		}
 		const next = dragPosition(origin, {
 			pointerX: event.clientX,
 			pointerY: event.clientY,
@@ -124,8 +134,23 @@ export function BoardCard({ card, title, children }: BoardCardProps) {
 			<div
 				className="flex shrink-0 cursor-grab items-center gap-2 border-b border-border px-2 py-1 active:cursor-grabbing"
 				onPointerDown={(event) => {
+					// Pointer capture retargets the compatibility mouse events —
+					// including the `click` the browser synthesises — to the
+					// capturing element. Capturing here on a press that started
+					// inside the close button would swallow that button's click
+					// and leave the card unremovable, so the title bar declines
+					// the gesture and lets the button have it. Primary button
+					// only, one pointer at a time: usePanZoom's precedent.
+					if (
+						event.button !== 0 ||
+						dragOriginRef.current ||
+						(event.target as Element).closest("button")
+					) {
+						return;
+					}
 					event.currentTarget.setPointerCapture(event.pointerId);
 					dragOriginRef.current = {
+						pointerId: event.pointerId,
 						x: card.x,
 						y: card.y,
 						pointerX: event.clientX,
@@ -134,7 +159,7 @@ export function BoardCard({ card, title, children }: BoardCardProps) {
 				}}
 				onPointerMove={(event) => {
 					const origin = dragOriginRef.current;
-					if (!origin) return;
+					if (!origin || origin.pointerId !== event.pointerId) return;
 					setDragOffset(
 						dragPosition(origin, {
 							pointerX: event.clientX,

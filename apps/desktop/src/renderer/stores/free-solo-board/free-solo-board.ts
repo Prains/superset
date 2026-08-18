@@ -40,6 +40,12 @@ export interface AddCardInput {
 	workspaceId: string;
 	terminalId: string;
 	createOnAttach?: boolean;
+	/** Replaces the cascade position and the default size. Used when a card
+	 *  stands in for one being removed (DeadCardTile's "Start a new terminal
+	 *  here"): the replacement needs a fresh card id — that id is the registry
+	 *  instanceId, and reusing it would keep the old runtime — but "here" has
+	 *  to mean the same spot at the same size. */
+	at?: { x: number; y: number; w: number; h: number };
 }
 
 interface FreeSoloBoardState {
@@ -55,6 +61,9 @@ interface FreeSoloBoardState {
 	raiseCard: (cardId: string) => void;
 	setActiveCard: (cardId: string | null) => void;
 	setMissing: (missingByCardId: Record<string, CardMissingReason>) => void;
+	/** Drops the create-on-attach exemption for cards whose session a host has
+	 *  now reported live. */
+	clearCreateOnAttach: (cardIds: readonly string[]) => void;
 	/** Follows an agent auto-resume swapping the pane's terminal. */
 	updateCardTerminal: (cardId: string, terminalId: string) => void;
 }
@@ -83,11 +92,9 @@ export const useFreeSoloBoardStore = create<FreeSoloBoardState>()(
 				cards: [],
 				activeCardId: null,
 
-				addCard: ({ workspaceId, terminalId, createOnAttach }) => {
+				addCard: ({ workspaceId, terminalId, createOnAttach, at }) => {
 					const { cards } = get();
-					const existing = cards.find(
-						(card) => card.terminalId === terminalId,
-					);
+					const existing = cards.find((card) => card.terminalId === terminalId);
 					if (existing) {
 						get().raiseCard(existing.id);
 						return existing.id;
@@ -95,7 +102,7 @@ export const useFreeSoloBoardStore = create<FreeSoloBoardState>()(
 					if (cards.length >= MAX_CARDS) return null;
 
 					const id = crypto.randomUUID();
-					const { x, y } = cascade(cards.length);
+					const { x, y } = at ?? cascade(cards.length);
 					set({
 						cards: [
 							...cards,
@@ -106,8 +113,8 @@ export const useFreeSoloBoardStore = create<FreeSoloBoardState>()(
 								createOnAttach,
 								x,
 								y,
-								w: DEFAULT_CARD_WIDTH,
-								h: DEFAULT_CARD_HEIGHT,
+								w: at?.w ?? DEFAULT_CARD_WIDTH,
+								h: at?.h ?? DEFAULT_CARD_HEIGHT,
 								z: topZ(cards) + 1,
 							},
 						],
@@ -123,14 +130,23 @@ export const useFreeSoloBoardStore = create<FreeSoloBoardState>()(
 							state.activeCardId === cardId ? null : state.activeCardId,
 					})),
 
-				moveCard: (cardId, x, y) =>
+				// The frame arms a drag on every title-bar pointerdown and commits
+				// on release, so a plain click arrives here with the position the
+				// card already has. Same no-op discipline as raiseCard and
+				// setMissing: without it a click rebuilds `cards`, re-renders
+				// every card and its terminal, and writes the whole board to
+				// localStorage.
+				moveCard: (cardId, x, y) => {
+					const nextX = Math.max(0, x);
+					const nextY = Math.max(0, y);
+					const card = get().cards.find((c) => c.id === cardId);
+					if (!card || (card.x === nextX && card.y === nextY)) return;
 					set((state) => ({
-						cards: state.cards.map((card) =>
-							card.id === cardId
-								? { ...card, x: Math.max(0, x), y: Math.max(0, y) }
-								: card,
+						cards: state.cards.map((c) =>
+							c.id === cardId ? { ...c, x: nextX, y: nextY } : c,
 						),
-					})),
+					}));
+				},
 
 				resizeCard: (cardId, w, h) =>
 					set((state) => ({
@@ -203,6 +219,30 @@ export const useFreeSoloBoardStore = create<FreeSoloBoardState>()(
 				// `cards` right back into this call. Return the same `state` when
 				// nothing changed, the same no-op discipline raiseCard and
 				// updateCardTerminal already follow.
+				/** `createOnAttach` means "no session exists yet", which is why
+				 *  reconciliation exempts such a card from the dead-tile verdict.
+				 *  Once a host actually lists the session that stops being true,
+				 *  and the flag has to go or the exemption is permanent: the card
+				 *  never shows the tile when its session is closed, and every
+				 *  reattach keeps sending `?create=1`, spawning a fresh shell
+				 *  instead of reattaching to the one that's there.
+				 *
+				 *  Same return-`state`-unchanged discipline as setMissing:
+				 *  reconciliation calls this on every settled pass and `cards` is
+				 *  one of that effect's dependencies. */
+				clearCreateOnAttach: (cardIds) =>
+					set((state) => {
+						const ids = new Set(cardIds);
+						let changed = false;
+						const cards = state.cards.map((card) => {
+							if (!card.createOnAttach || !ids.has(card.id)) return card;
+							changed = true;
+							const { createOnAttach: _dropped, ...rest } = card;
+							return rest;
+						});
+						return changed ? { cards } : state;
+					}),
+
 				setMissing: (missingByCardId) =>
 					set((state) => {
 						let changed = false;
@@ -226,9 +266,10 @@ export const useFreeSoloBoardStore = create<FreeSoloBoardState>()(
 				}),
 				// Restored z values only carry an order; rewrite them densely on
 				// merge rather than mutating hydrated state in place.
+				// `cards` is the only persisted field, and it is rewritten right
+				// here — spreading `persisted` first would only be overwritten.
 				merge: (persisted, current) => ({
 					...current,
-					...(persisted as { cards?: BoardCard[] }),
 					cards: normalizeZ(
 						(persisted as { cards?: BoardCard[] })?.cards ?? [],
 					),

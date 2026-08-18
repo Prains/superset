@@ -8,6 +8,11 @@ import {
 	getHostServiceWsToken,
 } from "renderer/lib/host-service-auth";
 
+/** Live-monitoring cadence: fast enough that a session closed in its own
+ *  workspace turns into a dead tile while you're still looking at the board,
+ *  slow enough to stay cheap across every host at once. */
+const PROBE_POLL_MS = 12_000;
+
 export interface HostSession {
 	terminalId: string;
 	workspaceId: string;
@@ -52,6 +57,16 @@ function HostTerminalsProbeInner({
 }: HostTerminalsProbeProps) {
 	const { data, isError } = workspaceTrpc.terminal.list.useQuery(undefined, {
 		refetchOnWindowFocus: true,
+		// This client is keyed "free-solo-board" while each card's terminal
+		// runs on a client keyed by its workspace id, so a pane's
+		// `terminal.list.invalidate()` never reaches this query — polling is
+		// the only way it hears about a session opened or closed elsewhere.
+		// Without it a closed session only surfaces on a blur/refocus, and a
+		// terminal id swapped in by agent auto-resume gets tested against a
+		// list from before the swap. The host side is written for consumers
+		// that poll (see listLiveTerminalSessions: "the dropdowns' polls
+		// re-query").
+		refetchInterval: PROBE_POLL_MS,
 	});
 
 	useEffect(() => {

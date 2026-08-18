@@ -72,6 +72,32 @@ export function Board() {
 
 	useBoardReconciliation(liveSessionsByHost);
 
+	// Read through the *current* hostUrls only, never Object.values — a stale
+	// key left behind by a host whose URL changed (host-service restarts move
+	// ports) would otherwise contribute titles for sessions that moved with it.
+	// Same rule AddCardDialog follows for its own list.
+	const titleByTerminalId = useMemo(() => {
+		const titles = new Map<string, string>();
+		for (const hostUrl of hostUrls) {
+			for (const session of sessionsByHost[hostUrl] ?? []) {
+				if (session.title) titles.set(session.terminalId, session.title);
+			}
+		}
+		return titles;
+	}, [hostUrls, sessionsByHost]);
+
+	// The deselect layer below sits inside the scroller, so `inset-0` alone
+	// would only cover the first screenful and clicking empty space would stop
+	// deselecting the moment the board is scrolled. Cards are the only thing
+	// that extends the scrollable area, so their far edges are its size.
+	const contentExtent = useMemo(
+		() => ({
+			width: cards.reduce((max, card) => Math.max(max, card.x + card.w), 0),
+			height: cards.reduce((max, card) => Math.max(max, card.y + card.h), 0),
+		}),
+		[cards],
+	);
+
 	return (
 		<div className="relative min-h-0 flex-1 bg-background">
 			{hostUrls.map((hostUrl) => (
@@ -92,7 +118,13 @@ export function Board() {
 					type="button"
 					aria-label="Deselect card"
 					tabIndex={-1}
-					className="absolute inset-0 h-full w-full cursor-default"
+					className="absolute left-0 top-0 cursor-default"
+					style={{
+						width: contentExtent.width,
+						height: contentExtent.height,
+						minWidth: "100%",
+						minHeight: "100%",
+					}}
 					onClick={() => setActiveCard(null)}
 				/>
 				{cards.length === 0 ? (
@@ -117,7 +149,12 @@ export function Board() {
 						<BoardCard
 							key={card.id}
 							card={card}
-							title={<BoardCardTitle card={card} />}
+							title={
+								<BoardCardTitle
+									card={card}
+									sessionTitle={titleByTerminalId.get(card.terminalId)}
+								/>
+							}
 						>
 							{card.missing ? (
 								<DeadCardTile card={card} />
