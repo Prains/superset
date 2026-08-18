@@ -1,14 +1,21 @@
 import { Button } from "@superset/ui/button";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { HiPlus } from "react-icons/hi2";
+import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 import {
 	MAX_CARDS,
 	useFreeSoloBoardStore,
 } from "renderer/stores/free-solo-board";
+import { useBoardReconciliation } from "../../hooks/useBoardReconciliation";
 import { BoardCard } from "../BoardCard";
 import { AddCardDialog } from "./components/AddCardDialog";
 import { BoardCardTitle } from "./components/BoardCardTitle";
 import { BoardTerminal } from "./components/BoardTerminal";
+import { DeadCardTile } from "./components/DeadCardTile";
+import {
+	type HostSession,
+	HostTerminalsProbe,
+} from "./components/HostTerminalsProbe";
 
 const FULL_REASON = `The board is full (max ${MAX_CARDS} cards) — remove a card to add another.`;
 
@@ -18,8 +25,62 @@ export function Board() {
 	const [isAdding, setIsAdding] = useState(false);
 	const isFull = cards.length >= MAX_CARDS;
 
+	const { workspaces, cache } = useHostWorkspaces();
+
+	// Keyed by hostUrl. Absent = still loading, null = that host's probe
+	// settled into an error, an array = its live session list. Owned here
+	// (not the picker) so the picker's "which hosts can't be listed" banner
+	// and reconciliation's "which cards are dead" verdict read one fan-out
+	// instead of running it twice.
+	const [sessionsByHost, setSessionsByHost] = useState<
+		Record<string, HostSession[] | null>
+	>({});
+	const handleResult = useCallback(
+		(hostUrl: string, sessions: HostSession[] | null) => {
+			setSessionsByHost((previous) => ({ ...previous, [hostUrl]: sessions }));
+		},
+		[],
+	);
+
+	// One probe per host, not per workspace — terminal.list without a
+	// workspaceId already returns every live session on that host. Mounted
+	// for as long as the board is open, not just while the picker dialog is,
+	// so reconciliation always has live data rather than whatever was last
+	// gathered the last time someone opened "Add a terminal".
+	const hostUrls = useMemo(() => {
+		const urls = new Set<string>();
+		for (const workspace of workspaces) {
+			const url = cache.resolveHostUrl(workspace.hostId);
+			if (url) urls.add(url);
+		}
+		return [...urls];
+	}, [workspaces, cache]);
+
+	// A host key appears here only once that host has actually answered
+	// (undefined = pending, null = errored — neither is a verdict). That
+	// distinction, not "empty array vs non-empty", is the whole rule that
+	// keeps an offline host's cards alive.
+	const liveSessionsByHost = useMemo(() => {
+		const result: Record<string, ReadonlySet<string>> = {};
+		for (const hostUrl of hostUrls) {
+			const sessions = sessionsByHost[hostUrl];
+			if (!sessions) continue;
+			result[hostUrl] = new Set(sessions.map((session) => session.terminalId));
+		}
+		return result;
+	}, [hostUrls, sessionsByHost]);
+
+	useBoardReconciliation(liveSessionsByHost);
+
 	return (
 		<div className="relative min-h-0 flex-1 bg-background">
+			{hostUrls.map((hostUrl) => (
+				<HostTerminalsProbe
+					key={hostUrl}
+					hostUrl={hostUrl}
+					onResult={handleResult}
+				/>
+			))}
 			{/* The scroller owns the cards' coordinate space; `isolate` keeps
 			    their z-index stacking contained so the pinned "+" button below —
 			    outside the scroller, un-scrolled, un-stacked-on — always stays on
@@ -58,7 +119,11 @@ export function Board() {
 							card={card}
 							title={<BoardCardTitle card={card} />}
 						>
-							<BoardTerminal card={card} />
+							{card.missing ? (
+								<DeadCardTile card={card} />
+							) : (
+								<BoardTerminal card={card} />
+							)}
 						</BoardCard>
 					))
 				)}
@@ -79,7 +144,12 @@ export function Board() {
 					<HiPlus className="size-4" />
 				</Button>
 			</span>
-			<AddCardDialog open={isAdding} onOpenChange={setIsAdding} />
+			<AddCardDialog
+				open={isAdding}
+				onOpenChange={setIsAdding}
+				hostUrls={hostUrls}
+				sessionsByHost={sessionsByHost}
+			/>
 		</div>
 	);
 }

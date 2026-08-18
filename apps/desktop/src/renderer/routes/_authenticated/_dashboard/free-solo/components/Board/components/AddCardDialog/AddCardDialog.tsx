@@ -7,7 +7,7 @@ import {
 	CommandList,
 } from "@superset/ui/command";
 import { toast } from "@superset/ui/sonner";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 import {
@@ -15,49 +15,33 @@ import {
 	useFreeSoloBoardStore,
 } from "renderer/stores/free-solo-board";
 import { useWorkspaceCreates } from "renderer/stores/workspace-creates";
-import {
-	type HostSession,
-	HostTerminalsProbe,
-} from "./components/HostTerminalsProbe";
+import type { HostSession } from "../HostTerminalsProbe";
 
 interface AddCardDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	/** Every host URL Board currently has a probe mounted for. */
+	hostUrls: string[];
+	/** Keyed by hostUrl, owned by Board (it mounts the probes and shares this
+	 *  with reconciliation). Absent = still loading, null = that host's probe
+	 *  settled into an error, an array = its live session list. Kept
+	 *  distinct so the dialog can tell "still checking" from "came back
+	 *  empty" from "couldn't check" instead of silently rendering a short
+	 *  list as if it were the complete one. */
+	sessionsByHost: Record<string, HostSession[] | null>;
 }
 
-export function AddCardDialog({ open, onOpenChange }: AddCardDialogProps) {
+export function AddCardDialog({
+	open,
+	onOpenChange,
+	hostUrls,
+	sessionsByHost,
+}: AddCardDialogProps) {
 	const { workspaces, cache } = useHostWorkspaces();
 	const { machineId } = useLocalHostService();
 	const addCard = useFreeSoloBoardStore((state) => state.addCard);
 	const cards = useFreeSoloBoardStore((state) => state.cards);
 	const { submit } = useWorkspaceCreates();
-
-	// Keyed by hostUrl. Absent = still loading, null = the probe for that
-	// host settled into an error, an array = its live session list. Kept
-	// distinct so the dialog can tell "still checking" from "came back
-	// empty" from "couldn't check" instead of silently rendering a short
-	// list as if it were the complete one.
-	const [sessionsByHost, setSessionsByHost] = useState<
-		Record<string, HostSession[] | null>
-	>({});
-
-	const handleResult = useCallback(
-		(hostUrl: string, sessions: HostSession[] | null) => {
-			setSessionsByHost((previous) => ({ ...previous, [hostUrl]: sessions }));
-		},
-		[],
-	);
-
-	// One probe per host, not per workspace — terminal.list without a
-	// workspaceId already returns every live session on that host.
-	const hostUrls = useMemo(() => {
-		const urls = new Set<string>();
-		for (const workspace of workspaces) {
-			const url = cache.resolveHostUrl(workspace.hostId);
-			if (url) urls.add(url);
-		}
-		return [...urls];
-	}, [workspaces, cache]);
 
 	// A workspace whose host has no resolvable URL at all can't be probed —
 	// no HostTerminalsProbe gets mounted for it, so it never contributes a
@@ -137,115 +121,105 @@ export function AddCardDialog({ open, onOpenChange }: AddCardDialogProps) {
 	};
 
 	return (
-		<>
-			{open &&
-				hostUrls.map((hostUrl) => (
-					<HostTerminalsProbe
-						key={hostUrl}
-						hostUrl={hostUrl}
-						onResult={handleResult}
-					/>
-				))}
-			<CommandDialog
-				open={open}
-				onOpenChange={onOpenChange}
-				title="Add a terminal to the board"
-				description="Pick a running terminal, start a new one in a workspace, or spin up a scratch session."
-			>
-				<CommandInput placeholder="Search terminals and workspaces…" />
-				{pendingHostCount > 0 && (
-					<p className="border-b px-3 py-1.5 text-xs text-muted-foreground">
-						Checking {pendingHostCount} host
-						{pendingHostCount === 1 ? "" : "s"}…
-					</p>
-				)}
-				{unreachableHostCount > 0 && (
-					<p className="border-b px-3 py-1.5 text-xs text-muted-foreground">
-						{unreachableHostCount} host
-						{unreachableHostCount === 1 ? "" : "s"} unreachable — their running
-						terminals aren't listed.
-					</p>
-				)}
-				<CommandList>
-					<CommandEmpty>Nothing found.</CommandEmpty>
-					<CommandGroup heading="Running terminals">
-						{sessions.map((session) => {
-							const workspace = workspaceById.get(session.workspaceId);
-							if (!workspace) return null;
-							const alreadyOnBoard = boardedTerminalIds.has(session.terminalId);
-							const disabled = alreadyOnBoard || isFull;
-							// A disabled CommandItem gets pointer-events: none (see
-							// command.tsx), so a `title` tooltip on it would never fire —
-							// the reason has to be visible text instead.
-							const reason = alreadyOnBoard
-								? "On the board"
-								: isFull
-									? "Board is full"
-									: null;
-							return (
-								<CommandItem
-									key={session.terminalId}
-									value={`${workspace.name} ${session.title ?? ""} ${session.terminalId}`}
-									disabled={disabled}
-									onSelect={() => add(workspace.id, session.terminalId)}
-								>
-									<span className="truncate">
-										{workspace.name} — {session.title ?? "Terminal"}
-									</span>
-									{reason && (
-										<span className="ml-auto text-xs text-muted-foreground">
-											{reason}
-										</span>
-									)}
-								</CommandItem>
-							);
-						})}
-					</CommandGroup>
-					<CommandGroup heading="New terminal in…">
-						{workspaces.map((workspace) => {
-							const disabled = isFull || !workspace.hostReachable;
-							const reason = !workspace.hostReachable
-								? "Host unreachable"
-								: isFull
-									? "Board is full"
-									: null;
-							return (
-								<CommandItem
-									key={workspace.id}
-									value={`new ${workspace.name} ${workspace.id}`}
-									disabled={disabled}
-									onSelect={() =>
-										// Mint the id here and let the WS attach create the
-										// session host-side — no launcher, no awaited mutation.
-										add(workspace.id, crypto.randomUUID(), true)
-									}
-								>
-									<span className="truncate">{workspace.name}</span>
-									{reason && (
-										<span className="ml-auto text-xs text-muted-foreground">
-											{reason}
-										</span>
-									)}
-								</CommandItem>
-							);
-						})}
-					</CommandGroup>
-					<CommandGroup heading="Scratch">
-						<CommandItem
-							value="empty session"
-							disabled={isFull}
-							onSelect={addScratchSession}
-						>
-							<span className="truncate">Empty session</span>
-							{isFull && (
-								<span className="ml-auto text-xs text-muted-foreground">
-									Board is full
+		<CommandDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title="Add a terminal to the board"
+			description="Pick a running terminal, start a new one in a workspace, or spin up a scratch session."
+		>
+			<CommandInput placeholder="Search terminals and workspaces…" />
+			{pendingHostCount > 0 && (
+				<p className="border-b px-3 py-1.5 text-xs text-muted-foreground">
+					Checking {pendingHostCount} host
+					{pendingHostCount === 1 ? "" : "s"}…
+				</p>
+			)}
+			{unreachableHostCount > 0 && (
+				<p className="border-b px-3 py-1.5 text-xs text-muted-foreground">
+					{unreachableHostCount} host
+					{unreachableHostCount === 1 ? "" : "s"} unreachable — their running
+					terminals aren't listed.
+				</p>
+			)}
+			<CommandList>
+				<CommandEmpty>Nothing found.</CommandEmpty>
+				<CommandGroup heading="Running terminals">
+					{sessions.map((session) => {
+						const workspace = workspaceById.get(session.workspaceId);
+						if (!workspace) return null;
+						const alreadyOnBoard = boardedTerminalIds.has(session.terminalId);
+						const disabled = alreadyOnBoard || isFull;
+						// A disabled CommandItem gets pointer-events: none (see
+						// command.tsx), so a `title` tooltip on it would never fire —
+						// the reason has to be visible text instead.
+						const reason = alreadyOnBoard
+							? "On the board"
+							: isFull
+								? "Board is full"
+								: null;
+						return (
+							<CommandItem
+								key={session.terminalId}
+								value={`${workspace.name} ${session.title ?? ""} ${session.terminalId}`}
+								disabled={disabled}
+								onSelect={() => add(workspace.id, session.terminalId)}
+							>
+								<span className="truncate">
+									{workspace.name} — {session.title ?? "Terminal"}
 								</span>
-							)}
-						</CommandItem>
-					</CommandGroup>
-				</CommandList>
-			</CommandDialog>
-		</>
+								{reason && (
+									<span className="ml-auto text-xs text-muted-foreground">
+										{reason}
+									</span>
+								)}
+							</CommandItem>
+						);
+					})}
+				</CommandGroup>
+				<CommandGroup heading="New terminal in…">
+					{workspaces.map((workspace) => {
+						const disabled = isFull || !workspace.hostReachable;
+						const reason = !workspace.hostReachable
+							? "Host unreachable"
+							: isFull
+								? "Board is full"
+								: null;
+						return (
+							<CommandItem
+								key={workspace.id}
+								value={`new ${workspace.name} ${workspace.id}`}
+								disabled={disabled}
+								onSelect={() =>
+									// Mint the id here and let the WS attach create the
+									// session host-side — no launcher, no awaited mutation.
+									add(workspace.id, crypto.randomUUID(), true)
+								}
+							>
+								<span className="truncate">{workspace.name}</span>
+								{reason && (
+									<span className="ml-auto text-xs text-muted-foreground">
+										{reason}
+									</span>
+								)}
+							</CommandItem>
+						);
+					})}
+				</CommandGroup>
+				<CommandGroup heading="Scratch">
+					<CommandItem
+						value="empty session"
+						disabled={isFull}
+						onSelect={addScratchSession}
+					>
+						<span className="truncate">Empty session</span>
+						{isFull && (
+							<span className="ml-auto text-xs text-muted-foreground">
+								Board is full
+							</span>
+						)}
+					</CommandItem>
+				</CommandGroup>
+			</CommandList>
+		</CommandDialog>
 	);
 }

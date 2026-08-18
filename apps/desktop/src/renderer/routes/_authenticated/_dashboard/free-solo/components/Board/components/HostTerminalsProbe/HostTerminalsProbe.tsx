@@ -25,15 +25,17 @@ interface HostTerminalsProbeProps {
 }
 
 /** Renders nothing: it exists to own a client for one host and report that
- *  host's live sessions. Settings' V2SessionsSection mounts a provider the
- *  same way for the same reason — workspaceTrpc needs a host URL. */
+ *  host's live sessions. Mounted by Board itself (not just the add-card
+ *  dialog) so both the picker and reconciliation read the same fan-out.
+ *  Settings' V2SessionsSection mounts a provider the same way for the same
+ *  reason — workspaceTrpc needs a host URL. */
 export function HostTerminalsProbe({
 	hostUrl,
 	onResult,
 }: HostTerminalsProbeProps) {
 	return (
 		<WorkspaceClientProvider
-			cacheKey="free-solo-picker"
+			cacheKey="free-solo-board"
 			key={hostUrl}
 			hostUrl={hostUrl}
 			headers={() => getHostServiceHeaders(hostUrl)}
