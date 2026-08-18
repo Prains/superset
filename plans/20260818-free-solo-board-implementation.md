@@ -725,7 +725,7 @@ export function BoardCard({ card, title, children }: BoardCardProps) {
 				// `resize` needs a non-visible overflow. This element owns both the
 				// size style and the ResizeObserver — see the effect above.
 				"absolute flex resize flex-col overflow-hidden rounded-lg border bg-card shadow-sm",
-				isActive ? "border-border-selected" : "border-border",
+				isActive ? "border-border ring-1 ring-ring" : "border-border",
 			)}
 			style={{
 				left: position.x,
@@ -803,7 +803,7 @@ In `Board.tsx`, replace the placeholder `div` in the `cards.map(...)` branch wit
 
 ```tsx
 					<BoardCard key={card.id} card={card} title={card.terminalId}>
-						<div className="size-full rounded bg-fill-secondary" />
+						<div className="size-full rounded bg-muted" />
 					</BoardCard>
 ```
 
