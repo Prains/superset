@@ -364,7 +364,13 @@ export function describeTriggerProblems(
 				if (isEmptyScope(config.teams)) {
 					add(index, "teams", "Specify at least one team.");
 				}
-				if (isEmptyActor(config.assignee)) {
+				// Only the events whose sentence shows an assignee; a created or
+				// cycle trigger has no chip to clear such a problem with.
+				if (
+					(config.event === "issue.status_changed" ||
+						config.event === "issue.assigned") &&
+					isEmptyActor(config.assignee)
+				) {
 					add(
 						index,
 						"assignee",

@@ -1,3 +1,4 @@
+import type { LinearClient } from "@linear/sdk";
 import { db, dbWs } from "@superset/db/client";
 import {
 	integrationConnections,
@@ -15,24 +16,61 @@ import { protectedProcedure } from "../../../trpc";
 import { verifyOrgAdmin, verifyOrgMembership } from "../utils";
 import { callLinear } from "./refresh";
 
-type TriggerOptionsQuery = {
-	teams: { nodes: Array<{ id: string; name: string }> };
-	projects: { nodes: Array<{ id: string; name: string }> };
-	issueLabels: {
-		nodes: Array<{ id: string; name: string; team: { key: string } | null }>;
-	};
-	workflowStates: {
-		nodes: Array<{ id: string; name: string; team: { key: string } | null }>;
-	};
+type Named = { id: string; name: string };
+type TeamScoped = Named & { team: { key: string } | null };
+type Page<T> = {
+	nodes: T[];
+	pageInfo: { hasNextPage: boolean; endCursor: string | null };
 };
 
-// 250 is Linear's page cap; anything past it is out of reach of the picker.
-const TRIGGER_OPTIONS_QUERY = `query TriggerOptions {
-	teams(first: 250) { nodes { id name } }
-	projects(first: 250) { nodes { id name } }
-	issueLabels(first: 250) { nodes { id name team { key } } }
-	workflowStates(first: 250) { nodes { id name team { key } } }
-}`;
+const PAGE_INFO = "pageInfo { hasNextPage endCursor }";
+const TRIGGER_OPTION_CONNECTIONS = {
+	teams: `teams(first: 250, after: $after) { nodes { id name } ${PAGE_INFO} }`,
+	projects: `projects(first: 250, after: $after) { nodes { id name } ${PAGE_INFO} }`,
+	issueLabels: `issueLabels(first: 250, after: $after) { nodes { id name team { key } } ${PAGE_INFO} }`,
+	workflowStates: `workflowStates(first: 250, after: $after) { nodes { id name team { key } } ${PAGE_INFO} }`,
+} as const;
+type ConnectionName = keyof typeof TRIGGER_OPTION_CONNECTIONS;
+type TriggerOptionsQuery = {
+	teams: Page<Named>;
+	projects: Page<Named>;
+	issueLabels: Page<TeamScoped>;
+	workflowStates: Page<TeamScoped>;
+};
+
+// A workspace can outgrow one page (250, Linear's cap) of labels or states.
+// The common case is still one round trip: only a connection that reports
+// more pages is followed, on its own. Bounded so a misbehaving API cannot
+// keep the request open forever.
+const MAX_PAGES = 20;
+
+async function fetchAllTriggerOptions(
+	client: LinearClient,
+): Promise<TriggerOptionsQuery> {
+	const query = (names: ConnectionName[]) =>
+		`query TriggerOptions($after: String) { ${names
+			.map((n) => TRIGGER_OPTION_CONNECTIONS[n])
+			.join(" ")} }`;
+	const request = (names: ConnectionName[], after: string | null) =>
+		client.client.request<
+			Partial<TriggerOptionsQuery>,
+			{ after: string | null }
+		>(query(names), { after });
+
+	const names = Object.keys(TRIGGER_OPTION_CONNECTIONS) as ConnectionName[];
+	const result = (await request(names, null)) as TriggerOptionsQuery;
+	for (const name of names) {
+		const all: Array<Named | TeamScoped> = result[name].nodes;
+		let { pageInfo } = result[name];
+		for (let i = 1; i < MAX_PAGES && pageInfo.hasNextPage; i++) {
+			const next = (await request([name], pageInfo.endCursor))[name];
+			if (!next) break;
+			all.push(...next.nodes);
+			pageInfo = next.pageInfo;
+		}
+	}
+	return result;
+}
 
 export const linearRouter = {
 	getConnection: protectedProcedure
@@ -157,17 +195,16 @@ export const linearRouter = {
 		}),
 
 	/**
-	 * Everything a Linear trigger sentence can pick from, in one round trip.
-	 * Ids throughout: a team key or state name can be renamed, the id cannot.
+	 * Everything a Linear trigger sentence can pick from. Ids throughout: a
+	 * team key or state name can be renamed, the id cannot.
 	 */
 	getTriggerOptions: protectedProcedure
 		.input(z.object({ organizationId: z.uuid() }))
 		.query(async ({ ctx, input }) => {
 			await verifyOrgMembership(ctx.session.user.id, input.organizationId);
-			const result = await callLinear(input.organizationId, (client) =>
-				client.client.request<TriggerOptionsQuery, Record<string, never>>(
-					TRIGGER_OPTIONS_QUERY,
-				),
+			const result = await callLinear(
+				input.organizationId,
+				fetchAllTriggerOptions,
 			);
 			if (!result) return { teams: [], projects: [], labels: [], statuses: [] };
 
