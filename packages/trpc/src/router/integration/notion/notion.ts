@@ -50,6 +50,7 @@ export const notionRouter = {
 				where: and(
 					eq(integrationConnections.organizationId, input.organizationId),
 					eq(integrationConnections.provider, "notion"),
+					isNull(integrationConnections.disconnectedAt),
 				),
 				columns: { id: true, externalOrgName: true, createdAt: true },
 			});

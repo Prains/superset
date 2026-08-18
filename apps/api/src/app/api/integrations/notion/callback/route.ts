@@ -4,6 +4,7 @@ import {
 	members,
 	userIdentities,
 } from "@superset/db/schema";
+import { NOTION_VERSION } from "@superset/trpc/integrations/notion";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -78,19 +79,26 @@ export async function GET(request: Request) {
 		headers: {
 			Authorization: `Basic ${basic}`,
 			"Content-Type": "application/json",
+			"Notion-Version": NOTION_VERSION,
 		},
 		body: JSON.stringify({
 			grant_type: "authorization_code",
 			code,
 			redirect_uri: `${env.NEXT_PUBLIC_API_URL}/api/integrations/notion/callback`,
 		}),
+		signal: AbortSignal.timeout(15_000),
+	}).catch((error: unknown) => {
+		console.error("[notion/callback] Token exchange request failed:", error);
+		return null;
 	});
-	if (!tokenResponse.ok) {
-		console.error(
-			"[notion/callback] Token exchange failed:",
-			tokenResponse.status,
-			await tokenResponse.text().catch(() => ""),
-		);
+	if (!tokenResponse?.ok) {
+		if (tokenResponse) {
+			console.error(
+				"[notion/callback] Token exchange failed:",
+				tokenResponse.status,
+				await tokenResponse.text().catch(() => ""),
+			);
+		}
 		return Response.redirect(`${settingsUrl}?error=token_exchange_failed`);
 	}
 

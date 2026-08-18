@@ -7,6 +7,8 @@
 const NOTION_API = "https://api.notion.com";
 /** Data sources became first-class objects in this version. */
 export const NOTION_VERSION = "2025-09-03";
+/** A stalled Notion response must not hold a webhook delivery open indefinitely. */
+const REQUEST_TIMEOUT_MS = 15_000;
 
 export class NotionApiError extends Error {
 	constructor(
@@ -39,6 +41,7 @@ export async function notionRequest<T>(
 				: {}),
 		},
 		body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+		signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 	});
 	if (!response.ok) {
 		const error = (await response.json().catch(() => ({}))) as {
@@ -142,22 +145,28 @@ export function pageTitle(page: NotionPage): string | null {
 }
 
 export function retrieveComment(accessToken: string, commentId: string) {
-	return notionRequest<NotionComment>(accessToken, `/v1/comments/${commentId}`);
+	return notionRequest<NotionComment>(
+		accessToken,
+		`/v1/comments/${encodeURIComponent(commentId)}`,
+	);
 }
 
 export function retrievePage(accessToken: string, pageId: string) {
-	return notionRequest<NotionPage>(accessToken, `/v1/pages/${pageId}`);
+	return notionRequest<NotionPage>(
+		accessToken,
+		`/v1/pages/${encodeURIComponent(pageId)}`,
+	);
 }
 
 export function retrieveDataSource(accessToken: string, dataSourceId: string) {
 	return notionRequest<NotionDataSource>(
 		accessToken,
-		`/v1/data_sources/${dataSourceId}`,
+		`/v1/data_sources/${encodeURIComponent(dataSourceId)}`,
 	);
 }
 
-/** Bounds a picker list; a workspace with more than this is not pickable one by one anyway. */
-const MAX_LISTED = 500;
+/** Bounds a picker list at this many pages of 100; more is not pickable one by one anyway. */
+const MAX_PAGES = 5;
 
 /** Every data source the connection can see, by title. */
 export async function listDataSources(
@@ -165,6 +174,7 @@ export async function listDataSources(
 ): Promise<NotionDataSource[]> {
 	const results: NotionDataSource[] = [];
 	let cursor: string | undefined;
+	let pages = 0;
 	do {
 		const page = await notionRequest<Paginated<NotionDataSource>>(
 			accessToken,
@@ -179,8 +189,9 @@ export async function listDataSources(
 			},
 		);
 		results.push(...page.results);
+		pages += 1;
 		cursor = page.has_more && page.next_cursor ? page.next_cursor : undefined;
-	} while (cursor && results.length < MAX_LISTED);
+	} while (cursor && pages < MAX_PAGES);
 	return results;
 }
 
@@ -188,6 +199,7 @@ export async function listDataSources(
 export async function listUsers(accessToken: string): Promise<NotionUser[]> {
 	const results: NotionUser[] = [];
 	let cursor: string | undefined;
+	let pages = 0;
 	do {
 		const query = new URLSearchParams({ page_size: "100" });
 		if (cursor) query.set("start_cursor", cursor);
@@ -196,7 +208,8 @@ export async function listUsers(accessToken: string): Promise<NotionUser[]> {
 			`/v1/users?${query}`,
 		);
 		results.push(...page.results.filter((u) => u.type === "person"));
+		pages += 1;
 		cursor = page.has_more && page.next_cursor ? page.next_cursor : undefined;
-	} while (cursor && results.length < MAX_LISTED);
+	} while (cursor && pages < MAX_PAGES);
 	return results;
 }

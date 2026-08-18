@@ -27,11 +27,10 @@ export const notionWebhookEventSchema = z.object({
 	attempt_number: z.number().optional(),
 	entity: z.object({ id: z.string().min(1), type: z.string() }),
 	data: z
-		.object({
+		.looseObject({
 			page_id: z.string().optional(),
 			parent: z.object({ id: z.string(), type: z.string() }).optional(),
 		})
-		.passthrough()
 		.optional(),
 });
 export type NotionWebhookEvent = z.infer<typeof notionWebhookEventSchema>;
@@ -89,7 +88,7 @@ export async function fetchNotionEvent(
 				actorId: comment.created_by.id,
 				mentionedUserIds: mentionedUserIds(comment.rich_text),
 				body: plainText(comment.rich_text) || null,
-				title: (page && pageTitle(page)) ?? "Untitled",
+				title: (page && pageTitle(page)) || "Untitled",
 				url: page?.url ?? null,
 				resourceKey: `notion:${pageId ?? comment.id}`,
 				payload: { event, comment, ...(page ? { page } : {}) },

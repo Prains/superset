@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@superset/db/client";
 import type { SelectIntegrationConnection } from "@superset/db/schema";
 import {
@@ -42,24 +42,39 @@ export async function POST(request: Request) {
 		return Response.json({ error: "Invalid JSON payload" }, { status: 400 });
 	}
 
+	const token = env.NOTION_WEBHOOK_VERIFICATION_TOKEN;
+
 	// The one-time handshake. Notion posts the token unsigned when the
 	// subscription is created; it is pasted back into Notion's UI to verify,
 	// and then becomes NOTION_WEBHOOK_VERIFICATION_TOKEN. There is no other
-	// way to receive it than reading it here.
+	// way to receive it than reading it here, so it is logged in full only
+	// while the endpoint is still unconfigured — once a token is set, an
+	// unauthenticated caller can no longer write arbitrary strings here, and
+	// a fingerprint is enough to tell a re-verification apart.
 	if (
 		typeof json === "object" &&
 		json !== null &&
 		"verification_token" in json &&
 		typeof json.verification_token === "string"
 	) {
-		console.log(
-			"[notion/webhook] Verification token received; set NOTION_WEBHOOK_VERIFICATION_TOKEN to:",
-			json.verification_token,
-		);
+		if (token) {
+			const fingerprint = createHash("sha256")
+				.update(json.verification_token)
+				.digest("hex")
+				.slice(0, 12);
+			console.log(
+				"[notion/webhook] Verification handshake received while configured; token fingerprint",
+				fingerprint,
+			);
+		} else {
+			console.log(
+				"[notion/webhook] Verification token received; set NOTION_WEBHOOK_VERIFICATION_TOKEN to:",
+				json.verification_token,
+			);
+		}
 		return Response.json({ ok: true });
 	}
 
-	const token = env.NOTION_WEBHOOK_VERIFICATION_TOKEN;
 	if (!token) {
 		return Response.json(
 			{ error: "Notion webhook is not configured" },
