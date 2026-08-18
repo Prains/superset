@@ -74,6 +74,14 @@ export async function dispatchMatchingTriggers(params: {
 	// Every identity linked in this org for this provider, so `me` can resolve
 	// to the automation owner. A person may link more than one account — work
 	// and personal — so this is a set per user, not a value.
+	//
+	// Not scoped by external_scope_id. That is safe only because
+	// integration_connections is unique on (organization_id, provider): one
+	// Slack workspace per org means every Slack identity here shares one scope,
+	// so ids cannot collide across workspaces. The day a provider allows more
+	// than one connection per org — per-user Google is the first candidate —
+	// this must also filter by the connection's scope, or a Slack user id from
+	// workspace A will match `me` for workspace B.
 	const identities = await dbWs
 		.select({
 			userId: userIdentities.userId,
