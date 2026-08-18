@@ -13,6 +13,7 @@ import { BoardCardTitle } from "./components/BoardCardTitle";
 import { BoardTerminal } from "./components/BoardTerminal";
 import { DeadCardTile } from "./components/DeadCardTile";
 import {
+	type HostAgentBinding,
 	type HostSession,
 	HostTerminalsProbe,
 } from "./components/HostTerminalsProbe";
@@ -38,6 +39,19 @@ export function Board() {
 	const handleResult = useCallback(
 		(hostUrl: string, sessions: HostSession[] | null) => {
 			setSessionsByHost((previous) => ({ ...previous, [hostUrl]: sessions }));
+		},
+		[],
+	);
+
+	// Same shape and rules as sessionsByHost above, for each host's live
+	// terminal-agent bindings — only the picker's "Running agents" group
+	// reads this; reconciliation and card titles read their own sources.
+	const [bindingsByHost, setBindingsByHost] = useState<
+		Record<string, HostAgentBinding[] | null>
+	>({});
+	const handleAgentBindingsResult = useCallback(
+		(hostUrl: string, bindings: HostAgentBinding[] | null) => {
+			setBindingsByHost((previous) => ({ ...previous, [hostUrl]: bindings }));
 		},
 		[],
 	);
@@ -105,6 +119,7 @@ export function Board() {
 					key={hostUrl}
 					hostUrl={hostUrl}
 					onResult={handleResult}
+					onAgentBindingsResult={handleAgentBindingsResult}
 				/>
 			))}
 			{/* The scroller owns the cards' coordinate space; `isolate` keeps
@@ -186,6 +201,7 @@ export function Board() {
 				onOpenChange={setIsAdding}
 				hostUrls={hostUrls}
 				sessionsByHost={sessionsByHost}
+				bindingsByHost={bindingsByHost}
 			/>
 		</div>
 	);

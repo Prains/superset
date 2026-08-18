@@ -19,6 +19,20 @@ export interface HostSession {
 	title: string | null;
 }
 
+/** One host's live terminal-agent bindings, as reported by
+ *  `terminalAgents.list` (host-wide, already filtered to live rows — see
+ *  `TerminalAgentStore.list`). Kept as a plain structural type here (not the
+ *  tRPC-inferred one) so downstream consumers, notably the merge function,
+ *  don't couple to the router's return type. */
+export interface HostAgentBinding {
+	terminalId: string;
+	workspaceId: string;
+	agentId: string;
+	lastEventType: string;
+	lastEventAt: number;
+	endedAt?: number;
+}
+
 interface HostTerminalsProbeProps {
 	hostUrl: string;
 	/** Called once the query for this host settles: the session list on
@@ -27,6 +41,11 @@ interface HostTerminalsProbeProps {
 	 *  pending, and distinguishes that from a probe that came back empty
 	 *  or one that failed outright. */
 	onResult: (hostUrl: string, sessions: HostSession[] | null) => void;
+	/** Same contract as `onResult`, for this host's live agent bindings. */
+	onAgentBindingsResult: (
+		hostUrl: string,
+		bindings: HostAgentBinding[] | null,
+	) => void;
 }
 
 /** Renders nothing: it exists to own a client for one host and report that
@@ -37,6 +56,7 @@ interface HostTerminalsProbeProps {
 export function HostTerminalsProbe({
 	hostUrl,
 	onResult,
+	onAgentBindingsResult,
 }: HostTerminalsProbeProps) {
 	return (
 		<WorkspaceClientProvider
@@ -46,7 +66,11 @@ export function HostTerminalsProbe({
 			headers={() => getHostServiceHeaders(hostUrl)}
 			wsToken={() => getHostServiceWsToken(hostUrl)}
 		>
-			<HostTerminalsProbeInner hostUrl={hostUrl} onResult={onResult} />
+			<HostTerminalsProbeInner
+				hostUrl={hostUrl}
+				onResult={onResult}
+				onAgentBindingsResult={onAgentBindingsResult}
+			/>
 		</WorkspaceClientProvider>
 	);
 }
@@ -54,6 +78,7 @@ export function HostTerminalsProbe({
 function HostTerminalsProbeInner({
 	hostUrl,
 	onResult,
+	onAgentBindingsResult,
 }: HostTerminalsProbeProps) {
 	const { data, isError } = workspaceTrpc.terminal.list.useQuery(undefined, {
 		refetchOnWindowFocus: true,
@@ -69,6 +94,18 @@ function HostTerminalsProbeInner({
 		refetchInterval: PROBE_POLL_MS,
 	});
 
+	// Same reasoning as `terminal.list` above: `useTerminalAgentBindings`
+	// invalidates on `agent:lifecycle`/`terminal:lifecycle`, but only for the
+	// per-workspace query it owns — this board-wide fan-out runs under its
+	// own "free-solo-board" cache key, which those events never reach.
+	// Polling is this query's only freshness path too (mirrors the same
+	// endpoint's board-wide poll in useAccessibleV2Workspaces).
+	const { data: agentBindings, isError: isAgentBindingsError } =
+		workspaceTrpc.terminalAgents.list.useQuery(undefined, {
+			refetchOnWindowFocus: true,
+			refetchInterval: PROBE_POLL_MS,
+		});
+
 	useEffect(() => {
 		if (data) {
 			onResult(
@@ -83,6 +120,14 @@ function HostTerminalsProbeInner({
 			onResult(hostUrl, null);
 		}
 	}, [data, isError, hostUrl, onResult]);
+
+	useEffect(() => {
+		if (agentBindings) {
+			onAgentBindingsResult(hostUrl, agentBindings);
+		} else if (isAgentBindingsError) {
+			onAgentBindingsResult(hostUrl, null);
+		}
+	}, [agentBindings, isAgentBindingsError, hostUrl, onAgentBindingsResult]);
 
 	return null;
 }
