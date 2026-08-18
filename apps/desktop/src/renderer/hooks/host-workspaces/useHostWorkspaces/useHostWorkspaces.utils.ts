@@ -234,9 +234,13 @@ export function applyWorkspaceChangedEvent(
 		type: snapshot.type,
 		createdByUserId: snapshot.createdByUserId,
 		taskId: snapshot.taskId,
-		// Older hosts' snapshots omit the field; keep the cached value.
+		// Only hosts that predate the column OMIT the field — keep the cached
+		// value then. A present `null` is a current host clearing the lineage
+		// (parent hard-deleted) and must overwrite, so no `??` here.
 		parentWorkspaceId:
-			snapshot.parentWorkspaceId ?? existing?.parentWorkspaceId ?? null,
+			snapshot.parentWorkspaceId !== undefined
+				? snapshot.parentWorkspaceId
+				: (existing?.parentWorkspaceId ?? null),
 		createdAt: new Date(snapshot.createdAt),
 		updatedAt: new Date(snapshot.updatedAt),
 		worktreePath: snapshot.worktreePath,

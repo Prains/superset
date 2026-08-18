@@ -125,7 +125,10 @@ lifecycle: a same-worktree worker shows as a peer agent row while being a child 
   Remove from Parent. Re-parenting via drag-onto-card-middle (40% band) or a parent picker.
 - ~25 dedicated test files. Marketing feature-wall page storyboards the exact sidebar tree.
 
-## 3. Superset today (what a tree would touch)
+## 3. Superset before this work (baseline as of 2026-08-16, pre-#6562)
+
+Everything in this section describes the codebase BEFORE the lineage PR landed —
+it is the gap analysis that motivated the work, not the post-merge contract.
 
 - **No hierarchy anywhere.** Host `workspaces` (packages/host-service/src/db/schema.ts:202)
   has projectId/branch/type/taskId/archivedAt — no parent column. Cloud `v2Workspaces` is
@@ -166,7 +169,9 @@ Ship the `workspace-agents-row` experiment as indented agent rows under the work
 
 ### Phase 2 — workspace lineage (host schema + CLI/MCP)
 
-- `parentWorkspaceId TEXT REFERENCES workspaces(id) ON DELETE SET NULL` +
+- Column `parent_workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL`
+  (surfaced as `parentWorkspaceId` in tRPC/TypeScript — snake_case is the
+  persisted name, camelCase the API field) +
   `spawnOrigin TEXT` ('ui'|'cli'|'mcp'|'automation') on host `workspaces`. Unlike Orca we
   don't need instance-id fencing or a side map: our ids are UUIDs that never get recycled,
   and the table (not git) is authoritative. Keep Orca's projection-time validation: one
@@ -198,7 +203,10 @@ Ship the `workspace-agents-row` experiment as indented agent rows under the work
 - Delete cascade: children-first, forced confirm listing children (copy Orca verbatim —
   it's correct because our worktrees can also physically nest).
 
-### Differentiator — close the integration loop (Orca doesn't)
+### Future differentiator — close the integration loop (NOT in these PRs)
+
+Deliberately out of scope for #6562/#6564, where lineage stays metadata-only
+and never touches git branches:
 
 Orca children are sibling branches with a metadata pointer; integration is manual. We can:
 - Offer "branch child from parent's branch" at spawn (opt-in), track the base, and show

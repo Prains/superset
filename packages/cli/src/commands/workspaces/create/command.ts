@@ -117,10 +117,17 @@ export default command({
 			);
 		}
 		// Lineage: explicit flag beats the ambient workspace. The host
-		// validates and silently drops unknown/cross-project parents.
+		// validates and silently drops unknown/cross-project parents. The env
+		// value must itself degrade silently — an empty or malformed
+		// SUPERSET_WORKSPACE_ID would otherwise fail the whole create on the
+		// server's UUID schema. An explicit --parent stays strict.
+		const UUID_RE =
+			/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+		const envParent = process.env.SUPERSET_WORKSPACE_ID;
 		const parentWorkspaceId = options.noParent
 			? undefined
-			: (options.parent ?? process.env.SUPERSET_WORKSPACE_ID ?? undefined);
+			: (options.parent ??
+				(envParent && UUID_RE.test(envParent) ? envParent : undefined));
 
 		const hostId = requireHostTarget({
 			host: options.host ?? undefined,

@@ -18,6 +18,7 @@ import type { DiffStats } from "renderer/hooks/host-service/useDiffStats";
 import { HotkeyLabel } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { ProjectThumbnail } from "renderer/routes/_authenticated/components/ProjectThumbnail";
+import { createEmptyPaneLayout } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState/sidebarMutations";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
 import { RenameInput } from "renderer/screens/main/components/WorkspaceSidebar/RenameInput";
 import type { ActivePaneStatus } from "shared/tabs-types";
@@ -115,8 +116,25 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 			event,
 		) => {
 			event.stopPropagation();
-			// Auto-included mains have no local-state row to persist onto.
-			if (!collections.v2WorkspaceLocalState.get(workspace.id)) return;
+			// Auto-included mains have no local-state row yet — create one on
+			// first toggle, the same way pinning one does, so the control is
+			// never inert.
+			if (!collections.v2WorkspaceLocalState.get(workspace.id)) {
+				collections.v2WorkspaceLocalState.insert({
+					workspaceId: workspace.id,
+					createdAt: new Date(),
+					sidebarState: {
+						projectId: workspace.projectId,
+						tabOrder: 0,
+						sectionId: null,
+						isHidden: false,
+						pinnedAt: null,
+						lineageCollapsed: true,
+					},
+					paneLayout: createEmptyPaneLayout(),
+				});
+				return;
+			}
 			collections.v2WorkspaceLocalState.update(workspace.id, (draft) => {
 				draft.sidebarState.lineageCollapsed =
 					!draft.sidebarState.lineageCollapsed;
@@ -269,7 +287,7 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 												className="flex size-5 cursor-pointer items-center justify-center rounded hover:bg-foreground/10"
 											>
 												{!workspace.lineageCollapsed && (
-													<span className="contents group-hover:hidden">
+													<span className="contents group-hover:hidden group-focus-within:hidden">
 														<DashboardSidebarWorkspaceIcon
 															hostType={hostType}
 															workspaceType={workspace.type}
@@ -287,7 +305,7 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 														"size-4 text-muted-foreground transition-transform",
 														workspace.lineageCollapsed
 															? "block"
-															: "hidden rotate-90 group-hover:block",
+															: "hidden rotate-90 group-hover:block group-focus-within:block",
 													)}
 												/>
 											</button>
@@ -386,7 +404,12 @@ export const DashboardSidebarExpandedWorkspaceRow = forwardRef<
 							>
 								{name || branch}
 								{isLineageParent && workspace.lineageCollapsed && (
-									<span className="ml-1.5 text-[10px] tabular-nums text-muted-foreground">
+									// aria-hidden: the chevron button already announces
+									// "Expand N child workspaces" — this is its visual twin.
+									<span
+										aria-hidden
+										className="ml-1.5 text-[10px] tabular-nums text-muted-foreground"
+									>
 										+{workspace.lineageChildCount}
 									</span>
 								)}

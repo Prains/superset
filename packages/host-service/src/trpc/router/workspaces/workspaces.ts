@@ -686,6 +686,8 @@ export const workspacesRouter = router({
 								baseBranch: prMetadata.baseRefName,
 								idempotencyId: input.id,
 								taskId: input.taskId,
+								parentWorkspaceId: lineageParentId,
+								spawnOrigin,
 							});
 							workspaceRow = result.workspace;
 							alreadyExists = result.alreadyExists;
@@ -838,6 +840,8 @@ export const workspacesRouter = router({
 					baseBranch: input.baseBranch,
 					idempotencyId: input.id,
 					taskId: input.taskId,
+					parentWorkspaceId: lineageParentId,
+					spawnOrigin,
 				});
 				workspaceRow = result.workspace;
 				alreadyExists = result.alreadyExists;
@@ -958,6 +962,8 @@ export const workspacesRouter = router({
 							baseBranch: baseShortName,
 							idempotencyId: input.id,
 							taskId: input.taskId,
+							parentWorkspaceId: lineageParentId,
+							spawnOrigin,
 						});
 						workspaceRow = result.workspace;
 						alreadyExists = result.alreadyExists;
@@ -1022,6 +1028,8 @@ export const workspacesRouter = router({
 										baseBranch: baseShortName,
 										idempotencyId: input.id,
 										taskId: input.taskId,
+										parentWorkspaceId: lineageParentId,
+										spawnOrigin,
 									});
 									adoptedRow = result.workspace;
 									alreadyExists = result.alreadyExists;
