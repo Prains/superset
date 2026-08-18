@@ -44,6 +44,7 @@ export const CALENDAR_SENTENCES: Record<
 		{ slot: "attendee" },
 		{ text: "titled" },
 		{ slot: "titleFilter" },
+		{ text: "including" },
 		{ slot: "hasExternalAttendee" },
 	],
 	"event.updated": [
@@ -53,6 +54,7 @@ export const CALENDAR_SENTENCES: Record<
 		{ slot: "attendee" },
 		{ text: "titled" },
 		{ slot: "titleFilter" },
+		{ text: "including" },
 		{ slot: "hasExternalAttendee" },
 	],
 	"event.cancelled": [
@@ -105,8 +107,8 @@ export const MINUTES_BEFORE_OPTIONS = [
 ] as const;
 
 export const EXTERNAL_ATTENDEE_OPTIONS = [
-	{ value: "any", label: "with any attendees" },
-	{ value: "external", label: "with external attendees" },
+	{ value: "any", label: "anyone" },
+	{ value: "external", label: "someone external" },
 ] as const;
 
 export const ATTACHMENT_OPTIONS = [
