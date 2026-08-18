@@ -1,4 +1,3 @@
-import { buildHostRoutingKey } from "@superset/shared/host-routing";
 import { useQueryClient } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,8 +13,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 import { useWorkspaceHost } from "@/hooks/useWorkspaceHost";
 import {
-	buildRelayHostUrl,
 	getHostServiceClientByUrl,
+	hostServiceUrl,
 } from "@/lib/host-service/client";
 import {
 	getHostTerminalsQueryKey,
@@ -25,6 +24,7 @@ import type { GlassComposerHandle } from "@/screens/(authenticated)/components/G
 import { PressableScale } from "@/screens/(authenticated)/components/PressableScale";
 import { useTerminalSeenStore } from "@/screens/(authenticated)/stores/terminalSeenStore";
 import { useTerminalTabOrderStore } from "@/screens/(authenticated)/stores/terminalTabOrderStore";
+import { CloudWorkspaceProvisioningState } from "../components/CloudWorkspaceProvisioningState";
 import {
 	TerminalComposer,
 	type TerminalQuickKey,
@@ -65,7 +65,7 @@ export function WorkspaceScreen() {
 	const insets = useSafeAreaInsets();
 	const queryClient = useQueryClient();
 
-	const { workspace, host, isResolving } = useWorkspaceHost(id ?? null);
+	const { workspace, host, cloud, isResolving } = useWorkspaceHost(id ?? null);
 	const { terminalsByWorkspace, isReady } = useHostTerminals(host);
 	const changeset = useWorkspaceChangeset(id ?? null);
 
@@ -98,10 +98,7 @@ export function WorkspaceScreen() {
 	}, [pickedTerminalId, params.tab, rows]);
 
 	const hostUrl = host
-		? buildRelayHostUrl(host.organizationId, host.machineId)
-		: null;
-	const routingKey = host
-		? buildHostRoutingKey(host.organizationId, host.machineId)
+		? hostServiceUrl(host.organizationId, host.machineId)
 		: null;
 
 	// The + sheet lands back here via dismissTo with the new session in
@@ -224,7 +221,7 @@ export function WorkspaceScreen() {
 
 	const banner = STATE_BANNERS[connectionState];
 	const hasChanges = changeset.files.length > 0;
-	const showComposer = activeTerminalId !== null && routingKey !== null;
+	const showComposer = activeTerminalId !== null && host !== null;
 
 	const attachmentTarget = useMemo(
 		() =>
@@ -249,7 +246,7 @@ export function WorkspaceScreen() {
 						    the back button under iOS 26's floating bar items. */}
 						<View className="max-w-52">
 							<Text className="font-semibold text-[17px]" numberOfLines={1}>
-								{workspace?.name ?? ""}
+								{workspace?.name ?? cloud?.name ?? ""}
 							</Text>
 						</View>
 					</PressableScale>
@@ -267,14 +264,18 @@ export function WorkspaceScreen() {
 				) : null}
 			</Stack.Screen>
 
-			<TerminalTabs
-				rows={rows}
-				activeTerminalId={activeTerminalId}
-				onSelect={setPickedTerminalId}
-				onAdd={openAddMenu}
-				onManage={openSessions}
-				onClose={killTerminal}
-			/>
+			{/* A cloud workspace exists on screen before anything serves it; the
+			    tab strip would only offer sessions on a sandbox that isn't up. */}
+			{cloud && !workspace ? null : (
+				<TerminalTabs
+					rows={rows}
+					activeTerminalId={activeTerminalId}
+					onSelect={setPickedTerminalId}
+					onAdd={openAddMenu}
+					onManage={openSessions}
+					onClose={killTerminal}
+				/>
+			)}
 
 			{banner && activeTerminalId ? (
 				<View className="bg-muted px-3 py-1.5">
@@ -300,13 +301,13 @@ export function WorkspaceScreen() {
 					marginBottom: showComposer ? composerHeight + composerBottom : 0,
 				}}
 			>
-				{activeTerminalId && routingKey && id ? (
+				{activeTerminalId && host && id ? (
 					<>
 						<TerminalWebView
 							ref={terminalRef}
 							workspaceId={id}
 							terminalId={activeTerminalId}
-							routingKey={routingKey}
+							host={host}
 							onStateChange={setConnectionState}
 							onControl={handleControl}
 						/>
@@ -321,6 +322,8 @@ export function WorkspaceScreen() {
 							/>
 						) : null}
 					</>
+				) : cloud && !workspace ? (
+					<CloudWorkspaceProvisioningState cloud={cloud} />
 				) : isResolving || (!isReady && host) ? (
 					<Centered>
 						<ActivityIndicator />
