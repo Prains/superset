@@ -45,9 +45,15 @@ export async function reconcileWatches(
 	};
 	if (!connection || connection.disconnectedAt) return result;
 
-	const calendars = (await listCalendars(connectionId))
+	// Deterministic before the cap — primary first, then by id — so the
+	// retained set is the same on every run rather than churning channels and
+	// re-baselining calendars each time Google returns the list in a new order.
+	const listed = (await listCalendars(connectionId))
 		.filter((calendar) => !calendar.deleted)
-		.slice(0, MAX_WATCHED_CALENDARS);
+		.sort((a, b) =>
+			a.primary === b.primary ? a.id.localeCompare(b.id) : a.primary ? -1 : 1,
+		);
+	const calendars = listed.slice(0, MAX_WATCHED_CALENDARS);
 	result.calendars = calendars.length;
 	const known = googleConfigOf(connection.config).calendars ?? {};
 	const now = Date.now();
@@ -83,7 +89,20 @@ export async function reconcileWatches(
 				channelId: channel.id,
 				channelToken: channel.token,
 			});
-			const watched = await watchCalendar(connectionId, calendar.id, channel);
+			let watched: Awaited<ReturnType<typeof watchCalendar>>;
+			try {
+				watched = await watchCalendar(connectionId, calendar.id, channel);
+			} catch (error) {
+				// The new channel never opened; put the previous one back so its
+				// pushes keep being accepted until the next renewal succeeds.
+				if (state?.channelId && state.channelToken) {
+					await patchCalendarState(connectionId, calendar.id, {
+						channelId: state.channelId,
+						channelToken: state.channelToken,
+					});
+				}
+				throw error;
+			}
 			await patchCalendarState(connectionId, calendar.id, {
 				resourceId: watched.resourceId,
 				channelExpiresAt: watched.expiration,
@@ -104,8 +123,9 @@ export async function reconcileWatches(
 	}
 
 	// Calendars that left the account's list: stop their channels and forget
-	// them, so a stale channel does not keep a dead sync token alive.
-	const current = new Set(calendars.map((calendar) => calendar.id));
+	// them, so a stale channel does not keep a dead sync token alive. Ones the
+	// cap dropped are still on the account and keep their state.
+	const current = new Set(listed.map((calendar) => calendar.id));
 	for (const [calendarId, state] of Object.entries(known)) {
 		if (current.has(calendarId)) continue;
 		if (state.channelId && state.resourceId) {

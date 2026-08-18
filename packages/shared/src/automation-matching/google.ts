@@ -120,11 +120,20 @@ export function gmailTriggerMatches(
 	) {
 		return no("from");
 	}
-	if (!addressScopeAllows(config.to, event.toAddresses)) return no("to");
+	// Recipients and labels only narrow when configured; null means the trigger
+	// author did not choose to filter on them, which for these is "any".
+	if (config.to !== null && !addressScopeAllows(config.to, event.toAddresses)) {
+		return no("to");
+	}
 	if (!bodyMatches(config.subjectFilter, event.subject)) {
 		return no("subjectFilter");
 	}
-	if (!scopeAllowsAny(config.labels, event.labelIds)) return no("label");
+	if (
+		config.labels !== null &&
+		!scopeAllowsAny(config.labels, event.labelIds)
+	) {
+		return no("label");
+	}
 	if (config.hasAttachment && !event.hasAttachment) return no("hasAttachment");
 	return { matches: true };
 }

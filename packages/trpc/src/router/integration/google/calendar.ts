@@ -156,16 +156,23 @@ export async function listEventInstances(
 	eventId: string,
 	window: { from: Date; to: Date },
 ): Promise<GoogleCalendarEvent[]> {
-	const params = new URLSearchParams({
-		timeMin: window.from.toISOString(),
-		timeMax: window.to.toISOString(),
-		maxResults: "250",
-	});
-	const page = await googleFetch<EventsPage>(
-		connectionId,
-		`${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}/instances?${params}`,
-	);
-	return page.items ?? [];
+	const items: GoogleCalendarEvent[] = [];
+	let pageToken: string | undefined;
+	do {
+		const params = new URLSearchParams({
+			timeMin: window.from.toISOString(),
+			timeMax: window.to.toISOString(),
+			maxResults: "250",
+		});
+		if (pageToken) params.set("pageToken", pageToken);
+		const page = await googleFetch<EventsPage>(
+			connectionId,
+			`${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}/instances?${params}`,
+		);
+		items.push(...(page.items ?? []));
+		pageToken = page.nextPageToken;
+	} while (pageToken);
+	return items;
 }
 
 /** Null when the event no longer exists at all (404), as opposed to cancelled. */

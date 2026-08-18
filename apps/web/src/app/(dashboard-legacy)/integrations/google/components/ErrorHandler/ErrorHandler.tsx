@@ -24,9 +24,10 @@ export function ErrorHandler() {
 		const error = searchParams.get("error");
 		if (!error) return;
 		const message = ERROR_MESSAGES[error] ?? "Something went wrong.";
+		// Toast first: replacing the URL re-runs this effect through Next's
+		// patched history, and a deferred toast can be cleaned up before it shows.
+		toast.error(message);
 		window.history.replaceState({}, "", "/integrations/google");
-		const id = setTimeout(() => toast.error(message), 0);
-		return () => clearTimeout(id);
 	}, [searchParams]);
 
 	return null;

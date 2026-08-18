@@ -23,7 +23,15 @@ export async function POST(request: Request) {
 	);
 	if (rejected) return rejected;
 
-	const parsed = bodySchema.safeParse(body ? JSON.parse(body) : {});
+	let json: unknown = {};
+	if (body) {
+		try {
+			json = JSON.parse(body);
+		} catch {
+			return Response.json({ error: "Invalid JSON" }, { status: 400 });
+		}
+	}
+	const parsed = bodySchema.safeParse(json);
 	if (!parsed.success) {
 		return Response.json({ error: "Invalid payload" }, { status: 400 });
 	}

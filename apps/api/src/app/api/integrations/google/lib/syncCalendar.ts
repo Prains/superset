@@ -232,7 +232,9 @@ async function recordChange(params: {
 		connectionId: connection.id,
 		provider: "google_calendar",
 		eventType,
-		externalEventId: `${calendarId}:${item.id}:${item.updated ?? item.etag ?? Date.now()}`,
+		// A stable key: an item carrying neither `updated` nor `etag` collapses
+		// onto one row per status rather than one per delivery.
+		externalEventId: `${calendarId}:${item.id}:${item.updated ?? item.etag ?? item.status ?? "unknown"}`,
 		resourceKey,
 		title: event.summary ?? item.id,
 		url: event.htmlLink ?? null,

@@ -55,7 +55,7 @@ export async function patchCalendarState(
 		.set({
 			config: sql`jsonb_set(
 				jsonb_set(
-					coalesce(${integrationConnections.config}, '{"provider":"google"}'::jsonb),
+					coalesce(${integrationConnections.config}, '{}'::jsonb) || '{"provider":"google"}'::jsonb,
 					'{calendars}',
 					coalesce(${integrationConnections.config} -> 'calendars', '{}'::jsonb)
 				),
@@ -87,7 +87,7 @@ export async function patchGmailState(
 		.update(integrationConnections)
 		.set({
 			config: sql`jsonb_set(
-				coalesce(${integrationConnections.config}, '{"provider":"google"}'::jsonb),
+				coalesce(${integrationConnections.config}, '{}'::jsonb) || '{"provider":"google"}'::jsonb,
 				'{gmail}',
 				coalesce(${integrationConnections.config} -> 'gmail', '{}'::jsonb) || ${json}::jsonb
 			)`,

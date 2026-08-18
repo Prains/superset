@@ -76,9 +76,13 @@ export async function POST(request: Request) {
 		return Response.json({ ok: true, skipped: "no connection" });
 	}
 
-	try {
-		const results = [];
-		for (const connection of connections) {
+	// Per connection, so one mailbox failing does not make Pub/Sub replay the
+	// ones that already advanced their history ids. Any failure still answers
+	// non-2xx, which is what asks for the redelivery.
+	const results = [];
+	let failed = 0;
+	for (const connection of connections) {
+		try {
 			const result = await syncMailbox(connection);
 			if (result.recorded > 0) {
 				console.log(
@@ -86,10 +90,14 @@ export async function POST(request: Request) {
 				);
 			}
 			results.push({ connectionId: connection.id, ...result });
+		} catch (error) {
+			failed += 1;
+			console.error(`[google/gmail/push] ${connection.id} sync failed:`, error);
+			results.push({ connectionId: connection.id, error: "sync failed" });
 		}
-		return Response.json({ ok: true, results });
-	} catch (error) {
-		console.error("[google/gmail/push] sync failed:", error);
-		return Response.json({ error: "Sync failed" }, { status: 500 });
 	}
+	return Response.json(
+		{ ok: failed === 0, results },
+		{ status: failed === 0 ? 200 : 500 },
+	);
 }

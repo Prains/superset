@@ -93,7 +93,8 @@ export async function recordMessage(
 		eventType: "message.received",
 		actorId: fromAddress,
 		actorLogin: fromAddress,
-		body: message.snippet ?? null,
+		// The body stays in the mailbox; the subject is the filterable text.
+		body: null,
 		fromAddress,
 		toAddresses: [...parseAddresses(to), ...parseAddresses(cc)],
 		subject,
@@ -118,7 +119,6 @@ export async function recordMessage(
 			historyId: message.historyId ?? null,
 			internalDate: message.internalDate ?? null,
 			labelIds: matchable.labelIds,
-			snippet: message.snippet ?? null,
 			from,
 			fromAddress: matchable.fromAddress,
 			to,

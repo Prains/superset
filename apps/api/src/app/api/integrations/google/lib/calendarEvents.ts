@@ -46,9 +46,11 @@ export function matchableCalendarEvent(params: {
 		calendarId: params.calendarId,
 		attendeeEmails,
 		title: params.event.summary ?? null,
-		hasExternalAttendee: attendeeEmails.some(
-			(email) => !email.endsWith(`@${params.domain}`),
-		),
+		// Unknown domain means "external" cannot be judged; false rather than
+		// everyone, so an external-attendee trigger does not fire on every event.
+		hasExternalAttendee:
+			params.domain !== null &&
+			attendeeEmails.some((email) => !email.endsWith(`@${params.domain}`)),
 		minutesBefore: params.minutesBefore ?? null,
 	};
 }

@@ -58,6 +58,10 @@ export const googleRouter = {
 				// missing connection. A failure here must not block the disconnect.
 				const config = googleConfigOf(connection.config);
 				await Promise.allSettled([
+					// The grant outlives the row unless it is revoked: without this
+					// the refresh token would be gone from our side and the app would
+					// still hold read access on Google's.
+					revokeGrant(connection.refreshToken ?? connection.accessToken),
 					...Object.values(config.calendars ?? {}).flatMap((state) =>
 						state.channelId && state.resourceId
 							? [
@@ -154,3 +158,10 @@ export const googleRouter = {
 			}));
 		}),
 } satisfies TRPCRouterRecord;
+
+async function revokeGrant(token: string): Promise<void> {
+	await fetch(
+		`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`,
+		{ method: "POST", signal: AbortSignal.timeout(10_000) },
+	);
+}

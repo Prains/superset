@@ -14,6 +14,8 @@ import { verifySignedState } from "@/lib/oauth-state";
 
 const qstash = new Client({ token: env.QSTASH_TOKEN, baseUrl: env.QSTASH_URL });
 
+const GOOGLE_CALL_TIMEOUT_MS = 10 * 1000;
+
 const userInfoSchema = z.object({
 	sub: z.string().min(1),
 	email: z.string().email(),
@@ -59,6 +61,7 @@ export async function GET(request: Request) {
 	const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
 		method: "POST",
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		signal: AbortSignal.timeout(GOOGLE_CALL_TIMEOUT_MS),
 		body: new URLSearchParams({
 			grant_type: "authorization_code",
 			client_id: env.GOOGLE_CLIENT_ID,
@@ -75,7 +78,11 @@ export async function GET(request: Request) {
 		);
 		return fail("token_exchange_failed");
 	}
-	const tokens = googleTokenResponseSchema.parse(await tokenResponse.json());
+	const parsedTokens = googleTokenResponseSchema.safeParse(
+		await tokenResponse.json().catch(() => null),
+	);
+	if (!parsedTokens.success) return fail("token_exchange_failed");
+	const tokens = parsedTokens.data;
 
 	// Someone can untick a scope on the consent screen. Half a connection —
 	// calendars but no mail — would save fine and then silently never fire
@@ -88,10 +95,17 @@ export async function GET(request: Request) {
 
 	const infoResponse = await fetch(
 		"https://openidconnect.googleapis.com/v1/userinfo",
-		{ headers: { Authorization: `Bearer ${tokens.access_token}` } },
+		{
+			headers: { Authorization: `Bearer ${tokens.access_token}` },
+			signal: AbortSignal.timeout(GOOGLE_CALL_TIMEOUT_MS),
+		},
 	);
 	if (!infoResponse.ok) return fail("userinfo_failed");
-	const info = userInfoSchema.parse(await infoResponse.json());
+	const parsedInfo = userInfoSchema.safeParse(
+		await infoResponse.json().catch(() => null),
+	);
+	if (!parsedInfo.success) return fail("userinfo_failed");
+	const info = parsedInfo.data;
 	const email = info.email.toLowerCase();
 
 	const tokenExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);

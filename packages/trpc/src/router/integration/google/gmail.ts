@@ -113,15 +113,34 @@ export async function listAddedMessages(
 	return { expired: false, historyId, messages: [...byId.values()] };
 }
 
+/**
+ * `format=full` is the only format that carries the MIME tree, which is where
+ * attachments show; the field mask then leaves the body data itself out, so
+ * what crosses the wire is headers, labels and part metadata. Four levels of
+ * parts covers ordinary multipart mail; anything deeper simply reports no
+ * attachment.
+ */
+const MESSAGE_FIELDS = (() => {
+	let parts = "mimeType,filename,body(attachmentId,size)";
+	for (let depth = 0; depth < 4; depth += 1) {
+		parts = `mimeType,filename,body(attachmentId,size),parts(${parts})`;
+	}
+	return `id,threadId,labelIds,historyId,internalDate,sizeEstimate,payload(headers,${parts})`;
+})();
+
 /** Null when the message was deleted between the history record and now. */
 export async function getMessage(
 	connectionId: string,
 	messageId: string,
 ): Promise<GmailMessage | null> {
 	try {
+		const params = new URLSearchParams({
+			format: "full",
+			fields: MESSAGE_FIELDS,
+		});
 		return await googleFetch<GmailMessage>(
 			connectionId,
-			`${GMAIL_API}/messages/${encodeURIComponent(messageId)}?format=full`,
+			`${GMAIL_API}/messages/${encodeURIComponent(messageId)}?${params}`,
 		);
 	} catch (error) {
 		if (error instanceof GoogleApiError && error.status === 404) return null;
