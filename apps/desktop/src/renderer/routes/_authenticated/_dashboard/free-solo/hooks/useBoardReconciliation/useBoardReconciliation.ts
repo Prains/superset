@@ -11,6 +11,16 @@ interface ComputeMissingCardsInput {
 	/** Gate, not data: false means "the org's host list itself hasn't
 	 *  resolved yet" — too early to trust any absence as evidence. */
 	hostsSettled: boolean;
+	/** True once every reachable host's workspace query has actually
+	 *  settled (success, error, or a cached snapshot) — see
+	 *  useHostWorkspaces. Stronger than hostsSettled, which only means the
+	 *  org's host *list* resolved: a host that's unreachable AND has no
+	 *  cached snapshot (fresh install, newly-added host, cleared IndexedDB)
+	 *  contributes zero rows, so it leaves no `hostReachable: false` marker
+	 *  for anyHostUnreachable to see either. The "workspace" verdict needs
+	 *  this as its positive evidence; the "terminal" verdict doesn't — it
+	 *  already gates per-host on sessionsByHost. */
+	isReady: boolean;
 	cards: readonly BoardCard[];
 	workspaces: readonly HostWorkspaceItem[];
 	/** Live terminal ids per host URL. A host absent from this map has not
@@ -30,6 +40,7 @@ interface ComputeMissingCardsInput {
  */
 export function computeMissingCards({
 	hostsSettled,
+	isReady,
 	cards,
 	workspaces,
 	sessionsByHost,
@@ -47,9 +58,12 @@ export function computeMissingCards({
 	for (const card of cards) {
 		const workspace = workspaceById.get(card.workspaceId);
 		if (!workspace) {
-			// The workspace is absent from the merged list. That means "gone"
-			// only if every host actually answered — an unreachable host
-			// contributes no rows, and its workspaces must not be buried.
+			// The workspace is absent from the merged list. isReady is the
+			// positive evidence that means: an unreachable host with no cached
+			// snapshot contributes neither a row nor a hostReachable:false
+			// marker, so anyHostUnreachable alone can't tell "gone" from
+			// "never asked" — only isReady can.
+			if (!isReady) continue;
 			const anyHostUnreachable = workspaces.some(
 				(item) => item.hostReachable === false,
 			);
@@ -82,18 +96,27 @@ export function useBoardReconciliation(
 	 *  answered yet — silence is not evidence its sessions are gone. */
 	sessionsByHost: Record<string, ReadonlySet<string>>,
 ) {
-	const { workspaces, hostsSettled, cache } = useHostWorkspaces();
+	const { workspaces, hostsSettled, isReady, cache } = useHostWorkspaces();
 	const cards = useFreeSoloBoardStore((state) => state.cards);
 	const setMissing = useFreeSoloBoardStore((state) => state.setMissing);
 
 	useEffect(() => {
 		const missing = computeMissingCards({
 			hostsSettled,
+			isReady,
 			cards,
 			workspaces,
 			sessionsByHost,
 			resolveHostUrl: cache.resolveHostUrl,
 		});
 		if (missing) setMissing(missing);
-	}, [cards, workspaces, hostsSettled, sessionsByHost, cache, setMissing]);
+	}, [
+		cards,
+		workspaces,
+		hostsSettled,
+		isReady,
+		sessionsByHost,
+		cache,
+		setMissing,
+	]);
 }

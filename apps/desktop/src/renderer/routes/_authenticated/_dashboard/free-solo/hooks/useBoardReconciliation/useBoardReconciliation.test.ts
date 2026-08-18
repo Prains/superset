@@ -43,6 +43,7 @@ describe("computeMissingCards", () => {
 	it("returns no verdict at all when hosts have not settled — not even an empty map", () => {
 		const result = computeMissingCards({
 			hostsSettled: false,
+			isReady: true,
 			cards: [card()],
 			workspaces: [workspace()],
 			sessionsByHost: { [HOST_A]: new Set(["term-1"]) },
@@ -56,6 +57,7 @@ describe("computeMissingCards", () => {
 	it("leaves a card untouched when its host has not reported yet", () => {
 		const result = computeMissingCards({
 			hostsSettled: true,
+			isReady: true,
 			cards: [card()],
 			workspaces: [workspace()],
 			// HOST_A absent entirely — silence, not evidence.
@@ -68,6 +70,7 @@ describe("computeMissingCards", () => {
 	it("leaves a card untouched when its host has no resolvable URL", () => {
 		const result = computeMissingCards({
 			hostsSettled: true,
+			isReady: true,
 			cards: [card()],
 			workspaces: [workspace()],
 			sessionsByHost: { [HOST_A]: new Set(["term-1"]) },
@@ -76,9 +79,10 @@ describe("computeMissingCards", () => {
 		expect(result).toEqual({});
 	});
 
-	it('marks "workspace" when the card\'s workspace is gone and every known host answered', () => {
+	it('marks "workspace" when the card\'s workspace is gone and the fan-out actually finished (isReady)', () => {
 		const result = computeMissingCards({
 			hostsSettled: true,
+			isReady: true,
 			cards: [card()],
 			workspaces: [], // ws-1 nowhere in the merged list
 			sessionsByHost: {},
@@ -87,9 +91,26 @@ describe("computeMissingCards", () => {
 		expect(result).toEqual({ "card-1": "workspace" });
 	});
 
+	it('does NOT mark "workspace" when a host is unreachable with zero contributed rows — no hostReachable:false marker exists to catch it, only isReady can', () => {
+		const result = computeMissingCards({
+			hostsSettled: true,
+			// The fan-out hasn't actually finished: an unreachable host with no
+			// cached snapshot contributes neither a row nor a hostReachable
+			// marker, so workspaces reads as an innocuous empty list even
+			// though nothing has been confirmed gone.
+			isReady: false,
+			cards: [card()],
+			workspaces: [],
+			sessionsByHost: {},
+			resolveHostUrl,
+		});
+		expect(result).toEqual({});
+	});
+
 	it('does NOT mark "workspace" when the card\'s workspace is gone but some host is unreachable', () => {
 		const result = computeMissingCards({
 			hostsSettled: true,
+			isReady: true,
 			cards: [card()],
 			// The workspace list still has *a* row, just not ws-1 — and one
 			// host is flagged unreachable, so "gone" can't be trusted yet.
@@ -103,6 +124,7 @@ describe("computeMissingCards", () => {
 	it('marks "terminal" when the workspace exists but the terminal is absent from its own host\'s answered list', () => {
 		const result = computeMissingCards({
 			hostsSettled: true,
+			isReady: true,
 			cards: [card({ terminalId: "term-gone" })],
 			workspaces: [workspace()],
 			// HOST_A answered — it just doesn't list term-gone.
@@ -115,6 +137,7 @@ describe("computeMissingCards", () => {
 	it("does NOT mark a createOnAttach card whose session does not exist yet", () => {
 		const result = computeMissingCards({
 			hostsSettled: true,
+			isReady: true,
 			cards: [card({ createOnAttach: true, terminalId: "term-not-yet" })],
 			workspaces: [workspace()],
 			sessionsByHost: { [HOST_A]: new Set(["term-other"]) },
@@ -126,6 +149,7 @@ describe("computeMissingCards", () => {
 	it("leaves a live card alone when its terminal is present in its host's answered list", () => {
 		const result = computeMissingCards({
 			hostsSettled: true,
+			isReady: true,
 			cards: [card()],
 			workspaces: [workspace()],
 			sessionsByHost: { [HOST_A]: new Set(["term-1"]) },

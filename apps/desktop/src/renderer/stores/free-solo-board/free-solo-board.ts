@@ -194,15 +194,27 @@ export const useFreeSoloBoardStore = create<FreeSoloBoardState>()(
 					}));
 				},
 
+				// Reconciliation calls this every settled pass, including no-op
+				// ones (nothing actually changed). `cards.map` always allocates a
+				// new array even when every element comes back unchanged, and
+				// zustand notifies subscribers on that new reference regardless of
+				// content — a `state => state.cards` selector would see a "new"
+				// array and re-render, re-running any effect that depends on
+				// `cards` right back into this call. Return the same `state` when
+				// nothing changed, the same no-op discipline raiseCard and
+				// updateCardTerminal already follow.
 				setMissing: (missingByCardId) =>
-					set((state) => ({
-						cards: state.cards.map((card) => {
+					set((state) => {
+						let changed = false;
+						const cards = state.cards.map((card) => {
 							const missing = missingByCardId[card.id];
 							if (missing === card.missing) return card;
+							changed = true;
 							const { missing: _dropped, ...rest } = card;
 							return missing ? { ...rest, missing } : rest;
-						}),
-					})),
+						});
+						return changed ? { cards } : state;
+					}),
 			}),
 			{
 				name: "free-solo-board",

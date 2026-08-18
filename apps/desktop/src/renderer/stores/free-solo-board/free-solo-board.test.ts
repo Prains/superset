@@ -87,6 +87,19 @@ describe("free-solo-board", () => {
 		expect(useFreeSoloBoardStore.getState().cards[0]?.missing).toBeUndefined();
 	});
 
+	it("no-ops setMissing when nothing actually changed, so a reconciliation effect keyed on `cards` can't refire itself forever", () => {
+		add("term-1");
+		// Steady state: reconciliation calls setMissing({}) every settled pass,
+		// most of which report nothing new. `cards` is an effect dependency in
+		// useBoardReconciliation — a fresh array reference here every call would
+		// re-render, which re-runs that effect, which calls setMissing again,
+		// unbounded.
+		useFreeSoloBoardStore.getState().setMissing({});
+		const settled = useFreeSoloBoardStore.getState().cards;
+		useFreeSoloBoardStore.getState().setMissing({});
+		expect(useFreeSoloBoardStore.getState().cards).toBe(settled);
+	});
+
 	it("follows a terminal swapped in by agent auto-resume", () => {
 		const cardId = add("term-1") as string;
 		useFreeSoloBoardStore
