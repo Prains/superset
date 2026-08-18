@@ -34,35 +34,6 @@ export const metadata: Metadata = {
 	},
 };
 
-const FACTS = [
-	{
-		term: "Founded",
-		definition: "November 2025, San Francisco",
-	},
-	{
-		term: "License",
-		definition: "Source-available on GitHub under Elastic License 2.0",
-	},
-	{
-		term: "Platforms",
-		definition:
-			"macOS desktop app, experimental Linux AppImage, plus a CLI, TypeScript SDK, and MCP server",
-	},
-	{
-		term: "Agents",
-		definition:
-			"Any CLI agent: Claude Code, Codex, OpenCode, Gemini, Copilot, and more",
-	},
-	{
-		term: "Pricing",
-		definition: "Free tier plus paid seats; your API keys, never proxied",
-	},
-	{
-		term: "Not to be confused with",
-		definition: "Apache Superset, the unrelated business-intelligence tool",
-	},
-];
-
 export default function TeamPage() {
 	const people = getAllPeople();
 
@@ -231,23 +202,6 @@ export default function TeamPage() {
 							<ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
 						</Link>
 					</div>
-				</section>
-
-				{/* Superset at a Glance */}
-				<section>
-					<h2 className="text-2xl md:text-3xl font-normal text-foreground mb-8">
-						Superset at a glance
-					</h2>
-					<dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6 max-w-2xl text-sm">
-						{FACTS.map((fact) => (
-							<div key={fact.term}>
-								<dt className="text-foreground font-medium mb-1">
-									{fact.term}
-								</dt>
-								<dd className="text-muted-foreground">{fact.definition}</dd>
-							</div>
-						))}
-					</dl>
 				</section>
 			</div>
 
