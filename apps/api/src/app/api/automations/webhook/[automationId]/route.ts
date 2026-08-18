@@ -5,30 +5,22 @@ import {
 	automations,
 	automationTriggers,
 } from "@superset/db/schema";
-import {
-	triggerMatches,
-	type WebhookMatchableEvent,
-} from "@superset/shared/automation-matching";
+import type { WebhookMatchableEvent } from "@superset/shared/automation-matching";
 import {
 	bearerToken,
 	WEBHOOK_TOKEN_PREFIX,
 	webhookTokenMatches,
 } from "@superset/trpc/automation-webhook-secret";
-import { Client } from "@upstash/qstash";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { env } from "@/env";
+import { dispatchMatchingTriggers } from "@/lib/automations/dispatchMatchingTriggers";
 import { stripNullChars } from "@/lib/strip-null-chars";
 
 export const dynamic = "force-dynamic";
-
-const qstash = new Client({
-	token: env.QSTASH_TOKEN,
-	baseUrl: env.QSTASH_URL,
-});
 
 const rateLimit = new Ratelimit({
 	redis: new Redis({
@@ -95,11 +87,8 @@ export async function POST(
 
 	const triggers = await db
 		.select({
-			triggerId: automationTriggers.id,
-			config: automationTriggers.config,
 			secretHash: automationTriggers.secretHash,
 			organizationId: automations.organizationId,
-			automationEnabled: automations.enabled,
 		})
 		.from(automationTriggers)
 		.innerJoin(automations, eq(automations.id, automationTriggers.automationId))
@@ -177,44 +166,29 @@ export async function POST(
 		actorLogin: null,
 		body: null,
 	};
-	const matched = triggers.filter(
-		(t) =>
-			t.automationEnabled &&
-			triggerMatches(t.config, event, { ownerIds: [] }).matches,
-	);
-
-	console.log(
-		`[automations/webhook] ${matched.length}/${triggers.length} triggers matched:`,
-		inserted.id,
-	);
-
-	if (matched.length > 0) {
-		try {
-			await qstash.batchJSON(
-				matched.map((t) => ({
-					url: `${env.NEXT_PUBLIC_API_URL}/api/automations/dispatch/${automationId}`,
-					body: {
-						automationId,
-						triggerId: t.triggerId,
-						eventId: inserted.id,
-					},
-					deduplicationId: `${t.triggerId}_${inserted.id}`,
-					retries: 2,
-					failureCallback: `${env.NEXT_PUBLIC_API_URL}/api/automations/run-failed`,
-				})),
-			);
-		} catch (error) {
-			console.error("[automations/webhook] dispatch failed:", error);
-			await db
-				.delete(automationEvents)
-				.where(eq(automationEvents.id, inserted.id));
-			return Response.json({ error: "Dispatch failed" }, { status: 500 });
-		}
+	let result: { matched: number; considered: number };
+	try {
+		result = await dispatchMatchingTriggers({
+			organizationId,
+			eventId: inserted.id,
+			event,
+			automationId,
+		});
+	} catch (error) {
+		console.error("[automations/webhook] dispatch failed:", error);
+		await db
+			.delete(automationEvents)
+			.where(eq(automationEvents.id, inserted.id));
+		return Response.json({ error: "Dispatch failed" }, { status: 500 });
 	}
 
+	console.log(
+		`[automations/webhook] ${result.matched}/${result.considered} triggers matched:`,
+		inserted.id,
+	);
 	return Response.json({
 		ok: true,
 		eventId: inserted.id,
-		runs: matched.length,
+		runs: result.matched,
 	});
 }
