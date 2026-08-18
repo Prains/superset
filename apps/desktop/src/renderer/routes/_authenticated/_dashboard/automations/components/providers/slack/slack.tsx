@@ -1,15 +1,21 @@
 import { FaSlack } from "react-icons/fa";
 import { ActorChip } from "../../TriggerSentence/components/ActorChip";
 import { ScopeChip } from "../../TriggerSentence/components/ScopeChip";
+import { SelectChip } from "../../TriggerSentence/components/SelectChip";
 import { TextFilterChip } from "../../TriggerSentence/components/TextFilterChip";
 import type { SentenceContext, TriggerProvider } from "../types";
-import { SLACK_REACTION_OPTIONS } from "./emoji";
+import { EmojiNameChip } from "./components/EmojiNameChip";
 import {
 	type SentencePart,
 	SLACK_MENU,
 	SLACK_SENTENCES,
 	type SlackConfig,
 } from "./grammar";
+
+const THREAD_OPTIONS = [
+	{ value: "top", label: "top-level only" },
+	{ value: "replies", label: "including replies" },
+] as const;
 
 /**
  * Renders one slot of a Slack sentence. Each slot names the config field it
@@ -44,16 +50,21 @@ function renderPart(
 			);
 		case "emoji":
 			return (
-				<ScopeChip
+				<EmojiNameChip
 					key={index}
-					scope={config.emoji}
+					names={config.emoji?.mode === "list" ? config.emoji.ids : []}
 					// Clearing an optional filter means "any", not "none": the chip
 					// says "Any reaction" either way, and null would make that a lie.
-					onChange={(v) => set({ emoji: v ?? { mode: "any" } })}
+					onChange={(names) =>
+						set({
+							emoji: names.length
+								? { mode: "list", ids: names }
+								: { mode: "any" },
+						})
+					}
 					className={mark("emoji")}
-					options={SLACK_REACTION_OPTIONS}
 					emptyLabel="Any reaction"
-					anyLabel="Any reaction"
+					placeholder=":bug: or bug, eyes"
 					disabled={disabled}
 				/>
 			);
@@ -87,6 +98,31 @@ function renderPart(
 				/>
 			);
 		}
+		case "topLevelOnly":
+			return (
+				<SelectChip
+					key={index}
+					value={config.topLevelOnly === false ? "replies" : "top"}
+					onChange={(v) => set({ topLevelOnly: v === "top" })}
+					options={THREAD_OPTIONS}
+					disabled={disabled}
+				/>
+			);
+		case "completionReaction":
+			return (
+				<EmojiNameChip
+					key={index}
+					names={config.completionReaction ? [config.completionReaction] : []}
+					// One reaction: the last name typed wins, so ":eyes: :bug:" ends
+					// as bug rather than silently reacting twice.
+					onChange={(names) =>
+						set({ completionReaction: names[names.length - 1] ?? null })
+					}
+					emptyLabel="No reaction"
+					placeholder=":white_check_mark:"
+					disabled={disabled}
+				/>
+			);
 	}
 }
 

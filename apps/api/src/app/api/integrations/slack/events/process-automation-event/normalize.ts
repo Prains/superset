@@ -120,7 +120,7 @@ function matchable(
 	eventType: "message" | "reaction_added" | "channel_created",
 	fields: Pick<
 		SlackMatchableEvent,
-		"channelId" | "actorId" | "body" | "reaction"
+		"channelId" | "actorId" | "body" | "reaction" | "isThreadReply"
 	>,
 ): SlackMatchableEvent {
 	return {
@@ -148,6 +148,10 @@ export function normalizeSlackEvent(
 					actorId: event.user ?? null,
 					body: event.text ?? null,
 					reaction: null,
+					// A reply carries its root's ts; a root's thread_ts, when set,
+					// is its own ts.
+					isThreadReply:
+						event.thread_ts !== undefined && event.thread_ts !== event.ts,
 				}),
 				resourceKey: `slack:${event.channel}:${root}`,
 				title: titleFromText(event.text, `Message in ${event.channel}`),
@@ -161,6 +165,7 @@ export function normalizeSlackEvent(
 					actorId: event.user ?? null,
 					body: null,
 					reaction: reactionName(event.reaction),
+					isThreadReply: false,
 				}),
 				resourceKey: `slack:${event.item.channel}:${event.item.ts}`,
 				title: `:${reactionName(event.reaction)}: reaction`,
@@ -174,6 +179,7 @@ export function normalizeSlackEvent(
 					// The name is what a "matching" filter reads.
 					body: event.channel.name ?? null,
 					reaction: null,
+					isThreadReply: false,
 				}),
 				resourceKey: `slack:${event.channel.id}`,
 				title: `#${event.channel.name}`,

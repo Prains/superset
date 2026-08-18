@@ -23,6 +23,8 @@ export type SlackMatchableEvent = BaseMatchableEvent & {
 	channelId: string | null;
 	/** The reaction's emoji name, without a skin-tone suffix; null otherwise. */
 	reaction: string | null;
+	/** A message posted inside a thread rather than at the top level. */
+	isThreadReply: boolean;
 	/** The product-level names this delivery maps to; see slackEventNames. */
 	names: SlackTriggerEvent[];
 };
@@ -55,6 +57,7 @@ export function slackTriggerMatches(
 		emoji: TriggerScope;
 		actor: TriggerActor;
 		messageFilter?: { pattern: string; isRegex: boolean } | null;
+		topLevelOnly?: boolean;
 	},
 	event: SlackMatchableEvent,
 	context: MatchContext,
@@ -74,6 +77,14 @@ export function slackTriggerMatches(
 		!scopeAllows(config.emoji, event.reaction)
 	) {
 		return no("emoji");
+	}
+	// Absent on older configs; the default has always been top-level only.
+	if (
+		config.event === "message_in_channel" &&
+		config.topLevelOnly !== false &&
+		event.isThreadReply
+	) {
+		return no("threadReply");
 	}
 	if (!actorAllows(config.actor, event.actorId, context.ownerIds)) {
 		return no("actor");

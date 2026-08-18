@@ -12,7 +12,13 @@ export type SlackConfig = Extract<TriggerConfigInput, { kind: "slack" }>;
  * describes itself.
  */
 
-export type Slot = "channels" | "emoji" | "actor" | "messageFilter";
+export type Slot =
+	| "channels"
+	| "emoji"
+	| "actor"
+	| "messageFilter"
+	| "topLevelOnly"
+	| "completionReaction";
 
 export type SentencePart = { text: string } | { slot: Slot };
 
@@ -24,6 +30,10 @@ export const SLACK_SENTENCES: Record<SlackTriggerEvent, SentencePart[]> = {
 		{ slot: "channels" },
 		{ text: "by" },
 		{ slot: "actor" },
+		{ slot: "topLevelOnly" },
+		{ text: "; react with" },
+		{ slot: "completionReaction" },
+		{ text: "upon completion" },
 	],
 	reaction_added: [
 		{ text: "Reaction" },
@@ -64,5 +74,11 @@ export function createSlackConfig(event: SlackTriggerEvent): SlackConfig {
 		emoji: event === "reaction_added" ? { mode: "any" } : null,
 		actor: "anyone",
 		messageFilter: null,
+		// A busy thread would otherwise fire once per reply.
+		topLevelOnly: true,
+		// The message trigger acknowledges the post it ran for; the others have
+		// no single message to react to.
+		completionReaction:
+			event === "message_in_channel" ? "white_check_mark" : null,
 	};
 }
