@@ -38,9 +38,9 @@
 | `.../free-solo/components/BoardCard/BoardCard.tsx` | One card: frame, title bar, drag, resize, stacking |
 | `.../free-solo/components/BoardCard/geometry.ts` | Pure drag/resize math |
 | `.../free-solo/components/BoardCard/geometry.test.ts` | Geometry unit tests |
-| `.../free-solo/components/BoardCard/components/BoardCardTitle/BoardCardTitle.tsx` | Project / workspace / session labels + close button |
-| `.../free-solo/components/BoardCard/components/BoardTerminal/BoardTerminal.tsx` | `WorkspaceProvider` + `TerminalPane` with the stub context |
-| `.../free-solo/components/BoardCard/components/DeadCardTile/DeadCardTile.tsx` | "Workspace gone" / "session closed" state |
+| `.../free-solo/components/Board/components/BoardCardTitle/BoardCardTitle.tsx` | Project / workspace / session labels + close button |
+| `.../free-solo/components/Board/components/BoardTerminal/BoardTerminal.tsx` | `WorkspaceProvider` + `TerminalPane` with the stub context |
+| `.../free-solo/components/Board/components/DeadCardTile/DeadCardTile.tsx` | "Workspace gone" / "session closed" state |
 | `.../free-solo/components/AddCardDialog/AddCardDialog.tsx` | cmdk picker: existing terminal / new terminal / scratch session |
 | `.../free-solo/components/AddCardDialog/components/HostTerminalsProbe/HostTerminalsProbe.tsx` | One invisible `WorkspaceClientProvider` per host, reports its `terminal.list` |
 | `.../free-solo/hooks/useBoardReconciliation/useBoardReconciliation.ts` | Marks cards whose workspace or terminal is gone |
@@ -834,10 +834,10 @@ git commit -m "feat(desktop): free solo card frame with drag and resize"
 ### Task 4: A live terminal inside a card
 
 **Files:**
-- Create: `.../BoardCard/components/BoardTerminal/BoardTerminal.tsx`
-- Create: `.../BoardCard/components/BoardTerminal/index.ts`
-- Create: `.../BoardCard/components/BoardCardTitle/BoardCardTitle.tsx`
-- Create: `.../BoardCard/components/BoardCardTitle/index.ts`
+- Create: `.../Board/components/BoardTerminal/BoardTerminal.tsx`
+- Create: `.../Board/components/BoardTerminal/index.ts`
+- Create: `.../Board/components/BoardCardTitle/BoardCardTitle.tsx`
+- Create: `.../Board/components/BoardCardTitle/index.ts`
 - Modify: `apps/desktop/src/renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/TerminalPane/TerminalPane.tsx`
 - Modify: `.../free-solo/components/Board/Board.tsx`
 
@@ -899,7 +899,7 @@ Expected: PASS. Existing callers pass no `onOpenUrl` and keep today's behaviour.
 
 - [ ] **Step 3: Write the card's terminal content**
 
-Create `.../BoardCard/components/BoardTerminal/BoardTerminal.tsx`:
+Create `.../Board/components/BoardTerminal/BoardTerminal.tsx`:
 
 ```tsx
 import type { RendererContext } from "@superset/panes";
@@ -1029,7 +1029,7 @@ export { BoardTerminal } from "./BoardTerminal";
 
 - [ ] **Step 4: Write the card title**
 
-Create `.../BoardCard/components/BoardCardTitle/BoardCardTitle.tsx`:
+Create `.../Board/components/BoardCardTitle/BoardCardTitle.tsx`:
 
 ```tsx
 import { useHostProjects } from "renderer/hooks/host-projects/useHostProjects";
@@ -1385,8 +1385,8 @@ git commit -m "feat(desktop): free solo add-card picker"
 **Files:**
 - Create: `.../free-solo/hooks/useBoardReconciliation/useBoardReconciliation.ts`
 - Create: `.../free-solo/hooks/useBoardReconciliation/index.ts`
-- Create: `.../BoardCard/components/DeadCardTile/DeadCardTile.tsx`
-- Create: `.../BoardCard/components/DeadCardTile/index.ts`
+- Create: `.../Board/components/DeadCardTile/DeadCardTile.tsx`
+- Create: `.../Board/components/DeadCardTile/index.ts`
 - Modify: `.../free-solo/components/Board/Board.tsx`
 
 **Interfaces:**
