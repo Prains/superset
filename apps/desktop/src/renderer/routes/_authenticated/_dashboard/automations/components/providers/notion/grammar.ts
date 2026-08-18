@@ -41,7 +41,7 @@ export const NOTION_SENTENCES: Record<NotionTriggerEvent, SentencePart[]> = {
 export const NOTION_MENU: TriggerMenuEntry<NotionConfig>[] = [
 	leaf("Rows changed", "data_source.content_updated"),
 	leaf("Comment added", "comment.created"),
-	leaf("Comment mentions me", "comment.mentioned"),
+	leaf("Comment mentions user", "comment.mentioned"),
 ];
 
 function leaf(label: string, event: NotionTriggerEvent) {
