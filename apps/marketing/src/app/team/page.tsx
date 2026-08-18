@@ -50,7 +50,8 @@ export default function TeamPage() {
 					</h1>
 					<p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl">
 						Superset is building self-improving software. It starts with giving
-						engineers the best tools that adapt to their needs over time.
+						engineers the best tools that adapt to their needs over time. We're
+						3 ex-YC CTOs building a tool that we love.
 					</p>
 				</section>
 
