@@ -11,9 +11,12 @@ import {
 } from "@superset/shared/automation-matching";
 import {
 	bearerToken,
+	WEBHOOK_TOKEN_PREFIX,
 	webhookTokenMatches,
 } from "@superset/trpc/automation-webhook-secret";
 import { Client } from "@upstash/qstash";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -27,7 +30,17 @@ const qstash = new Client({
 	baseUrl: env.QSTASH_URL,
 });
 
+const rateLimit = new Ratelimit({
+	redis: new Redis({
+		url: env.KV_REST_API_URL,
+		token: env.KV_REST_API_TOKEN,
+	}),
+	limiter: Ratelimit.slidingWindow(300, "1 m"),
+	prefix: "ratelimit:automations:webhook",
+});
+
 const EVENT_TYPE = "webhook.received";
+const MAX_BODY_BYTES = 1024 * 1024;
 
 function externalEventIdFor(
 	automationId: string,
@@ -44,9 +57,13 @@ function externalEventIdFor(
 	return hash.digest("hex");
 }
 
-function parseBody(body: string): unknown {
+function parseBody(body: string): Record<string, unknown> | unknown[] {
 	if (body.trim() === "") return {};
-	return JSON.parse(body);
+	const parsed: unknown = JSON.parse(body);
+	if (typeof parsed !== "object" || parsed === null) {
+		throw new Error("not an object");
+	}
+	return parsed as Record<string, unknown> | unknown[];
 }
 
 /**
@@ -67,6 +84,14 @@ export async function POST(
 	if (!token) {
 		return Response.json({ error: "Missing bearer token" }, { status: 401 });
 	}
+	if (!token.startsWith(WEBHOOK_TOKEN_PREFIX)) {
+		return Response.json({ error: "Invalid bearer token" }, { status: 401 });
+	}
+
+	const { success: withinLimit } = await rateLimit.limit(automationId);
+	if (!withinLimit) {
+		return Response.json({ error: "Rate limit exceeded" }, { status: 429 });
+	}
 
 	const triggers = await db
 		.select({
@@ -86,23 +111,26 @@ export async function POST(
 			),
 		);
 
-	const authenticated = triggers.some((t) =>
+	const authenticating = triggers.find((t) =>
 		webhookTokenMatches(token, t.secretHash),
 	);
-	if (!authenticated) {
+	if (!authenticating) {
 		return Response.json({ error: "Invalid bearer token" }, { status: 401 });
 	}
-	const organizationId = triggers[0]?.organizationId;
-	if (!organizationId) {
-		return Response.json({ error: "Invalid bearer token" }, { status: 401 });
-	}
+	const { organizationId } = authenticating;
 
 	const body = await request.text();
-	let payload: unknown;
+	if (Buffer.byteLength(body) > MAX_BODY_BYTES) {
+		return Response.json({ error: "Body too large" }, { status: 413 });
+	}
+	let payload: Record<string, unknown> | unknown[];
 	try {
 		payload = parseBody(body);
 	} catch {
-		return Response.json({ error: "Body must be JSON" }, { status: 400 });
+		return Response.json(
+			{ error: "Body must be a JSON object" },
+			{ status: 400 },
+		);
 	}
 
 	const externalEventId = externalEventIdFor(
@@ -180,10 +208,10 @@ export async function POST(
 			);
 		} catch (error) {
 			console.error("[automations/webhook] dispatch failed:", error);
-			return Response.json(
-				{ error: "Dispatch failed", eventId: inserted.id },
-				{ status: 500 },
-			);
+			await db
+				.delete(automationEvents)
+				.where(eq(automationEvents.id, inserted.id));
+			return Response.json({ error: "Dispatch failed" }, { status: 500 });
 		}
 	}
 

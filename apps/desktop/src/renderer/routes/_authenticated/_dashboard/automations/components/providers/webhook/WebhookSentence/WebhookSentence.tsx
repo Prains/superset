@@ -49,10 +49,11 @@ export function WebhookSentence({ triggerId, disabled }: WebhookSentenceProps) {
 			),
 	});
 
-	const copyHeader = async () => {
-		await navigator.clipboard.writeText(`Authorization: Bearer ${token}`);
-		toast.success("Auth header copied");
-	};
+	const copyHeader = () =>
+		navigator.clipboard.writeText(`Authorization: Bearer ${token}`).then(
+			() => toast.success("Auth header copied"),
+			() => toast.error("Copy failed"),
+		);
 
 	const generate = () => {
 		if (!triggerId) return;

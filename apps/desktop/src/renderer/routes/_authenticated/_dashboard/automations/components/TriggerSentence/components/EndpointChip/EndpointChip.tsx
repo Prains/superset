@@ -33,10 +33,12 @@ export function EndpointChip({
 			<TooltipTrigger asChild>
 				<button
 					type="button"
-					onClick={async () => {
-						await navigator.clipboard.writeText(url);
-						toast.success("URL copied");
-					}}
+					onClick={() =>
+						navigator.clipboard.writeText(url).then(
+							() => toast.success("URL copied"),
+							() => toast.error("Copy failed"),
+						)
+					}
 					className={cn(CHIP, "max-w-80 font-mono text-[12px]")}
 				>
 					<span className="truncate">{url}</span>
