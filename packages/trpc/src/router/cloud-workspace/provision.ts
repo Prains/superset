@@ -126,6 +126,9 @@ export async function provisionCloudWorkspace(
 					AUTH_TOKEN: "sandbox",
 					SUPERSET_API_URL: env.NEXT_PUBLIC_API_URL,
 					SUPERSET_HOST_RUN_MODE: "sandbox",
+					// Git never prompts interactively in a sandbox: when the credential
+					// broker refuses, an agent's shell must see a failure, not a hang.
+					GIT_TERMINAL_PROMPT: "0",
 					SUPERSET_SANDBOX_WORKSPACE_ID: row.id,
 					SUPERSET_SANDBOX_WORKSPACE_NAME: resolvedName,
 					SUPERSET_SANDBOX_PROJECT_NAME: project.name,

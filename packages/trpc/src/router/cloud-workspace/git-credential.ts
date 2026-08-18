@@ -56,20 +56,31 @@ export interface GitCredential {
 	/** Unix seconds; emitted to git as `password_expiry_utc` so it caches correctly. */
 	expiresAt: number;
 	/** Which identity the credential carries — surfaced, never silent. */
-	identity: { kind: "user"; login: string } | { kind: "app" };
+	identity: { kind: "user"; githubUserId: string } | { kind: "app" };
 }
 
 async function userGithubToken(
 	userId: string,
-): Promise<{ token: string; login: string } | null> {
+): Promise<{ token: string; githubUserId: string } | null> {
 	const account = await db.query.accounts.findFirst({
 		where: and(eq(accounts.userId, userId), eq(accounts.providerId, "github")),
 	});
 	if (!account?.accessToken) return null;
+	// An expired token handed out with a fresh password_expiry_utc would give
+	// git a credential it trusts for 50 minutes that GitHub rejects at once.
+	// Falling through to the App token here is the honest answer until a
+	// refresh flow exists.
+	if (
+		account.accessTokenExpiresAt &&
+		account.accessTokenExpiresAt.getTime() <= Date.now()
+	) {
+		return null;
+	}
 	// GitHub returns scopes space- or comma-separated depending on the flow.
 	const scopes = (account.scope ?? "").split(/[\s,]+/);
 	if (!scopes.includes("repo")) return null;
-	return { token: account.accessToken, login: account.accountId };
+	// better-auth stores GitHub's numeric user id as accountId, not the login.
+	return { token: account.accessToken, githubUserId: account.accountId };
 }
 
 async function appInstallationToken(projectId: string): Promise<string | null> {
@@ -167,7 +178,7 @@ export async function mintGitCredential(input: {
 				username: "x-access-token",
 				password: user.token,
 				expiresAt,
-				identity: { kind: "user", login: user.login },
+				identity: { kind: "user", githubUserId: user.githubUserId },
 			};
 		}
 	}

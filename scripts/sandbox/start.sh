@@ -63,5 +63,18 @@ fi
 git config --global credential.https://github.com.helper /app/git-credential-helper.sh
 git config --global credential.useHttpPath false
 
+# Identity and prompt policy go in the same place, for the same reason: a
+# terminal's environment is rebuilt from a snapshot plus an explicit allowlist
+# and never inherits this process's env, so an env var set here would reach
+# git run from a process.exec but not git run from a Superset terminal — the
+# surface people actually use. /root/.gitconfig reaches both.
+if [ -n "${GIT_AUTHOR_NAME:-}" ]; then
+  git config --global user.name "$GIT_AUTHOR_NAME"
+fi
+if [ -n "${GIT_AUTHOR_EMAIL:-}" ]; then
+  git config --global user.email "$GIT_AUTHOR_EMAIL"
+fi
+
+
 cd /app
 exec node host-service.js
