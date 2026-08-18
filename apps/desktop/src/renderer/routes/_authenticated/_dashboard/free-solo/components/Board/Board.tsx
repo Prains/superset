@@ -29,7 +29,7 @@ export function Board() {
 			) : (
 				cards.map((card) => (
 					<BoardCard key={card.id} card={card} title={card.terminalId}>
-						<div className="size-full rounded bg-fill-secondary" />
+						<div className="size-full rounded bg-muted" />
 					</BoardCard>
 				))
 			)}

@@ -1,5 +1,11 @@
 import { cn } from "@superset/ui/utils";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+	type ReactNode,
+	type PointerEvent as ReactPointerEvent,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { HiXMark } from "react-icons/hi2";
 import {
 	type BoardCard as BoardCardModel,
@@ -14,6 +20,11 @@ interface BoardCardProps {
 	title: ReactNode;
 	children: ReactNode;
 }
+
+/** Debounce window for committing a settled resize. ResizeObserver fires on
+ *  every frame while the native grip is dragged, and resizeCard persists to
+ *  localStorage on every call — this buffers those frames into one write. */
+const RESIZE_COMMIT_DELAY_MS = 200;
 
 export function BoardCard({ card, title, children }: BoardCardProps) {
 	const isActive = useFreeSoloBoardStore(
@@ -32,24 +43,63 @@ export function BoardCard({ card, title, children }: BoardCardProps) {
 	);
 
 	const sizedRef = useRef<HTMLDivElement | null>(null);
+	// Kept fresh every render (not just in the effect below) so the observer
+	// callback — which does not re-subscribe on every store update — always
+	// compares against the size already persisted, without a stale closure.
+	const committedSizeRef = useRef({ w: card.w, h: card.h });
+	committedSizeRef.current = { w: card.w, h: card.h };
+	const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 	useEffect(() => {
 		const element = sizedRef.current;
 		if (!element) return;
 		// The native resize grip has no event of its own; observe the box it
-		// changes and persist the settled size. The observed element must be
-		// the SAME element that carries the width/height style, or the
-		// observation feeds back into a shrink loop: outer − chrome → body →
-		// smaller outer → …
+		// changes. ResizeObserver fires on every frame while the box is
+		// actively being resized (and once more on mount) — not once at
+		// gesture end — so we buffer the latest observed size and commit it
+		// only after it settles, the same one-write-per-gesture contract as
+		// drag. The observed element must be the SAME element that carries
+		// the width/height style, or the observation feeds back into a
+		// shrink loop: outer − chrome → body → smaller outer → …
 		const observer = new ResizeObserver(() => {
 			const { width, height } = element.getBoundingClientRect();
 			if (width < 1 || height < 1) return;
-			resizeCard(card.id, width, height);
+			const committed = committedSizeRef.current;
+			if (
+				Math.round(width) === committed.w &&
+				Math.round(height) === committed.h
+			) {
+				return;
+			}
+			if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+			resizeTimeoutRef.current = setTimeout(() => {
+				resizeCard(card.id, width, height);
+			}, RESIZE_COMMIT_DELAY_MS);
 		});
 		observer.observe(element);
-		return () => observer.disconnect();
+		return () => {
+			observer.disconnect();
+			if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+		};
 	}, [card.id, resizeCard]);
 
 	const position = dragOffset ?? { x: card.x, y: card.y };
+
+	// Shared by pointerup and pointercancel: a cancelled gesture (e.g. the
+	// browser reclaiming the pointer mid-drag) still commits the last known
+	// position rather than leaving the card at an un-persisted local offset.
+	const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+		const origin = dragOriginRef.current;
+		dragOriginRef.current = null;
+		event.currentTarget.releasePointerCapture(event.pointerId);
+		if (!origin) return;
+		const next = dragPosition(origin, {
+			pointerX: event.clientX,
+			pointerY: event.clientY,
+		});
+		setDragOffset(null);
+		moveCard(card.id, next.x, next.y);
+	};
 
 	return (
 		<div
@@ -57,8 +107,8 @@ export function BoardCard({ card, title, children }: BoardCardProps) {
 			className={cn(
 				// `resize` needs a non-visible overflow. This element owns both the
 				// size style and the ResizeObserver — see the effect above.
-				"absolute flex resize flex-col overflow-hidden rounded-lg border bg-card shadow-sm",
-				isActive ? "border-border-selected" : "border-border",
+				"absolute flex resize flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm",
+				isActive && "ring-1 ring-ring",
 			)}
 			style={{
 				left: position.x,
@@ -92,18 +142,8 @@ export function BoardCard({ card, title, children }: BoardCardProps) {
 						}),
 					);
 				}}
-				onPointerUp={(event) => {
-					const origin = dragOriginRef.current;
-					dragOriginRef.current = null;
-					event.currentTarget.releasePointerCapture(event.pointerId);
-					if (!origin) return;
-					const next = dragPosition(origin, {
-						pointerX: event.clientX,
-						pointerY: event.clientY,
-					});
-					setDragOffset(null);
-					moveCard(card.id, next.x, next.y);
-				}}
+				onPointerUp={endDrag}
+				onPointerCancel={endDrag}
 			>
 				<div className="min-w-0 flex-1">{title}</div>
 				<button

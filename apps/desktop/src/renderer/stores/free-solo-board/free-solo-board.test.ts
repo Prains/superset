@@ -131,4 +131,22 @@ describe("free-solo-board", () => {
 		expect(first?.z).toBeGreaterThan(second?.z ?? 0);
 		expect(state.activeCardId).toBe(firstId);
 	});
+
+	it("still raises a card that is topmost but not active (mixed state, distinguishes && from ||)", () => {
+		const firstId = add("term-1") as string;
+		const secondId = add("term-2") as string;
+		// `second` is topmost (added last) but make `first` active without
+		// touching z, so `second` is topmost-but-inactive.
+		useFreeSoloBoardStore.getState().setActiveCard(firstId);
+		const before = useFreeSoloBoardStore.getState().cards;
+
+		useFreeSoloBoardStore.getState().raiseCard(secondId);
+
+		const state = useFreeSoloBoardStore.getState();
+		expect(state.cards).not.toBe(before);
+		expect(state.activeCardId).toBe(secondId);
+		const first = state.cards.find((card) => card.id === firstId);
+		const second = state.cards.find((card) => card.id === secondId);
+		expect(second?.z).toBeGreaterThan(first?.z ?? 0);
+	});
 });
