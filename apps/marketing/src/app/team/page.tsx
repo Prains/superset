@@ -149,7 +149,7 @@ export default function TeamPage() {
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-start">
 						<div>
 							<h2 className="text-2xl md:text-3xl font-normal text-foreground mb-6">
-								From worktree manager to software factories
+								So how did we get here?
 							</h2>
 							<div className="space-y-4 text-muted-foreground leading-relaxed">
 								<p>
