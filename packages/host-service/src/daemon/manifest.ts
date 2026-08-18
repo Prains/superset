@@ -30,7 +30,43 @@ export interface PtyDaemonManifest {
 	handoffSuccessorPid?: number;
 }
 
+/**
+ * True when running under a test runner: `bun test` sets NODE_ENV=test,
+ * `node --test` marks its spawned test processes with NODE_TEST_CONTEXT.
+ */
+export function isTestRunnerContext(
+	env: NodeJS.ProcessEnv = process.env,
+): boolean {
+	return env.NODE_ENV === "test" || env.NODE_TEST_CONTEXT !== undefined;
+}
+
+/**
+ * Tests must never resolve the REAL daemon namespace (`~/.superset`
+ * manifests, org-keyed sockets): a test that reads a real manifest or
+ * dials a real socket can adopt, reap, or kill daemons and shells that
+ * belong to running desktop instances — this has killed live dev stacks
+ * and their agents' terminals. Fail loudly instead: every test that
+ * touches the daemon layer must point SUPERSET_HOME_DIR at an isolated
+ * temp dir (and usually SUPERSET_PTY_DAEMON_SOCKET at a temp socket).
+ */
+export function assertIsolatedDaemonNamespaceInTests(
+	env: NodeJS.ProcessEnv = process.env,
+): void {
+	if (!isTestRunnerContext(env)) return;
+	const home = env.SUPERSET_HOME_DIR;
+	const defaultHome = join(homedir(), ".superset");
+	if (!home || home === defaultHome) {
+		throw new Error(
+			"refusing to touch the default ~/.superset daemon namespace from a " +
+				"test: set SUPERSET_HOME_DIR to an isolated temp dir (and " +
+				"SUPERSET_PTY_DAEMON_SOCKET to a temp socket) before using the " +
+				"daemon layer.",
+		);
+	}
+}
+
 function supersetHomeDir(): string {
+	assertIsolatedDaemonNamespaceInTests();
 	return process.env.SUPERSET_HOME_DIR || join(homedir(), ".superset");
 }
 
