@@ -62,8 +62,12 @@ export type GoogleCalendarWatchState = {
 	watchedSince?: string;
 	channelId?: string;
 	resourceId?: string;
-	/** Compared against `X-Goog-Channel-Token` on every push. */
-	channelToken?: string;
+	/**
+	 * SHA-256 of the token Google echoes back as `X-Goog-Channel-Token`. A
+	 * hash because this column is read by every member's client through
+	 * `integration.list`; the token itself is what authenticates a push.
+	 */
+	channelTokenHash?: string;
 	/** Epoch milliseconds, as Google reports it. */
 	channelExpiresAt?: number;
 };

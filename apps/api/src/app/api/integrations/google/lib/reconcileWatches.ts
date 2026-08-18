@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { SelectIntegrationConnection } from "@superset/db/schema";
 import {
 	findGoogleConnectionById,
@@ -87,7 +87,9 @@ export async function reconcileWatches(
 			};
 			await patchCalendarState(connectionId, calendar.id, {
 				channelId: channel.id,
-				channelToken: channel.token,
+				channelTokenHash: createHash("sha256")
+					.update(channel.token)
+					.digest("hex"),
 			});
 			let watched: Awaited<ReturnType<typeof watchCalendar>>;
 			try {
@@ -95,10 +97,10 @@ export async function reconcileWatches(
 			} catch (error) {
 				// The new channel never opened; put the previous one back so its
 				// pushes keep being accepted until the next renewal succeeds.
-				if (state?.channelId && state.channelToken) {
+				if (state?.channelId && state.channelTokenHash) {
 					await patchCalendarState(connectionId, calendar.id, {
 						channelId: state.channelId,
-						channelToken: state.channelToken,
+						channelTokenHash: state.channelTokenHash,
 					});
 				}
 				throw error;

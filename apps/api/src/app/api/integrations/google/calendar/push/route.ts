@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { db } from "@superset/db/client";
 import { integrationConnections } from "@superset/db/schema";
 import { googleConfigOf } from "@superset/trpc/integrations/google";
@@ -50,12 +50,15 @@ export async function POST(request: Request) {
 	const entry = Object.entries(calendars).find(
 		([, s]) => s.channelId === channelId,
 	);
-	const expected = entry?.[1].channelToken;
+	// Only the hash is stored (the config column reaches every member's
+	// client); the token Google echoes is hashed the same way and compared.
+	const expected = entry?.[1].channelTokenHash;
+	const presented = createHash("sha256").update(token).digest("hex");
 	if (
 		!entry ||
 		!expected ||
-		expected.length !== token.length ||
-		!timingSafeEqual(Buffer.from(expected), Buffer.from(token))
+		expected.length !== presented.length ||
+		!timingSafeEqual(Buffer.from(expected), Buffer.from(presented))
 	) {
 		return Response.json({ error: "Invalid channel token" }, { status: 401 });
 	}
