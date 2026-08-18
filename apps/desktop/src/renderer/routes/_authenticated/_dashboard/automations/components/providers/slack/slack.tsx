@@ -108,11 +108,18 @@ function renderPart(
 					disabled={disabled}
 				/>
 			);
-		case "completionReaction":
+		case "completionReaction": {
+			// A row saved before this field existed has no key at all; the schema
+			// defaults it on save, so the chip must show the same default rather
+			// than "No reaction" for a value that will save as a check mark.
+			const reaction =
+				"completionReaction" in config
+					? config.completionReaction
+					: "white_check_mark";
 			return (
 				<EmojiNameChip
 					key={index}
-					names={config.completionReaction ? [config.completionReaction] : []}
+					names={reaction ? [reaction] : []}
 					// One reaction: the last name typed wins, so ":eyes: :bug:" ends
 					// as bug rather than silently reacting twice.
 					onChange={(names) =>
@@ -123,6 +130,7 @@ function renderPart(
 					disabled={disabled}
 				/>
 			);
+		}
 	}
 }
 
