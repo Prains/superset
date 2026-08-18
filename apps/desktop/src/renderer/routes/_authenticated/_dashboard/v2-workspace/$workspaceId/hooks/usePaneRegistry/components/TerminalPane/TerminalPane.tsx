@@ -55,6 +55,9 @@ interface TerminalPaneProps {
 	workspaceId: string;
 	onOpenFile: (path: string, openInNewTab?: boolean) => void;
 	onRevealPath: (path: string, options?: { isDirectory?: boolean }) => void;
+	/** Surfaces without a workspace browser tab (the Free Solo board) pass
+	 *  their own handler; the default keeps the in-workspace behaviour. */
+	onOpenUrl?: (url: string) => void;
 }
 
 export function TerminalPane({
@@ -62,6 +65,7 @@ export function TerminalPane({
 	workspaceId,
 	onOpenFile,
 	onRevealPath,
+	onOpenUrl,
 }: TerminalPaneProps) {
 	const filePolicy = useTerminalFilePolicy();
 	const urlPolicy = useTerminalUrlPolicy();
@@ -318,6 +322,8 @@ export function TerminalPane({
 						electronTrpcClient.external.openUrl.mutate(url).catch((error) => {
 							console.error("[v2 Terminal] Failed to open URL:", url, error);
 						});
+					} else if (onOpenUrl) {
+						onOpenUrl(url);
 					} else {
 						openUrlInV2Workspace({
 							store: ctx.store,
@@ -338,6 +344,7 @@ export function TerminalPane({
 		ctx.store,
 		onOpenFile,
 		onRevealPath,
+		onOpenUrl,
 		openInExternalEditor,
 		revealInFinder,
 		onLinkHover,
