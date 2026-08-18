@@ -177,9 +177,13 @@ that strand — which is why this reads as fine right up until the first
 long-lived workspace.
 
 **Commits from a sandbox are unsigned, and users with vigilant mode see
-"Unverified" on every one.** Attribution is fine — GitHub links a commit to
-the account whose email is on it, so a workspace commit shows as the creating
-user regardless of which token pushed it. But nothing in the sandbox signs, so
+"Unverified" on every one.** Attribution mostly works — GitHub links a commit
+to the account that has its author email verified, so a workspace commit shows
+as the creating user regardless of which token pushed it. "Mostly" because the
+email is `users.email` from sign-in, and only a GitHub sign-in guarantees that
+address is verified on the user's GitHub account; a user who signed in another
+way and never added that email to GitHub gets an unlinked grey avatar instead.
+There is no validation of this today. But nothing in the sandbox signs, so
 there is no "Verified" badge; and for a user who has enabled vigilant mode
 that absence renders as a red "Unverified" instead of no badge at all. It hits
 exactly the security-conscious people most likely to notice. Cursor's cloud
