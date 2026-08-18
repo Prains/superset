@@ -59,8 +59,6 @@ export interface DashboardSidebarWorkspace {
 	lineageChildCount: number;
 	/** True when this row's child subtree is collapsed in the sidebar. */
 	lineageCollapsed: boolean;
-	/** Normalized host-side labels; tag-bound sections derive membership. */
-	tags: string[];
 }
 
 /**
@@ -82,8 +80,6 @@ export interface DashboardSidebarSection {
 	isCollapsed: boolean;
 	tabOrder: number;
 	color: string | null;
-	/** Non-null = smart section: membership also derives from this tag. */
-	tagBinding: string | null;
 	workspaces: DashboardSidebarWorkspace[];
 }
 
