@@ -1,26 +1,31 @@
 import { prompt } from "@superset/alert-prompt";
-import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
-import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Alert, Share } from "react-native";
-import type { HostWorkspaceRow } from "@/hooks/useHostWorkspaces";
-import type { OrgHost } from "@/hooks/useOrgHosts";
-import {
-	buildRelayHostUrl,
-	getHostServiceClientByUrl,
-} from "@/lib/host-service/client";
+import type {
+	HostWorkspaceItem,
+	HostWorkspacesCacheOps,
+} from "@/hooks/useHostWorkspaces";
+import { getHostServiceClientByUrl } from "@/lib/host-service/client";
 import { isTrpcErrorWithData } from "@/lib/host-service/errors";
 import { workspaceShareUrl } from "@/lib/web-links";
 
-export function useWorkspaceHeaderActions(
-	workspace: HostWorkspaceRow | null,
-	host: OrgHost | null,
+interface DestroyOptions {
+	/** Git-destructive consent only: skips the dirty-worktree preflight. */
+	force: boolean;
+	/** Consent to abandon the teardown script — set once it has already failed. */
+	skipTeardown: boolean;
+}
+
+export function useWorkspaceRowActions(
+	workspace: HostWorkspaceItem,
+	cache: HostWorkspacesCacheOps,
 ) {
-	const router = useRouter();
-	const queryClient = useQueryClient();
+	const [isDeleting, setIsDeleting] = useState(false);
+
 	const renameWorkspace = async () => {
-		if (!workspace) return;
-		if (!host) {
+		const hostUrl = cache.resolveHostUrl(workspace.hostId);
+		if (!hostUrl) {
 			Alert.alert("Host is not online");
 			return;
 		}
@@ -33,7 +38,6 @@ export function useWorkspaceHeaderActions(
 		const trimmed = name?.trim();
 		if (!trimmed || trimmed === workspace.name) return;
 		try {
-			const hostUrl = buildRelayHostUrl(host.organizationId, host.machineId);
 			await getHostServiceClientByUrl(hostUrl).workspace.update.mutate({
 				id: workspace.id,
 				name: trimmed,
@@ -41,22 +45,16 @@ export function useWorkspaceHeaderActions(
 		} catch {
 			Alert.alert("Rename failed");
 		}
-		void queryClient.invalidateQueries({
-			queryKey: ["host-service", "workspaces", "list"],
-		});
+		cache.invalidateHost(workspace.hostId);
 	};
 
-	const destroyWorkspace = async ({
-		force,
-		skipTeardown,
-	}: {
-		/** Git-destructive consent only: skips the dirty-worktree preflight. */
-		force: boolean;
-		/** Consent to abandon the teardown script — set once it has already failed. */
-		skipTeardown: boolean;
-	}) => {
-		if (!workspace || !host) return;
-		const hostUrl = buildRelayHostUrl(host.organizationId, host.machineId);
+	const destroyWorkspace = async ({ force, skipTeardown }: DestroyOptions) => {
+		const hostUrl = cache.resolveHostUrl(workspace.hostId);
+		if (!hostUrl) {
+			Alert.alert("Host is not online");
+			return;
+		}
+		setIsDeleting(true);
 		try {
 			await getHostServiceClientByUrl(hostUrl).workspaceCleanup.destroy.mutate({
 				workspaceId: workspace.id,
@@ -64,10 +62,7 @@ export function useWorkspaceHeaderActions(
 				force,
 				skipTeardown,
 			});
-			void queryClient.invalidateQueries({
-				queryKey: ["host-service", "workspaces", "list"],
-			});
-			router.back();
+			cache.removeWorkspace(workspace.hostId, workspace.id);
 		} catch (error) {
 			if (isTrpcErrorWithData(error)) {
 				if (error.data.deleteInProgress) {
@@ -93,16 +88,23 @@ export function useWorkspaceHeaderActions(
 					return;
 				}
 			}
+			// The host archives the row before any slow work, so if it is gone
+			// from a fresh list the delete committed and only the relay gave up
+			// waiting (its 30s cap is shorter than a teardown script's).
+			const rows = await cache.refetchHost(workspace.hostId);
+			if (rows && !rows.some((row) => row.id === workspace.id)) return;
 			Alert.alert(
 				"Delete failed",
 				error instanceof Error ? error.message : undefined,
 			);
+		} finally {
+			setIsDeleting(false);
 		}
 	};
 
 	const deleteWorkspace = () => {
-		if (!workspace) return;
-		if (!host) {
+		if (isDeleting) return;
+		if (!cache.resolveHostUrl(workspace.hostId)) {
 			Alert.alert("Host is not online");
 			return;
 		}
@@ -121,18 +123,13 @@ export function useWorkspaceHeaderActions(
 		);
 	};
 
-	const copyId = () => {
-		if (workspace) void Clipboard.setStringAsync(workspace.id);
-	};
+	const copyId = () => void Clipboard.setStringAsync(workspace.id);
 
-	const shareWorkspace = () => {
-		if (!workspace) return;
-		void Share.share({
-			url: workspaceShareUrl(workspace.id),
-		});
-	};
+	const shareWorkspace = () =>
+		void Share.share({ url: workspaceShareUrl(workspace.id) });
 
 	return {
+		isDeleting,
 		renameWorkspace,
 		deleteWorkspace,
 		copyId,
