@@ -164,6 +164,15 @@ so new sandboxes pick up a rebuilt image for free. It is only existing ones
 that strand — which is why this reads as fine right up until the first
 long-lived workspace.
 
+**Commits from a sandbox are unsigned, and users with vigilant mode see
+"Unverified" on every one.** Attribution is fine — GitHub links a commit to
+the account whose email is on it, so a workspace commit shows as the creating
+user regardless of which token pushed it. But nothing in the sandbox signs, so
+there is no "Verified" badge; and for a user who has enabled vigilant mode
+that absence renders as a red "Unverified" instead of no badge at all. It hits
+exactly the security-conscious people most likely to notice. Cursor's cloud
+agents sign with an HSM-backed key for this reason. **Open.**
+
 ## Provider constraints
 
 **The image's ENTRYPOINT belongs to the provider.** The SDK appends

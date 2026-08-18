@@ -33,7 +33,15 @@ import { and, eq } from "drizzle-orm";
 import { installationOctokit } from "../../lib/blaxel/clone-token";
 import { repoForProject } from "../../lib/blaxel/repo-for-project";
 
-/** How long a minted credential is good for; git caches it exactly this long. */
+/**
+ * Advertised lifetime of a minted credential. Emitted to git as
+ * password_expiry_utc, which git ≥ 2.40 uses to bound how long a *caching*
+ * helper may serve a credential — and the sandbox registers no caching helper,
+ * so today it governs nothing: every git operation re-brokers, and the
+ * credential lives only as long as the git process that asked. That is the
+ * actual bound, and it is tighter than any expiry. Kept for when a cache is
+ * added; do not read it as "git caches this long", it doesn't.
+ */
 export const GIT_CREDENTIAL_TTL_S = 50 * 60;
 
 export function generateSandboxSecret(): string {
@@ -53,7 +61,7 @@ function secretMatches(secret: string, storedHash: string): boolean {
 export interface GitCredential {
 	username: string;
 	password: string;
-	/** Unix seconds; emitted to git as `password_expiry_utc` so it caches correctly. */
+	/** Unix seconds; emitted to git as `password_expiry_utc` (see GIT_CREDENTIAL_TTL_S). */
 	expiresAt: number;
 	/** Which identity the credential carries — surfaced, never silent. */
 	identity: { kind: "user"; githubUserId: string } | { kind: "app" };

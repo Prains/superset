@@ -6,9 +6,9 @@ import type { Hono } from "hono";
  * `git-askpass.sh` calls this when git needs a username or password. This
  * route asks the API for one — proving which sandbox it is with the secret it
  * was handed at provision — and answers in git's credential format so the
- * helper can pass it straight through. Nothing is stored; the credential
- * lives for one git operation, and git itself caches it only as long as
- * `password_expiry_utc` says.
+ * helper can pass it straight through. Nothing is stored anywhere: no cache
+ * helper is registered, so every git operation asks again and the credential
+ * lives exactly as long as the git process that requested it.
  *
  * Loopback only, and only in sandbox mode. There is no auth on this route
  * because the trust boundary is the network namespace: only a process inside
@@ -58,8 +58,9 @@ export function registerGitCredentialRoute(args: {
 				branch,
 			});
 			// git credential protocol: key=value lines, blank-line terminated.
-			// password_expiry_utc lets git's own cache evict at the real expiry
-			// instead of re-asking on every operation.
+			// password_expiry_utc is advisory — it only bounds a caching helper,
+			// and none is registered — but a git that understands it (≥ 2.40)
+			// will at least refuse to hand back a stale one.
 			return c.text(
 				[
 					`username=${cred.username}`,

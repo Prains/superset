@@ -3,14 +3,19 @@
 # for each git operation instead of holding one.
 #
 # Registered scoped to https://github.com so it is never asked about, and never
-# answers for, any other host — two production systems (Codespaces, Gitpod)
-# shipped the same bug where an unscoped helper handed the GitHub token to
-# whatever host served the repo. The host is checked again inside for the same
-# reason: git does not verify that a helper's answer matches its question.
+# answers for, any other host. Codespaces shipped an unscoped helper that handed
+# the GitHub token to whatever host served the repo (Clone2Leak); Gitpod's was
+# host-aware but, unscoped, aborted git for every unrelated host instead of
+# declining. Scoping in the config avoids the first; exiting 0 for a foreign
+# host avoids the second. The host is checked again inside because git does
+# not verify that a helper's answer matches its question.
 #
 # Only `get` is implemented. `store`/`erase` are no-ops on purpose: nothing is
-# stored, so there is nothing to erase, and git's own in-memory cache is bounded
-# by the password_expiry_utc host-service returns.
+# stored, so there is nothing to erase. Every git operation asks again — that
+# is the design, and it is what keeps the credential from outliving the git
+# process that requested it. One call answers both username and password,
+# which is why this costs one broker round-trip per operation where an
+# askpass-based design pays two.
 [ "$1" = "get" ] || exit 0
 
 input=$(cat)
