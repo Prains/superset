@@ -85,10 +85,25 @@ export function AddCardDialog({
 	// once one is picked — swaps CommandList over to that preset's workspaces.
 	const [selectedPreset, setSelectedPreset] =
 		useState<V2TerminalPresetRow | null>(null);
+	// cmdk keeps typed search text in the Command root, which CommandDialog
+	// doesn't expose as a controllable prop — without resetting it here, the
+	// step-2 workspace list would filter against whatever the user typed
+	// while browsing presets. Controlled (rather than remounting the whole
+	// CommandDialog on step change, which was tried first and unmounted the
+	// live Radix Dialog/cmdk tree mid-interaction).
+	const [search, setSearch] = useState("");
+	const goToPresetStep = (preset: V2TerminalPresetRow) => {
+		setSelectedPreset(preset);
+		setSearch("");
+	};
+	const resetToRootStep = () => {
+		setSelectedPreset(null);
+		setSearch("");
+	};
 	const handleOpenChange = (nextOpen: boolean) => {
 		onOpenChange(nextOpen);
 		// Closed dialog always reopens on the root step, never mid-wizard.
-		if (!nextOpen) setSelectedPreset(null);
+		if (!nextOpen) resetToRootStep();
 	};
 
 	const collections = useCollections();
@@ -212,7 +227,7 @@ export function AddCardDialog({
 			return;
 		}
 		onOpenChange(false);
-		setSelectedPreset(null);
+		resetToRootStep();
 
 		const terminalId = crypto.randomUUID();
 		const commands = resolvePresetLaunchCommands(preset, agents);
@@ -247,12 +262,6 @@ export function AddCardDialog({
 
 	return (
 		<CommandDialog
-			// Remounts the whole picker on step change: cmdk keeps the typed
-			// search text in the Command root, which CommandDialog doesn't
-			// expose as a controllable prop — the only outside lever to reset
-			// it (rather than filtering the new step's items against
-			// leftover text from the last one) is a fresh instance.
-			key={selectedPreset?.id ?? "root"}
 			open={open}
 			onOpenChange={handleOpenChange}
 			title={
@@ -267,6 +276,8 @@ export function AddCardDialog({
 			}
 		>
 			<CommandInput
+				value={search}
+				onValueChange={setSearch}
 				placeholder={
 					selectedPreset
 						? "Search workspaces…"
@@ -290,7 +301,7 @@ export function AddCardDialog({
 				<CommandEmpty>Nothing found.</CommandEmpty>
 				{selectedPreset ? (
 					<CommandGroup heading={`Start "${selectedPresetName}" in…`}>
-						<CommandItem value="back" onSelect={() => setSelectedPreset(null)}>
+						<CommandItem value="back" onSelect={resetToRootStep}>
 							<HiArrowLeft className="size-3.5 shrink-0" />
 							<span className="truncate">Back to presets</span>
 						</CommandItem>
@@ -450,7 +461,7 @@ export function AddCardDialog({
 										key={preset.id}
 										value={`start ${preset.name}`}
 										disabled={isFull}
-										onSelect={() => setSelectedPreset(preset)}
+										onSelect={() => goToPresetStep(preset)}
 									>
 										{icon ? (
 											<img

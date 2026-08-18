@@ -1,9 +1,15 @@
+import { TerminalSquare } from "lucide-react";
+import {
+	getPresetIcon,
+	useIsDarkTheme,
+} from "renderer/assets/app-icons/preset-icons";
 import { useHostProjects } from "renderer/hooks/host-projects/useHostProjects";
-import { useTerminalAgentStatuses } from "renderer/hooks/host-service/useTerminalAgentStatuses";
-import { TerminalPaneIcon } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/TerminalPane/components/TerminalPaneIcon";
+import { useTerminalAgentBindings } from "renderer/hooks/host-service/useTerminalAgentBindings";
+import { deriveTerminalAgentStatus } from "renderer/hooks/host-service/useTerminalAgentStatuses";
 import { useHostWorkspaces } from "renderer/routes/_authenticated/providers/HostWorkspacesProvider";
 import { StatusIndicator } from "renderer/screens/main/components/StatusIndicator";
 import type { BoardCard as BoardCardModel } from "renderer/stores/free-solo-board";
+import { useV2NotificationStore } from "renderer/stores/v2-notifications";
 
 interface BoardCardTitleProps {
 	card: BoardCardModel;
@@ -30,21 +36,45 @@ export function BoardCardTitle({ card, sessionTitle }: BoardCardTitleProps) {
 				?.name
 		: "Session";
 
-	// `useTerminalAgentStatuses` only carries an entry for a terminal with a
-	// live agent binding — its absence here doubles as "no agent running",
-	// so the icon/status row only renders when this card's terminal has one.
-	const agentStatuses = useTerminalAgentStatuses(card.workspaceId);
-	const agentStatus = agentStatuses.get(card.terminalId);
+	// One `useTerminalAgentBindings` subscription per card, not two: the
+	// board can hold up to MAX_CARDS live cards at once (unlike the
+	// workspace pane view `TerminalPaneIcon` was built for, where only a
+	// few panes are ever mounted), so both the icon and the status below are
+	// derived from this single binding lookup rather than reusing
+	// `TerminalPaneIcon` — which would open its own independent
+	// `useTerminalAgentBindings` subscription for the same data.
+	const bindings = useTerminalAgentBindings(card.workspaceId);
+	const binding = bindings.get(card.terminalId);
+	const terminalSeenAt = useV2NotificationStore(
+		(state) => state.terminalSeenAt,
+	);
+	const isDark = useIsDarkTheme();
+	const agentStatus = binding
+		? deriveTerminalAgentStatus({
+				lastEventType: binding.lastEventType,
+				lastEventAt: binding.lastEventAt,
+				lastSeenAt: terminalSeenAt[card.terminalId],
+			})
+		: undefined;
+	const agentIconSrc = binding
+		? getPresetIcon(binding.agentId, isDark)
+		: undefined;
 
 	return (
 		<div className="flex min-w-0 items-center gap-1.5 text-xs">
-			{agentStatus && (
+			{binding && (
 				<>
-					<TerminalPaneIcon
-						workspaceId={card.workspaceId}
-						terminalId={card.terminalId}
-					/>
-					{agentStatus !== "idle" && (
+					{agentIconSrc ? (
+						<img
+							src={agentIconSrc}
+							alt=""
+							className="size-3.5 shrink-0"
+							draggable={false}
+						/>
+					) : (
+						<TerminalSquare className="size-3.5 shrink-0" />
+					)}
+					{agentStatus && agentStatus !== "idle" && (
 						<StatusIndicator status={agentStatus} className="shrink-0" />
 					)}
 				</>
