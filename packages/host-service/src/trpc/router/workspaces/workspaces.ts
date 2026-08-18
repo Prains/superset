@@ -5,7 +5,7 @@ import {
 	sanitizeUserBranchName,
 } from "@superset/shared/workspace-launch";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { projects, workspaces } from "../../../db/schema";
 import { createGitEnvResolver } from "../../../runtime/git";
@@ -164,6 +164,11 @@ function findExistingWorkspaceByBranch(
 			where: and(
 				eq(workspaces.projectId, projectId),
 				eq(workspaces.branch, branch),
+				// Tombstones must not satisfy idempotency: matching one returns
+				// an invisible archived row and silently skips the create, so
+				// re-creating a previously-destroyed workspace's branch no-ops.
+				// The adopt path already filters these.
+				isNull(workspaces.archivedAt),
 			),
 		})
 		.sync();
