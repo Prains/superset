@@ -1346,6 +1346,25 @@ describe("ptyDaemonSocketPath", () => {
 		).toBe(legacyPath());
 	});
 
+	test("equivalent spellings of one custom home share a socket", () => {
+		const canonical = ptyDaemonSocketPath(ORG, {
+			NODE_ENV: "production",
+			SUPERSET_HOME_DIR: "/tmp/custom-home-alias",
+		});
+		expect(
+			ptyDaemonSocketPath(ORG, {
+				NODE_ENV: "production",
+				SUPERSET_HOME_DIR: "/tmp/custom-home-alias/",
+			}),
+		).toBe(canonical);
+		expect(
+			ptyDaemonSocketPath(ORG, {
+				NODE_ENV: "production",
+				SUPERSET_HOME_DIR: "/tmp/elsewhere/../custom-home-alias",
+			}),
+		).toBe(canonical);
+	});
+
 	test("any non-default home is namespaced, regardless of NODE_ENV", () => {
 		// Two instances of the same org must never share a socket — a test
 		// or custom-home instance on the org-only socket can adopt/reap/kill

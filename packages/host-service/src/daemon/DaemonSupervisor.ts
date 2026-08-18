@@ -154,7 +154,11 @@ export function ptyDaemonSocketPath(
 	const defaultHome = path.join(os.homedir(), ".superset");
 	const isDefaultHome =
 		!home || path.resolve(home) === path.resolve(defaultHome);
-	const key = isDefaultHome ? organizationId : `${organizationId}:${home}`;
+	// Hash the RESOLVED home so equivalent spellings of one custom home
+	// (trailing slash, relative segments) land on the same socket.
+	const key = isDefaultHome
+		? organizationId
+		: `${organizationId}:${path.resolve(home)}`;
 	const shortId = createHash("sha256").update(key).digest("hex").slice(0, 12);
 	return path.join(os.tmpdir(), `superset-ptyd-${shortId}.sock`);
 }

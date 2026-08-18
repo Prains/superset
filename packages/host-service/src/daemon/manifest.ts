@@ -11,7 +11,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 export interface PtyDaemonManifest {
 	pid: number;
@@ -55,7 +55,9 @@ export function assertIsolatedDaemonNamespaceInTests(
 	if (!isTestRunnerContext(env)) return;
 	const home = env.SUPERSET_HOME_DIR;
 	const defaultHome = join(homedir(), ".superset");
-	if (!home || home === defaultHome) {
+	// Resolve before comparing: a trailing-slash or relative alias of the
+	// default home must not slip past the guard.
+	if (!home || resolve(home) === resolve(defaultHome)) {
 		throw new Error(
 			"refusing to touch the default ~/.superset daemon namespace from a " +
 				"test: set SUPERSET_HOME_DIR to an isolated temp dir (and " +
