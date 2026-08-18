@@ -18,11 +18,13 @@ export function useLinearOptions(organizationId: string): ProviderOptions {
 
 	return useMemo(
 		() => ({
-			teams: options.data?.teams ?? [],
-			projects: options.data?.projects ?? [],
-			labels: options.data?.labels ?? [],
-			statuses: options.data?.statuses ?? [],
-			linearPeople: people.data ?? [],
+			linear: {
+				teams: options.data?.teams ?? [],
+				projects: options.data?.projects ?? [],
+				labels: options.data?.labels ?? [],
+				statuses: options.data?.statuses ?? [],
+				people: people.data ?? [],
+			},
 		}),
 		[options.data, people.data],
 	);

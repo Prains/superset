@@ -5,11 +5,27 @@ import type {
 } from "../automation-triggers";
 import {
 	actorAllows,
-	type MatchableEvent,
+	type BaseMatchableEvent,
+	type MatchContext,
 	type MatchResult,
 	scopeAllows,
 	scopeAllowsAny,
 } from "./core";
+
+/** A Linear delivery, normalized to what Linear triggers filter on. */
+export type LinearMatchableEvent = BaseMatchableEvent & {
+	provider: "linear";
+	teamId: string | null;
+	projectId: string | null;
+	/** The workflow state the issue is in after the change. */
+	stateId: string | null;
+	/** The issue's assignee after the change; what the assignee filter compares against. */
+	assigneeId: string | null;
+	/** Ids, not names: a label can be renamed and triggers must keep matching. */
+	labelIds: string[];
+	/** The product-level names this delivery maps to; see linearEventNames. */
+	names: LinearTriggerEvent[];
+};
 
 const no = (reason: string): MatchResult => ({ matches: false, reason });
 
@@ -59,11 +75,7 @@ export function linearEventNames(delivery: {
 	return [];
 }
 
-/**
- * Whether a Linear trigger config accepts this event. Label ids ride in
- * `event.labels`; the rest of what Linear carries has no column and comes
- * through the context.
- */
+/** Whether a Linear trigger config accepts this event. */
 export function linearTriggerMatches(
 	config: {
 		event: string;
@@ -73,41 +85,36 @@ export function linearTriggerMatches(
 		toStatus: TriggerScope;
 		assignee: TriggerActor;
 	},
-	event: MatchableEvent,
-	context: {
-		names: LinearTriggerEvent[];
-		teamId: string | null;
-		projectId: string | null;
-		/** The workflow state the issue is in after the change. */
-		stateId: string | null;
-		assigneeId: string | null;
-		ownerIds: string[];
-	},
+	event: LinearMatchableEvent,
+	context: MatchContext,
 ): MatchResult {
-	if (!context.names.includes(config.event as LinearTriggerEvent)) {
+	if (!event.names.includes(config.event as LinearTriggerEvent)) {
 		return no("event");
 	}
-	if (!scopeAllows(config.teams, context.teamId)) {
+	if (!scopeAllows(config.teams, event.teamId)) {
 		return no("team");
 	}
 	// Projects, labels and status only narrow when configured; null means the
 	// trigger author did not choose to filter on them, which for these is "any".
 	if (
 		config.projects !== null &&
-		!scopeAllows(config.projects, context.projectId)
+		!scopeAllows(config.projects, event.projectId)
 	) {
 		return no("project");
 	}
-	if (config.labels !== null && !scopeAllowsAny(config.labels, event.labels)) {
+	if (
+		config.labels !== null &&
+		!scopeAllowsAny(config.labels, event.labelIds)
+	) {
 		return no("label");
 	}
 	if (
 		config.toStatus !== null &&
-		!scopeAllows(config.toStatus, context.stateId)
+		!scopeAllows(config.toStatus, event.stateId)
 	) {
 		return no("status");
 	}
-	if (!actorAllows(config.assignee, context.assigneeId, context.ownerIds)) {
+	if (!actorAllows(config.assignee, event.assigneeId, context.ownerIds)) {
 		return no("assignee");
 	}
 	return { matches: true };

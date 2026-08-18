@@ -1,6 +1,9 @@
 import { db } from "@superset/db/client";
 import { automationEvents } from "@superset/db/schema";
-import { linearEventNames } from "@superset/shared/automation-matching";
+import {
+	type LinearMatchableEvent,
+	linearEventNames,
+} from "@superset/shared/automation-matching";
 import { stripNullChars } from "@/lib/strip-null-chars";
 
 /**
@@ -38,14 +41,32 @@ export type LinearDelivery = {
 	};
 };
 
-export function linearEventNamesFor(delivery: LinearDelivery) {
-	return linearEventNames({
-		type: delivery.type,
-		action: delivery.action,
-		updatedFrom: delivery.updatedFrom ?? null,
-		assigneeId: delivery.data.assigneeId ?? null,
-		completedAt: delivery.data.completedAt ?? null,
-	});
+/**
+ * Normalizes a Linear delivery into what Linear triggers filter on. The
+ * columns on `automation_events` are what every provider shares; this is what
+ * Linear adds, all of it read off the entity in the payload.
+ */
+export function matchableFrom(delivery: LinearDelivery): LinearMatchableEvent {
+	const { data } = delivery;
+	return {
+		provider: "linear",
+		eventType: `${delivery.type}.${delivery.action}`,
+		names: linearEventNames({
+			type: delivery.type,
+			action: delivery.action,
+			updatedFrom: delivery.updatedFrom ?? null,
+			assigneeId: data.assigneeId ?? null,
+			completedAt: data.completedAt ?? null,
+		}),
+		actorId: delivery.actor?.id ?? null,
+		actorLogin: delivery.actor?.name ?? null,
+		body: null,
+		teamId: data.teamId ?? null,
+		projectId: data.projectId ?? null,
+		stateId: data.stateId ?? null,
+		assigneeId: data.assigneeId ?? null,
+		labelIds: data.labelIds ?? [],
+	};
 }
 
 /** Linear ids are stable across renames, so the entity id is the key. */

@@ -20,11 +20,11 @@ import {
 } from "@superset/trpc/integrations/linear";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { env } from "@/env";
+import { dispatchMatchingTriggers } from "@/lib/automations/dispatchMatchingTriggers";
 import { stripNullChars } from "@/lib/strip-null-chars";
-import { dispatchMatchingTriggers } from "./dispatchMatchingTriggers";
 import {
 	type LinearDelivery,
-	linearEventNamesFor,
+	matchableFrom,
 	recordAutomationEvent,
 } from "./recordAutomationEvent";
 
@@ -191,9 +191,9 @@ async function recordAndDispatch(
 	connection: SelectIntegrationConnection,
 	webhookEventId: string,
 ): Promise<void> {
-	const names = linearEventNamesFor(delivery);
+	const event = matchableFrom(delivery);
 	// Nothing in the product names this delivery, so there is nothing to record.
-	if (names.length === 0) return;
+	if (event.names.length === 0) return;
 
 	// Linear's per-delivery id is stable across its retries. The payload itself
 	// carries no such id, so without the header the entity and send time stand
@@ -219,8 +219,7 @@ async function recordAndDispatch(
 	const result = await dispatchMatchingTriggers({
 		organizationId: connection.organizationId,
 		eventId: recorded.eventId,
-		names,
-		delivery,
+		event,
 	});
 	if (result.matched > 0) {
 		console.log(

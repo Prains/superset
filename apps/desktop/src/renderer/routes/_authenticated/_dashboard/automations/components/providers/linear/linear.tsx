@@ -31,7 +31,7 @@ function renderPart(
 					scope={config.teams}
 					onChange={(v) => set({ teams: v })}
 					className={mark("teams")}
-					options={options.teams ?? []}
+					options={options.linear?.teams ?? []}
 					emptyLabel="Select teams"
 					anyLabel="Any team"
 					disabled={disabled}
@@ -45,7 +45,7 @@ function renderPart(
 					// Clearing an optional filter means "any", not "none": the chip
 					// says "Any project" either way, and null would make that a lie.
 					onChange={(v) => set({ projects: v ?? { mode: "any" } })}
-					options={options.projects ?? []}
+					options={options.linear?.projects ?? []}
 					emptyLabel="Any project"
 					anyLabel="Any project"
 					disabled={disabled}
@@ -57,7 +57,7 @@ function renderPart(
 					key={index}
 					scope={config.labels}
 					onChange={(v) => set({ labels: v ?? { mode: "any" } })}
-					options={options.labels ?? []}
+					options={options.linear?.labels ?? []}
 					emptyLabel="Any label"
 					anyLabel="Any label"
 					disabled={disabled}
@@ -69,7 +69,7 @@ function renderPart(
 					key={index}
 					scope={config.toStatus}
 					onChange={(v) => set({ toStatus: v ?? { mode: "any" } })}
-					options={options.statuses ?? []}
+					options={options.linear?.statuses ?? []}
 					emptyLabel="Any status"
 					anyLabel="Any status"
 					disabled={disabled}
@@ -82,7 +82,7 @@ function renderPart(
 					actor={config.assignee}
 					onChange={(v) => set({ assignee: v })}
 					className={mark("assignee")}
-					people={options.linearPeople ?? []}
+					people={options.linear?.people ?? []}
 					disabled={disabled}
 				/>
 			);
