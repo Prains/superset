@@ -311,6 +311,26 @@ export function DashboardSidebarHeader({
 						<TooltipTrigger asChild>
 							<button
 								type="button"
+								onClick={handleFreeSoloClick}
+								aria-label="Free Solo"
+								aria-current={isFreeSoloOpen ? "page" : undefined}
+								className={cn(
+									"flex size-7 items-center justify-center rounded-md transition-colors",
+									isFreeSoloOpen
+										? "bg-fill-selected text-muted-foreground"
+										: "text-muted-foreground hover:bg-fill-hover",
+								)}
+							>
+								<LuLayoutDashboard className="size-3.5" strokeWidth={1.5} />
+							</button>
+						</TooltipTrigger>
+						<TooltipContent side="right">Free Solo</TooltipContent>
+					</Tooltip>
+
+					<Tooltip delayDuration={300}>
+						<TooltipTrigger asChild>
+							<button
+								type="button"
 								onClick={handleTasksClick}
 								aria-label="Tasks"
 								aria-current={isTasksOpen ? "page" : undefined}
@@ -518,6 +538,8 @@ export function DashboardSidebarHeader({
 			<button
 				type="button"
 				onClick={handleFreeSoloClick}
+				aria-label="Free Solo"
+				aria-current={isFreeSoloOpen ? "page" : undefined}
 				className={cn(
 					"flex w-full items-center gap-2 rounded-md px-2 py-1 text-[13px] font-medium transition-colors",
 					isFreeSoloOpen
