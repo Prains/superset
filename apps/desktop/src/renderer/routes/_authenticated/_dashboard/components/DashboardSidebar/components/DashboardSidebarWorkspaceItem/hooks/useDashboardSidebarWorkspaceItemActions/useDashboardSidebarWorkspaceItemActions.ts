@@ -232,6 +232,26 @@ export function useDashboardSidebarWorkspaceItemActions({
 		}
 	};
 
+	// Detaches the row from its lineage parent — the workspace:changed
+	// broadcast re-flattens the subtree, so no local state is touched.
+	const handleMoveToTopLevel = async () => {
+		if (!workspaceHostUrl) {
+			showHostServiceUnavailableToast(hostService, {
+				action: "move the workspace to the top level",
+			});
+			return;
+		}
+		try {
+			await getHostServiceClientByUrl(workspaceHostUrl).workspace.update.mutate(
+				{ id: workspaceId, parentWorkspaceId: null },
+			);
+		} catch (error) {
+			toast.error(
+				`Failed to move workspace: ${error instanceof Error ? error.message : "Unknown error"}`,
+			);
+		}
+	};
+
 	const handleCopyBranchName = async () => {
 		if (!branch) {
 			toast.error("Branch name is not available");
@@ -255,6 +275,7 @@ export function useDashboardSidebarWorkspaceItemActions({
 		handleCopyBranchName,
 		handleCreateSection,
 		handleOpenInFinder,
+		handleMoveToTopLevel,
 		handleRemoveFromSidebar,
 		handleRemovePullRequest,
 		handleTogglePin,

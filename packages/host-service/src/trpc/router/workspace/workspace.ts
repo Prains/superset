@@ -104,6 +104,7 @@ export const workspaceRouter = router({
 				taskId: z.string().uuid().nullable().optional(),
 				// Replace-all tag set; normalized server-side.
 				tags: z.array(z.string()).max(64).optional(),
+				parentWorkspaceId: z.string().uuid().nullable().optional(),
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -123,6 +124,66 @@ export const workspaceRouter = router({
 						'The local workspace cannot be renamed — it always displays as "local".',
 				});
 			}
+			const patch: {
+				name?: string;
+				branch?: string;
+				taskId?: string | null;
+				parentWorkspaceId?: string | null;
+			} = {};
+			if (input.name !== undefined) patch.name = input.name;
+			if (input.branch !== undefined) patch.branch = input.branch;
+			if (input.taskId !== undefined) patch.taskId = input.taskId;
+			// Re-parenting is an explicit correction, so unlike create's
+			// ambient env inference every invalid target errors loudly instead
+			// of silently recording nothing.
+			if (input.parentWorkspaceId !== undefined) {
+				if (current.type === "main") {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "The local workspace cannot be nested under another",
+					});
+				}
+				if (input.parentWorkspaceId !== null) {
+					if (input.parentWorkspaceId === input.id) {
+						throw new TRPCError({
+							code: "BAD_REQUEST",
+							message: "A workspace cannot be its own parent",
+						});
+					}
+					const parent = getLocalWorkspace(ctx.db, input.parentWorkspaceId);
+					if (!parent || parent.archivedAt != null) {
+						throw new TRPCError({
+							code: "BAD_REQUEST",
+							message: `Parent workspace not found: ${input.parentWorkspaceId}`,
+						});
+					}
+					if (parent.projectId !== current.projectId) {
+						throw new TRPCError({
+							code: "BAD_REQUEST",
+							message: "Parent workspace belongs to a different project",
+						});
+					}
+					// Walk the proposed parent's ancestor chain: reaching this
+					// workspace means the move would close a cycle. The visited
+					// set terminates the walk even if the DB already holds one.
+					const visited = new Set<string>();
+					let ancestor: string | null = parent.parentWorkspaceId;
+					while (ancestor !== null && !visited.has(ancestor)) {
+						if (ancestor === input.id) {
+							throw new TRPCError({
+								code: "BAD_REQUEST",
+								message:
+									"Cannot move a workspace under its own descendant",
+							});
+						}
+						visited.add(ancestor);
+						ancestor =
+							getLocalWorkspace(ctx.db, ancestor)?.parentWorkspaceId ?? null;
+					}
+				}
+				patch.parentWorkspaceId = input.parentWorkspaceId;
+			}
+			// After lineage validation so a rejected parent can't half-apply.
 			if (input.tags !== undefined) {
 				setLocalWorkspaceTags(
 					{ db: ctx.db, eventBus: ctx.eventBus },
@@ -130,11 +191,6 @@ export const workspaceRouter = router({
 					normalizeWorkspaceTags(input.tags),
 				);
 			}
-			const patch: { name?: string; branch?: string; taskId?: string | null } =
-				{};
-			if (input.name !== undefined) patch.name = input.name;
-			if (input.branch !== undefined) patch.branch = input.branch;
-			if (input.taskId !== undefined) patch.taskId = input.taskId;
 			if (Object.keys(patch).length === 0) {
 				const after = getLocalWorkspace(ctx.db, input.id) ?? current;
 				return toCloudShape(after, ctx.organizationId);
@@ -161,7 +217,10 @@ export const workspaceRouter = router({
 					);
 				});
 			}
-			return toCloudShape(updated, ctx.organizationId);
+			return {
+				...toCloudShape(updated, ctx.organizationId),
+				parentWorkspaceId: updated.parentWorkspaceId,
+			};
 		}),
 
 	// Workspaces are host-owned now; the cloud list it proxied is gone. Kept as

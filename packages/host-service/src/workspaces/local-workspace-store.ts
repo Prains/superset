@@ -193,6 +193,8 @@ export interface UpdateLocalWorkspacePatch {
 	worktreePath?: string;
 	taskId?: string | null;
 	projectId?: string;
+	/** Pre-validated by the caller (existence, project, cycle guard). */
+	parentWorkspaceId?: string | null;
 }
 
 /** Patch a local row, bump `updatedAt`, and broadcast. */
