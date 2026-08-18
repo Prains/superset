@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { db } from "@superset/db/client";
 import {
 	automationEvents,
@@ -34,21 +34,6 @@ const rateLimit = new Ratelimit({
 const EVENT_TYPE = "webhook.received";
 const MAX_BODY_BYTES = 1024 * 1024;
 
-function externalEventIdFor(
-	automationId: string,
-	idempotencyKey: string | null,
-	body: string,
-): string {
-	const hash = createHash("sha256");
-	if (idempotencyKey) {
-		hash.update(`key:${automationId}:${idempotencyKey}`);
-	} else {
-		const minute = Math.floor(Date.now() / 60_000);
-		hash.update(`body:${automationId}:${minute}:`).update(body);
-	}
-	return hash.digest("hex");
-}
-
 function parseBody(body: string): Record<string, unknown> | unknown[] {
 	if (body.trim() === "") return {};
 	const parsed: unknown = JSON.parse(body);
@@ -60,8 +45,9 @@ function parseBody(body: string): Record<string, unknown> | unknown[] {
 
 /**
  * Inbound raw webhook: `POST /api/automations/webhook/{automationId}` with
- * `Authorization: Bearer <token>`. Any authenticated delivery fires every
- * enabled webhook trigger on the automation; there are no filters.
+ * `Authorization: Bearer <token>`. Every authenticated delivery is one event
+ * and fires every enabled webhook trigger on the automation; there are no
+ * filters and no dedupe.
  */
 export async function POST(
 	request: Request,
@@ -89,6 +75,7 @@ export async function POST(
 		.select({
 			secretHash: automationTriggers.secretHash,
 			organizationId: automations.organizationId,
+			automationEnabled: automations.enabled,
 		})
 		.from(automationTriggers)
 		.innerJoin(automations, eq(automations.id, automationTriggers.automationId))
@@ -107,6 +94,12 @@ export async function POST(
 		return Response.json({ error: "Invalid bearer token" }, { status: 401 });
 	}
 	const { organizationId } = authenticating;
+	if (!authenticating.automationEnabled) {
+		return Response.json(
+			{ error: `Automation ${automationId} is disabled` },
+			{ status: 400 },
+		);
+	}
 
 	const body = await request.text();
 	if (Buffer.byteLength(body) > MAX_BODY_BYTES) {
@@ -122,12 +115,6 @@ export async function POST(
 		);
 	}
 
-	const externalEventId = externalEventIdFor(
-		automationId,
-		request.headers.get("idempotency-key"),
-		body,
-	);
-
 	const [inserted] = await db
 		.insert(automationEvents)
 		.values({
@@ -135,7 +122,7 @@ export async function POST(
 			integrationConnectionId: null,
 			provider: "webhook",
 			eventType: EVENT_TYPE,
-			externalEventId,
+			externalEventId: randomUUID(),
 			resourceKey: null,
 			title: "Webhook",
 			url: null,
@@ -146,17 +133,10 @@ export async function POST(
 			payload: stripNullChars(payload),
 			webhookEventId: null,
 		})
-		.onConflictDoNothing({
-			target: [
-				automationEvents.integrationConnectionId,
-				automationEvents.provider,
-				automationEvents.externalEventId,
-			],
-		})
 		.returning({ id: automationEvents.id });
 
 	if (!inserted) {
-		return Response.json({ ok: true, duplicate: true, runs: 0 });
+		return Response.json({ error: "Failed to record event" }, { status: 500 });
 	}
 
 	const event: WebhookMatchableEvent = {
@@ -175,7 +155,10 @@ export async function POST(
 			automationId,
 		});
 	} catch (error) {
-		console.error("[automations/webhook] dispatch failed:", error);
+		console.error(
+			`[automations/webhook] dispatch failed for event ${inserted.id}:`,
+			error,
+		);
 		await db
 			.delete(automationEvents)
 			.where(eq(automationEvents.id, inserted.id));
