@@ -170,14 +170,19 @@ export const slackTriggerEventValues = [
 	"reaction_added",
 	"channel_created",
 ] as const;
+export type SlackTriggerEvent = (typeof slackTriggerEventValues)[number];
 
 export const slackTriggerConfigSchema = z.object({
 	kind: z.literal("slack"),
 	event: z.enum(slackTriggerEventValues),
+	// The channel a message or reaction lands in. Not meaningful for
+	// channel_created — the channel does not exist yet — so null there.
 	channels: triggerScopeSchema,
 	// Only meaningful for reaction_added; null elsewhere.
 	emoji: triggerScopeSchema,
 	actor: triggerActorSchema,
+	// A pattern over the message text, or over the channel name for
+	// channel_created.
 	messageFilter: textFilterSchema.nullable().default(null),
 });
 
@@ -336,11 +341,17 @@ export function describeTriggerProblems(
 				break;
 			}
 			case "slack": {
-				if (isEmptyScope(config.channels)) {
+				if (
+					config.event !== "channel_created" &&
+					isEmptyScope(config.channels)
+				) {
 					add(index, "channels", "Specify at least one channel.");
 				}
 				if (config.event === "reaction_added" && isEmptyScope(config.emoji)) {
 					add(index, "emoji", "Specify at least one reaction.");
+				}
+				if (isEmptyActor(config.actor)) {
+					add(index, "actor", "Specify at least one person, or choose Anyone.");
 				}
 				break;
 			}
