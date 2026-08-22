@@ -168,7 +168,7 @@ describe("getListeningPortsForPids (real sockets)", () => {
 			} finally {
 				if (originalPath === undefined) delete process.env.PATH;
 				else process.env.PATH = originalPath;
-				server.stop(true);
+				await server.stop(true);
 			}
 		},
 	);
